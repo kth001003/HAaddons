@@ -513,6 +513,7 @@ if __name__ == '__main__':
         CONFIG = json.load(file)
     print("Reading config file success!", file=sys.stderr)
     logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'])
+    print("finish load logger! 지금부터 로거가 기록합니다", file=sys.stderr)
     logger.info("Initializing settings...")
     controller = WallpadController(CONFIG, logger)
     controller.run()
