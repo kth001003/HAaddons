@@ -1,8 +1,8 @@
 {
   "name": "[TEST] COMMAX Wallpad",
-  "version": "2.0.11",
+  "version": "2.0.12",
   "slug": "cwbs",
-  "url": "https://github.com/kimtc99/HAaddons",
+  "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "mqtt 통신을 활용한 코맥스 월패드 컨트롤러",
   "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
   "map": [

@@ -65,73 +65,91 @@ class WallpadController:
             return None
 
     def find_device(self):
-        with open('/apps/cwbs_devinfo.json') as file:
-            dev_info = json.load(file)
-        statePrefix = {dev_info[name]['stateON'][:2]: name for name in dev_info if dev_info[name].get('stateON')}
-        device_num = {name: 0 for name in statePrefix.values()}
-        collect_data = {name: set() for name in statePrefix.values()}
+        try:
+            # share 디렉토리가 없는 경우 생성
+            if not os.path.exists(self.share_dir):
+                os.makedirs(self.share_dir)
+                self.logger.info(f'{self.share_dir} 디렉토리를 생성했습니다.')
+            
+            save_path = os.path.join(self.share_dir, 'cwbs_found_device.json')
+            
+            with open('/apps/cwbs_devinfo.json') as file:
+                dev_info = json.load(file)
+            
+            statePrefix = {dev_info[name]['stateON'][:2]: name for name in dev_info if dev_info[name].get('stateON')}
+            device_num = {name: 0 for name in statePrefix.values()}
+            collect_data = {name: set() for name in statePrefix.values()}
 
-        target_time = time.time() + 20
+            target_time = time.time() + 20
 
-        def on_connect(client, userdata, flags, rc):
-            if rc == 0:
-                self.logger.info("MQTT broker 접속 완료")
-                self.logger.info("20초동안 기기를 검색합니다.")
-                client.subscribe(f'{self.ELFIN_TOPIC}/#', 0)
-            else:
-                errcode = {
-                    1: 'Connection refused - incorrect protocol version',
-                    2: 'Connection refused - invalid client identifier',
-                    3: 'Connection refused - server unavailable',
-                    4: 'Connection refused - bad username or password',
-                    5: 'Connection refused - not authorised'
-                }
-                self.logger.info(errcode[rc])
+            def on_connect(client, userdata, flags, rc):
+                if rc == 0:
+                    self.logger.info("MQTT broker 접속 완료")
+                    self.logger.info("20초동안 기기를 검색합니다.")
+                    client.subscribe(f'{self.ELFIN_TOPIC}/#', 0)
+                else:
+                    errcode = {
+                        1: 'Connection refused - incorrect protocol version',
+                        2: 'Connection refused - invalid client identifier',
+                        3: 'Connection refused - server unavailable',
+                        4: 'Connection refused - bad username or password',
+                        5: 'Connection refused - not authorised'
+                    }
+                    self.logger.info(errcode[rc])
 
-        def on_message(client, userdata, msg):
-            raw_data = msg.payload.hex().upper()
-            for k in range(0, len(raw_data), 16):
-                data = raw_data[k:k + 16]
-                if data == self.checksum(data) and data[:2] in statePrefix:
-                    name = statePrefix[data[:2]]
-                    collect_data[name].add(data)
-                    if dev_info[name].get('stateNUM'):
-                        device_num[name] = max([device_num[name], 
-                                             int(data[int(dev_info[name]['stateNUM']) - 1])])
-                    else:
-                        device_num[name] = 1
+            def on_message(client, userdata, msg):
+                raw_data = msg.payload.hex().upper()
+                for k in range(0, len(raw_data), 16):
+                    data = raw_data[k:k + 16]
+                    if data == self.checksum(data) and data[:2] in statePrefix:
+                        name = statePrefix[data[:2]]
+                        collect_data[name].add(data)
+                        if dev_info[name].get('stateNUM'):
+                            device_num[name] = max([device_num[name], 
+                                                 int(data[int(dev_info[name]['stateNUM']) - 1])])
+                        else:
+                            device_num[name] = 1
 
-        mqtt_client = mqtt.Client('cwbs')
-        mqtt_client.username_pw_set(self.config['mqtt_id'], self.config['mqtt_password'])
-        mqtt_client.on_connect = on_connect
-        mqtt_client.on_message = on_message
-        mqtt_client.connect_async(self.config['mqtt_server'])
-        mqtt_client.user_data_set(target_time)
-        mqtt_client.loop_start()
+            mqtt_client = mqtt.Client('cwbs')
+            mqtt_client.username_pw_set(self.config['mqtt_id'], self.config['mqtt_password'])
+            mqtt_client.on_connect = on_connect
+            mqtt_client.on_message = on_message
+            mqtt_client.connect_async(self.config['mqtt_server'])
+            mqtt_client.user_data_set(target_time)
+            mqtt_client.loop_start()
 
-        while time.time() < target_time:
-            pass
+            while time.time() < target_time:
+                pass
 
-        mqtt_client.loop_stop()
+            mqtt_client.loop_stop()
 
-        self.logger.info('다음의 데이터를 찾았습니다...')
-        self.logger.info('======================================')
+            self.logger.info('다음의 데이터를 찾았습니다...')
+            self.logger.info('======================================')
 
-        for name in collect_data:
-            collect_data[name] = sorted(collect_data[name])
-            dev_info[name]['Number'] = device_num[name]
-            self.logger.info('DEVICE: {}'.format(name))
-            self.logger.info('Packets: {}'.format(collect_data[name]))
-            self.logger.info('-------------------')
+            for name in collect_data:
+                collect_data[name] = sorted(collect_data[name])
+                dev_info[name]['Number'] = device_num[name]
+                self.logger.info('DEVICE: {}'.format(name))
+                self.logger.info('Packets: {}'.format(collect_data[name]))
+                self.logger.info('-------------------')
 
-        self.logger.info('======================================')
-        self.logger.info('기기의 숫자만 변경하였습니다. 상태 패킷은 직접 수정하여야 합니다.')
-        
-        with open(self.share_dir + '/cwbs_found_device.json', 'w', encoding='utf-8') as make_file:
-            json.dump(dev_info, make_file, indent="\t")
-            self.logger.info('기기리스트 저장 중 : /share/cowbs_found_device.json')
-            self.logger.info('파일을 수정하고 싶은 경우 종료 후 다시 시작하세요.')
-        return dev_info
+            self.logger.info('======================================')
+            self.logger.info('기기의 숫자만 변경하였습니다. 상태 패킷은 직접 수정하여야 합니다.')
+            
+            # 파일 저장 시 예외 처리 추가
+            try:
+                with open(save_path, 'w', encoding='utf-8') as make_file:
+                    json.dump(dev_info, make_file, indent="\t")
+                    self.logger.info(f'기기리스트 저장 중 : {save_path}')
+                    self.logger.info('파일을 수정하고 싶은 경우 종료 후 다시 시작하세요.')
+            except IOError as e:
+                self.logger.error(f'기기리스트 저장 실패: {str(e)}')
+            
+            return dev_info
+            
+        except Exception as e:
+            self.logger.error(f'기기 검색 중 오류 발생: {str(e)}')
+            return None
 
     def pad(self, value):
         value = int(value)
