@@ -511,7 +511,7 @@ if __name__ == '__main__':
     print("Reading config file...", file=sys.stderr)
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
-    
+    print("Reading config file success!", file=sys.stderr)
     logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'])
     logger.info("Initializing settings...")
     controller = WallpadController(CONFIG, logger)
