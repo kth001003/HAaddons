@@ -11,12 +11,14 @@ ELFIN_TOPIC = 'ew11'
 
 
 def log(string):
+    # 현재 시간을 포함하여 로그 메시지를 출력합니다.
     date = time.strftime('%Y-%m-%d %p %I:%M:%S', time.localtime(time.time()))
     print(f'[{date}] {string}')
     return
 
 
 def checksum(input_hex):
+    # 주어진 16진수 문자열의 체크섬을 계산하여 반환합니다.
     try:
         input_hex = input_hex[:14]
         s1 = sum([int(input_hex[val], 16) for val in range(0, 14, 2)])
@@ -30,6 +32,7 @@ def checksum(input_hex):
 
 
 def find_device(config):
+    # MQTT를 통해 기기를 검색하고, 기기 정보를 JSON 파일로 저장합니다.
     HA_TOPIC = config['mqtt_TOPIC']
 
     with open('/apps/cwbs_devinfo.json') as file:
@@ -41,6 +44,7 @@ def find_device(config):
     target_time = time.time() + 20
 
     def on_connect(client, userdata, flags, rc):
+        # MQTT 브로커에 연결되었을 때 호출됩니다.
         if rc == 0:
             log("MQTT broker 접속 완료")
             log("20초동안 기기를 검색합니다.")
@@ -54,10 +58,10 @@ def find_device(config):
             log(errcode[rc])
 
     def on_message(client, userdata, msg):
+        # MQTT 메시지를 수신했을 때 호출됩니다.
         raw_data = msg.payload.hex().upper()
         for k in range(0, len(raw_data), 16):
             data = raw_data[k:k + 16]
-            # log(data)
             if data == checksum(data) and data[:2] in statePrefix:
                 name = statePrefix[data[:2]]
                 collect_data[name].add(data)
@@ -98,6 +102,7 @@ def find_device(config):
 
 
 def do_work(config, device_list):
+    # 주어진 설정과 기기 목록을 사용하여 작업을 수행합니다.
     HA_TOPIC = config['mqtt_TOPIC']
     STATE_TOPIC = HA_TOPIC + '/{}/{}/state'
 
@@ -108,10 +113,12 @@ def do_work(config, device_list):
     mqtt_client = mqtt.Client(HA_TOPIC)
 
     def pad(value):
+        # 주어진 값을 두 자리 문자열로 변환합니다.
         value = int(value)
         return '0' + str(value) if value < 10 else str(value)
 
     def make_hex(k, input_hex, change):
+        # 주어진 입력을 기반으로 16진수 명령을 생성합니다.
         if input_hex:
             try:
                 change = int(change)
@@ -120,7 +127,8 @@ def do_work(config, device_list):
                 pass
         return checksum(input_hex)
 
-    def make_hex_temp(k, curTemp, setTemp, state):  # 온도조절기 16자리 (8byte) hex 만들기
+    def make_hex_temp(k, curTemp, setTemp, state):
+        # 온도 조절기 명령을 위한 16진수 문자열을 생성합니다.
         if state == 'OFF' or state == 'ON' or state == 'CHANGE':
             tmp_hex = device_list['Thermo'].get('command' + state)
             change = device_list['Thermo'].get('commandNUM')
@@ -149,6 +157,7 @@ def do_work(config, device_list):
                 return None
 
     def make_device_info(dev_name):
+        # 주어진 기기 이름에 대한 정보를 생성합니다.
         num = device_list[dev_name].get('Number', 0)
         if num > 0:
             arr = [ {cmd + onoff: make_hex(k, device_list[dev_name].get(cmd + onoff), device_list[dev_name].get(cmd + 'NUM'))
@@ -188,6 +197,7 @@ def do_work(config, device_list):
     COLLECTDATA = {'data': set(), 'EVtime': time.time(), 'LastRecv': time.time_ns()}
 
     async def recv_from_HA(topics, value):
+        # Home Assistant로부터 명령을 수신하여 처리합니다.
         if mqtt_log:
             log('[LOG] HA ->> : {} -> {}'.format('/'.join(topics), value))
 
@@ -255,6 +265,7 @@ def do_work(config, device_list):
                 log('[DEBUG] There is no command for {}'.format('/'.join(topics)))
 
     async def slice_raw_data(raw_data):
+        # 수신된 원시 데이터를 16바이트 단위로 나누어 처리합니다.
         if elfin_log:
             log('[SIGNAL] receved: {}'.format(raw_data))
 
@@ -262,6 +273,7 @@ def do_work(config, device_list):
         await asyncio.gather(*cors)
 
     async def recv_from_elfin(data):
+        # Elfin 장치로부터 수신된 데이터를 처리합니다.
         COLLECTDATA['LastRecv'] = time.time_ns()
         if data:
             if HOMESTATE.get('EV1power') == 'ON':
@@ -325,6 +337,7 @@ def do_work(config, device_list):
                     log('[WARNING] 기기목록에 등록되지 않는 패킷입니다. JSON 파일을 확인하세요..')
 
     async def update_state(device, idx, onoff):
+        # 기기의 상태를 업데이트하고 MQTT로 전송합니다.
         state = 'power'
         deviceID = device + str(idx + 1)
         key = deviceID + state
@@ -334,8 +347,9 @@ def do_work(config, device_list):
         if mqtt_log:
             log('[LOG] ->> HA : {} >> {}'.format(topic, onoff))
         return
-#
+
     async def update_fan(idx, onoff):
+        # 팬의 상태를 업데이트하고 MQTT로 전송합니다.
         deviceID = 'Fan' + str(idx + 1)
         if onoff == 'ON' or onoff == 'OFF':
             state = 'power'
@@ -354,6 +368,7 @@ def do_work(config, device_list):
         return
 
     async def update_temperature(idx, curTemp, setTemp):
+        # 온도 조절기의 현재 온도와 설정 온도를 업데이트하고 MQTT로 전송합니다.
         deviceID = 'Thermo' + str(idx + 1)
         temperature = {'curTemp': pad(curTemp), 'setTemp': pad(setTemp)}
         for state in temperature:
@@ -368,6 +383,7 @@ def do_work(config, device_list):
         return
 
     async def update_outlet_value(idx, val):
+        # 콘센트의 전력 소비량을 업데이트하고 MQTT로 전송합니다.
         deviceID = 'Outlet' + str(idx + 1)
         try:
             val = '%.1f' % float(int(val) / 10)
@@ -379,6 +395,7 @@ def do_work(config, device_list):
             pass
 
     async def update_ev_value(idx, val):
+        # EV의 층 정보를 업데이트하고 MQTT로 전송합니다.
         deviceID = 'EV' + str(idx + 1)
         try:
             BF = device_info['EV']['BasementFloor']
@@ -391,6 +408,7 @@ def do_work(config, device_list):
             pass
 
     def on_connect(client, userdata, flags, rc):
+        # MQTT 브로커에 연결되었을 때 호출됩니다.
         if rc == 0:
             log("MQTT 접속 완료..")
             client.subscribe([(HA_TOPIC + '/#', 0), (ELFIN_TOPIC + '/recv', 0), (ELFIN_TOPIC + '/send', 1)])
@@ -473,6 +491,7 @@ def do_work(config, device_list):
             log(errcode[rc])
 
     def on_message(client, userdata, msg):
+        # MQTT 메시지를 수신했을 때 호출됩니다.
         topics = msg.topic.split('/')
         try:
             if topics[0] == HA_TOPIC and topics[-1] == 'command':
@@ -482,60 +501,84 @@ def do_work(config, device_list):
         except:
             pass
 
-    async def send_to_elfin():
+    def log_error(err):
+        # 에러 메시지를 로그에 출력합니다.
+        log(f'[ERROR] {err}')
+
+    def log_warning(message):
+        # 경고 메시지를 로그에 출력합니다.
+        log(f'[WARNING] {message}')
+
+    def log_debug(message, debug):
+        # 디버그 메시지를 로그에 출력합니다. 디버그 모드가 활성화된 경우에만 출력됩니다.
+        if debug:
+            log(f'[DEBUG] {message}')
+
+    def log_signal(message, elfin_log):
+        # 신호 관련 메시지를 로그에 출력합니다. Elfin 로그가 활성화된 경우에만 출력됩니다.
+        if elfin_log:
+            log(f'[SIGNAL] {message}')
+
+    def publish_mqtt(topic, message, mqtt_client, mqtt_log):
+        # MQTT 메시지를 주어진 토픽으로 발행합니다. MQTT 로그가 활성화된 경우 로그에 출력합니다.
+        mqtt_client.publish(topic, message.encode())
+        if mqtt_log:
+            log(f'[LOG] ->> HA : {topic} >> {message}')
+
+    async def handle_elfin_reboot(elfin_reboot_interval, config, mqtt_client):
+        # Elfin 장치를 주기적으로 재부팅하고, 큐를 처리합니다.
         while True:
             try:
-                if time.time_ns() - COLLECTDATA['LastRecv'] > 10000000000:  # 10s
-                    log('[WARNING] 10초간 신호를 받지 못했습니다. ew11 기기를 재시작합니다.')
-                    try:
-                        elfin_id = config['elfin_id']
-                        elfin_password = config['elfin_password']
-                        elfin_server = config['elfin_server']
-
-                        ew11 = telnetlib.Telnet(elfin_server)
-
-                        ew11.read_until(b"login:")
-                        ew11.write(elfin_id.encode('utf-8') + b'\n')
-                        ew11.read_until(b"password:")
-                        ew11.write(elfin_password.encode('utf-8') + b'\n')
-                        ew11.write('Restart'.encode('utf-8') + b'\n')
-
-                        await asyncio.sleep(10)
-                    except:
-                        log('[WARNING] 기기 재시작 오류! 기기 상태를 확인하세요.')
+                if time.time_ns() - COLLECTDATA['LastRecv'] > elfin_reboot_interval * 1e9:
+                    log_warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다. ew11 기기를 재시작합니다.')
+                    await reboot_elfin_device(config)
                     COLLECTDATA['LastRecv'] = time.time_ns()
-                elif time.time_ns() - COLLECTDATA['LastRecv'] > 100000000:
-                    if QUEUE:
-                        send_data = QUEUE.pop(0)
-                        if elfin_log:
-                            log('[SIGNAL] 신호 전송: {}'.format(send_data))
-                        mqtt_client.publish(ELFIN_TOPIC + '/send', bytes.fromhex(send_data['sendcmd']))
-                        # await asyncio.sleep(0.01)
-                        if send_data['count'] < 5:
-                            send_data['count'] = send_data['count'] + 1
-                            QUEUE.append(send_data)
-                        else:
-                            if elfin_log:
-                                log('[SIGNAL] Send over 5 times. Send Failure. Delete a queue: {}'.format(send_data))
+                elif time.time_ns() - COLLECTDATA['LastRecv'] > 1e8:
+                    await process_queue(mqtt_client)
             except Exception as err:
-                log('[ERROR] send_to_elfin(): {}'.format(err))
+                log_error(f'send_to_elfin(): {err}')
                 return True
             await asyncio.sleep(0.01)
+
+    async def reboot_elfin_device(config):
+        # Elfin 장치를 재부팅합니다.
+        try:
+            ew11 = telnetlib.Telnet(config['elfin_server'])
+            ew11.read_until(b"login:")
+            ew11.write(config['elfin_id'].encode('utf-8') + b'\n')
+            ew11.read_until(b"password:")
+            ew11.write(config['elfin_password'].encode('utf-8') + b'\n')
+            ew11.write('Restart'.encode('utf-8') + b'\n')
+            await asyncio.sleep(10)
+        except:
+            log_warning('기기 재시작 오류! 기기 상태를 확인하세요.')
+
+    async def process_queue(mqtt_client):
+        # 큐에 있는 명령을 처리하고, 필요시 재시도합니다.
+        if QUEUE:
+            send_data = QUEUE.pop(0)
+            log_signal(f'신호 전송: {send_data}', elfin_log)
+            mqtt_client.publish(ELFIN_TOPIC + '/send', bytes.fromhex(send_data['sendcmd']))
+            if send_data['count'] < 5:
+                send_data['count'] += 1
+                QUEUE.append(send_data)
+            else:
+                log_signal(f'Send over 5 times. Send Failure. Delete a queue: {send_data}', elfin_log)
 
     mqtt_client.username_pw_set(config['mqtt_id'], config['mqtt_password'])
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = on_message
     mqtt_client.connect_async(config['mqtt_server'])
-    # mqtt_client.user_data_set(target_time)
     mqtt_client.loop_start()
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(send_to_elfin())
+    loop.run_until_complete(handle_elfin_reboot(config.get('elfin_reboot_interval', 10), config, mqtt_client))
     loop.close()
     mqtt_client.loop_stop()
 
 
 if __name__ == '__main__':
+    # 프로그램의 진입점입니다. 설정 파일을 로드하고 작업을 시작합니다.
     log("'Commax Wallpad by Saram'을 시작합니다.")
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
