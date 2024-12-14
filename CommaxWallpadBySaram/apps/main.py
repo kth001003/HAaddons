@@ -508,6 +508,7 @@ class WallpadController:
         return device_lists
 
 if __name__ == '__main__':
+    print("Reading config file...", file=sys.stderr)
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
     
