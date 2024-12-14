@@ -13,7 +13,7 @@ COPY apps /apps
 
 WORKDIR /share
 
-CMD ["/startup.sh"]
+CMD ["/apps/startup.sh"]
 # CMD ["python", "/apps/main.py" ]
 
 
