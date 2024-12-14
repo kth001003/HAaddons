@@ -6,6 +6,7 @@ import time
 import asyncio
 import telnetlib
 import re
+import os
 
 class Logger:
     def __init__(self, debug=False, elfin_log=False):
@@ -14,7 +15,7 @@ class Logger:
 
     def log(self, string):
         date = time.strftime('%Y-%m-%d %p %I:%M:%S', time.localtime(time.time()))
-        print(f'[{date}] {string}')
+        print(f'[{date}] {string}', file=sys.stderr)
 
     def info(self, string):
         self.log(f'[INFO] {string}')
