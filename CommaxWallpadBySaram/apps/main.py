@@ -1,3 +1,5 @@
+import sys
+print("Main application starting...", file=sys.stderr)
 import paho.mqtt.client as mqtt
 import json
 import time
