@@ -4,7 +4,7 @@ ENV LANG C.UTF-8
 ENV TZ=Asia/Seoul
 
 # Install requirements for add-on
-RUN pip install --no-cache-dir --upgrade pip
+# RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir paho-mqtt==1.6.1
 #RUN pip install --no-cache-dir telnetlib
 
@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir paho-mqtt==1.6.1
 COPY apps /apps
 
 WORKDIR /share
-
+RUN chmod a+x /apps/startup.sh
 CMD ["/apps/startup.sh"]
 # CMD ["python", "/apps/main.py" ]
 
