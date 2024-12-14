@@ -512,5 +512,6 @@ if __name__ == '__main__':
         CONFIG = json.load(file)
     
     logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'])
+    logger.info("Initializing settings...")
     controller = WallpadController(CONFIG, logger)
     controller.run()
