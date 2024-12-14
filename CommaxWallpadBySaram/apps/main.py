@@ -323,14 +323,16 @@ class WallpadController:
                     self.logger.signal(f'수신: {raw_data}')
                 self.COLLECTDATA['LastRecv'] = time.time_ns()
                 
-                asyncio.create_task(self.process_elfin_data(raw_data))
+                loop = asyncio.get_event_loop()
+                loop.create_task(self.process_elfin_data(raw_data))
                 
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
                 if self.config['mqtt_log']:
                     self.logger.debug(f'HA로부터 수신: {"/".join(topics)} -> {value}')
                 
-                asyncio.create_task(self.process_ha_command(topics, value))
+                loop = asyncio.get_event_loop()
+                loop.create_task(self.process_ha_command(topics, value))
                 
         except Exception as err:
             self.logger.error(f'MQTT 메시지 처리 중 오류 발생: {str(err)}')
