@@ -323,16 +323,20 @@ class WallpadController:
                     self.logger.signal(f'수신: {raw_data}')
                 self.COLLECTDATA['LastRecv'] = time.time_ns()
                 
-                loop = asyncio.get_event_loop()
-                loop.create_task(self.process_elfin_data(raw_data))
+                asyncio.run_coroutine_threadsafe(
+                    self.process_elfin_data(raw_data),
+                    asyncio.get_event_loop()
+                )
                 
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
                 if self.config['mqtt_log']:
                     self.logger.debug(f'HA로부터 수신: {"/".join(topics)} -> {value}')
                 
-                loop = asyncio.get_event_loop()
-                loop.create_task(self.process_ha_command(topics, value))
+                asyncio.run_coroutine_threadsafe(
+                    self.process_ha_command(topics, value),
+                    asyncio.get_event_loop()
+                )
                 
         except Exception as err:
             self.logger.error(f'MQTT 메시지 처리 중 오류 발생: {str(err)}')
@@ -373,12 +377,14 @@ class WallpadController:
                 self.device_list = json.load(file)
                 self.DEVICE_LISTS = self.make_device_lists()
         except IOError:
-            self.logger.info('기기 정보 파일이 없습니다. mqtt에 접속하 기기를 찾습니다.')
+            self.logger.info('기기 정보 파일이 없습니다. mqtt에 접속하여 기기를 찾습니다.')
             self.device_list = self.find_device()
 
         self.setup_mqtt()
         
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
         tasks = [
             self.handle_elfin_reboot(self.config.get('elfin_reboot_interval', 10)),
             self.process_mqtt_messages(),
