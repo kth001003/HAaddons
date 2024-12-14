@@ -48,6 +48,7 @@ class WallpadController:
         self.device_list = None
         self.OPTION = config.get('OPTION', {})
         self.device_info = None
+        self.loop = None
 
     @staticmethod
     def checksum(input_hex):
@@ -323,20 +324,22 @@ class WallpadController:
                     self.logger.signal(f'수신: {raw_data}')
                 self.COLLECTDATA['LastRecv'] = time.time_ns()
                 
-                asyncio.run_coroutine_threadsafe(
-                    self.process_elfin_data(raw_data),
-                    asyncio.get_event_loop()
-                )
+                if self.loop and self.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        self.process_elfin_data(raw_data),
+                        self.loop
+                    )
                 
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
                 if self.config['mqtt_log']:
                     self.logger.debug(f'HA로부터 수신: {"/".join(topics)} -> {value}')
                 
-                asyncio.run_coroutine_threadsafe(
-                    self.process_ha_command(topics, value),
-                    asyncio.get_event_loop()
-                )
+                if self.loop and self.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        self.process_ha_command(topics, value),
+                        self.loop
+                    )
                 
         except Exception as err:
             self.logger.error(f'MQTT 메시지 처리 중 오류 발생: {str(err)}')
@@ -382,19 +385,19 @@ class WallpadController:
 
         self.setup_mqtt()
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
         
         tasks = [
             self.handle_elfin_reboot(self.config.get('elfin_reboot_interval', 10)),
             self.process_mqtt_messages(),
         ]
         try:
-            loop.run_until_complete(asyncio.gather(*tasks))
+            self.loop.run_until_complete(asyncio.gather(*tasks))
         except Exception as e:
             self.logger.error(f"실행 중 오류 발생: {str(e)}")
         finally:
-            loop.close()
+            self.loop.close()
             self.mqtt_client.loop_stop()
 
     def __del__(self):
@@ -405,6 +408,8 @@ class WallpadController:
                 self.mqtt_client.disconnect()
             except:
                 pass
+        if self.loop and not self.loop.is_closed():
+            self.loop.close()
 
     async def process_elfin_data(self, raw_data):
         try:
