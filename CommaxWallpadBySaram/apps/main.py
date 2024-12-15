@@ -442,36 +442,67 @@ class WallpadController:
 
     async def process_elfin_data(self, raw_data):
         try:
+            self.logger.debug(f'엘핀 데이터 처리 시작: {raw_data}')
+            
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
+                self.logger.debug(f'처리 중인 데이터 패킷: {data}')
+                
                 if data == self.checksum(data):
+                    self.logger.debug(f'체크섬 확인 완료: {data}')
                     self.COLLECTDATA['data'].add(data)
+                    
                     if data[:2] == '30':  # 엘리베이터
+                        self.logger.debug(f'엘리베이터 데이터 감지: {data}')
                         if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
                             self.COLLECTDATA['EVtime'] = time.time()
+                            self.logger.debug(f'엘리베이터 층수 업데이트: {data[4]}')
                             await self.update_ev_value(0, data[4])
+                            
                     elif data[:2] == '31':  # 전기
+                        self.logger.debug(f'전기 사용량 데이터 감지: {data[4:6]}')
                         await self.update_outlet_value(0, data[4:6])
+                        
                     elif data[:2] == '32':  # 가스
+                        self.logger.debug(f'가스 사용량 데이터 감지: {data[4:6]}')
                         await self.update_outlet_value(1, data[4:6])
+                        
                     elif data[:2] == '33':  # 수도
+                        self.logger.debug(f'수도 사용량 데이터 감지: {data[4:6]}')
                         await self.update_outlet_value(2, data[4:6])
+                        
                     elif data[:2] == '36':  # 온도조절기
+                        self.logger.debug(f'온도조절기 데이터 감지: {data}')
                         if data[2:4] == '01':
+                            self.logger.debug(f'1번 온도조절기 현재온도: {data[4]}, 설정온도: {data[5]}')
                             await self.update_temperature(0, data[4], data[5])
                         elif data[2:4] == '02':
+                            self.logger.debug(f'2번 온도조절기 현재온도: {data[4]}, 설정온도: {data[5]}')
                             await self.update_temperature(1, data[4], data[5])
+                            
                     elif data[:2] == '34':  # 조명
+                        self.logger.debug(f'조명 데이터 감지: {data}')
                         if data[2:4] == '01':
-                            await self.update_state('Light', 0, 'ON' if data[4] == '1' else 'OFF')
+                            state = 'ON' if data[4] == '1' else 'OFF'
+                            self.logger.debug(f'1번 조명 상태: {state}')
+                            await self.update_state('Light', 0, state)
                         elif data[2:4] == '02':
-                            await self.update_state('Light', 1, 'ON' if data[4] == '1' else 'OFF')
+                            state = 'ON' if data[4] == '1' else 'OFF'
+                            self.logger.debug(f'2번 조명 상태: {state}')
+                            await self.update_state('Light', 1, state)
+                            
                     elif data[:2] == '35':  # 환기
+                        self.logger.debug(f'환기장치 데이터 감지: {data}')
                         if data[2:4] == '01':
                             if data[4] == '0':
+                                self.logger.debug('환기장치 OFF 상태')
                                 await self.update_fan(0, 'OFF')
                             else:
+                                self.logger.debug(f'환기장치 속도: {data[4]}')
                                 await self.update_fan(0, data[4])
+                else:
+                    self.logger.debug(f'체크섬 불일치: {data}')
+                
         except Exception as e:
             self.logger.error(f"Elfin 데이터 처리 중 오류 발생: {str(e)}")
 
