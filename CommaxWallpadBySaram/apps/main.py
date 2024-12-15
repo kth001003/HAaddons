@@ -263,7 +263,7 @@ class WallpadController:
                 'setTemp': self.pad(setTemp)
             }
             for state in temperature:
-                key = deviceID + state
+                # key = deviceID + state
                 val = temperature[state]
                 topic = self.STATE_TOPIC.format(deviceID, state)
                 self.mqtt_client.publish(topic, val.encode())
@@ -465,7 +465,7 @@ class WallpadController:
                     if hex_array[0] == '82':  # 온도조절기
                         self.logger.debug(f'온도조절기 데이터 감지: {hex_array}')
                         sub_id = int(hex_array[2])
-                        mode = hex_array[2] # 80: off, 81: heat
+                        mode = hex_array[1] # 80: off, 81: heat
                         mode_text = 'off' if mode == '80' else 'heat'
                         current_temp = int(hex_array[3], 10)
                         set_temp = int(hex_array[4],10)
@@ -527,9 +527,11 @@ class WallpadController:
                             self.HOMESTATE[topics[1] + 'setTemp'],
                             'commandOFF')
                 elif state == 'setTemp':
+                    # 문자열을 float로 변환한 후 int로 변환
+                    set_temp_value = int(float(value))
                     sendcmd = self.make_hex_temp(num, 
                         self.HOMESTATE[topics[1] + 'curTemp'],
-                        value,
+                        set_temp_value,
                         'commandCHANGE')
 
             if sendcmd:
