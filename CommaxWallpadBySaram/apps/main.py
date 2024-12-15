@@ -170,6 +170,7 @@ class WallpadController:
         return self.checksum(input_hex)
 
     def make_hex_temp(self, k, curTemp, setTemp, state):
+        self.logger.debug(f'make_hex_temp {k}, 현재 온도: {curTemp}°C, 설정 온도: {setTemp}°C, 상태: {state}')
         if state == 'OFF' or state == 'ON' or state == 'CHANGE':
             tmp_hex = self.device_list['Thermo'].get('command' + state)
             change = self.device_list['Thermo'].get('commandNUM')
