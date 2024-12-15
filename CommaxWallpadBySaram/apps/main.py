@@ -323,6 +323,9 @@ class WallpadController:
             ]
             client.subscribe(topics)
             self.logger.info(f"구독 시작: {topics}")
+            
+            # MQTT Discovery 메시지 발행
+            self.publish_discovery_message()
         else:
             errcode = {
                 1: 'Connection refused - incorrect protocol version',
@@ -525,6 +528,92 @@ class WallpadController:
             if result:
                 device_lists[device] = result
         return device_lists
+
+    def publish_discovery_message(self):
+        """홈어시스턴트 MQTT Discovery 메시지 발행"""
+        try:
+            # Discovery 접두사
+            discovery_prefix = "homeassistant"
+            
+            for device_type, device_info in self.DEVICE_LISTS.items():
+                if device_info['type'] == 'switch':  # 조명
+                    for idx, _ in enumerate(device_info['list']):
+                        device_id = f"{device_type}{idx+1}"
+                        config_topic = f"{discovery_prefix}/switch/{device_id}/config"
+                        
+                        payload = {
+                            "name": f"{device_type} {idx+1}",
+                            "unique_id": f"cwbs_{device_id}",
+                            "state_topic": self.STATE_TOPIC.format(device_id, "power"),
+                            "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
+                            "payload_on": "ON",
+                            "payload_off": "OFF",
+                            "device": {
+                                "identifiers": [f"cwbs_{device_type}"],
+                                "name": f"코맥스 {device_type}",
+                                "model": "코맥스 월패드",
+                                "manufacturer": "Commax"
+                            }
+                        }
+                        
+                        self.mqtt_client.publish(config_topic, json.dumps(payload), retain=True)
+                        
+                elif device_info['type'] == 'fan':  # 환기장치 
+                    for idx, _ in enumerate(device_info['list']):
+                        device_id = f"{device_type}{idx+1}"
+                        config_topic = f"{discovery_prefix}/fan/{device_id}/config"
+                        
+                        payload = {
+                            "name": f"{device_type} {idx+1}",
+                            "unique_id": f"cwbs_{device_id}",
+                            "state_topic": self.STATE_TOPIC.format(device_id, "power"),
+                            "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
+                            "speed_state_topic": self.STATE_TOPIC.format(device_id, "speed"),
+                            "speed_command_topic": f"{self.HA_TOPIC}/{device_id}/speed/command",
+                            "speeds": ["low", "medium", "high"],
+                            "payload_on": "ON", 
+                            "payload_off": "OFF",
+                            "device": {
+                                "identifiers": [f"cwbs_{device_type}"],
+                                "name": f"코맥스 {device_type}",
+                                "model": "코맥스 월패드",
+                                "manufacturer": "Commax"
+                            }
+                        }
+                        
+                        self.mqtt_client.publish(config_topic, json.dumps(payload), retain=True)
+
+                elif device_info['type'] == 'climate':  # 온도조절기
+                    for idx, _ in enumerate(device_info['list']):
+                        device_id = f"{device_type}{idx+1}"
+                        config_topic = f"{discovery_prefix}/climate/{device_id}/config"
+                        
+                        payload = {
+                            "name": f"{device_type} {idx+1}",
+                            "unique_id": f"cwbs_{device_id}",
+                            "temperature_state_topic": self.STATE_TOPIC.format(device_id, "curTemp"),
+                            "temperature_command_topic": f"{self.HA_TOPIC}/{device_id}/setTemp/command",
+                            "current_temperature_topic": self.STATE_TOPIC.format(device_id, "curTemp"),
+                            "mode_state_topic": self.STATE_TOPIC.format(device_id, "power"),
+                            "mode_command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
+                            "modes": ["off", "heat"],
+                            "min_temp": 5,
+                            "max_temp": 40,
+                            "temp_step": 1,
+                            "device": {
+                                "identifiers": [f"cwbs_{device_type}"],
+                                "name": f"코맥스 {device_type}",
+                                "model": "코맥스 월패드",
+                                "manufacturer": "Commax"
+                            }
+                        }
+                        
+                        self.mqtt_client.publish(config_topic, json.dumps(payload), retain=True)
+
+            self.logger.info("MQTT Discovery 설정 완료")
+            
+        except Exception as e:
+            self.logger.error(f"MQTT Discovery 설정 중 오류 발생: {str(e)}")
 
 if __name__ == '__main__':
     print("Reading config file...", file=sys.stderr)
