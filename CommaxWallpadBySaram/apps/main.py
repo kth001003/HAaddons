@@ -390,14 +390,14 @@ class WallpadController:
         if self.QUEUE:
             send_data = self.QUEUE.pop(0)
             if self.config['elfin_log']:
-                self.logger.signal(f'신호 전송: {send_data}')
+                self.logger.debug(f'신호 전송: {send_data}')
             self.mqtt_client.publish(f'{self.ELFIN_TOPIC}/send', bytes.fromhex(send_data['sendcmd']))
             if send_data['count'] < 5:
                 send_data['count'] += 1
                 self.QUEUE.append(send_data)
             else:
                 if self.config['elfin_log']:
-                    self.logger.signal(f'5회 이상 전송 실패. 큐에서 제거: {send_data}')
+                    self.logger.debug(f'5회 이상 전송 실패. 큐에서 제거: {send_data}')
 
     def run(self):
         self.logger.info("'Commax Wallpad Addon'을 시작합니다.")
@@ -496,24 +496,33 @@ class WallpadController:
 
     async def process_ha_command(self, topics, value):
         try:
+            self.logger.debug(f'HA 명령 처리 시작: {topics}, 값: {value}')
+            
             device = ''.join(re.findall('[a-zA-Z]', topics[1]))
             num = int(''.join(re.findall('[0-9]', topics[1]))) - 1
             state = topics[2]
 
+            self.logger.debug(f'장치: {device}, 번호: {num}, 상태: {state}')
+
             if device == 'Light':
                 if value == 'ON':
                     sendcmd = self.DEVICE_LISTS[device]['list'][num]['commandON']
+                    self.logger.debug(f'조명 켜기 명령: {sendcmd}')
                 else:
                     sendcmd = self.DEVICE_LISTS[device]['list'][num]['commandOFF']
+                    self.logger.debug(f'조명 끄기 명령: {sendcmd}')
             elif device == 'Fan':
                 if state == 'power':
                     if value == 'ON':
                         sendcmd = self.DEVICE_LISTS[device]['list'][num]['commandON']
+                        self.logger.debug(f'팬 켜기 명령: {sendcmd}')
                     else:
                         sendcmd = self.DEVICE_LISTS[device]['list'][num]['commandOFF']
+                        self.logger.debug(f'팬 끄기 명령: {sendcmd}')
                 else:
                     speed = {'low': 0, 'medium': 1, 'high': 2}
                     sendcmd = self.DEVICE_LISTS[device]['list'][num]['CHANGE'][speed[value]]
+                    self.logger.debug(f'팬 속도 변경 명령: {sendcmd}')
             elif device == 'Thermo':
                 if state == 'power':
                     if value == 'heat':  # heat는 ON으로 처리
@@ -521,11 +530,13 @@ class WallpadController:
                             self.HOMESTATE[topics[1] + 'curTemp'],
                             self.HOMESTATE[topics[1] + 'setTemp'],
                             'commandON')
+                        self.logger.debug(f'온도조절기 켜기 명령: {sendcmd}')
                     else:  # off는 OFF로 처리
                         sendcmd = self.make_hex_temp(num, 
                             self.HOMESTATE[topics[1] + 'curTemp'],
                             self.HOMESTATE[topics[1] + 'setTemp'],
                             'commandOFF')
+                        self.logger.debug(f'온도조절기 끄기 명령: {sendcmd}')
                 elif state == 'setTemp':
                     # 문자열을 float로 변환한 후 int로 변환
                     set_temp_value = int(float(value))
@@ -533,13 +544,16 @@ class WallpadController:
                         self.HOMESTATE[topics[1] + 'curTemp'],
                         set_temp_value,
                         'commandCHANGE')
+                    self.logger.debug(f'온도조절기 설정 온도 변경 명령: {sendcmd}')
 
             if sendcmd:
                 if isinstance(sendcmd, list):
                     for cmd in sendcmd:
                         self.QUEUE.append({'sendcmd': cmd, 'count': 0})
+                        self.logger.debug(f'큐에 추가된 명령: {cmd}')
                 else:
                     self.QUEUE.append({'sendcmd': sendcmd, 'count': 0})
+                    self.logger.debug(f'큐에 추가된 명령: {sendcmd}')
         except Exception as e:
             self.logger.error(f"HA 명령 처리 중 오류 발생: {str(e)}")
 
