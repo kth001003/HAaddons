@@ -464,20 +464,20 @@ class WallpadController:
                     #     await self.update_outlet_value(1, data[4:6])
                         
                     if hex_array[0] == '82':  # 온도조절기
-                        self.logger.debug(f'온도조절기 데이터 감지: {hex_array}')
+                        self.logger.signal(f'온도조절기 데이터 감지: {hex_array}')
                         sub_id = int(hex_array[2])
                         mode = hex_array[1] # 80: off, 81: heat
                         mode_text = 'off' if mode == '80' else 'heat'
                         current_temp = int(hex_array[3], 10)
                         set_temp = int(hex_array[4],10)
-                        self.logger.debug(f'서브 ID: {sub_id}, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
+                        self.logger.signal(f'서브 ID: {sub_id}, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
                         await self.update_temperature(sub_id, mode_text, current_temp, set_temp)
                                                     
                     elif hex_array[0] == '30':  # 조명
-                        self.logger.debug(f'조명 데이터 감지: {hex_array}')
+                        self.logger.signal(f'조명 데이터 감지: {hex_array}')
                         sub_id = int(hex_array[1])
                         state = "ON" if hex_array[2] == "01" else "OFF"
-                        self.logger.debug(f'{sub_id}번 조명 상태: {state}')
+                        self.logger.signal(f'{sub_id}번 조명 상태: {state}')
                         await self.update_light(sub_id, state)
                             
                     # elif data[:2] == '35':  # 환기
@@ -500,11 +500,19 @@ class WallpadController:
             self.logger.debug(f'HA 명령 처리 시작: {topics}, 값: {value}')
             
             device = ''.join(re.findall('[a-zA-Z]', topics[1]))
-            # num = int(''.join(re.findall('[0-9]', topics[1]))) - 1
-            num = int(''.join(re.findall('[0-9]', topics[1])))
+            num = int(''.join(re.findall('[0-9]', topics[1]))) -1
             state = topics[2]
 
             self.logger.debug(f'장치: {device}, 번호: {num}, 상태: {state}')
+
+            # DEVICE_LISTS에서 장치가 존재하는지 확인
+            if device not in self.DEVICE_LISTS:
+                self.logger.error(f'장치 {device}가 DEVICE_LISTS에 존재하지 않습니다.')
+                return
+
+            if num < 0 or num >= len(self.DEVICE_LISTS[device]['list']):
+                self.logger.error(f'장치 번호 {num}가 유효하지 않습니다. 범위: 0-{len(self.DEVICE_LISTS[device]["list"]) - 1}')
+                return
 
             if device == 'Light':
                 if value == 'ON':
