@@ -9,9 +9,10 @@ import re
 import os
 
 class Logger:
-    def __init__(self, debug=False, elfin_log=False):
+    def __init__(self, debug=False, elfin_log=False,mqtt_log=False):
         self.enable_debug = debug
         self.enable_elfin_log = elfin_log
+        self.enable_mqtt_log = mqtt_log
 
     def log(self, string):
         date = time.strftime('%Y-%m-%d %p %I:%M:%S', time.localtime(time.time()))
@@ -33,6 +34,9 @@ class Logger:
     def signal(self, message):
         if self.enable_elfin_log:
             self.log(f'[SIGNAL] {message}')
+    def mqtt(self, message):
+        if self.enable_mqtt_log:
+            self.log(f'[MQTT] {message}')
 
 class WallpadController:
     def __init__(self, config, logger):
@@ -228,8 +232,7 @@ class WallpadController:
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.mqtt_client.publish(topic, onoff.encode())
-        if self.config['mqtt_log']:
-            self.logger.info(f'[LOG] ->> HA : {topic} >> {onoff}')
+        self.logger.mqtt(f'[LOG] ->> HA : {topic} >> {onoff}')
 
     async def update_fan(self, idx, value):
         try:
@@ -246,8 +249,7 @@ class WallpadController:
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.mqtt_client.publish(topic, 'ON'.encode())
                 
-            if self.config['mqtt_log']:
-                self.logger.debug(f'[LOG] ->> HA : {topic} -> {value}')
+            self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {value}')
         except Exception as e:
             self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
 
@@ -273,8 +275,7 @@ class WallpadController:
             power_topic = self.STATE_TOPIC.format(deviceID, 'power')
             self.mqtt_client.publish(power_topic, power_state.encode())
             
-            if self.config['mqtt_log']:
-                self.logger.info(f'[LOG] ->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={power_state}')
+            self.logger.mqtt(f'[LOG] ->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={power_state}')
         except Exception as e:
             self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
 
@@ -284,7 +285,7 @@ class WallpadController:
             val = '%.1f' % float(int(val) / 10)
             topic = self.STATE_TOPIC.format(deviceID, 'watt')
             self.mqtt_client.publish(topic, val.encode())
-            self.logger.debug(f'[LOG] ->> HA : {topic} -> {val}')
+            self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {val}')
         except:
             pass
 
@@ -295,7 +296,7 @@ class WallpadController:
             val = str(int(val) - BF + 1) if val >= BF else 'B' + str(BF - int(val))
             topic = self.STATE_TOPIC.format(deviceID, 'floor')
             self.mqtt_client.publish(topic, val.encode())
-            self.logger.debug(f'[LOG] ->> HA : {topic} -> {val}')
+            self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {val}')
         except:
             pass
 
@@ -353,42 +354,21 @@ class WallpadController:
                 self.logger.signal(f'수신: {raw_data}')
                 self.COLLECTDATA['LastRecv'] = time.time_ns()
                 
-                # 직접 데이터 처리
-                for k in range(0, len(raw_data), 16):
-                    data = raw_data[k:k + 16]
-                    if data == self.checksum(data):
-                        self.COLLECTDATA['data'].add(data)
-                        if data[:2] == '30':  # 엘리베이터
-                            if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
-                                self.COLLECTDATA['EVtime'] = time.time()
-                                asyncio.create_task(self.update_ev_value(0, data[4]))
-                        elif data[:2] == '31':  # 전기
-                            asyncio.create_task(self.update_outlet_value(0, data[4:6]))
-                        elif data[:2] == '32':  # 가스
-                            asyncio.create_task(self.update_outlet_value(1, data[4:6]))
-                        elif data[:2] == '33':  # 수도
-                            asyncio.create_task(self.update_outlet_value(2, data[4:6]))
-                        elif data[:2] == '36':  # 온도조절기
-                            if data[2:4] == '01':
-                                asyncio.create_task(self.update_temperature(0, data[4], data[5]))
-                            elif data[2:4] == '02':
-                                asyncio.create_task(self.update_temperature(1, data[4], data[5]))
-                        elif data[:2] == '34':  # 조명
-                            if data[2:4] == '01':
-                                asyncio.create_task(self.update_state('Light', 0, 'ON' if data[4] == '1' else 'OFF'))
-                            elif data[2:4] == '02':
-                                asyncio.create_task(self.update_state('Light', 1, 'ON' if data[4] == '1' else 'OFF'))
-                        elif data[:2] == '35':  # 환기
-                            if data[2:4] == '01':
-                                if data[4] == '0':
-                                    asyncio.create_task(self.update_fan(0, 'OFF'))
-                                else:
-                                    asyncio.create_task(self.update_fan(0, data[4]))
+                if self.loop and self.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        self.process_elfin_data(raw_data),
+                        self.loop
+                    )
                 
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
                 self.logger.debug(f'HA로부터 수신: {"/".join(topics)} -> {value}')
-                asyncio.create_task(self.process_ha_command(topics, value))
+                
+                if self.loop and self.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        self.process_ha_command(topics, value),
+                        self.loop
+                    )
                 
         except Exception as err:
             self.logger.error(f'MQTT 메시지 처리 중 오류 발생: {str(err)}')
@@ -653,7 +633,7 @@ if __name__ == '__main__':
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
     print("Reading config file success!", file=sys.stderr)
-    logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'])
+    logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
     print("finish load logger! 지금부터 로거가 기록합니다", file=sys.stderr)
     logger.info("Initializing settings...")
     controller = WallpadController(CONFIG, logger)
