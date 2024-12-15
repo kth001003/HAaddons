@@ -254,6 +254,8 @@ class WallpadController:
     async def update_temperature(self, idx, curTemp, setTemp):
         try:
             deviceID = 'Thermo' + str(idx + 1)
+            
+            # 온도 상태 업데이트
             temperature = {
                 'curTemp': self.pad(curTemp),
                 'setTemp': self.pad(setTemp)
@@ -263,10 +265,15 @@ class WallpadController:
                 val = temperature[state]
                 topic = self.STATE_TOPIC.format(deviceID, state)
                 self.mqtt_client.publish(topic, val.encode())
-                self.HOMESTATE[deviceID + 'curTemp'] = curTemp
-                self.HOMESTATE[deviceID + 'setTemp'] = setTemp
-                if self.config['mqtt_log']:
-                    self.logger.info(f'[LOG] ->> HA : {topic} -> {val}')
+                self.HOMESTATE[deviceID + state] = val
+            
+            # 전원 상태 업데이트 (온도가 있으면 heat, 없으면 off)
+            power_state = 'heat' if curTemp > 0 else 'off'
+            power_topic = self.STATE_TOPIC.format(deviceID, 'power')
+            self.mqtt_client.publish(power_topic, power_state.encode())
+            
+            if self.config['mqtt_log']:
+                self.logger.info(f'[LOG] ->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={power_state}')
         except Exception as e:
             self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
 
@@ -490,17 +497,17 @@ class WallpadController:
                     sendcmd = self.DEVICE_LISTS[device]['list'][num]['CHANGE'][speed[value]]
             elif device == 'Thermo':
                 if state == 'power':
-                    if value == 'ON':
+                    if value == 'heat':  # heat는 ON으로 처리
                         sendcmd = self.make_hex_temp(num, 
                             self.HOMESTATE[topics[1] + 'curTemp'],
                             self.HOMESTATE[topics[1] + 'setTemp'],
                             'commandON')
-                    else:
+                    else:  # off는 OFF로 처리
                         sendcmd = self.make_hex_temp(num, 
                             self.HOMESTATE[topics[1] + 'curTemp'],
                             self.HOMESTATE[topics[1] + 'setTemp'],
                             'commandOFF')
-                else:
+                elif state == 'setTemp':
                     sendcmd = self.make_hex_temp(num, 
                         self.HOMESTATE[topics[1] + 'curTemp'],
                         value,
@@ -591,21 +598,27 @@ class WallpadController:
                         payload = {
                             "name": f"{device_type} {idx+1}",
                             "unique_id": f"cwbs_{device_id}",
-                            "temperature_state_topic": self.STATE_TOPIC.format(device_id, "curTemp"),
-                            "temperature_command_topic": f"{self.HA_TOPIC}/{device_id}/setTemp/command",
-                            "current_temperature_topic": self.STATE_TOPIC.format(device_id, "curTemp"),
-                            "mode_state_topic": self.STATE_TOPIC.format(device_id, "power"),
-                            "mode_command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
-                            "modes": ["off", "heat"],
-                            "min_temp": 5,
-                            "max_temp": 40,
-                            "temp_step": 1,
                             "device": {
                                 "identifiers": [f"cwbs_{device_type}"],
                                 "name": f"코맥스 {device_type}",
                                 "model": "코맥스 월패드",
                                 "manufacturer": "Commax"
-                            }
+                            },
+                            # 현재 온도 토픽
+                            "current_temperature_topic": self.STATE_TOPIC.format(device_id, "curTemp"),
+                            # 설정 온도 토픽
+                            "temperature_command_topic": f"{self.HA_TOPIC}/{device_id}/setTemp/command",
+                            "temperature_state_topic": self.STATE_TOPIC.format(device_id, "setTemp"),
+                            # 전원 상태 토픽
+                            "mode_command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
+                            "mode_state_topic": self.STATE_TOPIC.format(device_id, "power"),
+                            # 기타 필수 설정
+                            "modes": ["off", "heat"],
+                            "temperature_unit": "C",
+                            "min_temp": 5,
+                            "max_temp": 40,
+                            "temp_step": 1,
+                            "precision": 0.1
                         }
                         
                         self.mqtt_client.publish(config_topic, json.dumps(payload), retain=True)
