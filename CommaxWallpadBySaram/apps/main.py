@@ -500,7 +500,7 @@ class WallpadController:
             self.logger.debug(f'HA 명령 처리 시작: {topics}, 값: {value}')
             
             device = ''.join(re.findall('[a-zA-Z]', topics[1]))
-            num = int(''.join(re.findall('[0-9]', topics[1]))) -1
+            num = int(''.join(re.findall('[0-9]', topics[1]))) - 1
             state = topics[2]
 
             self.logger.debug(f'장치: {device}, 번호: {num}, 상태: {state}')
@@ -537,22 +537,31 @@ class WallpadController:
                 if state == 'power':
                     if value == 'heat':  # heat는 ON으로 처리
                         sendcmd = self.make_hex_temp(num, 
-                            self.HOMESTATE[topics[1] + 'curTemp'],
-                            self.HOMESTATE[topics[1] + 'setTemp'],
+                            self.HOMESTATE.get(topics[1] + 'curTemp'),
+                            self.HOMESTATE.get(topics[1] + 'setTemp'),
                             'commandON')
                         self.logger.debug(f'온도조절기 켜기 명령: {sendcmd}')
                     else:  # off는 OFF로 처리
                         sendcmd = self.make_hex_temp(num, 
-                            self.HOMESTATE[topics[1] + 'curTemp'],
-                            self.HOMESTATE[topics[1] + 'setTemp'],
+                            self.HOMESTATE.get(topics[1] + 'curTemp'),
+                            self.HOMESTATE.get(topics[1] + 'setTemp'),
                             'commandOFF')
                         self.logger.debug(f'온도조절기 끄기 명령: {sendcmd}')
                 elif state == 'setTemp':
                     # 문자열을 float로 변환한 후 int로 변환
                     set_temp_value = int(float(value))
+                    
+                    # HOMESTATE에서 현재 온도와 설정 온도가 존재하는지 확인
+                    cur_temp = self.HOMESTATE.get(topics[1] + 'curTemp')
+                    set_temp = set_temp_value
+                    
+                    if cur_temp is None:
+                        self.logger.error(f'현재 온도가 존재하지 않습니다: {topics[1] + "curTemp"}')
+                        return
+                    
                     sendcmd = self.make_hex_temp(num, 
-                        self.HOMESTATE[topics[1] + 'curTemp'],
-                        set_temp_value,
+                        cur_temp,
+                        set_temp,
                         'commandCHANGE')
                     self.logger.debug(f'온도조절기 설정 온도 변경 명령: {sendcmd}')
 
