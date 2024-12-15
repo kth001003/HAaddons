@@ -344,6 +344,7 @@ class WallpadController:
             self.logger.error(f"MQTT 연결 실패: {errcode.get(rc, '알 수 없는 오류')}")
 
     def on_mqtt_message(self, client, userdata, msg):
+        self.logger.debug(f"MQTT 메시지 수신: {msg.topic} = {msg.payload}")
         try:
             topics = msg.topic.split('/')
             
