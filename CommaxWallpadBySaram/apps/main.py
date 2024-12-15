@@ -252,6 +252,7 @@ class WallpadController:
             self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
 
     async def update_temperature(self, idx, curTemp, setTemp):
+        self.logger.debug(f'[LOG] 온도 업데이트 시작: idx={idx}, curTemp={curTemp}, setTemp={setTemp}')
         try:
             deviceID = 'Thermo' + str(idx + 1)
             
@@ -344,32 +345,50 @@ class WallpadController:
             self.logger.error(f"MQTT 연결 실패: {errcode.get(rc, '알 수 없는 오류')}")
 
     def on_mqtt_message(self, client, userdata, msg):
-        self.logger.debug(f"MQTT 메시지 수신: {msg.topic} = {msg.payload}")
         try:
             topics = msg.topic.split('/')
             
             if topics[0] == self.ELFIN_TOPIC:
                 raw_data = msg.payload.hex().upper()
-                if self.config['elfin_log']:
-                    self.logger.signal(f'수신: {raw_data}')
+                self.logger.signal(f'수신: {raw_data}')
                 self.COLLECTDATA['LastRecv'] = time.time_ns()
                 
-                if self.loop and self.loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        self.process_elfin_data(raw_data),
-                        self.loop
-                    )
+                # 직접 데이터 처리
+                for k in range(0, len(raw_data), 16):
+                    data = raw_data[k:k + 16]
+                    if data == self.checksum(data):
+                        self.COLLECTDATA['data'].add(data)
+                        if data[:2] == '30':  # 엘리베이터
+                            if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
+                                self.COLLECTDATA['EVtime'] = time.time()
+                                asyncio.create_task(self.update_ev_value(0, data[4]))
+                        elif data[:2] == '31':  # 전기
+                            asyncio.create_task(self.update_outlet_value(0, data[4:6]))
+                        elif data[:2] == '32':  # 가스
+                            asyncio.create_task(self.update_outlet_value(1, data[4:6]))
+                        elif data[:2] == '33':  # 수도
+                            asyncio.create_task(self.update_outlet_value(2, data[4:6]))
+                        elif data[:2] == '36':  # 온도조절기
+                            if data[2:4] == '01':
+                                asyncio.create_task(self.update_temperature(0, data[4], data[5]))
+                            elif data[2:4] == '02':
+                                asyncio.create_task(self.update_temperature(1, data[4], data[5]))
+                        elif data[:2] == '34':  # 조명
+                            if data[2:4] == '01':
+                                asyncio.create_task(self.update_state('Light', 0, 'ON' if data[4] == '1' else 'OFF'))
+                            elif data[2:4] == '02':
+                                asyncio.create_task(self.update_state('Light', 1, 'ON' if data[4] == '1' else 'OFF'))
+                        elif data[:2] == '35':  # 환기
+                            if data[2:4] == '01':
+                                if data[4] == '0':
+                                    asyncio.create_task(self.update_fan(0, 'OFF'))
+                                else:
+                                    asyncio.create_task(self.update_fan(0, data[4]))
                 
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
-                if self.config['mqtt_log']:
-                    self.logger.debug(f'HA로부터 수신: {"/".join(topics)} -> {value}')
-                
-                if self.loop and self.loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        self.process_ha_command(topics, value),
-                        self.loop
-                    )
+                self.logger.debug(f'HA로부터 수신: {"/".join(topics)} -> {value}')
+                asyncio.create_task(self.process_ha_command(topics, value))
                 
         except Exception as err:
             self.logger.error(f'MQTT 메시지 처리 중 오류 발생: {str(err)}')
