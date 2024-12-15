@@ -447,38 +447,48 @@ class WallpadController:
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
                 self.logger.debug(f'처리 중인 데이터 패킷: {data}')
-                
                 if data == self.checksum(data):
-                    self.logger.debug(f'체크섬 확인 완료: {data}')
+                    self.logger.debug(f' -- 체크섬 확인 완료')
                     self.COLLECTDATA['data'].add(data)
+
+                    # 데이터를 2자리씩 끊어서 hex 배열로 변환
+                    hex_array = [data[i:i+2] for i in range(0, len(data), 2)]
+                    self.logger.debug(f'hex 배열로 변환: {hex_array}')
                     
-                    if data[:2] == '30':  # 엘리베이터
-                        self.logger.debug(f'엘리베이터 데이터 감지: {data}')
-                        if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
-                            self.COLLECTDATA['EVtime'] = time.time()
-                            self.logger.debug(f'엘리베이터 층수 업데이트: {data[4]}')
-                            await self.update_ev_value(0, data[4])
+                    # if data[:2] == '23':  # 엘리베이터
+                    #     self.logger.debug(f'엘리베이터 데이터 감지: {data}')
+                    #     if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
+                    #         self.COLLECTDATA['EVtime'] = time.time()
+                    #         self.logger.debug(f'엘리베이터 층수 업데이트: {data[4]}')
+                    #         await self.update_ev_value(0, data[4])
                             
-                    elif data[:2] == '31':  # 전기
-                        self.logger.debug(f'전기 사용량 데이터 감지: {data[4:6]}')
-                        await self.update_outlet_value(0, data[4:6])
+                    # elif data[:2] == 'F9':  # 전기
+                    #     self.logger.debug(f'전기 사용량 데이터 감지: {data[4:6]}')
+                    #     await self.update_outlet_value(0, data[4:6])
                         
-                    elif data[:2] == '32':  # 가스
-                        self.logger.debug(f'가스 사용량 데이터 감지: {data[4:6]}')
-                        await self.update_outlet_value(1, data[4:6])
+                    # elif data[:2] == '90':  # 가스
+                    #     self.logger.debug(f'가스 사용량 데이터 감지: {data[4:6]}')
+                    #     await self.update_outlet_value(1, data[4:6])
                         
-                    elif data[:2] == '33':  # 수도
-                        self.logger.debug(f'수도 사용량 데이터 감지: {data[4:6]}')
-                        await self.update_outlet_value(2, data[4:6])
-                        
-                    elif data[:2] == '36':  # 온도조절기
-                        self.logger.debug(f'온도조절기 데이터 감지: {data}')
-                        if data[2:4] == '01':
-                            self.logger.debug(f'1번 온도조절기 현재온도: {data[4]}, 설정온도: {data[5]}')
-                            await self.update_temperature(0, data[4], data[5])
-                        elif data[2:4] == '02':
-                            self.logger.debug(f'2번 온도조절기 현재온도: {data[4]}, 설정온도: {data[5]}')
-                            await self.update_temperature(1, data[4], data[5])
+                    if hex_array[0] == '82':  # 온도조절기
+                        self.logger.debug(f'온도조절기 데이터 감지: {hex_array}')
+                        sub_id = hex_array[1][1]
+                        mode = hex_array[2]
+                        current_temp = int(hex_array[3], 16)
+                        set_temp = int(hex_array[4],16)
+                        self.logger.debug(f'서브 ID: {sub_id}, 모드: {mode}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
+                        # if data[2:4] == '81':
+                        #     self.logger.debug(f'1번 온도조절기 현재온도: {data[4]}, 설정온도: {data[5]}')
+                        #     await self.update_temperature(0, data[4], data[5])
+                        # elif data[2:4] == '82':
+                        #     self.logger.debug(f'2번 온도조절기 현재온도: {data[4]}, 설정온도: {data[5]}')
+                        #     await self.update_temperature(1, data[4], data[5])
+                        # elif data[2:4] == '83':
+                        #     self.logger.debug(f'3번 온도조절기 현재온도: {data[4]}, 설정온도: {data[5]}')
+                        #     await self.update_temperature(1, data[4], data[5])
+                        # elif data[2:4] == '84':
+                        #     self.logger.debug(f'5번 온도조절기 현재온도: {data[4]}, 설정온도: {data[5]}')
+                        #     await self.update_temperature(1, data[4], data[5])
                             
                     elif data[:2] == '34':  # 조명
                         self.logger.debug(f'조명 데이터 감지: {data}')
@@ -660,12 +670,12 @@ class WallpadController:
             self.logger.error(f"MQTT Discovery 설정 중 오류 발생: {str(e)}")
 
 if __name__ == '__main__':
-    print("Reading config file...", file=sys.stderr)
+    # print("Reading config file...", file=sys.stderr)
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
-    print("Reading config file success!", file=sys.stderr)
+    # print("Reading config file success!", file=sys.stderr)
     logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
-    print("finish load logger! 지금부터 로거가 기록합니다", file=sys.stderr)
+    # print("finish load logger! 지금부터 로거가 기록합니다", file=sys.stderr)
     logger.info("Initializing settings...")
     controller = WallpadController(CONFIG, logger)
     controller.run()
