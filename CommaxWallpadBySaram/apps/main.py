@@ -170,12 +170,11 @@ class WallpadController:
         return self.checksum(input_hex)
 
     def make_hex_temp(self, k, curTemp, setTemp, state):
-        self.logger.debug(f'make_hex_temp {k}, 현재 온도: {curTemp}°C, 설정 온도: {setTemp}°C, 상태: {state}')
-        if state == 'OFF' or state == 'ON' or state == 'CHANGE':
+        if state == 'commandOFF' or state == 'commandON' or state == 'commandCHANGE':
             tmp_hex = self.device_list['Thermo'].get('command' + state)
             change = self.device_list['Thermo'].get('commandNUM')
             tmp_hex = self.make_hex(k, tmp_hex, change)
-            if state == 'CHANGE':
+            if state == 'commandCHANGE':
                 setT = self.pad(setTemp)
                 chaTnum = self.device_list['Thermo'].get('chaTemp')
                 tmp_hex = tmp_hex[:chaTnum - 1] + setT + tmp_hex[chaTnum + 1:]
@@ -195,7 +194,8 @@ class WallpadController:
             elif state == 'stateON':
                 tmp_hex2 = tmp_hex[:3] + str(3) + tmp_hex[4:]
                 return [self.checksum(tmp_hex), self.checksum(tmp_hex2)]
-            else:
+            else:        
+                self.logger.error(f'make_hex_temp 실패 k:{k}, 현재 온도: {curTemp}°C, 설정 온도: {setTemp}°C, 상태: {state}')
                 return None
 
     def make_device_list(self, dev_name):
@@ -444,7 +444,7 @@ class WallpadController:
         try:            
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
-                self.logger.debug(f'처리 중인 데이터 패킷: {data}')
+                self.logger.signal(f'처리 중인 데이터 패킷: {data}')
                 if data == self.checksum(data):
                     self.COLLECTDATA['data'].add(data)
                     hex_array = [data[i:i+2] for i in range(0, len(data), 2)]                    
@@ -500,7 +500,8 @@ class WallpadController:
             self.logger.debug(f'HA 명령 처리 시작: {topics}, 값: {value}')
             
             device = ''.join(re.findall('[a-zA-Z]', topics[1]))
-            num = int(''.join(re.findall('[0-9]', topics[1]))) - 1
+            # num = int(''.join(re.findall('[0-9]', topics[1]))) - 1
+            num = int(''.join(re.findall('[0-9]', topics[1])))
             state = topics[2]
 
             self.logger.debug(f'장치: {device}, 번호: {num}, 상태: {state}')
