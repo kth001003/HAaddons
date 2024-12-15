@@ -225,38 +225,37 @@ class WallpadController:
             return {'type': self.device_list[dev_name]['type'], 'list': arr}
         return None
 
-    async def update_state(self, device, idx, onoff):
+    async def update_light(self, idx, onoff):
         state = 'power'
-        deviceID = device + str(idx + 1)
+        deviceID = 'Light' + str(idx)
         key = deviceID + state
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.mqtt_client.publish(topic, onoff.encode())
         self.logger.mqtt(f'[LOG] ->> HA : {topic} >> {onoff}')
 
-    async def update_fan(self, idx, value):
-        try:
-            deviceID = 'Fan' + str(idx + 1)
-            if value == 'OFF':
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                self.mqtt_client.publish(topic, 'OFF'.encode())
-            else:
-                speed_map = {1: 'low', 2: 'medium', 3: 'high'}
-                topic = self.STATE_TOPIC.format(deviceID, 'speed')
-                speed = speed_map.get(int(value), 'low')
-                self.mqtt_client.publish(topic, speed.encode())
+    # async def update_fan(self, idx, value):
+    #     try:
+    #         deviceID = 'Fan' + str(idx + 1)
+    #         if value == 'OFF':
+    #             topic = self.STATE_TOPIC.format(deviceID, 'power')
+    #             self.mqtt_client.publish(topic, 'OFF'.encode())
+    #         else:
+    #             speed_map = {1: 'low', 2: 'medium', 3: 'high'}
+    #             topic = self.STATE_TOPIC.format(deviceID, 'speed')
+    #             speed = speed_map.get(int(value), 'low')
+    #             self.mqtt_client.publish(topic, speed.encode())
                 
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                self.mqtt_client.publish(topic, 'ON'.encode())
+    #             topic = self.STATE_TOPIC.format(deviceID, 'power')
+    #             self.mqtt_client.publish(topic, 'ON'.encode())
                 
-            self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {value}')
-        except Exception as e:
-            self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
+    #         self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {value}')
+    #     except Exception as e:
+    #         self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
 
-    async def update_temperature(self, idx, curTemp, setTemp):
-        self.logger.debug(f'[LOG] 온도 업데이트 시작: idx={idx}, curTemp={curTemp}, setTemp={setTemp}')
+    async def update_temperature(self, idx, mode_text, curTemp, setTemp):
         try:
-            deviceID = 'Thermo' + str(idx + 1)
+            deviceID = 'Thermo' + str(idx)
             
             # 온도 상태 업데이트
             temperature = {
@@ -270,8 +269,8 @@ class WallpadController:
                 self.mqtt_client.publish(topic, val.encode())
                 self.HOMESTATE[deviceID + state] = val
             
-            # 전원 상태 업데이트 (온도가 있으면 heat, 없으면 off)
-            power_state = 'heat' if curTemp > 0 else 'off'
+            power_state = mode_text
+            # power_state = 'heat' if curTemp > 0 else 'off'
             power_topic = self.STATE_TOPIC.format(deviceID, 'power')
             self.mqtt_client.publish(power_topic, power_state.encode())
             
@@ -279,26 +278,26 @@ class WallpadController:
         except Exception as e:
             self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
 
-    async def update_outlet_value(self, idx, val):
-        deviceID = 'Outlet' + str(idx + 1)
-        try:
-            val = '%.1f' % float(int(val) / 10)
-            topic = self.STATE_TOPIC.format(deviceID, 'watt')
-            self.mqtt_client.publish(topic, val.encode())
-            self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {val}')
-        except:
-            pass
+    # async def update_outlet_value(self, idx, val):
+    #     deviceID = 'Outlet' + str(idx + 1)
+    #     try:
+    #         val = '%.1f' % float(int(val) / 10)
+    #         topic = self.STATE_TOPIC.format(deviceID, 'watt')
+    #         self.mqtt_client.publish(topic, val.encode())
+    #         self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {val}')
+    #     except:
+    #         pass
 
-    async def update_ev_value(self, idx, val):
-        deviceID = 'EV' + str(idx + 1)
-        try:
-            BF = self.device_list['EV']['BasementFloor']
-            val = str(int(val) - BF + 1) if val >= BF else 'B' + str(BF - int(val))
-            topic = self.STATE_TOPIC.format(deviceID, 'floor')
-            self.mqtt_client.publish(topic, val.encode())
-            self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {val}')
-        except:
-            pass
+    # async def update_ev_value(self, idx, val):
+    #     deviceID = 'EV' + str(idx + 1)
+    #     try:
+    #         BF = self.device_list['EV']['BasementFloor']
+    #         val = str(int(val) - BF + 1) if val >= BF else 'B' + str(BF - int(val))
+    #         topic = self.STATE_TOPIC.format(deviceID, 'floor')
+    #         self.mqtt_client.publish(topic, val.encode())
+    #         self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {val}')
+    #     except:
+    #         pass
 
     async def reboot_elfin_device(self):
         try:
@@ -467,18 +466,18 @@ class WallpadController:
                         self.logger.debug(f'온도조절기 데이터 감지: {hex_array}')
                         sub_id = int(hex_array[2])
                         mode = hex_array[2] # 80: off, 81: heat
-                        mode_text = 'OFF' if mode == '80' else 'HEAT'
+                        mode_text = 'off' if mode == '80' else 'heat'
                         current_temp = int(hex_array[3], 10)
                         set_temp = int(hex_array[4],10)
                         self.logger.debug(f'서브 ID: {sub_id}, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
-                        await self.update_temperature(sub_id, current_temp, set_temp)
+                        await self.update_temperature(sub_id, mode_text, current_temp, set_temp)
                                                     
                     elif hex_array[0] == '30':  # 조명
                         self.logger.debug(f'조명 데이터 감지: {hex_array}')
                         sub_id = int(hex_array[1])
                         state = "ON" if hex_array[2] == "01" else "OFF"
                         self.logger.debug(f'{sub_id}번 조명 상태: {state}')
-                        await self.update_state('Light', sub_id, state)
+                        await self.update_light(sub_id, state)
                             
                     # elif data[:2] == '35':  # 환기
                     #     self.logger.debug(f'환기장치 데이터 감지: {data}')
