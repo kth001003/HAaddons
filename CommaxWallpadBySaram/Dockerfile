@@ -14,6 +14,3 @@ COPY apps /apps
 WORKDIR /share
 RUN chmod a+x /apps/startup.sh
 CMD ["/apps/startup.sh"]
-# CMD ["python", "/apps/main.py" ]
-
-

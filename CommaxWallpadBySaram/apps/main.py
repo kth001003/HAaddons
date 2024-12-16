@@ -1,5 +1,5 @@
 import sys
-print("Main application starting...", file=sys.stderr)
+print("Starting...", file=sys.stderr)
 import paho.mqtt.client as mqtt
 import json
 import time
@@ -118,35 +118,16 @@ class WallpadController:
             self.logger.error(f'make_hex_temp 실패 - device_index:{device_index}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C, 상태: {command_type}, 오류: {str(e)}')
             return None
 
-    def make_device_list(self, dev_name):
-        num = self.device_list[dev_name].get('Number', 0)
-        if num > 0:
-            arr = [{
-                cmd + onoff: self.insert_device_index_to_hex(k, 
-                    self.device_list[dev_name].get(cmd + onoff),
-                    self.device_list[dev_name].get(cmd + 'NUM')
-                )
-                for cmd in ['command', 'state']
-                for onoff in ['ON', 'OFF']
-            } for k in range(num)]
-            
-            if dev_name == 'fan':
-                tmp_hex = arr[0]['stateON']
-                change = self.device_list[dev_name].get('speedNUM')
-                arr[0]['stateON'] = [
-                    self.insert_device_index_to_hex(k, tmp_hex, change) 
-                    for k in range(3)
-                ]
-                tmp_hex = self.device_list[dev_name].get('commandCHANGE')
-                arr[0]['CHANGE'] = [
-                    self.insert_device_index_to_hex(k, tmp_hex, change) 
-                    for k in range(3)
-                ]
-
-            return {'type': self.device_list[dev_name]['type'], 'list': arr}
-        return None
-
     def find_device(self):
+        """
+        MQTT를 통해 기기를 찾는 함수입니다.
+        
+        이 함수는 /apps/cwbs_devinfo.json 파일에 저장된 기기 정보를 기반으로 MQTT 브로커에 접속하여 기기를 검색합니다.
+        검색된 기기 정보는 self.device_list 및 /share/cwbs_found_device.json 저장됩니다.
+        
+        Returns:
+            dict: 검색된 기기 정보가 포함된 딕셔너리
+        """
         try:
             # share 디렉토리가 없는 경우 생성
             if not os.path.exists(self.share_dir):
@@ -379,7 +360,7 @@ class WallpadController:
             if topics[0] == self.ELFIN_TOPIC:
                 if topics[1] == 'recv':
                     raw_data = msg.payload.hex().upper()
-                    self.logger.signal(f'->> RS485 수신: {raw_data}')
+                    self.logger.signal(f'->> 수신: {raw_data}')
                     self.COLLECTDATA['LastRecv'] = time.time_ns()
                     
                     if self.loop and self.loop.is_running():
@@ -389,11 +370,11 @@ class WallpadController:
                         )
                 elif topics[1] == 'send':
                     raw_data = msg.payload.hex().upper()
-                    self.logger.signal(f'->> RS485 송신: {raw_data}')
+                    self.logger.signal(f'<<- 송신: {raw_data}')
                     
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
-                self.logger.mqtt(f'HA로부터 수신: {"/".join(topics)} -> {value}')
+                self.logger.mqtt(f'->> 수신: {"/".join(topics)} -> {value}')
                 
                 if self.loop and self.loop.is_running():
                     asyncio.run_coroutine_threadsafe(
@@ -445,13 +426,13 @@ class WallpadController:
         큐에 있는 모든 데이터를 처리합니다.
         
         이 함수는 큐에 있는 모든 데이터를 처리합니다. 각 데이터는 전송 횟수를 포함합니다. 
-        전송 횟수가 5회 미만인 경우, 데이터는 큐에 다시 추가됩니다. 
-        전송 횟수가 5회 이상인 경우, 데이터는 큐에서 제거됩니다.
+        전송 횟수가 10회 미만인 경우, 데이터는 큐에 다시 추가됩니다. 
+        전송 횟수가 10회 이상인 경우, 데이터는 큐에서 제거됩니다.
         """
         if self.QUEUE:
             send_data = self.QUEUE.pop(0)
             self.mqtt_client.publish(f'{self.ELFIN_TOPIC}/send', bytes.fromhex(send_data['sendcmd']))
-            if send_data['count'] < 5:
+            if send_data['count'] < 10:
                 send_data['count'] += 1
                 self.QUEUE.append(send_data)
 
@@ -674,7 +655,7 @@ class WallpadController:
                             # 기타 필수 설정
                             "modes": ["off", "heat"],
                             "temperature_unit": "C",
-                            "min_temp": 18,
+                            "min_temp": 10,
                             "max_temp": 30,
                             "temp_step": 1,
                             "precision": 0.1
@@ -687,10 +668,53 @@ class WallpadController:
         except Exception as e:
             self.logger.error(f"MQTT Discovery 설정 중 오류 발생: {str(e)}")
 
+    def generate_device_packets(self, dev_name):
+        """
+        /share/cwbs_found_device.json로부터 각 기기의 패킷을 만드는 함수
+        
+        Args:
+            dev_name (str): 기기 이름
+        
+        Returns:
+            dict: 기기별 패킷 정보
+        """
+        num = self.device_list[dev_name].get('Number', 0)
+        if num > 0:
+            arr = [{
+                cmd + onoff: self.insert_device_index_to_hex(k, 
+                    self.device_list[dev_name].get(cmd + onoff),
+                    self.device_list[dev_name].get(cmd + 'NUM')
+                )
+                for cmd in ['command', 'state']
+                for onoff in ['ON', 'OFF']
+            } for k in range(num)]
+            
+            if dev_name == 'fan':
+                tmp_hex = arr[0]['stateON']
+                change = self.device_list[dev_name].get('speedNUM')
+                arr[0]['stateON'] = [
+                    self.insert_device_index_to_hex(k, tmp_hex, change) 
+                    for k in range(3)
+                ]
+                tmp_hex = self.device_list[dev_name].get('commandCHANGE')
+                arr[0]['CHANGE'] = [
+                    self.insert_device_index_to_hex(k, tmp_hex, change) 
+                    for k in range(3)
+                ]
+
+            return {'type': self.device_list[dev_name]['type'], 'list': arr}
+        return None
+
     def make_device_lists(self):
+        """
+        기기 목록을 생성하는 함수
+        
+        Returns:
+            dict: 기기 목록
+        """
         device_lists = {}
         for device in self.device_list:
-            result = self.make_device_list(device)
+            result = self.generate_device_packets(device)
             if result:
                 device_lists[device] = result
         return device_lists
