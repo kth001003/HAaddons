@@ -35,8 +35,7 @@ class Logger:
         self.logger.warning(message)
 
     def debug(self, message):
-        if self.enable_debug:
-            self.logger.debug(message)
+        self.logger.debug(message)
 
     def signal(self, message):
         if self.enable_elfin_log:
