@@ -1,6 +1,6 @@
 {
   "name": "[TEST] COMMAX Wallpad",
-  "version": "2.1.19",
+  "version": "2.3.0",
   "slug": "cwbs",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "mqtt 통신을 활용한 코맥스 월패드 컨트롤러",
@@ -11,9 +11,11 @@
   "startup": "application",
   "boot": "auto",
   "options": {
-    "DEBUG": false,
-    "mqtt_log": true,
-    "elfin_log": false,
+    "DEBUG": {
+      "enabled": false,
+      "mqtt_log": true,
+      "elfin_log": false
+    },
     "mqtt_server": "192.168.x.x",
     "mqtt_id": "id",
     "mqtt_password": "password",
@@ -25,13 +27,40 @@
     "elfin_reboot_interval": 100
   },
   "schema": {
-    "DEBUG": "bool",
-    "mqtt_log": "bool",
-    "elfin_log": "bool",
-    "mqtt_server": "str",
-    "mqtt_id": "str",
-    "mqtt_password": "str",
-    "mqtt_TOPIC": "str",
+    "DEBUG": {
+      "type": "dict",
+      "keys": {
+        "enabled": {
+          "type": "bool",
+          "description": "log level을 DEBUG로 설정합니다."
+        },
+        "mqtt_log": {
+          "type": "bool",
+          "description": "HA에서 발행한 mqtt 메시지 로그를 확인합니다."
+        },
+        "elfin_log": {
+          "type": "bool",
+          "description": "ew11에서 mqtt로 발행한 RS485 패킷 관련 로그를 확인합니다."
+        }
+      },
+      "description": "log level 설정 (mqtt_log와 elfin_log는 DEBUG에서만 확인할 수 있습니다.)"
+    },
+    "mqtt_server": {
+      "type": "str",
+      "description": "mqtt 서버주소: mqtt broker 애드온의 경우 HA의 로컬 주소 (ex: 192.168.*.*)"
+    },
+    "mqtt_id": {
+      "type": "str",
+      "description": "mqtt 접속 아이디, mqtt brocker 구성 항목에서 확인"
+    },
+    "mqtt_password": {
+      "type": "str",
+      "description": "mqtt 접속 비밀번호, mqtt brocker 구성 항목에서 확인"
+    },
+    "mqtt_TOPIC": {
+      "type": "str",
+      "description": "애드온이 사용할 mqtt topic, 변경 할 필요 없습니다."
+    },
     "elfin_auto_reboot": "bool",
     "elfin_server": "str?",
     "elfin_id": "str?",

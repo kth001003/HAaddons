@@ -236,7 +236,6 @@ class WallpadController:
     async def update_light(self, idx, onoff):
         state = 'power'
         deviceID = 'Light' + str(idx)
-        key = deviceID + state
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.mqtt_client.publish(topic, onoff.encode())
@@ -380,7 +379,7 @@ class WallpadController:
             if topics[0] == self.ELFIN_TOPIC:
                 if topics[1] == 'recv':
                     raw_data = msg.payload.hex().upper()
-                    self.logger.signal(f'RS485수신: {raw_data}')
+                    self.logger.signal(f'->> RS485 수신: {raw_data}')
                     self.COLLECTDATA['LastRecv'] = time.time_ns()
                     
                     if self.loop and self.loop.is_running():
@@ -390,7 +389,7 @@ class WallpadController:
                         )
                 elif topics[1] == 'send':
                     raw_data = msg.payload.hex().upper()
-                    self.logger.debug(f'RS485송신 확인: {raw_data}')
+                    self.logger.signal(f'->> RS485 송신: {raw_data}')
                     
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
@@ -429,8 +428,10 @@ class WallpadController:
                     if (self.config.get("elfin_auto_reboot",True)):
                         self.logger.warning('EW11 재시작을 시도합니다.')
                         await self.reboot_elfin_device()
-                    self.COLLECTDATA['LastRecv'] = time.time_ns()
-                if current_time - last_recv > 100_000_000:  # 100ms를 나노초로 변환
+                        self.COLLECTDATA['LastRecv'] = time.time_ns()
+                    else:
+                        self.logger.warning('elfin_auto_reboot가 False이므로 아무것도 하지 않습니다.')
+                if current_time - last_recv > 200_000_000:  # 100ms를 나노초로 변환
                     await self.process_queue()
                 
             except Exception as err:
@@ -449,61 +450,64 @@ class WallpadController:
         """
         if self.QUEUE:
             send_data = self.QUEUE.pop(0)
-            self.logger.signal(f'신호 전송: {send_data}')
             self.mqtt_client.publish(f'{self.ELFIN_TOPIC}/send', bytes.fromhex(send_data['sendcmd']))
             if send_data['count'] < 5:
                 send_data['count'] += 1
                 self.QUEUE.append(send_data)
-            else:
-                self.logger.signal(f'5회 이상 전송 실패. 큐에서 제거: {send_data}')
 
     async def process_elfin_data(self, raw_data):
+        """
+        Elfin 장치에서 전송된 raw_data를 분석합니다.
+        
+        이 함수는 Elfin 장치에서 전송된 raw_data를 분석합니다. raw_data는 16바이트씩 나누어 각 부분을 분석합니다.
+        분석된 데이터는 적절한 처리 함수로 전달됩니다.
+        
+        Args:
+            raw_data (str): Elfin 장치에서 전송된 raw_data.
+        """
         try:            
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
                 if data == self.checksum(data):
                     self.COLLECTDATA['data'].add(data)
                     hex_array = [data[i:i+2] for i in range(0, len(data), 2)]                    
-                    # if data[:2] == '23':  # 엘리베이터
-                    #     self.logger.debug(f'엘리베이터 이터 감지: {data}')
-                    #     if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
-                    #         self.COLLECTDATA['EVtime'] = time.time()
-                    #         self.logger.debug(f'엘리베이터 층수 업데이트: {data[4]}')
-                    #         await self.update_ev_value(0, data[4])
-                            
-                    # elif data[:2] == 'F9':  # 전기
-                    #     self.logger.debug(f'전기 사용량 데이터 감지: {data[4:6]}')
-                    #     await self.update_outlet_value(0, data[4:6])
-                        
-                    # elif data[:2] == '90':  # 가스
-                    #     self.logger.debug(f'가스 사용량 데이터 감지: {data[4:6]}')
-                    #     await self.update_outlet_value(1, data[4:6])
-                        
+                    #온조조절기빼고 엉터리입니다
                     if hex_array[0] == '82':  # 온도조절기
                         sub_id = int(hex_array[2])
                         mode = hex_array[1] # 80: off, 81: heat
                         mode_text = 'off' if mode == '80' else 'heat'
                         current_temp = int(hex_array[3], 10)
                         set_temp = int(hex_array[4],10)
-                        self.logger.signal(f'{hex_array}:온도조절기 ### {sub_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
+                        self.logger.debug(f'{hex_array}:온도조절기 ### {sub_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
                         await self.update_temperature(sub_id, mode_text, current_temp, set_temp)
-                                                    
-                    elif hex_array[0] == '30':  # 조명
-                        self.logger.signal(f'')
+                    elif hex_array[0] == 'B0':  # 조명
                         sub_id = int(hex_array[1])
                         state = "ON" if hex_array[2] == "01" else "OFF"
-                        self.logger.signal(f'{hex_array}:조명 ### {sub_id}번, 상태: {state}')
+                        self.logger.debug(f'{hex_array}:조명 ### {sub_id}번, 상태: {state}')
                         await self.update_light(sub_id, state)
+                    elif data[:2] == 'F6':  # 환기
+                        self.logger.debug(f'환기장치 데이터 감지: {data}')
+                        if data[2:4] == '01':
+                            if data[4] == '0':
+                                self.logger.debug('환기장치 OFF 상태')
+                                await self.update_fan(0, 'OFF')
+                            else:
+                                self.logger.debug(f'환기장치 속도: {data[4]}')
+                                await self.update_fan(0, data[4])
+                    elif data[:2] == '23':  # 엘리베이터
+                        self.logger.debug(f'엘리베이터 데이터 감지: {data}')
+                        if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
+                            self.COLLECTDATA['EVtime'] = time.time()
+                            self.logger.debug(f'엘리베이터 층수 업데이트: {data[4]}')
+                            await self.update_ev_value(0, data[4])
                             
-                    # elif data[:2] == '35':  # 환기
-                    #     self.logger.debug(f'환기장치 데이터 감지: {data}')
-                    #     if data[2:4] == '01':
-                    #         if data[4] == '0':
-                    #             self.logger.debug('환기장치 OFF 상태')
-                    #             await self.update_fan(0, 'OFF')
-                    #         else:
-                    #             self.logger.debug(f'환기장치 속도: {data[4]}')
-                    #             await self.update_fan(0, data[4])
+                    elif data[:2] == 'F9':  # 전기
+                        self.logger.debug(f'전기 사용량 데이터 감지: {data[4:6]}')
+                        await self.update_outlet_value(0, data[4:6])
+                        
+                    elif data[:2] == '90':  # 가스
+                        self.logger.debug(f'가스 사용량 데이터 감지: {data[4:6]}')
+                        await self.update_outlet_value(1, data[4:6])
                 else:
                     self.logger.signal(f'체크섬 불일치: {data}')
                 
@@ -586,10 +590,8 @@ class WallpadController:
                 if isinstance(sendcmd, list):
                     for cmd in sendcmd:
                         self.QUEUE.append({'sendcmd': cmd, 'count': 0})
-                        self.logger.debug(f'큐에 추가된 명령: {cmd}')
                 else:
                     self.QUEUE.append({'sendcmd': sendcmd, 'count': 0})
-                    self.logger.debug(f'큐에 추가된 명령: {sendcmd}')
         except Exception as e:
             self.logger.error(f"HA 명령 처리 중 오류 발생: {str(e)}")
 
@@ -672,8 +674,8 @@ class WallpadController:
                             # 기타 필수 설정
                             "modes": ["off", "heat"],
                             "temperature_unit": "C",
-                            "min_temp": 5,
-                            "max_temp": 40,
+                            "min_temp": 18,
+                            "max_temp": 30,
                             "temp_step": 1,
                             "precision": 0.1
                         }
@@ -695,15 +697,15 @@ class WallpadController:
     
     def run(self):
         self.logger.info("'Commax Wallpad Addon'을 시작합니다.")
-        self.logger.info("기존에 설정된 기기 파일이 있는지 확인합니다. (/share/cwbs_found_device.json)")
+        self.logger.info("저장된 기기정보가 있는지 확인합니다. (/share/cwbs_found_device.json)")
         
         try:
             with open(self.share_dir + '/cwbs_found_device.json') as file:
                 self.device_list = json.load(file)
                 self.DEVICE_LISTS = self.make_device_lists()
-                self.logger.info(f'기기 정보 파일을 찾음{self.DEVICE_LISTS}')
+                self.logger.info(f'기기정보를 찾았습니다. \n{json.dumps(self.DEVICE_LISTS, ensure_ascii=False, indent=4)}')
         except IOError:
-            self.logger.info('기기 정보 파일이 없습니다. mqtt에 접속하여 기기를 찾습니다.')
+            self.logger.info('저장된 기기 정보가 없습니다. mqtt에 접속하여 기기 찾기를 시도합니다.')
             self.device_list = self.find_device()
 
         self.setup_mqtt()
@@ -736,7 +738,6 @@ class WallpadController:
 if __name__ == '__main__':
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
-    logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
-    logger.info("Initializing settings...")
+    logger = Logger(debug=CONFIG['DEBUG']['enabled'], elfin_log=CONFIG['DEBUG']['elfin_log'], mqtt_log=CONFIG['DEBUG']['mqtt_log'])
     controller = WallpadController(CONFIG, logger)
     controller.run()

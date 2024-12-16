@@ -5,7 +5,10 @@ class Logger:
     def __init__(self, debug=False, elfin_log=False, mqtt_log=False):
         # 로거 생성
         self.logger = logging.getLogger('ComMaxWallpad')
-        self.logger.setLevel(logging.DEBUG)
+        if debug:
+            self.logger.setLevel(logging.DEBUG)
+        else:
+            self.logger.setLevel(logging.INFO)
         
         # 포맷터 설정
         formatter = logging.Formatter(
@@ -19,7 +22,6 @@ class Logger:
         self.logger.addHandler(stream_handler)
         
         # 로그 레벨 설정을 위한 플래그 저장
-        self.enable_debug = debug
         self.enable_elfin_log = elfin_log
         self.enable_mqtt_log = mqtt_log
 
@@ -38,8 +40,8 @@ class Logger:
 
     def signal(self, message):
         if self.enable_elfin_log:
-            self.logger.info(f'[SIGNAL] {message}')
+            self.logger.debug(f'[RS485] {message}')
 
     def mqtt(self, message):
         if self.enable_mqtt_log:
-            self.logger.info(f'[MQTT] {message}')
+            self.logger.debug(f'[MQTT] {message}')
