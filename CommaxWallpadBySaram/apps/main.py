@@ -406,22 +406,24 @@ class WallpadController:
         """
         while True:
             try:
-                if (self.config.get("elfin_auto_reboot",True)):
-                    current_time = time.time_ns()
-                    last_recv = self.COLLECTDATA['LastRecv']
-                    
-                    if current_time - last_recv > elfin_reboot_interval * 1_000_000_000:  # 초를 나노초로 변환
-                        self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
+                current_time = time.time_ns()
+                last_recv = self.COLLECTDATA['LastRecv']
+                signal_interval = (current_time - last_recv)/1_000_000 #ns to ms
+                
+                if signal_interval > elfin_reboot_interval * 1_000:  # seconds
+                    self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
+                    if (self.config.get("elfin_auto_reboot",True)):
                         self.logger.warning('EW11 재시작을 시도합니다.')
                         await self.reboot_elfin_device()
                         self.COLLECTDATA['LastRecv'] = time.time_ns()
-                await self.process_queue()
+                if signal_interval > 150: #150ms이상 여유있을 때 큐 실행
+                    await self.process_queue()
                 
             except Exception as err:
                 self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
                 return True
             
-            await asyncio.sleep(self.config.get("queue_interval_in_second",0.1)) #100ms
+            await asyncio.sleep(self.config.get("queue_interval_in_second",0.01)) #100ms
 
     async def process_queue(self):
         """
@@ -438,6 +440,7 @@ class WallpadController:
             if send_data['count'] < max_send_count:
                 send_data['count'] += 1
                 self.QUEUE.append(send_data)
+        await asyncio.sleep(0.1) #100ms 휴식
 
     async def process_elfin_data(self, raw_data):
         """
