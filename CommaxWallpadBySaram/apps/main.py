@@ -365,7 +365,7 @@ class WallpadController:
                     current_time = time.time_ns()
                     if 'last_recv_time' in self.COLLECTDATA:
                         interval = current_time - self.COLLECTDATA['last_recv_time']
-                        self.logger.info(f'수신 간격: {interval*1_000_000} ms')
+                        self.logger.debug(f'RS485 수신 간격: {interval*1_000_000} ms')
                     self.COLLECTDATA['last_recv_time'] = current_time
                     
                     if self.loop and self.loop.is_running():
