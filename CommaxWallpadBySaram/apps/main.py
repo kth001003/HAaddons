@@ -7,36 +7,8 @@ import asyncio
 import telnetlib
 import re
 import os
-
-class Logger:
-    def __init__(self, debug=False, elfin_log=False,mqtt_log=False):
-        self.enable_debug = debug
-        self.enable_elfin_log = elfin_log
-        self.enable_mqtt_log = mqtt_log
-
-    def log(self, string):
-        date = time.strftime('%Y-%m-%d %p %I:%M:%S', time.localtime(time.time()))
-        print(f'[{date}] {string}', file=sys.stderr)
-
-    def info(self, string):
-        self.log(f'[INFO] {string}')
-
-    def error(self, err):
-        self.log(f'[ERROR] {err}')
-
-    def warning(self, message):
-        self.log(f'[WARNING] {message}')
-
-    def debug(self, message):
-        if self.enable_debug:
-            self.log(f'[DEBUG] {message}')
-
-    def signal(self, message):
-        if self.enable_elfin_log:
-            self.log(f'[SIGNAL] {message}')
-    def mqtt(self, message):
-        if self.enable_mqtt_log:
-            self.log(f'[MQTT] {message}')
+from logger import Logger
+from typing import Union, List
 
 class WallpadController:
     def __init__(self, config, logger):
@@ -57,6 +29,15 @@ class WallpadController:
 
     @staticmethod
     def checksum(input_hex):
+        """
+        input_hex에 checksum을 붙여주는 함수
+        
+        Args:
+            input_hex (str): 기본 16진수 명령어 문자열
+        
+        Returns:
+            str: 체크섬이 포함된 수정된 16진수 명령어. 실패시 None 반환
+        """
         try:
             input_hex = input_hex[:14]
             s1 = sum([int(input_hex[val], 16) for val in range(0, 14, 2)])
@@ -67,6 +48,131 @@ class WallpadController:
             return input_hex + format(s1, 'X') + format(s2, 'X')
         except:
             return None
+
+    @staticmethod
+    def pad(value):
+        value = int(value)
+        return '0' + str(value) if value < 10 else str(value)
+
+    def make_hex(self, device_index, base_hex, position):
+        """
+        기기 인덱스에 따라 16진수 명령어를 생성하는 함수
+        
+        Args:
+            device_index (int): 기기의 인덱스 번호 (0부터 시작)
+            base_hex (str): 기본 16진수 명령어 문자열
+            position (int): 수정할 위치 (1부터 시작)
+        
+        Returns:
+            str: 체크섬이 포함된 수정된 16진수 명령어. 실패시 None 반환
+        """
+        if base_hex:
+            try:
+                position = int(position)
+                # position-1 위치의 숫자에 device_index를 더해 새로운 명령어 생성
+                base_hex = f'{base_hex[:position - 1]}{int(base_hex[position - 1]) + device_index}{base_hex[position:]}'
+            except (ValueError, IndexError) as e:
+                self.logger.error(f'make_hex 오류: {str(e)}')
+                pass
+        return self.checksum(base_hex)
+
+    def make_hex_temp(self, device_index: int, current_temp: int, target_temp: int, command_type: str) -> Union[str, List[str], None]:
+        """
+        온도 조절기의 16진수 명령어를 생성하는 함수
+        
+        Args:
+            device_index (int): 온도 조절기 장치 인덱스 (0부터 시작)
+            current_temp (int): 현재 온도 값
+            target_temp (int): 설정하고자 하는 목표 온도 값
+            command_type (str): 명령어 타입
+                - 'commandOFF': 전원 끄기 명령
+                - 'commandON': 전원 켜기 명령
+                - 'commandCHANGE': 온도 변경 명령
+                - 'stateOFF': 꺼짐 상태 응답
+                - 'stateON': 켜짐 상태 응답
+        
+        Returns:
+            Union[str, List[str], None]: 
+                - 성공 시: 체크섬이 포함된 16진수 명령어 문자열 또는 명령어 리스트
+                - 실패 시: None
+        
+        Examples:
+            >>> make_hex_temp(0, 22, 24, 'commandON')  # 온도조절기 1번 켜기
+            >>> make_hex_temp(1, 25, 26, 'commandCHANGE')  # 온도조절기 2번 온도 변경
+        """
+        try:
+            # 명령어 타입이 command로 시작하는 경우
+            if command_type.startswith('command'):
+                tmp_hex = self.device_list['Thermo'].get(command_type)
+                position = self.device_list['Thermo'].get('commandNUM')
+                # device_index포함된 hex생성
+                tmp_hex = self.make_hex(device_index, tmp_hex, position)
+                
+                # 온도 변경 명령인 경우
+                if command_type == 'commandCHANGE':
+                    setT = self.pad(target_temp)
+                    chaTnum = self.device_list['Thermo'].get('chaTemp')
+                    # target temp 포함된 hex생성
+                    tmp_hex = tmp_hex[:chaTnum - 1] + setT + tmp_hex[chaTnum + 1:]
+                result_hex = self.checksum(tmp_hex)
+                self.logger.debug(f'생성된 temp_hex: {result_hex}')
+                return result_hex
+                
+            # 상태 응답인 경우
+            # 를 왜만들지??
+            else:
+                tmp_hex = self.device_list['Thermo'].get(command_type)
+                position = self.device_list['Thermo'].get('stateNUM')
+                tmp_hex = self.make_hex(device_index, tmp_hex, position)
+                
+                # 현재 온도와 설정 온도 적용
+                setT = self.pad(target_temp)
+                curT = self.pad(current_temp)
+                curTnum = self.device_list['Thermo'].get('curTemp')
+                setTnum = self.device_list['Thermo'].get('setTemp')
+                tmp_hex = tmp_hex[:setTnum - 1] + setT + tmp_hex[setTnum + 1:]
+                tmp_hex = tmp_hex[:curTnum - 1] + curT + tmp_hex[curTnum + 1:]
+                
+                if command_type == 'stateOFF':
+                    return self.checksum(tmp_hex)
+                elif command_type == 'stateON':
+                    tmp_hex2 = tmp_hex[:3] + str(3) + tmp_hex[4:]
+                    return [self.checksum(tmp_hex), self.checksum(tmp_hex2)]
+                
+            self.logger.error(f'잘못된 명령어 타입: {command_type}')
+            return None
+            
+        except Exception as e:
+            self.logger.error(f'make_hex_temp 실패 - device_index:{device_index}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C, 상태: {command_type}, 오류: {str(e)}')
+            return None
+
+    def make_device_list(self, dev_name):
+        num = self.device_list[dev_name].get('Number', 0)
+        if num > 0:
+            arr = [{
+                cmd + onoff: self.make_hex(k, 
+                    self.device_list[dev_name].get(cmd + onoff),
+                    self.device_list[dev_name].get(cmd + 'NUM')
+                )
+                for cmd in ['command', 'state']
+                for onoff in ['ON', 'OFF']
+            } for k in range(num)]
+            
+            if dev_name == 'fan':
+                tmp_hex = arr[0]['stateON']
+                change = self.device_list[dev_name].get('speedNUM')
+                arr[0]['stateON'] = [
+                    self.make_hex(k, tmp_hex, change) 
+                    for k in range(3)
+                ]
+                tmp_hex = self.device_list[dev_name].get('commandCHANGE')
+                arr[0]['CHANGE'] = [
+                    self.make_hex(k, tmp_hex, change) 
+                    for k in range(3)
+                ]
+
+            return {'type': self.device_list[dev_name]['type'], 'list': arr}
+        return None
 
     def find_device(self):
         try:
@@ -154,78 +260,6 @@ class WallpadController:
         except Exception as e:
             self.logger.error(f'기기 검색 중 오류 발생: {str(e)}')
             return None
-
-    def pad(self, value):
-        value = int(value)
-        return '0' + str(value) if value < 10 else str(value)
-
-    def make_hex(self, k, input_hex, change):
-        if input_hex:
-            try:
-                change = int(change)
-                input_hex = f'{input_hex[:change - 1]}{int(input_hex[change - 1]) + k}{input_hex[change:]}'
-            except (ValueError, IndexError) as e:
-                self.logger.error(f'make_hex 오류: {str(e)}')
-                pass
-        return self.checksum(input_hex)
-
-    def make_hex_temp(self, k, curTemp, setTemp, state):
-        if state == 'commandOFF' or state == 'commandON' or state == 'commandCHANGE':
-            tmp_hex = self.device_list['Thermo'].get('command' + state)
-            change = self.device_list['Thermo'].get('commandNUM')
-            tmp_hex = self.make_hex(k, tmp_hex, change)
-            if state == 'commandCHANGE':
-                setT = self.pad(setTemp)
-                chaTnum = self.device_list['Thermo'].get('chaTemp')
-                tmp_hex = tmp_hex[:chaTnum - 1] + setT + tmp_hex[chaTnum + 1:]
-            return self.checksum(tmp_hex)
-        else:
-            tmp_hex = self.device_list['Thermo'].get(state)
-            change = self.device_list['Thermo'].get('stateNUM')
-            tmp_hex = self.make_hex(k, tmp_hex, change)
-            setT = self.pad(setTemp)
-            curT = self.pad(curTemp)
-            curTnum = self.device_list['Thermo'].get('curTemp')
-            setTnum = self.device_list['Thermo'].get('setTemp')
-            tmp_hex = tmp_hex[:setTnum - 1] + setT + tmp_hex[setTnum + 1:]
-            tmp_hex = tmp_hex[:curTnum - 1] + curT + tmp_hex[curTnum + 1:]
-            if state == 'stateOFF':
-                return self.checksum(tmp_hex)
-            elif state == 'stateON':
-                tmp_hex2 = tmp_hex[:3] + str(3) + tmp_hex[4:]
-                return [self.checksum(tmp_hex), self.checksum(tmp_hex2)]
-            else:        
-                self.logger.error(f'make_hex_temp 실패 k:{k}, 현재 온도: {curTemp}°C, 설정 온도: {setTemp}°C, 상태: {state}')
-                return None
-
-    def make_device_list(self, dev_name):
-        num = self.device_list[dev_name].get('Number', 0)
-        if num > 0:
-            arr = [{
-                cmd + onoff: self.make_hex(k, 
-                    self.device_list[dev_name].get(cmd + onoff),
-                    self.device_list[dev_name].get(cmd + 'NUM')
-                )
-                for cmd in ['command', 'state']
-                for onoff in ['ON', 'OFF']
-            } for k in range(num)]
-            
-            if dev_name == 'fan':
-                tmp_hex = arr[0]['stateON']
-                change = self.device_list[dev_name].get('speedNUM')
-                arr[0]['stateON'] = [
-                    self.make_hex(k, tmp_hex, change) 
-                    for k in range(3)
-                ]
-                tmp_hex = self.device_list[dev_name].get('commandCHANGE')
-                arr[0]['CHANGE'] = [
-                    self.make_hex(k, tmp_hex, change) 
-                    for k in range(3)
-                ]
-
-            return {'type': self.device_list[dev_name]['type'], 'list': arr}
-        return None
-
     async def update_light(self, idx, onoff):
         state = 'power'
         deviceID = 'Light' + str(idx)
@@ -362,7 +396,7 @@ class WallpadController:
                 
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
-                self.logger.debug(f'HA로부터 수신: {"/".join(topics)} -> {value}')
+                self.logger.debug(f'HA로부터 ��신: {"/".join(topics)} -> {value}')
                 
                 if self.loop and self.loop.is_running():
                     asyncio.run_coroutine_threadsafe(
@@ -544,7 +578,7 @@ class WallpadController:
                             return
                         
                         sendcmd = self.make_hex_temp(num, cur_temp, set_temp, 'commandON')
-                        self.logger.debug(f'온도조절기 켜기 명령: {sendcmd}')
+                        self.logger.debug(f'��도조절기 켜기 명령: {sendcmd}')
                     else:  # off는 OFF로 처리
                         cur_temp = self.HOMESTATE.get(topics[1] + 'curTemp')
                         set_temp = self.HOMESTATE.get(topics[1] + 'setTemp')
@@ -687,12 +721,9 @@ class WallpadController:
             self.logger.error(f"MQTT Discovery 설정 중 오류 발생: {str(e)}")
 
 if __name__ == '__main__':
-    # print("Reading config file...", file=sys.stderr)
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
-    # print("Reading config file success!", file=sys.stderr)
     logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
-    # print("finish load logger! 지금부터 로거가 기록합니다", file=sys.stderr)
     logger.info("Initializing settings...")
     controller = WallpadController(CONFIG, logger)
     controller.run()
