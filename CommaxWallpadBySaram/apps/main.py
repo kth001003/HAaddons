@@ -459,36 +459,34 @@ class WallpadController:
                         mode_text = 'off' if mode == '80' else 'heat'
                         current_temp = int(hex_array[3], 10)
                         set_temp = int(hex_array[4],10)
-                        self.logger.debug(f'{hex_array}:온도조절기 ### {sub_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
+                        self.logger.signal(f'{hex_array}:온도조절기 ### {sub_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
                         await self.update_temperature(sub_id, mode_text, current_temp, set_temp)
-                    elif hex_array[0] == 'B0':  # 조명
-                        sub_id = int(hex_array[1])
-                        state = "ON" if hex_array[2] == "01" else "OFF"
-                        self.logger.debug(f'{hex_array}:조명 ### {sub_id}번, 상태: {state}')
-                        await self.update_light(sub_id, state)
-                    elif data[:2] == 'F6':  # 환기
-                        self.logger.debug(f'환기장치 데이터 감지: {data}')
-                        if data[2:4] == '01':
-                            if data[4] == '0':
-                                self.logger.debug('환기장치 OFF 상태')
-                                await self.update_fan(0, 'OFF')
-                            else:
-                                self.logger.debug(f'환기장치 속도: {data[4]}')
-                                await self.update_fan(0, data[4])
-                    elif data[:2] == '23':  # 엘리베이터
-                        self.logger.debug(f'엘리베이터 데이터 감지: {data}')
-                        if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
-                            self.COLLECTDATA['EVtime'] = time.time()
-                            self.logger.debug(f'엘리베이터 층수 업데이트: {data[4]}')
-                            await self.update_ev_value(0, data[4])
-                            
-                    elif data[:2] == 'F9':  # 전기
-                        self.logger.debug(f'전기 사용량 데이터 감지: {data[4:6]}')
-                        await self.update_outlet_value(0, data[4:6])
-                        
-                    elif data[:2] == '90':  # 가스
-                        self.logger.debug(f'가스 사용량 데이터 감지: {data[4:6]}')
-                        await self.update_outlet_value(1, data[4:6])
+                    # elif hex_array[0] == 'B0':  # 조명
+                    #     sub_id = int(hex_array[1])
+                    #     state = "ON" if hex_array[2] == "01" else "OFF"
+                    #     self.logger.signal(f'{hex_array}:조명 ### {sub_id}번, 상태: {state}')
+                    #     await self.update_light(sub_id, state)
+                    # elif data[:2] == 'F6':  # 환기
+                    #     self.logger.debug(f'환기장치 데이터 감지: {data}')
+                    #     if data[2:4] == '01':
+                    #         if data[4] == '0':
+                    #             self.logger.debug('환기장치 OFF 상태')
+                    #             await self.update_fan(0, 'OFF')
+                    #         else:
+                    #             self.logger.debug(f'환기장치 속도: {data[4]}')
+                    #             await self.update_fan(0, data[4])
+                    # elif data[:2] == '23':  # 엘리베이터
+                    #     self.logger.debug(f'엘리베이터 데이터 감지: {data}')
+                    #     if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
+                    #         self.COLLECTDATA['EVtime'] = time.time()
+                    #         self.logger.debug(f'엘리베이터 층수 업데이트: {data[4]}')
+                    #         await self.update_ev_value(0, data[4])
+                    # elif data[:2] == 'F9':  # 전기
+                    #     self.logger.debug(f'전기 사용량 데이터 감지: {data[4:6]}')
+                    #     await self.update_outlet_value(0, data[4:6])                        
+                    # elif data[:2] == '90':  # 가스
+                    #     self.logger.debug(f'가스 사용량 데이터 감지: {data[4:6]}')
+                    #     await self.update_outlet_value(1, data[4:6])
                 else:
                     self.logger.signal(f'체크섬 불일치: {data}')
                 
