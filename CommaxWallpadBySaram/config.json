@@ -1,6 +1,6 @@
 {
   "name": "[TEST] COMMAX Wallpad",
-  "version": "2.3.5",
+  "version": "2.3.6",
   "slug": "cwbs",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "mqtt 통신을 활용한 코맥스 월패드 컨트롤러",
@@ -11,7 +11,9 @@
   "startup": "application",
   "boot": "auto",
   "options": {
-    "DEBUG": false,
+    "queue_interval_in_second": "0.1",
+    "max_send_count" : 10,
+    "DEBUG": false, 
     "mqtt_log": true,
     "elfin_log": false,
     "mqtt_server": "192.168.x.x",
@@ -25,6 +27,8 @@
     "elfin_reboot_interval": 100
   },
   "schema": {
+    "queue_interval_in_second": "float",    
+    "max_send_count" : "int",
     "DEBUG": "bool",
     "mqtt_log": "bool",
     "elfin_log": "bool",

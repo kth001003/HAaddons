@@ -401,38 +401,36 @@ class WallpadController:
         """
         while True:
             try:
-                current_time = time.time_ns()
-                last_recv = self.COLLECTDATA['LastRecv']
-                
-                if current_time - last_recv > elfin_reboot_interval * 1_000_000_000:  # 초를 나노초로 변환
-                    self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
-                    if (self.config.get("elfin_auto_reboot",True)):
+                if (self.config.get("elfin_auto_reboot",True)):
+                    current_time = time.time_ns()
+                    last_recv = self.COLLECTDATA['LastRecv']
+                    
+                    if current_time - last_recv > elfin_reboot_interval * 1_000_000_000:  # 초를 나노초로 변환
+                        self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
                         self.logger.warning('EW11 재시작을 시도합니다.')
                         await self.reboot_elfin_device()
                         self.COLLECTDATA['LastRecv'] = time.time_ns()
-                    else:
-                        self.logger.warning('elfin_auto_reboot가 False이므로 아무것도 하지 않습니다.')
-                if current_time - last_recv > 200_000_000:  # 100ms를 나노초로 변환
-                    await self.process_queue()
+                await self.process_queue()
                 
             except Exception as err:
                 self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
                 return True
             
-            await asyncio.sleep(0.001) #1ms 마다
+            await asyncio.sleep(self.config.get("queue_interval_in_second",0.1)) #100ms
 
     async def process_queue(self):
         """
         큐에 있는 모든 데이터를 처리합니다.
         
         이 함수는 큐에 있는 모든 데이터를 처리합니다. 각 데이터는 전송 횟수를 포함합니다. 
-        전송 횟수가 10회 미만인 경우, 데이터는 큐에 다시 추가됩니다. 
-        전송 횟수가 10회 이상인 경우, 데이터는 큐에서 제거됩니다.
+        전송 횟수가 설정된 최대 횟수 미만인 경우, 데이터는 큐에 다시 추가됩니다. 
+        전송 횟수가 최대 횟수 이상인 경우, 데이터는 큐에서 제거됩니다.
         """
+        max_send_count = self.config.get("max_send_count",10)  # 최대 전송 횟수 설정
         if self.QUEUE:
             send_data = self.QUEUE.pop(0)
             self.mqtt_client.publish(f'{self.ELFIN_TOPIC}/send', bytes.fromhex(send_data['sendcmd']))
-            if send_data['count'] < 10:
+            if send_data['count'] < max_send_count:
                 send_data['count'] += 1
                 self.QUEUE.append(send_data)
 
