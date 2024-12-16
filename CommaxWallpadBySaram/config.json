@@ -1,6 +1,6 @@
 {
   "name": "[TEST] COMMAX Wallpad",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "slug": "cwbs",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "mqtt 통신을 활용한 코맥스 월패드 컨트롤러",
@@ -11,11 +11,9 @@
   "startup": "application",
   "boot": "auto",
   "options": {
-    "DEBUG": {
-      "enabled": false,
-      "mqtt_log": true,
-      "elfin_log": false
-    },
+    "debug_enabled": false,
+    "debug_mqtt_log": true,
+    "debug_elfin_log": false,
     "mqtt_server": "192.168.x.x",
     "mqtt_id": "id",
     "mqtt_password": "password",
@@ -27,39 +25,17 @@
     "elfin_reboot_interval": 100
   },
   "schema": {
-    "DEBUG": {
-      "type": "dict",
-      "keys": {
-        "enabled": {
-          "type": "bool",
-          "description": "Set log level to DEBUG"
-        },
-        "mqtt_log": {
-          "type": "bool",
-          "description": "Show MQTT message logs from HA"
-        },
-        "elfin_log": {
-          "type": "bool",
-          "description": "Show RS485 packet logs from EW11"
-        }
-      }
-    },
-    "mqtt_server": {
-      "type": "str"
-    },
-    "mqtt_id": {
-      "type": "str"
-    },
-    "mqtt_password": {
-      "type": "str"
-    },
-    "mqtt_TOPIC": {
-      "type": "str"
-    },
+    "debug_enabled": "bool",
+    "debug_mqtt_log": "bool",
+    "debug_elfin_log": "bool",
+    "mqtt_server": "str",
+    "mqtt_id": "str",
+    "mqtt_password": "password",
+    "mqtt_TOPIC": "str",
     "elfin_auto_reboot": "bool",
     "elfin_server": "str?",
     "elfin_id": "str?",
-    "elfin_password": "str?",
+    "elfin_password": "password?",
     "elfin_reboot_interval": "int?"
   }
 }

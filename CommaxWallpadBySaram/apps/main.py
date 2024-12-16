@@ -738,6 +738,6 @@ class WallpadController:
 if __name__ == '__main__':
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
-    logger = Logger(debug=CONFIG['DEBUG']['enabled'], elfin_log=CONFIG['DEBUG']['elfin_log'], mqtt_log=CONFIG['DEBUG']['mqtt_log'])
+    logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
     controller = WallpadController(CONFIG, logger)
     controller.run()
