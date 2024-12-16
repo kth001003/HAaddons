@@ -36,7 +36,7 @@ class WallpadController:
             input_hex (str): 기본 16진수 명령어 문자열
         
         Returns:
-            str: 체크섬이 포함된 수정된 16진수 명령���. 실패시 None 반환
+            str: 체크섬이 포함된 수정된 16진수 명령어. 실패시 None 반환
         """
         try:
             input_hex = input_hex[:14]
@@ -69,14 +69,14 @@ class WallpadController:
         if base_hex:
             try:
                 position = int(position)
-                # position-1 위치의 숫자에 device_index를 더해 새로운 명령어 생성
+                # position-1 위치의 숫자에 device_index를 더해 새로운 명령 생성
                 base_hex = f'{base_hex[:position - 1]}{int(base_hex[position - 1]) + device_index}{base_hex[position:]}'
             except (ValueError, IndexError) as e:
                 self.logger.error(f'insert_device_index_to_hex 오류: {str(e)}')
                 pass
         return self.checksum(base_hex)
 
-    def make_hex_temp(self, device_index: int, current_temp: int, target_temp: int, command_type: str) -> Union[str, List[str], None]:
+    def make_hex_temp(self, device_index: int, current_temp: int, target_temp: int, command_type: str) -> Union[str, None]:
         """
         온도 조절기의 16진수 명령어를 생성하는 함수
         
@@ -88,12 +88,10 @@ class WallpadController:
                 - 'commandOFF': 전원 끄기 명령
                 - 'commandON': 전원 켜기 명령
                 - 'commandCHANGE': 온도 변경 명령
-                - 'stateOFF': 꺼짐 상태 응답
-                - 'stateON': 켜짐 상태 응답
         
         Returns:
-            Union[str, List[str], None]: 
-                - 성공 시: 체크섬이 포함된 16진수 명령어 문자열 또는 명령어 리스트
+            Union[str, None]: 
+                - 성공 시: 체크섬이 포함된 16진수 명령어 문자열
                 - 실패 시: None
         
         Examples:
@@ -101,46 +99,20 @@ class WallpadController:
             >>> make_hex_temp(1, 25, 26, 'commandCHANGE')  # 온도조절기 2번 온도 변경
         """
         try:
-            # 명령어 타입이 command로 시작하는 경우
-            if command_type.startswith('command'):
-                tmp_hex = self.device_list['Thermo'].get(command_type)
-                position = self.device_list['Thermo'].get('commandNUM')
-                # device_index포함된 hex생성
-                tmp_hex = self.insert_device_index_to_hex(device_index, tmp_hex, position)
-                
-                # 온도 변경 명령인 경우
-                if command_type == 'commandCHANGE':
-                    setT = self.pad(target_temp)
-                    chaTnum = self.device_list['Thermo'].get('chaTemp')
-                    # target temp 포함된 hex생성
-                    tmp_hex = tmp_hex[:chaTnum - 1] + setT + tmp_hex[chaTnum + 1:]
-                result_hex = self.checksum(tmp_hex)
-                self.logger.debug(f'생성된 temp_hex: {result_hex}')
-                return result_hex
-                
-            # 상태 응답인 경우
-            # 를 왜만들지??
-            else:
-                tmp_hex = self.device_list['Thermo'].get(command_type)
-                position = self.device_list['Thermo'].get('stateNUM')
-                tmp_hex = self.insert_device_index_to_hex(device_index, tmp_hex, position)
-                
-                # 현재 온도와 정 온도 적용
+            if not command_type.startswith('command'):
+                self.logger.error(f'잘못된 명령어 타입: {command_type}')
+                return None
+            
+            tmp_hex = self.device_list['Thermo'].get(command_type)
+            position = self.device_list['Thermo'].get('commandNUM')
+            tmp_hex = self.insert_device_index_to_hex(device_index, tmp_hex, position)
+            
+            if command_type == 'commandCHANGE':
                 setT = self.pad(target_temp)
-                curT = self.pad(current_temp)
-                curTnum = self.device_list['Thermo'].get('curTemp')
-                setTnum = self.device_list['Thermo'].get('setTemp')
-                tmp_hex = tmp_hex[:setTnum - 1] + setT + tmp_hex[setTnum + 1:]
-                tmp_hex = tmp_hex[:curTnum - 1] + curT + tmp_hex[curTnum + 1:]
-                
-                if command_type == 'stateOFF':
-                    return self.checksum(tmp_hex)
-                elif command_type == 'stateON':
-                    tmp_hex2 = tmp_hex[:3] + str(3) + tmp_hex[4:]
-                    return [self.checksum(tmp_hex), self.checksum(tmp_hex2)]
-                
-            self.logger.error(f'잘못된 명령어 타입: {command_type}')
-            return None
+                chaTnum = self.device_list['Thermo'].get('chaTemp')
+                tmp_hex = tmp_hex[:chaTnum - 1] + setT + tmp_hex[chaTnum + 1:]
+            
+            return self.checksum(tmp_hex)
             
         except Exception as e:
             self.logger.error(f'make_hex_temp 실패 - device_index:{device_index}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C, 상태: {command_type}, 오류: {str(e)}')
@@ -268,7 +240,7 @@ class WallpadController:
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.mqtt_client.publish(topic, onoff.encode())
-        self.logger.debug(f'->> HA : {topic} >> {onoff}')
+        self.logger.mqtt(f'->> HA : {topic} >> {onoff}')
 
     async def update_fan(self, idx, value):
         try:
@@ -321,7 +293,7 @@ class WallpadController:
             power_topic = self.STATE_TOPIC.format(deviceID, 'power')
             self.mqtt_client.publish(power_topic, power_state.encode())
             
-            self.logger.debug(f'->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={power_state}')
+            self.logger.mqtt(f'->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={power_state}')
         except Exception as e:
             self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
 
@@ -383,7 +355,8 @@ class WallpadController:
             self.logger.info("MQTT broker 접속 완료")
             topics = [
                 (f'{self.HA_TOPIC}/+/+/command', 0),
-                (f'{self.ELFIN_TOPIC}/recv', 0)
+                (f'{self.ELFIN_TOPIC}/recv', 0),
+                (f'{self.ELFIN_TOPIC}/send', 0)
             ]
             client.subscribe(topics)
             self.logger.info(f"구독 시작: {topics}")
@@ -405,19 +378,23 @@ class WallpadController:
             topics = msg.topic.split('/')
             
             if topics[0] == self.ELFIN_TOPIC:
-                raw_data = msg.payload.hex().upper()
-                self.logger.signal(f'RS485수신: {raw_data}')
-                self.COLLECTDATA['LastRecv'] = time.time_ns()
-                
-                if self.loop and self.loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        self.process_elfin_data(raw_data),
-                        self.loop
-                    )
-                
+                if topics[1] == 'recv':
+                    raw_data = msg.payload.hex().upper()
+                    self.logger.signal(f'RS485수신: {raw_data}')
+                    self.COLLECTDATA['LastRecv'] = time.time_ns()
+                    
+                    if self.loop and self.loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            self.process_elfin_data(raw_data),
+                            self.loop
+                        )
+                elif topics[1] == 'send':
+                    raw_data = msg.payload.hex().upper()
+                    self.logger.debug(f'RS485송신 확인: {raw_data}')
+                    
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
-                self.logger.debug(f'HA로부터 수신: {"/".join(topics)} -> {value}')
+                self.logger.mqtt(f'HA로부터 수신: {"/".join(topics)} -> {value}')
                 
                 if self.loop and self.loop.is_running():
                     asyncio.run_coroutine_threadsafe(
@@ -484,7 +461,6 @@ class WallpadController:
         try:            
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
-                self.logger.signal(f'처리 중인 패킷: {data}')
                 if data == self.checksum(data):
                     self.COLLECTDATA['data'].add(data)
                     hex_array = [data[i:i+2] for i in range(0, len(data), 2)]                    
@@ -504,20 +480,19 @@ class WallpadController:
                     #     await self.update_outlet_value(1, data[4:6])
                         
                     if hex_array[0] == '82':  # 온도조절기
-                        self.logger.signal(f'온도조절기 데이터 감지: {hex_array}')
                         sub_id = int(hex_array[2])
                         mode = hex_array[1] # 80: off, 81: heat
                         mode_text = 'off' if mode == '80' else 'heat'
                         current_temp = int(hex_array[3], 10)
                         set_temp = int(hex_array[4],10)
-                        self.logger.signal(f'서브 ID: {sub_id}, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
+                        self.logger.signal(f'{hex_array}:온도조절기 ### {sub_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
                         await self.update_temperature(sub_id, mode_text, current_temp, set_temp)
                                                     
                     elif hex_array[0] == '30':  # 조명
-                        self.logger.signal(f'조명 데이터 감지: {hex_array}')
+                        self.logger.signal(f'')
                         sub_id = int(hex_array[1])
                         state = "ON" if hex_array[2] == "01" else "OFF"
-                        self.logger.signal(f'{sub_id}번 조명 상태: {state}')
+                        self.logger.signal(f'{hex_array}:조명 ### {sub_id}번, 상태: {state}')
                         await self.update_light(sub_id, state)
                             
                     # elif data[:2] == '35':  # 환기
@@ -542,8 +517,6 @@ class WallpadController:
             device = ''.join(re.findall('[a-zA-Z]', topics[1]))
             num = int(''.join(re.findall('[0-9]', topics[1]))) - 1
             state = topics[2]
-
-            self.logger.debug(f'장치: {device}, 번호: {num}, 상태: {state}')
 
             # DEVICE_LISTS에서 장치가 존재하는지 확인
             if device not in self.DEVICE_LISTS:
@@ -728,7 +701,7 @@ class WallpadController:
             with open(self.share_dir + '/cwbs_found_device.json') as file:
                 self.device_list = json.load(file)
                 self.DEVICE_LISTS = self.make_device_lists()
-                self.logger.info(f'기�� 정보 파일을 찾음{self.DEVICE_LISTS}')
+                self.logger.info(f'기기 정보 파일을 찾음{self.DEVICE_LISTS}')
         except IOError:
             self.logger.info('기기 정보 파일이 없습니다. mqtt에 접속하여 기기를 찾습니다.')
             self.device_list = self.find_device()
