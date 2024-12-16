@@ -360,8 +360,13 @@ class WallpadController:
             if topics[0] == self.ELFIN_TOPIC:
                 if topics[1] == 'recv':
                     raw_data = msg.payload.hex().upper()
-                    self.logger.signal(f'->> 수신: {raw_data}')
-                    self.COLLECTDATA['LastRecv'] = time.time_ns()
+                    self.logger.signal(f'->> 수신: {raw_data}')                    
+                    # 수신 간격 계산
+                    current_time = time.time_ns()
+                    if 'last_recv_time' in self.COLLECTDATA:
+                        interval = current_time - self.COLLECTDATA['last_recv_time']
+                        self.logger.info(f'수신 간격: {interval*1_000_000} ms')
+                    self.COLLECTDATA['last_recv_time'] = current_time
                     
                     if self.loop and self.loop.is_running():
                         asyncio.run_coroutine_threadsafe(
