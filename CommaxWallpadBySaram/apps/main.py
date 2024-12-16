@@ -36,7 +36,7 @@ class WallpadController:
             input_hex (str): 기본 16진수 명령어 문자열
         
         Returns:
-            str: 체크섬이 포함된 수정된 16진수 명령어. 실패시 None 반환
+            str: 체크섬이 포함된 수정된 16진수 명령���. 실패시 None 반환
         """
         try:
             input_hex = input_hex[:14]
@@ -54,14 +54,14 @@ class WallpadController:
         value = int(value)
         return '0' + str(value) if value < 10 else str(value)
 
-    def make_hex(self, device_index, base_hex, position):
+    def insert_device_index_to_hex(self, device_index, base_hex, position):
         """
-        기기 인덱스에 따라 16진수 명령어를 생성하는 함수
+        기본 16진수 명령어에 기기 인덱스를 삽입하는 함수
         
         Args:
             device_index (int): 기기의 인덱스 번호 (0부터 시작)
             base_hex (str): 기본 16진수 명령어 문자열
-            position (int): 수정할 위치 (1부터 시작)
+            position (int): 기기 인덱스를 삽입할 위치 (1부터 시작)
         
         Returns:
             str: 체크섬이 포함된 수정된 16진수 명령어. 실패시 None 반환
@@ -72,7 +72,7 @@ class WallpadController:
                 # position-1 위치의 숫자에 device_index를 더해 새로운 명령어 생성
                 base_hex = f'{base_hex[:position - 1]}{int(base_hex[position - 1]) + device_index}{base_hex[position:]}'
             except (ValueError, IndexError) as e:
-                self.logger.error(f'make_hex 오류: {str(e)}')
+                self.logger.error(f'insert_device_index_to_hex 오류: {str(e)}')
                 pass
         return self.checksum(base_hex)
 
@@ -97,7 +97,7 @@ class WallpadController:
                 - 실패 시: None
         
         Examples:
-            >>> make_hex_temp(0, 22, 24, 'commandON')  # 온도조절기 1번 켜기
+            >>> make_hex_temp(0, 22, 24, 'commandON')  # 온도절기 1번 켜기
             >>> make_hex_temp(1, 25, 26, 'commandCHANGE')  # 온도조절기 2번 온도 변경
         """
         try:
@@ -106,7 +106,7 @@ class WallpadController:
                 tmp_hex = self.device_list['Thermo'].get(command_type)
                 position = self.device_list['Thermo'].get('commandNUM')
                 # device_index포함된 hex생성
-                tmp_hex = self.make_hex(device_index, tmp_hex, position)
+                tmp_hex = self.insert_device_index_to_hex(device_index, tmp_hex, position)
                 
                 # 온도 변경 명령인 경우
                 if command_type == 'commandCHANGE':
@@ -123,9 +123,9 @@ class WallpadController:
             else:
                 tmp_hex = self.device_list['Thermo'].get(command_type)
                 position = self.device_list['Thermo'].get('stateNUM')
-                tmp_hex = self.make_hex(device_index, tmp_hex, position)
+                tmp_hex = self.insert_device_index_to_hex(device_index, tmp_hex, position)
                 
-                # 현재 온도와 설정 온도 적용
+                # 현재 온도와 정 온도 적용
                 setT = self.pad(target_temp)
                 curT = self.pad(current_temp)
                 curTnum = self.device_list['Thermo'].get('curTemp')
@@ -150,7 +150,7 @@ class WallpadController:
         num = self.device_list[dev_name].get('Number', 0)
         if num > 0:
             arr = [{
-                cmd + onoff: self.make_hex(k, 
+                cmd + onoff: self.insert_device_index_to_hex(k, 
                     self.device_list[dev_name].get(cmd + onoff),
                     self.device_list[dev_name].get(cmd + 'NUM')
                 )
@@ -162,12 +162,12 @@ class WallpadController:
                 tmp_hex = arr[0]['stateON']
                 change = self.device_list[dev_name].get('speedNUM')
                 arr[0]['stateON'] = [
-                    self.make_hex(k, tmp_hex, change) 
+                    self.insert_device_index_to_hex(k, tmp_hex, change) 
                     for k in range(3)
                 ]
                 tmp_hex = self.device_list[dev_name].get('commandCHANGE')
                 arr[0]['CHANGE'] = [
-                    self.make_hex(k, tmp_hex, change) 
+                    self.insert_device_index_to_hex(k, tmp_hex, change) 
                     for k in range(3)
                 ]
 
@@ -205,7 +205,7 @@ class WallpadController:
                         4: 'Connection refused - bad username or password',
                         5: 'Connection refused - not authorised'
                     }
-                    self.logger.info(errcode[rc])
+                    self.logger.error(errcode[rc])
 
             def on_message(client, userdata, msg):
                 raw_data = msg.payload.hex().upper()
@@ -260,6 +260,7 @@ class WallpadController:
         except Exception as e:
             self.logger.error(f'기기 검색 중 오류 발생: {str(e)}')
             return None
+    
     async def update_light(self, idx, onoff):
         state = 'power'
         deviceID = 'Light' + str(idx)
@@ -267,28 +268,40 @@ class WallpadController:
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.mqtt_client.publish(topic, onoff.encode())
-        self.logger.mqtt(f'[LOG] ->> HA : {topic} >> {onoff}')
+        self.logger.debug(f'->> HA : {topic} >> {onoff}')
 
-    # async def update_fan(self, idx, value):
-    #     try:
-    #         deviceID = 'Fan' + str(idx + 1)
-    #         if value == 'OFF':
-    #             topic = self.STATE_TOPIC.format(deviceID, 'power')
-    #             self.mqtt_client.publish(topic, 'OFF'.encode())
-    #         else:
-    #             speed_map = {1: 'low', 2: 'medium', 3: 'high'}
-    #             topic = self.STATE_TOPIC.format(deviceID, 'speed')
-    #             speed = speed_map.get(int(value), 'low')
-    #             self.mqtt_client.publish(topic, speed.encode())
+    async def update_fan(self, idx, value):
+        try:
+            deviceID = 'Fan' + str(idx + 1)
+            if value == 'OFF':
+                topic = self.STATE_TOPIC.format(deviceID, 'power')
+                self.mqtt_client.publish(topic, 'OFF'.encode())
+            else:
+                speed_map = {1: 'low', 2: 'medium', 3: 'high'}
+                topic = self.STATE_TOPIC.format(deviceID, 'speed')
+                speed = speed_map.get(int(value), 'low')
+                self.mqtt_client.publish(topic, speed.encode())
                 
-    #             topic = self.STATE_TOPIC.format(deviceID, 'power')
-    #             self.mqtt_client.publish(topic, 'ON'.encode())
+                topic = self.STATE_TOPIC.format(deviceID, 'power')
+                self.mqtt_client.publish(topic, 'ON'.encode())
                 
-    #         self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {value}')
-    #     except Exception as e:
-    #         self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
+            self.logger.mqtt(f'->> HA : {topic} -> {value}')
+        except Exception as e:
+            self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
 
-    async def update_temperature(self, idx, mode_text, curTemp, setTemp):
+    async def update_temperature(self, idx: int, mode_text: str, curTemp: int, setTemp: int) -> None:
+        """
+        온도 조절기 상태를 업데이트하는 함수입니다.
+
+        Args:
+            idx (int): 온도 조절기 장치의 인덱스 번호.
+            mode_text (str): 온도 조절기의 모드 텍스트 (예: 'heat', 'off').
+            curTemp (int): 현재 온도 값.
+            setTemp (int): 설정하고자 하는 목표 온도 값.
+
+        Raises:
+            Exception: 온도 업데이트 중 오류가 발생하면 예외를 발생시킵니다.
+        """
         try:
             deviceID = 'Thermo' + str(idx)
             
@@ -305,34 +318,33 @@ class WallpadController:
                 self.HOMESTATE[deviceID + state] = val
             
             power_state = mode_text
-            # power_state = 'heat' if curTemp > 0 else 'off'
             power_topic = self.STATE_TOPIC.format(deviceID, 'power')
             self.mqtt_client.publish(power_topic, power_state.encode())
             
-            self.logger.mqtt(f'[LOG] ->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={power_state}')
+            self.logger.debug(f'->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={power_state}')
         except Exception as e:
             self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
 
-    # async def update_outlet_value(self, idx, val):
-    #     deviceID = 'Outlet' + str(idx + 1)
-    #     try:
-    #         val = '%.1f' % float(int(val) / 10)
-    #         topic = self.STATE_TOPIC.format(deviceID, 'watt')
-    #         self.mqtt_client.publish(topic, val.encode())
-    #         self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {val}')
-    #     except:
-    #         pass
+    async def update_outlet_value(self, idx, val):
+        deviceID = 'Outlet' + str(idx + 1)
+        try:
+            val = '%.1f' % float(int(val) / 10)
+            topic = self.STATE_TOPIC.format(deviceID, 'watt')
+            self.mqtt_client.publish(topic, val.encode())
+            self.logger.mqtt(f'->> HA : {topic} -> {val}')
+        except:
+            pass
 
-    # async def update_ev_value(self, idx, val):
-    #     deviceID = 'EV' + str(idx + 1)
-    #     try:
-    #         BF = self.device_list['EV']['BasementFloor']
-    #         val = str(int(val) - BF + 1) if val >= BF else 'B' + str(BF - int(val))
-    #         topic = self.STATE_TOPIC.format(deviceID, 'floor')
-    #         self.mqtt_client.publish(topic, val.encode())
-    #         self.logger.mqtt(f'[LOG] ->> HA : {topic} -> {val}')
-    #     except:
-    #         pass
+    async def update_ev_value(self, idx, val):
+        deviceID = 'EV' + str(idx + 1)
+        try:
+            BF = self.device_list['EV']['BasementFloor']
+            val = str(int(val) - BF + 1) if val >= BF else 'B' + str(BF - int(val))
+            topic = self.STATE_TOPIC.format(deviceID, 'floor')
+            self.mqtt_client.publish(topic, val.encode())
+            self.logger.mqtt(f'->> HA : {topic} -> {val}')
+        except:
+            pass
 
     async def reboot_elfin_device(self):
         try:
@@ -347,6 +359,11 @@ class WallpadController:
             self.logger.error(f'기기 재시작 오류: {str(err)}')
 
     def setup_mqtt(self):
+        """
+        MQTT 설정을 초기화합니다.
+        MQTT 클라이언트를 생성하고, 서버에 연결합니다.
+        또한, MQTT 브로커에 접속 성공 시 구독할 토픽을 정의합니다.
+        """
         self.mqtt_client = mqtt.Client(self.HA_TOPIC)
         self.mqtt_client.username_pw_set(
             self.config['mqtt_id'],
@@ -358,6 +375,10 @@ class WallpadController:
         self.mqtt_client.loop_start()
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
+        """
+        MQTT 브로커에 연결 성공 시 호출되는 함수입니다.
+        연결 결과 코드를 확인하고, 성공 시 구독할 토픽을 정의합니다.
+        """
         if rc == 0:
             self.logger.info("MQTT broker 접속 완료")
             topics = [
@@ -385,7 +406,7 @@ class WallpadController:
             
             if topics[0] == self.ELFIN_TOPIC:
                 raw_data = msg.payload.hex().upper()
-                self.logger.signal(f'수신: {raw_data}')
+                self.logger.signal(f'RS485수신: {raw_data}')
                 self.COLLECTDATA['LastRecv'] = time.time_ns()
                 
                 if self.loop and self.loop.is_running():
@@ -396,7 +417,7 @@ class WallpadController:
                 
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
-                self.logger.debug(f'HA로부터 ��신: {"/".join(topics)} -> {value}')
+                self.logger.debug(f'HA로부터 수신: {"/".join(topics)} -> {value}')
                 
                 if self.loop and self.loop.is_running():
                     asyncio.run_coroutine_threadsafe(
@@ -407,83 +428,68 @@ class WallpadController:
         except Exception as err:
             self.logger.error(f'MQTT 메시지 처리 중 오류 발생: {str(err)}')
 
-    async def handle_elfin_reboot(self, elfin_reboot_interval):
+    async def process_queue_and_monitor(self, elfin_reboot_interval):
+        """
+        메시지 큐를 주기적으로 처리하고 기기 상태를 모니터링하는 함수입니다.
+
+        1ms 간격으로 다음 작업들을 수행합니다:
+        1. 큐에 있는 메시지 처리 (100ms 이상 통신이 없을 때)
+        2. ew11 기기 상태 모니터링 및 필요시 재시작
+
+        Args:
+            elfin_reboot_interval (float): ew11 기기 재시작 판단을 위한 통신 제한 시간 (초)
+
+        Raises:
+            Exception: 큐 처리 또는 기기 재시작 중 오류 발생시 예외를 발생시킵니다.
+        """
         while True:
             try:
-                if time.time_ns() - self.COLLECTDATA['LastRecv'] > elfin_reboot_interval * 1e9:
-                    self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다. ew11 기기를 재시작합니다.')
-                    await self.reboot_elfin_device()
+                current_time = time.time_ns()
+                last_recv = self.COLLECTDATA['LastRecv']
+                
+                if current_time - last_recv > elfin_reboot_interval * 1_000_000_000:  # 초를 나노초로 변환
+                    self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
+                    if (self.config.get("elfin_auto_reboot",True)):
+                        self.logger.warning('EW11 재시작을 시도합니다.')
+                        await self.reboot_elfin_device()
                     self.COLLECTDATA['LastRecv'] = time.time_ns()
-                elif time.time_ns() - self.COLLECTDATA['LastRecv'] > 1e8:
+                if current_time - last_recv > 100_000_000:  # 100ms를 나노초로 변환
                     await self.process_queue()
+                
             except Exception as err:
-                self.logger.error(f'send_to_elfin() 오류: {str(err)}')
+                self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
                 return True
-            await asyncio.sleep(0.01)
+            
+            await asyncio.sleep(0.001) #1ms 마다
 
     async def process_queue(self):
+        """
+        큐에 있는 모든 데이터를 처리합니다.
+        
+        이 함수는 큐에 있는 모든 데이터를 처리합니다. 각 데이터는 전송 횟수를 포함합니다. 
+        전송 횟수가 5회 미만인 경우, 데이터는 큐에 다시 추가됩니다. 
+        전송 횟수가 5회 이상인 경우, 데이터는 큐에서 제거됩니다.
+        """
         if self.QUEUE:
             send_data = self.QUEUE.pop(0)
-            if self.config['elfin_log']:
-                self.logger.debug(f'신호 전송: {send_data}')
+            self.logger.signal(f'신호 전송: {send_data}')
             self.mqtt_client.publish(f'{self.ELFIN_TOPIC}/send', bytes.fromhex(send_data['sendcmd']))
             if send_data['count'] < 5:
                 send_data['count'] += 1
                 self.QUEUE.append(send_data)
             else:
-                if self.config['elfin_log']:
-                    self.logger.debug(f'5회 이상 전송 실패. 큐에서 제거: {send_data}')
-
-    def run(self):
-        self.logger.info("'Commax Wallpad Addon'을 시작합니다.")
-        
-        try:
-            with open(self.share_dir + '/cwbs_found_device.json') as file:
-                self.logger.info('기기 정보 파일을 찾음: /share/cwbs_found_device.json')
-                self.device_list = json.load(file)
-                self.DEVICE_LISTS = self.make_device_lists()
-        except IOError:
-            self.logger.info('기기 정보 파일이 없습니다. mqtt에 접속하여 기기를 찾습니다.')
-            self.device_list = self.find_device()
-
-        self.setup_mqtt()
-        
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        
-        tasks = [
-            self.handle_elfin_reboot(self.config.get('elfin_reboot_interval', 10)),
-            self.process_mqtt_messages(),
-        ]
-        try:
-            self.loop.run_until_complete(asyncio.gather(*tasks))
-        except Exception as e:
-            self.logger.error(f"실행 중 오류 발생: {str(e)}")
-        finally:
-            self.loop.close()
-            self.mqtt_client.loop_stop()
-
-    def __del__(self):
-        """클래스 인스턴스가 삭제될 때 리소스 정리"""
-        if self.mqtt_client:
-            try:
-                self.mqtt_client.loop_stop()
-                self.mqtt_client.disconnect()
-            except:
-                pass
-        if self.loop and not self.loop.is_closed():
-            self.loop.close()
+                self.logger.signal(f'5회 이상 전송 실패. 큐에서 제거: {send_data}')
 
     async def process_elfin_data(self, raw_data):
         try:            
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
-                self.logger.signal(f'처리 중인 데이터 패킷: {data}')
+                self.logger.signal(f'처리 중인 패킷: {data}')
                 if data == self.checksum(data):
                     self.COLLECTDATA['data'].add(data)
                     hex_array = [data[i:i+2] for i in range(0, len(data), 2)]                    
                     # if data[:2] == '23':  # 엘리베이터
-                    #     self.logger.debug(f'엘리베이터 데이터 감지: {data}')
+                    #     self.logger.debug(f'엘리베이터 이터 감지: {data}')
                     #     if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
                     #         self.COLLECTDATA['EVtime'] = time.time()
                     #         self.logger.debug(f'엘리베이터 층수 업데이트: {data[4]}')
@@ -524,7 +530,7 @@ class WallpadController:
                     #             self.logger.debug(f'환기장치 속도: {data[4]}')
                     #             await self.update_fan(0, data[4])
                 else:
-                    self.logger.debug(f'체크섬 불일치: {data}')
+                    self.logger.signal(f'체크섬 불일치: {data}')
                 
         except Exception as e:
             self.logger.error(f"Elfin 데이터 처리 중 오류 발생: {str(e)}")
@@ -578,7 +584,7 @@ class WallpadController:
                             return
                         
                         sendcmd = self.make_hex_temp(num, cur_temp, set_temp, 'commandON')
-                        self.logger.debug(f'��도조절기 켜기 명령: {sendcmd}')
+                        self.logger.debug(f'온도조절기 켜기 명령: {sendcmd}')
                     else:  # off는 OFF로 처리
                         cur_temp = self.HOMESTATE.get(topics[1] + 'curTemp')
                         set_temp = self.HOMESTATE.get(topics[1] + 'setTemp')
@@ -613,20 +619,6 @@ class WallpadController:
                     self.logger.debug(f'큐에 추가된 명령: {sendcmd}')
         except Exception as e:
             self.logger.error(f"HA 명령 처리 중 오류 발생: {str(e)}")
-
-    async def process_mqtt_messages(self):
-        """MQTT 메시지 처리 루프"""
-        while True:
-            await asyncio.sleep(0.1)
-            # MQTT 메시지는 on_mqtt_message 콜백에서 처리됨
-
-    def make_device_lists(self):
-        device_lists = {}
-        for device in self.device_list:
-            result = self.make_device_list(device)
-            if result:
-                device_lists[device] = result
-        return device_lists
 
     def publish_discovery_message(self):
         """홈어시스턴트 MQTT Discovery 메시지 발행"""
@@ -719,6 +711,54 @@ class WallpadController:
             
         except Exception as e:
             self.logger.error(f"MQTT Discovery 설정 중 오류 발생: {str(e)}")
+
+    def make_device_lists(self):
+        device_lists = {}
+        for device in self.device_list:
+            result = self.make_device_list(device)
+            if result:
+                device_lists[device] = result
+        return device_lists
+    
+    def run(self):
+        self.logger.info("'Commax Wallpad Addon'을 시작합니다.")
+        self.logger.info("기존에 설정된 기기 파일이 있는지 확인합니다. (/share/cwbs_found_device.json)")
+        
+        try:
+            with open(self.share_dir + '/cwbs_found_device.json') as file:
+                self.device_list = json.load(file)
+                self.DEVICE_LISTS = self.make_device_lists()
+                self.logger.info(f'기�� 정보 파일을 찾음{self.DEVICE_LISTS}')
+        except IOError:
+            self.logger.info('기기 정보 파일이 없습니다. mqtt에 접속하여 기기를 찾습니다.')
+            self.device_list = self.find_device()
+
+        self.setup_mqtt()
+        
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        
+        tasks = [
+            self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10)),
+        ]
+        try:
+            self.loop.run_until_complete(asyncio.gather(*tasks))
+        except Exception as e:
+            self.logger.error(f"실행 중 오류 발생: {str(e)}")
+        finally:
+            self.loop.close()
+            self.mqtt_client.loop_stop()
+
+    def __del__(self):
+        """클래스 인스턴스가 삭제될 때 리소스 정리"""
+        if self.mqtt_client:
+            try:
+                self.mqtt_client.loop_stop()
+                self.mqtt_client.disconnect()
+            except:
+                pass
+        if self.loop and not self.loop.is_closed():
+            self.loop.close()
 
 if __name__ == '__main__':
     with open('/data/options.json') as file:
