@@ -384,35 +384,26 @@ class WallpadController:
             self.logger.error(f'기기 재시작 오류: {str(err)}')
 
     def setup_mqtt(self):
-        """
-        MQTT 설정을 초기화합니다.
-        MQTT 클라이언트를 생성하고, 서버에 연결합니다.
-        또한, MQTT 브로커에 접속 성공 시 구독할 토픽을 정의합니다.
-        """
         self.mqtt_client = mqtt.Client(self.HA_TOPIC)
         self.mqtt_client.username_pw_set(
-            self.config['mqtt_id'],
-            self.config['mqtt_password']
+            self.config['mqtt_id'], self.config['mqtt_password']
         )
-        self.mqtt_client.on_connect = self.on_mqtt_connect
+        self.mqtt_client.on_connect = lambda client, userdata, flags, rc: \
+            asyncio.create_task(self.on_mqtt_connect(client, userdata, flags, rc))
         self.mqtt_client.on_message = self.on_mqtt_message
         self.mqtt_client.connect_async(self.config['mqtt_server'])
         self.mqtt_client.loop_start()
 
     async def on_mqtt_connect(self, client, userdata, flags, rc):
-        """
-        MQTT 브로커에 연결 성공 시 호출되는 함수입니다.
-        연결 결과 코드를 확인하고, 성공 시 구독할 토픽을 정의합니다.
-        """
         if rc == 0:
             self.logger.info("MQTT broker 접속 완료")
+            self.logger.info("구독 시작")
             topics = [
                 (f'{self.HA_TOPIC}/+/+/command', 0),
                 (f'{self.ELFIN_TOPIC}/recv', 0),
                 (f'{self.ELFIN_TOPIC}/send', 0)
             ]
             client.subscribe(topics)
-            self.logger.info(f"구독 시작: {topics}")
             # MQTT Discovery 메시지 발행
             await self.publish_discovery_message()
         else:
@@ -847,25 +838,22 @@ class WallpadController:
     def run(self):
         self.logger.info("'Commax Wallpad Addon'을 시작합니다.")
         self.logger.info("저장된 기기정보가 있는지 확인합니다. (/share/cwbs_found_device.json)")
-        
         try:
             with open(self.share_dir + '/cwbs_found_device.json') as file:
                 self.device_list = json.load(file)
-                if not self.device_list:
-                    self.logger.info('기기 목록이 비어있습니다. 기기 찾기를 시도합니다.')
-                    self.device_list = self.find_device()
-                else:
-                    self.logger.info(f'기기정보를 찾았습니다. \n{json.dumps(self.DEVICE_LISTS, ensure_ascii=False, indent=4)}')
-                    self.DEVICE_LISTS = self.make_device_lists()
+            if not self.device_list:
+                self.logger.info('기기 목록이 비어있습니다. 기기 찾기를 시도합니다.')
+                self.device_list = self.find_device()
+            else:
+                self.logger.info(f'기기정보를 찾았습니다. \n{json.dumps(self.DEVICE_LISTS, ensure_ascii=False, indent=4)}')
+            self.DEVICE_LISTS = self.make_device_lists()
         except IOError:
             self.logger.info('저장된 기기 정보가 없습니다. mqtt에 접속하여 기기 찾기를 시도합니다.')
             self.device_list = self.find_device()
 
         self.setup_mqtt()
         
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        
+        self.loop = asyncio.get_event_loop()
         tasks = [
             self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10)),
         ]
