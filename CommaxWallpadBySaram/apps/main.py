@@ -141,7 +141,8 @@ class WallpadController:
             # 기타 예외 처리
             self.logger.error(f'예외 발생: {e}')
             return None
-    
+        
+    #TODO commandPower를 만들고있음.. commandON commandOFF를 만들어야함
     def find_device(self) -> Dict[str, Any]:
         """
         MQTT에 발행되는 RS485신호에서 기기를 찾는 함수입니다.
@@ -835,6 +836,7 @@ class WallpadController:
                 device_lists[device] = result
         return device_lists
     
+    #TODO: DEVICE_LISTS는 없는데.. device_list,,, 정리하기
     def run(self):
         self.logger.info("'Commax Wallpad Addon'을 시작합니다.")
         self.logger.info("저장된 기기정보가 있는지 확인합니다. (/share/cwbs_found_device.json)")
