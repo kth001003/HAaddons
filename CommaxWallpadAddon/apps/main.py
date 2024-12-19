@@ -223,6 +223,10 @@ class WallpadController:
 
     def publish_mqtt(self, topic: str, value: str, retain: bool = False) -> None:
         if self.mqtt_client:
+            if topic.endswith('/send'):
+                self.mqtt_client.publish(topic, value, retain=retain)
+                self.logger.mqtt(f'{topic} >> {value}')
+                return
             self.mqtt_client.publish(topic, value.encode(), retain=retain)
             self.logger.mqtt(f'{topic} >> {value}')
         else:
@@ -834,7 +838,7 @@ class WallpadController:
             if packet_hex:
                 # 예상 상태 패킷 디버그 로그 출력
                 expected_state = self.generate_expected_state_packet(packet_hex)
-                self.logger.debug(f'예상 상태: {expected_state}')
+                self.logger.debug(f'명령패킷: {packet_hex}, 예상 상태: {expected_state}')
                 if expected_state:
                     self.logger.debug(f'예상 상태: {expected_state}')
                     self.QUEUE.append({
