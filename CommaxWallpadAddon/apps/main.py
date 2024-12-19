@@ -731,7 +731,7 @@ class WallpadController:
                                 # 온도값을 10진수로 직접 해석
                                 current_temp = int(format(byte_data[int(state_structure['fieldPositions']['currentTemp'])], '02x'))
                                 target_temp = int(format(byte_data[int(state_structure['fieldPositions']['targetTemp'])], '02x'))
-                                
+                                self.logger.debug(f'target_temp: {target_temp}#############################################################')
                                 power_values = state_structure['structure'][state_structure['fieldPositions']['power']]['values']
                                 mode_text = 'off' if power == int(power_values['off'], 16) else 'heat'
                                 
