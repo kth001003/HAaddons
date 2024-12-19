@@ -195,7 +195,7 @@ class WallpadController:
                     current_time = time.time_ns()
                     if 'last_recv_time' in self.COLLECTDATA:
                         interval = current_time - self.COLLECTDATA['last_recv_time']
-                        self.logger.signal(f'RS485 수신 간격: {interval/1_000_000} ms')
+                        # self.logger.signal(f'RS485 수신 간격: {interval/1_000_000} ms')
                     self.COLLECTDATA['last_recv_time'] = current_time
                     
                     if self.loop and self.loop.is_running():
@@ -748,6 +748,7 @@ class WallpadController:
                                 device_id = byte_data[int(state_structure['fieldPositions']['deviceId'])]
                                 power = byte_data[int(state_structure['fieldPositions']['power'])]
                                 # 온도값을 10진수로 직접 해석
+                                self.logger.debug(f'byte_data: {byte_data.hex()}')
                                 current_temp = str(byte_data[int(state_structure['fieldPositions']['currentTemp'])])
                                 target_temp = str(byte_data[int(state_structure['fieldPositions']['targetTemp'])])
                                 
