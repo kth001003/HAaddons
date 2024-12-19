@@ -724,6 +724,16 @@ class WallpadController:
                                 current_temp = int(format(byte_data[int(state_structure['fieldPositions']['currentTemp'])], '02x'))
                                 target_temp = int(format(byte_data[int(state_structure['fieldPositions']['targetTemp'])], '02x'))
                                 power_values = state_structure['structure'][power_pos]['values']
+                                self.logger.debug(f'power_values: {power_values}\n'
+                                                  f'power: {power}\n'
+                                                  f'power_values["off"]: {power_values["off"]}\n'
+                                                  f'power_values["on"]: {power_values["on"]}\n'
+                                                  f'int(power_values["off"], 16): {int(power_values["off"], 16)}\n'
+                                                  f'int(power_values["on"], 16): {int(power_values["on"], 16)}\n'
+                                                  f'power == int(power_values["off"], 16): {power == int(power_values["off"], 16)}\n'
+                                                  f'power == int(power_values["on"], 16): {power == int(power_values["on"], 16)}\n'
+                                                  f'structure: {state_structure["structure"]}\n'
+                                                  )
                                 mode_text = 'off' if power == int(power_values['off'], 16) else 'heat'
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
