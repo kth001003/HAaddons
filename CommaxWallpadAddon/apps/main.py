@@ -723,18 +723,15 @@ class WallpadController:
                                 # 온도값을 10진수로 직접 해석
                                 current_temp = int(format(byte_data[int(state_structure['fieldPositions']['currentTemp'])], '02x'))
                                 target_temp = int(format(byte_data[int(state_structure['fieldPositions']['targetTemp'])], '02x'))
+                                
+                                # power 값 비교를 16진수 문자열로 변환하여 수행
+                                power_hex = format(power, '02x').upper()
                                 power_values = state_structure['structure'][power_pos]['values']
-                                self.logger.debug(f'power_values: {power_values}\n'
-                                                  f'power: {power}\n'
-                                                  f'power_values["off"]: {power_values["off"]}\n'
-                                                  f'power_values["on"]: {power_values["on"]}\n'
-                                                  f'int(power_values["off"], 16): {int(power_values["off"], 16)}\n'
-                                                  f'int(power_values["on"], 16): {int(power_values["on"], 16)}\n'
-                                                  f'power == int(power_values["off"], 16): {power == int(power_values["off"], 16)}\n'
-                                                  f'power == int(power_values["on"], 16): {power == int(power_values["on"], 16)}\n'
-                                                  f'structure: {state_structure["structure"]}\n'
-                                                  )
-                                mode_text = 'off' if power == int(power_values['off'], 16) else 'heat'
+                                
+                                # power 값과 정의된 값들을 직접 비교
+                                mode_text = 'off'
+                                if power_hex == power_values.get('on', '').upper():
+                                    mode_text = 'heat'
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
                                 await self.update_temperature(device_id, mode_text, current_temp, target_temp)
@@ -743,7 +740,8 @@ class WallpadController:
                                 power_pos = state_structure['fieldPositions']['power']
                                 power = byte_data[int(power_pos)]
                                 power_values = state_structure['structure'][power_pos]['values']
-                                state = "ON" if power == int(power_values['on'], 16) else "OFF"
+                                power_hex = format(power, '02x').upper()
+                                state = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
                                 await self.update_light(device_id, state)
@@ -756,6 +754,11 @@ class WallpadController:
         
         except Exception as e:
             self.logger.error(f"Elfin 데이터 처리 중 오류 발생: {str(e)}")
+            self.logger.debug(f"오류 상세 - raw_data: {raw_data}, device_name: {device_name if 'device_name' in locals() else 'N/A'}")
+            if 'power_values' in locals():
+                self.logger.debug(f"power_values: {power_values}")
+            if 'power' in locals():
+                self.logger.debug(f"power: {format(power, '02x').upper()}")
 
     @require_device_structure(None)
     async def process_ha_command(self, topics: List[str], value: str) -> None:
