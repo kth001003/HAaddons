@@ -8,7 +8,7 @@ import telnetlib
 import re
 import os
 from logger import Logger
-from typing import Any, Dict, Union, List, Optional, Set, Tuple, Literal, TypedDict, Callable, TypeVar
+from typing import Any, Dict, Union, List, Optional, Set, TypedDict, Callable, TypeVar, Callable
 from functools import wraps
 
 T = TypeVar('T')
@@ -658,12 +658,7 @@ class WallpadController:
     # 메시지 처리 함수들
     @require_device_structure(None)
     async def process_elfin_data(self, raw_data: str) -> None:
-        """
-        Elfin 장치에서 전송된 raw_data를 분석합니다.
-        
-        Args:
-            raw_data (str): Elfin 장치에서 전송된 raw_data.
-        """
+        """Elfin 장치에서 전송된 raw_data를 분석합니다."""
         try:
             assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
             
@@ -676,19 +671,23 @@ class WallpadController:
                     for device_name, structure in self.DEVICE_STRUCTURE.items():
                         if byte_data[0] == int(structure['state']['header'], 16):
                             if device_name == 'Thermo':
-                                device_id = byte_data[structure['state']['fieldPositions']['deviceId']]
-                                power = byte_data[structure['state']['fieldPositions']['power']]
-                                mode_text = 'off' if power == structure['state']['fieldPositions']['power']['values']['off'] else 'heat'
-                                current_temp = byte_data[structure['state']['fieldPositions']['currentTemp']]
-                                target_temp = byte_data[structure['state']['fieldPositions']['targetTemp']]
+                                # 문자열을 정수로 변환
+                                device_id = byte_data[int(structure['state']['fieldPositions']['deviceId'])]
+                                power = byte_data[int(structure['state']['fieldPositions']['power'])]
+                                current_temp = byte_data[int(structure['state']['fieldPositions']['currentTemp'])]
+                                target_temp = byte_data[int(structure['state']['fieldPositions']['targetTemp'])]
+                                
+                                power_values = structure['state']['structure']['1']['values']
+                                mode_text = 'off' if power == int(power_values['off'], 16) else 'heat'
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
                                 await self.update_temperature(device_id, mode_text, current_temp, target_temp)
                             
                             elif device_name == 'Light':
-                                device_id = byte_data[structure['state']['fieldPositions']['deviceId']]
-                                power = byte_data[structure['state']['fieldPositions']['power']]
-                                state = "ON" if power == structure['state']['fieldPositions']['power']['values']['on'] else "OFF"
+                                device_id = byte_data[int(structure['state']['fieldPositions']['deviceId'])]
+                                power = byte_data[int(structure['state']['fieldPositions']['power'])]
+                                power_values = structure['state']['structure']['1']['values']
+                                state = "ON" if power == int(power_values['on'], 16) else "OFF"
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
                                 await self.update_light(device_id, state)
