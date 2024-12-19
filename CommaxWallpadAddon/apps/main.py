@@ -475,11 +475,11 @@ class WallpadController:
             value_pos = command["fieldPositions"]["value"]
             
             if command_type == 'commandOFF':
-                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["OFF"], 16)
-                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["off"], 16)
+                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["POWER"], 16)
+                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["OFF"], 16)
             elif command_type == 'commandON':
                 packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["POWER"], 16)
-                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["on"], 16)
+                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["ON"], 16)
             elif command_type == 'commandCHANGE':
                 packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["CHANGE"], 16)
                 packet[int(value_pos)] = int(str(target_temp),16)
@@ -514,6 +514,7 @@ class WallpadController:
             Optional[str]: 생성된 상태 패킷 문자열. 실패시 None
         """
         try:
+            self.logger.debug(f"명령 패킷 수신: {command_str}")
             assert isinstance(self.DEVICE_STRUCTURE, dict)
             
             # 명령 패킷 검증
@@ -523,6 +524,7 @@ class WallpadController:
                 
             # 명령 패킷을 바이트로 변환
             command_packet = bytes.fromhex(command_str)
+            self.logger.debug(f"명령 패킷 바이트 변환: {command_packet.hex().upper()}")
             
             # 헤더로 기기 타입 찾기
             device_type = None
@@ -534,7 +536,9 @@ class WallpadController:
             if not device_type:
                 self.logger.error("알 수 없는 명령 패킷입니다.")
                 return None
-                
+            
+            self.logger.debug(f"기기 타입 확인: {device_type}")
+            
             # 기기별 상태 패킷 생성
             device_structure = self.DEVICE_STRUCTURE[device_type]
             command_structure = device_structure['command']
@@ -545,10 +549,12 @@ class WallpadController:
             
             # 상태 패킷 헤더 설정
             status_packet[0] = int(state_structure['header'], 16)
+            self.logger.debug(f"상태 패킷 헤더 설정: {status_packet[0]}")
             
             # 기기 ID 복사
             device_id_pos = state_structure['fieldPositions']['deviceId'] #'2'
             status_packet[int(device_id_pos)] = command_packet[int(command_structure['fieldPositions']['deviceId'])]
+            self.logger.debug(f"기기 ID 설정: {status_packet[int(device_id_pos)]}")
             
             if device_type == 'Thermo':
                 # 온도조절기 상태 패킷 생성
@@ -561,9 +567,11 @@ class WallpadController:
                     # command packet의 값을 상태 패킷에 복사
                     command_value = command_packet[int(command_structure['fieldPositions']['value'])]
                     status_packet[int(power_pos)] = command_value
+                    self.logger.debug(f"전원 명령 처리: {command_value}")
                 elif command_type == int(command_structure[command_type_pos]['values']['setTemp'], 16):
                     # 온도 설정 명령인 경우 - 켜진 상태로 가정
                     status_packet[int(power_pos)] = int(state_structure['structure']['1']['values']['on'], 16)
+                    self.logger.debug("온도 설정 명령 처리")
                 
                 # 온도값 설정
                 if command_type == int(command_structure[command_type_pos]['values']['setTemp'], 16):
@@ -571,12 +579,14 @@ class WallpadController:
                     status_packet[int(state_structure['fieldPositions']['targetTemp'])] = target_temp
                     # 현재 온도는 설정 온도와 동일하게 설정 (실제로는 다를 수 있음)
                     status_packet[int(device_structure['state']['fieldPositions']['currentTemp'])] = target_temp
+                    self.logger.debug(f"온도 설정: {target_temp}")
                     
             elif device_type == 'Light':
                 # 조명 상태 패킷 생성
                 power_pos = state_structure['fieldPositions']['power']
                 command_value = command_packet[int(command_structure['fieldPositions']['power'])]
                 status_packet[int(power_pos)] = command_value
+                self.logger.debug(f"조명 상태 설정: {command_value}")
                 
             # elif device_type == 'Fan':
             #     # 환기장치 상태 패킷 생성
@@ -595,6 +605,7 @@ class WallpadController:
             
             # 상태 패킷을 16진수 문자열로 변환
             status_hex = status_packet.hex().upper()
+            self.logger.debug(f"상태 패킷 생성: {status_hex}")
             
             # self.checksum을 사용하여 체크섬 추가
             return self.checksum(status_hex)
@@ -793,11 +804,11 @@ class WallpadController:
                 
                 if state == 'power':
                     if value == 'heat':
-                        self.logger.debug(f'온도조절기 켜기 명령: {device_id}, {cur_temp}, {set_temp}')
                         packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandON')
+                        self.logger.debug(f'온도조절기 켜기 명령: {packet_hex}')
                     else:
-                        self.logger.debug(f'온도조절기 끄기 명령: {device_id}')
                         packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandOFF')
+                        self.logger.debug(f'온도조절기 끄기 명령: {packet_hex}')
                 elif state == 'setTemp':
                         packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandCHANGE')
                         self.logger.debug(f'온도조절기 설정 온도 변경 명령: {packet_hex}')
