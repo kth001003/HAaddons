@@ -139,6 +139,7 @@ class WallpadController:
                     time.sleep(0.1)
                     if time.time() - start_time > 30:  # 30초 타임아웃
                         self.logger.error("MQTT 연결 타임아웃")
+                        self.reconnect_mqtt()
                         return  # 예외 대신 함수 종료
                     
                 self.logger.info("MQTT 브로커 연결 성공")
