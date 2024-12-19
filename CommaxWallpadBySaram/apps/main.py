@@ -561,32 +561,50 @@ class WallpadController:
                     byte_data = bytearray.fromhex(data)
                     
                     for device_name, structure in self.DEVICE_STRUCTURE.items():
-                        if byte_data[0] == int(structure['state']['header'], 16):
-                            if device_name == 'Thermo':
-                                device_id = byte_data[structure['state']['fieldPositions']['deviceId']]
-                                power = byte_data[structure['state']['fieldPositions']['power']]
-                                mode_text = 'off' if power == structure['state']['fieldPositions']['power']['values']['off'] else 'heat'
-                                current_temp = byte_data[structure['state']['fieldPositions']['currentTemp']]
-                                target_temp = byte_data[structure['state']['fieldPositions']['targetTemp']]
-                                
-                                self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
-                                await self.update_temperature(device_id, mode_text, current_temp, target_temp)
+                        state_structure = structure.get('state', {})
+                        if not state_structure:
+                            continue
+                        
+                        header = state_structure.get('header')
+                        if not header or byte_data[0] != int(header, 16):
+                            continue
+
+                        # 필드 위치와 구조 정보 가져오기
+                        field_positions = state_structure.get('fieldPositions', {})
+                        field_structure = state_structure.get('structure', {})
+
+                        if device_name == 'Thermo':
+                            device_id = byte_data[field_positions['deviceId']]
+                            power_pos = field_positions['power']
+                            power_values = field_structure[str(power_pos)]['values']
+                            power_value = byte_data[power_pos]
                             
-                            elif device_name == 'Light':
-                                device_id = byte_data[structure['state']['fieldPositions']['deviceId']]
-                                power = byte_data[structure['state']['fieldPositions']['power']]
-                                state = "ON" if power == structure['state']['fieldPositions']['power']['values']['on'] else "OFF"
-                                
-                                self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
-                                await self.update_light(device_id, state)
-                            #TODO: 다른 기기타입들 추가
+                            mode_text = 'off' if format(power_value, '02X') == power_values['off'] else 'heat'
+                            current_temp = byte_data[field_positions['currentTemp']]
+                            target_temp = byte_data[field_positions['targetTemp']]
                             
-                            break
+                            self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
+                            await self.update_temperature(device_id, mode_text, current_temp, target_temp)
+                        
+                        elif device_name == 'Light':
+                            device_id = byte_data[field_positions['deviceId']]
+                            power_pos = field_positions['power']
+                            power_values = field_structure[str(power_pos)]['values']
+                            power_value = byte_data[power_pos]
+                            
+                            state = "ON" if format(power_value, '02X') == power_values['on'] else "OFF"
+                            
+                            self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
+                            await self.update_light(device_id, state)
+                        
+                        # 다른 기기 타입들에 대한 처리도 여기에 추가 가능
+                        break
                 else:
                     self.logger.signal(f'체크섬 불일치: {data}')
         
         except Exception as e:
             self.logger.error(f"Elfin 데이터 처리 중 오류 발생: {str(e)}")
+            self.logger.error(f"상세 에러: {str(e.__traceback__)}")
 
 
     # TODO
