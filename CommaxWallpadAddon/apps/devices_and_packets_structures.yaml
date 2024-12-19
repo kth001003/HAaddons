@@ -78,7 +78,6 @@ LightBreaker:
 
 Thermo:
   type: climate
-  deviceCount: 5
   command:
     header: "04"
     structure:

@@ -535,6 +535,7 @@ class WallpadController:
                 
             # 기기별 상태 패킷 생성
             device_structure = self.DEVICE_STRUCTURE[device_type]
+            command_structure = device_structure['command']
             state_structure = device_structure['state']
             
             # 상태 패킷 초기화 (7바이트 - 체크섬은 나중에 추가)
@@ -544,50 +545,51 @@ class WallpadController:
             status_packet[0] = int(state_structure['header'], 16)
             
             # 기기 ID 복사
-            device_id_pos = int(device_structure['state']['fieldPositions']['deviceId'])
-            status_packet[device_id_pos] = command_packet[int(device_structure['command']['fieldPositions']['deviceId'])]
+            device_id_pos = state_structure['fieldPositions']['deviceId']
+            status_packet[int(device_id_pos)] = command_packet[int(command_structure['fieldPositions']['deviceId'])]
             
             if device_type == 'Thermo':
                 # 온도조절기 상태 패킷 생성
-                command_type = command_packet[int(device_structure['command']['fieldPositions']['commandType'])]
+                command_type_pos = command_structure['fieldPositions']['commandType']
+                command_type = command_packet[int(command_type_pos)]
                 
-                # 전원 상태 설정
-                power_pos = int(device_structure['state']['fieldPositions']['power'])
-                if command_type == int(device_structure['command']['types']['power']['code'], 16):
+                power_pos = state_structure['fieldPositions']['power']
+                if command_type == int(command_structure[command_type_pos]['values']['power'], 16):
                     # 전원 명령인 경우
-                    command_value = command_packet[int(device_structure['command']['fieldPositions']['value'])]
-                    status_packet[power_pos] = command_value
-                elif command_type == int(device_structure['command']['types']['setTemp']['code'], 16):
+                    # command packet의 값을 상태 패킷에 복사
+                    command_value = command_packet[int(command_structure['fieldPositions']['value'])]
+                    status_packet[int(power_pos)] = command_value
+                elif command_type == int(command_structure[command_type_pos]['values']['setTemp'], 16):
                     # 온도 설정 명령인 경우 - 켜진 상태로 가정
-                    status_packet[power_pos] = int(device_structure['state']['structure']['1']['values']['on'], 16)
+                    status_packet[int(power_pos)] = int(state_structure['structure']['1']['values']['on'], 16)
                 
                 # 온도값 설정
-                if command_type == int(device_structure['command']['types']['setTemp']['code'], 16):
-                    target_temp = command_packet[int(device_structure['command']['fieldPositions']['value'])]
-                    status_packet[int(device_structure['state']['fieldPositions']['targetTemp'])] = target_temp
+                if command_type == int(command_structure[command_type_pos]['values']['setTemp'], 16):
+                    target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
+                    status_packet[int(state_structure['fieldPositions']['targetTemp'])] = target_temp
                     # 현재 온도는 설정 온도와 동일하게 설정 (실제로는 다를 수 있음)
                     status_packet[int(device_structure['state']['fieldPositions']['currentTemp'])] = target_temp
                     
             elif device_type == 'Light':
                 # 조명 상태 패킷 생성
-                power_pos = int(device_structure['state']['fieldPositions']['power'])
-                command_value = command_packet[int(device_structure['command']['fieldPositions']['power'])]
-                status_packet[power_pos] = command_value
+                power_pos = state_structure['fieldPositions']['power']
+                command_value = command_packet[int(command_structure['fieldPositions']['power'])]
+                status_packet[int(power_pos)] = command_value
                 
-            elif device_type == 'Fan':
-                # 환기장치 상태 패킷 생성
-                command_type = command_packet[int(device_structure['command']['fieldPositions']['commandType'])]
-                command_value = command_packet[int(device_structure['command']['fieldPositions']['value'])]
+            # elif device_type == 'Fan':
+            #     # 환기장치 상태 패킷 생성
+            #     command_type = command_packet[int(device_structure['command']['fieldPositions']['commandType'])]
+            #     command_value = command_packet[int(device_structure['command']['fieldPositions']['value'])]
                 
-                if command_type == int(device_structure['command']['types']['power']['code'], 16):
-                    # 전원 명령
-                    status_packet[int(device_structure['state']['fieldPositions']['power'])] = command_value
-                elif command_type == int(device_structure['command']['types']['setSpeed']['code'], 16):
-                    # 속도 설정 명령
-                    status_packet[int(device_structure['state']['fieldPositions']['speed'])] = command_value
-                    # 전원은 켜진 상태로 설정
-                    status_packet[int(device_structure['state']['fieldPositions']['power'])] = \
-                        int(device_structure['state']['structure']['1']['values']['on'], 16)
+            #     if command_type == int(device_structure['command']['types']['power']['code'], 16):
+            #         # 전원 명령
+            #         status_packet[int(device_structure['state']['fieldPositions']['power'])] = command_value
+            #     elif command_type == int(device_structure['command']['types']['setSpeed']['code'], 16):
+            #         # 속도 설정 명령
+            #         status_packet[int(device_structure['state']['fieldPositions']['speed'])] = command_value
+            #         # 전원은 켜진 상태로 설정
+            #         status_packet[int(device_structure['state']['fieldPositions']['power'])] = \
+            #             int(device_structure['state']['structure']['1']['values']['on'], 16)
             
             # 상태 패킷을 16진수 문자열로 변환
             status_hex = status_packet.hex().upper()
@@ -934,6 +936,7 @@ class WallpadController:
             
             # MQTT 최초 연결
             self.connect_mqtt()
+            
             self.mqtt_client.loop_start()
             
             # 메인 루프 실행
