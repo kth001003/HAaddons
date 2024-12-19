@@ -453,12 +453,12 @@ class WallpadController:
             packet[0] = int(command["header"], 16)
             
             # 기기 번호 설정 - 10진수로 직접 설정
-            device_id_pos = int(command["fieldPositions"]["deviceId"])
+            device_id_pos = command["fieldPositions"]["deviceId"]
             packet[device_id_pos] = device_id
             
             # 명령 타입 및 값 설정
-            command_type_pos = int(command["fieldPositions"]["commandType"])
-            value_pos = int(command["fieldPositions"]["value"])
+            command_type_pos = command["fieldPositions"]["commandType"]
+            value_pos = command["fieldPositions"]["value"]
             
             if command_type == 'commandOFF':
                 packet[command_type_pos] = int(command["structure"][command_type_pos]["values"]["OFF"], 16)
@@ -594,6 +594,7 @@ class WallpadController:
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.publish_mqtt(topic, onoff)
+        self.HOMESTATE[deviceID + state] = onoff
 
     async def update_temperature(self, idx: int, mode_text: str, curTemp: int, setTemp: int) -> None:
         """
