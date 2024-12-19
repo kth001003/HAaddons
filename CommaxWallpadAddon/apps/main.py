@@ -129,10 +129,7 @@ class WallpadController:
         try:
             self.logger.info("MQTT 브로커 연결 시도 중...")
             if self.mqtt_client:
-                self.mqtt_client.connect(
-                    self.config['mqtt_server'],
-                    keepalive=60
-                )
+                self.mqtt_client.connect(self.config['mqtt_server'])
                 
                 # 연결 상태 확인
                 start_time = time.time()
@@ -552,34 +549,36 @@ class WallpadController:
             self.logger.debug(f"상태 패킷 헤더 설정: {status_packet[0]}")
             
             # 기기 ID 복사
-            device_id_pos = state_structure['fieldPositions']['deviceId'] #'2'
+            device_id_pos = state_structure['fieldPositions']['deviceId']
             status_packet[int(device_id_pos)] = command_packet[int(command_structure['fieldPositions']['deviceId'])]
             self.logger.debug(f"기기 ID 설정: {status_packet[int(device_id_pos)]}")
             
             if device_type == 'Thermo':
                 # 온도조절기 상태 패킷 생성
                 command_type_pos = command_structure['fieldPositions']['commandType']
+                self.logger.debug(f"command_type_pos: {command_type_pos}")
                 command_type = command_packet[int(command_type_pos)]
+                self.logger.debug(f"command_type: {command_type}")
                 
                 power_pos = state_structure['fieldPositions']['power']
-                if command_type == int(command_structure[command_type_pos]['values']['power'], 16):
+                self.logger.debug(f"power_pos: {power_pos}")
+                if command_type == int(command_structure[command_type_pos]['values']['POWER'], 16):
                     # 전원 명령인 경우
                     # command packet의 값을 상태 패킷에 복사
                     command_value = command_packet[int(command_structure['fieldPositions']['value'])]
+                    self.logger.debug(f"command_value: {command_value}")
                     status_packet[int(power_pos)] = command_value
                     self.logger.debug(f"전원 명령 처리: {command_value}")
-                elif command_type == int(command_structure[command_type_pos]['values']['setTemp'], 16):
+                elif command_type == int(command_structure[command_type_pos]['values']['CHANGE'], 16):
                     # 온도 설정 명령인 경우 - 켜진 상태로 가정
-                    status_packet[int(power_pos)] = int(state_structure['structure']['1']['values']['on'], 16)
-                    self.logger.debug("온도 설정 명령 처리")
-                
-                # 온도값 설정
-                if command_type == int(command_structure[command_type_pos]['values']['setTemp'], 16):
+                    status_packet[int(power_pos)] = int(state_structure['structure'][power_pos]['values']['ON'], 16)
+                    
                     target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
+                    self.logger.debug(f"target_temp: {target_temp}")
                     status_packet[int(state_structure['fieldPositions']['targetTemp'])] = target_temp
                     # 현재 온도는 설정 온도와 동일하게 설정 (실제로는 다를 수 있음)
-                    status_packet[int(device_structure['state']['fieldPositions']['currentTemp'])] = target_temp
-                    self.logger.debug(f"온도 설정: {target_temp}")
+                    status_packet[int(state_structure['fieldPositions']['currentTemp'])] = target_temp
+                    self.logger.debug(f"현재 온도 설정: {target_temp}") 
                     
             elif device_type == 'Light':
                 # 조명 상태 패킷 생성
