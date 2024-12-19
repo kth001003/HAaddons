@@ -720,13 +720,16 @@ class WallpadController:
                             if device_name == 'Thermo':
                                 power_pos = state_structure['fieldPositions']['power']
                                 power = byte_data[int(power_pos)]
+                                self.logger.debug(f'power: {power}')
                                 # 온도값을 10진수로 직접 해석
                                 current_temp = int(format(byte_data[int(state_structure['fieldPositions']['currentTemp'])], '02x'))
                                 target_temp = int(format(byte_data[int(state_structure['fieldPositions']['targetTemp'])], '02x'))
                                 
                                 # power 값 비교를 16진수 문자열로 변환하여 수행
                                 power_hex = format(power, '02x').upper()
+                                self.logger.debug(f'power_hex: {power_hex}')
                                 power_values = state_structure['structure'][power_pos]['values']
+                                self.logger.debug(f'power_values: {power_values}')
                                 
                                 # power 값과 정의된 값들을 직접 비교
                                 mode_text = 'off'
@@ -755,10 +758,6 @@ class WallpadController:
         except Exception as e:
             self.logger.error(f"Elfin 데이터 처리 중 오류 발생: {str(e)}")
             self.logger.debug(f"오류 상세 - raw_data: {raw_data}, device_name: {device_name if 'device_name' in locals() else 'N/A'}")
-            if 'power_values' in locals():
-                self.logger.debug(f"power_values: {power_values}")
-            if 'power' in locals():
-                self.logger.debug(f"power: {format(power, '02x').upper()}")
 
     @require_device_structure(None)
     async def process_ha_command(self, topics: List[str], value: str) -> None:
