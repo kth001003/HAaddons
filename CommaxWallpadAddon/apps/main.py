@@ -35,11 +35,16 @@ class CollectData(TypedDict):
     data: Set[str]
     last_recv_time: int
 
+class ExpectedStatePacket(TypedDict):
+    expected_packet: str
+    required_bytes: List[int]
+
 class QueueItem(TypedDict):
     sendcmd: str
     count: int
-    expected_state: Dict[str, str | int | None]
+    expected_state: Optional[ExpectedStatePacket]
 
+    
 class WallpadController:
     def __init__(self, config: Dict[str, Any], logger: Logger) -> None:
         self.config: Dict[str, Any] = config
@@ -494,18 +499,16 @@ class WallpadController:
             return None
         
     
+
     @require_device_structure(None)
-    def generate_expected_state_packet(self, command_str: str) -> Union[dict, None]:
+    def generate_expected_state_packet(self, command_str: str) -> Union[ExpectedStatePacket, None]:
         """명령 패킷으로부터 예상되는 상태 패킷을 생성합니다.
         
         Args:
             command_str (str): 16진수 형태의 명령 패킷 문자열
             
         Returns:
-            dict[
-                'expexted_packet': str,
-                'requrired_bytes': list[int]
-            ]
+            Union[ExpectedStatePacket, None]: 예상되는 상태 패킷 정보를 담은 딕셔너리 또는 None
         """
         try:
             assert isinstance(self.DEVICE_STRUCTURE, dict)
@@ -597,10 +600,14 @@ class WallpadController:
             
             # 상태 패킷을 16진수 문자열로 변환
             status_hex = status_packet.hex().upper()
-            return {
-                'expected_packet': self.checksum(status_hex),
-                'required_bytes': required_bytes
-            }
+            status_hex = self.checksum(status_hex)
+            if status_hex is None:
+                self.logger.error("상태 패킷 체크섬 생성 실패") 
+                return None
+            return ExpectedStatePacket(
+                expected_packet=status_hex,
+                required_bytes=required_bytes
+            )
             
         except Exception as e:
             self.logger.error(f"상태 패킷 생성 중 오류 발생: {str(e)}\n"
@@ -855,55 +862,59 @@ class WallpadController:
             self.logger.error(f"HA 명령 처리 중 오류 발생: {str(e)}")
 
     async def process_queue(self) -> None:
-        """
-        큐에 있는 모든 명령을 처리하고 예상되는 응답을 확인합니다.
-        
-        큐의 첫 번째 항목을 가져와 명령을 전송하고:
-        1. 예상되는 응답이 있는 경우: 응답을 수신할 때까지 또는 최대 전송 횟수까지 재전송
-        2. 예상되는 응답이 없는 경우: 기본 5회 연속 전송
-        """
-        max_send_count = self.config.get("max_send_count", 20)  # 최대 전송 횟수 설정
-        default_send_count = 5  # 예상 응답이 없을 때의 기본 전송 횟수
+        """큐에 있는 모든 명령을 처리하고 예상되는 응답을 확인합니다."""
+        max_send_count = self.config.get("max_send_count", 20)
+        default_send_count = 5
         
         if not self.QUEUE:
             return
         
-        send_data = self.QUEUE[0]  # 큐에서 제거하지 않고 첫 번째 항목 참조
+        send_data = self.QUEUE.pop(0)
+        
+        try:
+            # 먼저 명령 전송
+            cmd_bytes = bytes.fromhex(send_data['sendcmd'])
+            self.publish_mqtt(f'{self.ELFIN_TOPIC}/send', cmd_bytes)
+            send_data['count'] += 1
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"명령 전송 중 오류 발생: {str(e)}")
+            return
+            
         expected_state = send_data.get('expected_state')
         
         # 예상 상태 정보가 올바른 경우
-        if (expected_state and isinstance(expected_state, dict) and 
-            expected_state.get('expected_packet') and 
-            isinstance(expected_state.get('required_bytes'), (list, tuple))):
+        if (isinstance(expected_state, dict) and 
+            isinstance(expected_state.get('expected_packet'), str) and 
+            isinstance(expected_state.get('required_bytes'), list)):
             
             expected_packet = expected_state['expected_packet']
+            expected_bytes = bytes.fromhex(expected_packet)
             required_bytes = expected_state['required_bytes']
-            assert isinstance(required_bytes, (list, tuple)), "required_bytes must be a list or tuple"
+            assert isinstance(required_bytes, (list)), "required_bytes must be a list"
             
             # 수집된 데이터에서 예상 패킷 확인
             for received_packet in self.COLLECTDATA['data']:
                 if not isinstance(received_packet, str):
                     continue
                     
+                # 수신된 패킷을 바이트 배열로 변환
+                try:
+                    received_bytes = bytes.fromhex(received_packet)
+                except ValueError:
+                    continue
+                    
                 # 필수 바이트 위치의 값들이 모두 일치하는지 확인
                 match = True
                 try:
-                    for byte_pos in required_bytes:
-                        if not isinstance(byte_pos, int):
+                    for pos in required_bytes:
+                        if not isinstance(pos, int):
                             match = False
                             break
                             
-                        # 문자열 타입 체크 추가
-                        if not isinstance(received_packet, str) or not isinstance(expected_packet, str):
-                            match = False
-                            break
-                            
-                        start_pos = byte_pos * 2
-                        end_pos = (byte_pos + 1) * 2
-                        
-                        if (len(received_packet) < end_pos or 
-                            len(expected_packet) < end_pos or
-                            received_packet[start_pos:end_pos] != expected_packet[start_pos:end_pos]):
+                        # 바이트 단위로 직접 비교
+                        if (len(received_bytes) <= pos or 
+                            len(expected_bytes) <= pos or
+                            received_bytes[pos] != expected_bytes[pos]):
                             match = False
                             break
                             
@@ -913,43 +924,22 @@ class WallpadController:
                     
                 if match:
                     self.logger.debug(f"예상된 응답을 수신했습니다: {received_packet}")
-                    self.QUEUE.pop(0)  # 성공적으로 처리된 명령을 큐에서 제거
                     return
             
-            # 예상 응답을 받지 못한 경우, 재전송 시도
-            if isinstance(send_data['count'], int):
-                if send_data['count'] < max_send_count:
-                    try:
-                        # 명령 재전송
-                        cmd_bytes = bytes.fromhex(send_data['sendcmd'])
-                        self.publish_mqtt(f'{self.ELFIN_TOPIC}/send', cmd_bytes)
-                        send_data['count'] += 1
-                        self.logger.debug(f"명령 재전송 (시도 {send_data['count']}/{max_send_count}): {send_data['sendcmd']}")
-                    except (ValueError, TypeError) as e:
-                        self.logger.error(f"명령 재전송 중 오류 발생: {str(e)}")
-                        self.QUEUE.pop(0)
-                else:
-                    # 최대 전송 횟수 초과
-                    self.logger.warning(f"최대 전송 횟수 초과. 응답을 받지 못했습니다: {send_data['sendcmd']}")
-                    self.QUEUE.pop(0)  # 실패한 명령을 큐에서 제거
+            # 예상 응답을 받지 못한 경우, 재전송을 위해 큐에 추가
+            if send_data['count'] < max_send_count:
+                self.logger.debug(f"명령 재전송 예약 (시도 {send_data['count']}/{max_send_count}): {send_data['sendcmd']}")
+                self.QUEUE.append(send_data)
+            else:
+                self.logger.warning(f"최대 전송 횟수 초과. 응답을 받지 못했습니다: {send_data['sendcmd']}")
                     
         # 예상 상태 정보가 없거나 잘못된 경우
         else:
-            if isinstance(send_data['count'], int):
-                if send_data['count'] < default_send_count:
-                    try:
-                        # 명령 전송
-                        cmd_bytes = bytes.fromhex(send_data['sendcmd'])
-                        self.publish_mqtt(f'{self.ELFIN_TOPIC}/send', cmd_bytes)
-                        send_data['count'] += 1
-                        self.logger.debug(f"명령 전송 (횟수 {send_data['count']}/{default_send_count}): {send_data['sendcmd']}")
-                    except (ValueError, TypeError) as e:
-                        self.logger.error(f"명령 전송 중 오류 발생: {str(e)}")
-                        self.QUEUE.pop(0)
-                else:
-                    self.QUEUE.pop(0)  # 기본 전송 횟수 완료
+            if send_data['count'] < default_send_count:
+                self.logger.debug(f"명령 전송 (횟수 {send_data['count']}/{default_send_count}): {send_data['sendcmd']}")
+                self.QUEUE.append(send_data)
         
-        await asyncio.sleep(0.05)  # 50ms 휴식
+        await asyncio.sleep(0.05)
 
     async def process_queue_and_monitor(self, elfin_reboot_interval: float) -> bool:
         """
@@ -1024,7 +1014,6 @@ class WallpadController:
                         self.reconnect_mqtt()
 
                 else:
-                    self.logger.error(f"MQTT 연결 실��� (코드: {rc})")
                     # 재연결 시도
                     self.logger.error(f"MQTT 연결 실패 (코드: {rc})")
 
