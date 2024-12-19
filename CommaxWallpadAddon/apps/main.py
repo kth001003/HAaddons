@@ -909,13 +909,13 @@ class WallpadController:
             # MQTT 콜백 설정
             def on_connect_callback(client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
                 if rc == 0:  # 연결 성공
+                    mqtt_connected.set()
                     if self.loop and self.loop.is_running():
                         asyncio.run_coroutine_threadsafe(
                             self.on_mqtt_connect(client, userdata, flags, rc), 
                             self.loop
                         )
                         # MQTT 연결 완료 이벤트 설정
-                        mqtt_connected.set()
                 else:
                     self.logger.error(f"MQTT 연결 실패 (코드: {rc})")
                     # 재연결 시도
