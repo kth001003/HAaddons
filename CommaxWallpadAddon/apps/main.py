@@ -339,7 +339,12 @@ class WallpadController:
                 device_type = device_info['type']
                 device_count = device_info['count']
                 
-                for idx in range(device_count + 1):  # 0부터 count까지
+                # device_count가 0인 경우 건너뛰기
+                if device_count == 0:
+                    continue
+                
+                # 1부터 시작
+                for idx in range(1, device_count + 1):
                     device_id = f"{device_name}{idx}"
                     
                     if device_type == 'switch':  # 조명
