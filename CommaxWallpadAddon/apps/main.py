@@ -935,17 +935,26 @@ class WallpadController:
             # 메인 MQTT 클라이언트 설정
             self.mqtt_client = self.setup_mqtt()
             
+            # MQTT 연결 완료 이벤트를 위한 Event 객체 생성
+            mqtt_connected = asyncio.Event()
+            
             # MQTT 콜백 설정
             def on_connect_callback(client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
-                if self.loop and self.loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        self.on_mqtt_connect(client, userdata, flags, rc), 
-                        self.loop
-                    )
+                if rc == 0:  # 연결 성공
+                    if self.loop and self.loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            self.on_mqtt_connect(client, userdata, flags, rc), 
+                            self.loop
+                        )
+                        # MQTT 연결 완료 이벤트 설정
+                        mqtt_connected.set()
+                else:
+                    self.logger.error(f"MQTT 연결 실패 (코드: {rc})")
 
             def on_disconnect_callback(client: mqtt.Client, userdata: Any, rc: int) -> None:
                 if rc != 0:
                     self.logger.error(f"예기치 않은 MQTT 연결 끊김 (코드: {rc})")
+                    mqtt_connected.clear()  # 연결 해제 시 이벤트 초기화
                     self.reconnect_mqtt()
             
             self.mqtt_client.on_connect = on_connect_callback
@@ -958,10 +967,24 @@ class WallpadController:
             
             # 메인 루프 실행
             self.loop = asyncio.get_event_loop()
-            tasks = [
-                self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10)),
-            ]
-            self.loop.run_until_complete(asyncio.gather(*tasks))
+
+            # MQTT 연결 완료를 기다림
+            async def wait_for_mqtt():
+                await mqtt_connected.wait()
+                self.logger.info("MQTT 연결이 완료되었습니다. 메인 루프를 시작합니다.")
+                
+                while True:
+                    try:
+                        await self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10))
+                    except Exception as e:
+                        self.logger.error(f"메인 루프 실행 중 오류 발생: {str(e)}")
+                        if not mqtt_connected.is_set():  # MQTT 연결이 끊어진 경우
+                            self.logger.info("MQTT 재연결을 기다립니다...")
+                            await mqtt_connected.wait()  # MQTT 재연결 대기
+                        await asyncio.sleep(1)  # 오류 발생 시 1초 대기
+            
+            # 메인 루프 실행
+            self.loop.run_until_complete(wait_for_mqtt())
             
         except Exception as e:
             self.logger.error(f"실행 중 오류 발생: {str(e)}")
