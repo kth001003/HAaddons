@@ -1,15 +1,14 @@
-import sys
-print("\n\n\n\n\nStarting...", file=sys.stderr)
 import paho.mqtt.client as mqtt
-import json
 import time
 import asyncio
-import telnetlib
-import re
 import os
 from logger import Logger
 from typing import Any, Dict, Union, List, Optional, Set, TypedDict, Callable, TypeVar, Callable
 from functools import wraps
+import yaml #PyYAML
+import json
+import re
+import telnetlib
 
 T = TypeVar('T')
 
@@ -91,12 +90,12 @@ class WallpadController:
 
     def load_devices_and_packets_structures(self) -> None:
         try:
-            with open('/apps/devices_and_packets_structures.json') as file:
-                self.DEVICE_STRUCTURE = json.load(file)
+            with open('/apps/devices_and_packets_structures.yaml') as file:
+                self.DEVICE_STRUCTURE = yaml.safe_load(file)
         except FileNotFoundError:
             self.logger.error('기기 및 패킷 구조 파일을 찾을 수 없습니다.')
-        except json.JSONDecodeError:
-            self.logger.error('기기 및 패킷 구조 파일의 JSON 형식이 잘못되었습니다.')
+        except yaml.YAMLError:
+            self.logger.error('기기 및 패킷 구조 파일의 YAML 형식이 잘못되었습니다.')
 
     # MQTT 관련 함수들
     def setup_mqtt(self, client_id: Optional[str] = None) -> mqtt.Client:
@@ -472,13 +471,13 @@ class WallpadController:
             value_pos = command["fieldPositions"]["value"]
             
             if command_type == 'commandOFF':
-                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["POWER"], 16)
-                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["OFF"], 16)
+                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["power"], 16)
+                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["off"], 16)
             elif command_type == 'commandON':
-                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["POWER"], 16)
-                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["ON"], 16)
+                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["power"], 16)
+                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["on"], 16)
             elif command_type == 'commandCHANGE':
-                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["CHANGE"], 16)
+                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["change"], 16)
                 packet[int(value_pos)] = int(str(target_temp),16)
             else:
                 self.logger.error(f'잘못된 명령 타입: {command_type}')
@@ -559,14 +558,14 @@ class WallpadController:
                 command_type = command_packet[int(command_type_pos)]
                 
                 power_pos = state_structure['fieldPositions']['power']
-                if command_type == int(command_structure["structure"][command_type_pos]['values']['POWER'], 16): #04
+                if command_type == int(command_structure["structure"][command_type_pos]['values']['power'], 16): #04
                     command_value = command_packet[int(command_structure['fieldPositions']['value'])]
                     status_packet[int(power_pos)] = command_value
                     self.logger.debug(f"전원 명령 처리: {command_value}")
                 elif command_type == int(command_structure["structure"][command_type_pos]['values']['CHANGE'], 16): #03
                     self.logger.debug(f"온도 설정 명령 처리")
                     #Power는 켜진 상태로 설정
-                    status_packet[power_pos] = int(state_structure['structure'][power_pos]['values']['ON'], 16) #81
+                    status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['on'], 16) #81
                     
                     target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
                     self.logger.debug(f"target_temp: {target_temp}")
