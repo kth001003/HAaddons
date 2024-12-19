@@ -556,30 +556,21 @@ class WallpadController:
             if device_type == 'Thermo':
                 # 온도조절기 상태 패킷 생성
                 command_type_pos = command_structure['fieldPositions']['commandType']
-                self.logger.debug(f"command_type_pos: {command_type_pos}")
                 command_type = command_packet[int(command_type_pos)]
-                self.logger.debug(f"command_type: {command_type}")
                 
                 power_pos = state_structure['fieldPositions']['power']
-                self.logger.debug(f"power_pos: {power_pos}")
-                if command_type == int(command_structure[command_type_pos]['values']['POWER'], 16):
-                    self.logger.debug(f"전원 명령 처리")
-                    # 전원 명령인 경우
-                    # command packet의 값을 상태 패킷에 복사
+                if command_type == int(command_structure["structure"][command_type_pos]['values']['POWER'], 16):
                     command_value = command_packet[int(command_structure['fieldPositions']['value'])]
-                    self.logger.debug(f"command_value: {command_value}")
                     status_packet[int(power_pos)] = command_value
                     self.logger.debug(f"전원 명령 처리: {command_value}")
-                elif command_type == int(command_structure[command_type_pos]['values']['CHANGE'], 16):
+                elif command_type == int(command_structure["structure"][command_type_pos]['values']['CHANGE'], 16):
                     self.logger.debug(f"온도 설정 명령 처리")
                     try:
-                        # power_pos를 문자열로 변환하여 사용
-                        power_pos_str = str(power_pos)
                         if ('structure' in state_structure and 
-                            power_pos_str in state_structure['structure'] and 
-                            'values' in state_structure['structure'][power_pos_str] and 
-                            'ON' in state_structure['structure'][power_pos_str]['values']):
-                            status_packet[power_pos] = int(state_structure['structure'][power_pos_str]['values']['ON'], 16)
+                            power_pos in state_structure['structure'] and 
+                            'values' in state_structure['structure'][power_pos] and 
+                            'ON' in state_structure['structure'][power_pos]['values']):
+                            status_packet[power_pos] = int(state_structure['structure'][power_pos]['values']['ON'], 16)
                         else:
                             # 기본값 설정 (예: 0x81)
                             status_packet[power_pos] = 0x81
@@ -594,12 +585,12 @@ class WallpadController:
                         self.logger.debug(f"target_temp: {target_temp}")
                         
                         # targetTemp 위치 확인 및 설정
-                        target_temp_pos = int(state_structure['fieldPositions']['targetTemp'])
-                        status_packet[target_temp_pos] = target_temp
+                        target_temp_pos = state_structure['fieldPositions']['targetTemp']
+                        status_packet[int(target_temp_pos)] = target_temp
                         
                         # currentTemp 위치 확인 및 설정
-                        current_temp_pos = int(state_structure['fieldPositions']['currentTemp'])
-                        status_packet[current_temp_pos] = target_temp
+                        current_temp_pos = state_structure['fieldPositions']['currentTemp']
+                        status_packet[int(current_temp_pos)] = target_temp
                         
                         self.logger.debug(f"온도 설정 완료 - 현재/목표 온도: {target_temp}")
                     except Exception as e:
@@ -641,7 +632,8 @@ class WallpadController:
                             f"장치 타입: {device_type}\n"
                             f"명령 패킷: {command_packet.hex().upper()}\n"
                             f"상태 패킷: {status_packet.hex().upper() if status_packet else 'None'}\n"
-                            f"State_structure: {state_structure}")
+                            f"State_structure: {state_structure}\n"
+                            f"command_structure: {command_structure}")
             return None
     
     # 상태 업데이트 함수들
