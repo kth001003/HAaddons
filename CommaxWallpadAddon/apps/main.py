@@ -128,7 +128,20 @@ class WallpadController:
         try:
             self.logger.info("MQTT 브로커 연결 시도 중...")
             if self.mqtt_client:
-                self.mqtt_client.connect(self.config['mqtt_server'])
+                # keepalive 간격만 설정
+                self.mqtt_client.connect(
+                    self.config['mqtt_server'],
+                    keepalive=60  # keepalive 간격 설정
+                )
+                
+                # 연결 상태 확인
+                start_time = time.time()
+                while not self.mqtt_client.is_connected():
+                    time.sleep(0.1)
+                    if time.time() - start_time > 30:  # 30초 타임아웃
+                        raise Exception("MQTT 연결 타임아웃")
+                    
+                self.logger.info("MQTT 브로커 연결 성공")
             else:
                 raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
         except Exception as e:
