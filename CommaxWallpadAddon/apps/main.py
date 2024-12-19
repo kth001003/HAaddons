@@ -572,18 +572,40 @@ class WallpadController:
                 elif command_type == int(command_structure[command_type_pos]['values']['CHANGE'], 16):
                     # 온도 설정 명령인 경우 - 켜진 상태로 가정
                     try:
-                        status_packet[int(power_pos)] = int(state_structure['structure'][power_pos]['values']['ON'], 16)
-                    except KeyError as e:
-                        self.logger.error(f"KeyError 발생: {e}. state_structure: {state_structure}")
+                        # power_pos를 문자열로 변환하여 사용
+                        power_pos_str = str(power_pos)
+                        if ('structure' in state_structure and 
+                            power_pos_str in state_structure['structure'] and 
+                            'values' in state_structure['structure'][power_pos_str] and 
+                            'ON' in state_structure['structure'][power_pos_str]['values']):
+                            status_packet[power_pos] = int(state_structure['structure'][power_pos_str]['values']['ON'], 16)
+                        else:
+                            # 기본값 설정 (예: 0x81)
+                            status_packet[power_pos] = 0x81
+                            self.logger.debug(f"전원 상태에 기본값 사용: 0x81")
+                    except Exception as e:
+                        self.logger.error(f"전원 상태 설정 중 오류 발생: {str(e)}")
+                        self.logger.debug(f"state_structure: {state_structure}")
                         return None
                     
-                    target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
-                    self.logger.debug(f"target_temp: {target_temp}")
-                    status_packet[int(state_structure['fieldPositions']['targetTemp'])] = target_temp
-                    # 현재 온도는 설정 온도와 동일하게 설정 (실제로는 다를 수 있음)
-                    status_packet[int(state_structure['fieldPositions']['currentTemp'])] = target_temp
-                    self.logger.debug(f"현재 온도 설정: {target_temp}")
-                    
+                    try:
+                        target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
+                        self.logger.debug(f"target_temp: {target_temp}")
+                        
+                        # targetTemp 위치 확인 및 설정
+                        target_temp_pos = int(state_structure['fieldPositions']['targetTemp'])
+                        status_packet[target_temp_pos] = target_temp
+                        
+                        # currentTemp 위치 확인 및 설정
+                        current_temp_pos = int(state_structure['fieldPositions']['currentTemp'])
+                        status_packet[current_temp_pos] = target_temp
+                        
+                        self.logger.debug(f"온도 설정 완료 - 현재/목표 온도: {target_temp}")
+                    except Exception as e:
+                        self.logger.error(f"온도 설정 중 오류 발생: {str(e)}")
+                        self.logger.debug(f"command_structure: {command_structure}")
+                        return None
+            
             elif device_type == 'Light':
                 # 조명 상태 패킷 생성
                 power_pos = state_structure['fieldPositions']['power']
@@ -618,7 +640,7 @@ class WallpadController:
                             f"장치 타입: {device_type}\n"
                             f"명령 패킷: {command_packet.hex().upper()}\n"
                             f"상태 패킷: {status_packet.hex().upper() if status_packet else 'None'}\n"
-                            f"KeyError 발생: {e}. state_structure: {state_structure}")
+                            f"State_structure: {state_structure}")
             return None
     
     # 상태 업데이트 함수들
