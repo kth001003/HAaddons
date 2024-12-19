@@ -737,29 +737,31 @@ class WallpadController:
                     byte_data = bytearray.fromhex(data)
                     
                     for device_name, structure in self.DEVICE_STRUCTURE.items():
-                        if byte_data[0] == int(structure['state']['header'], 16):
+                        state_structure = structure['state']
+                        if byte_data[0] == int(state_structure['header'], 16):
                             if device_name == 'Thermo':
                                 # 문자열을 정수로 변환 (16진수가 아닌 10진수로 해석)
-                                device_id = byte_data[int(structure['state']['fieldPositions']['deviceId'])]
-                                power = byte_data[int(structure['state']['fieldPositions']['power'])]
+                                device_id = byte_data[int(state_structure['fieldPositions']['deviceId'])]
+                                power = byte_data[int(state_structure['fieldPositions']['power'])]
                                 # 온도값을 10진수로 직접 해석
-                                current_temp = int(str(byte_data[int(structure['state']['fieldPositions']['currentTemp'])])) 
-                                target_temp = int(str(byte_data[int(structure['state']['fieldPositions']['targetTemp'])]))
+                                current_temp = str(byte_data[int(state_structure['fieldPositions']['currentTemp'])])
+                                target_temp = str(byte_data[int(state_structure['fieldPositions']['targetTemp'])])
                                 
-                                power_values = structure['state']['structure']['1']['values']
+                                power_values = state_structure['structure'][state_structure['fieldPositions']['power']]['values']
                                 mode_text = 'off' if power == int(power_values['off'], 16) else 'heat'
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
-                                await self.update_temperature(device_id, mode_text, current_temp, target_temp)
+                                await self.update_temperature(device_id, mode_text, int(current_temp), int(target_temp))
                             
                             elif device_name == 'Light':
-                                device_id = byte_data[int(structure['state']['fieldPositions']['deviceId'])]
-                                power = byte_data[int(structure['state']['fieldPositions']['power'])]
-                                power_values = structure['state']['structure']['1']['values']
+                                device_id = byte_data[int(state_structure['fieldPositions']['deviceId'])]
+                                power = byte_data[int(state_structure['fieldPositions']['power'])]
+                                power_values = state_structure['structure']['1']['values']
                                 state = "ON" if power == int(power_values['on'], 16) else "OFF"
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
                                 await self.update_light(device_id, state)
+
                             #TODO: 다른 기기타입들 추가
                             
                             break
@@ -793,11 +795,11 @@ class WallpadController:
             packet[0] = int(command["header"], 16)
             
             # 기기 ID 설정
-            packet[command["fieldPositions"]["deviceId"]] = device_id
+            packet[int(command["fieldPositions"]["deviceId"])] = device_id
 
             if device == 'Light':
-                power_value = command["structure"][command["fieldPositions"]["power"]]["values"]["on" if value == "ON" else "off"]
-                packet[command["fieldPositions"]["power"]] = int(power_value, 16)
+                power_value = command["structure"][str(command["fieldPositions"]["power"])]["values"]["on" if value == "ON" else "off"]
+                packet[int(command["fieldPositions"]["power"])] = int(power_value, 16)
                 self.logger.debug(f'조명 {value} 명령 생성')
             elif device == 'Thermo':
                 cur_temp_str = self.HOMESTATE.get(topics[1] + 'curTemp')
@@ -807,7 +809,7 @@ class WallpadController:
                     return
                 
                 cur_temp = int(float(cur_temp_str))
-                set_temp = int(float(set_temp_str))
+                set_temp = int(float(value)) if state == 'setTemp' else int(float(set_temp_str))
                 
                 if state == 'power':
                     if value == 'heat':
@@ -820,18 +822,18 @@ class WallpadController:
                         sendcmd = self.make_climate_command(device_id, cur_temp, set_temp, 'commandCHANGE')
                         self.logger.debug(f'온도조절기 설정 온도 변경 명령: {sendcmd}')
             elif device == 'Fan':
-                packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["power"], 16)
+                packet[int(command["fieldPositions"]["commandType"])] = int(command[str(command["fieldPositions"]["commandType"])]["values"]["power"], 16)
                 
                 if state == 'power':
-                    packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["power"], 16)
-                    packet[command["fieldPositions"]["value"]] = int(command[command["fieldPositions"]["value"]]["on" if value == "ON" else "off"], 16)
+                    packet[int(command["fieldPositions"]["commandType"])] = int(command[str(command["fieldPositions"]["commandType"])]["values"]["power"], 16)
+                    packet[int(command["fieldPositions"]["value"])] = int(command[str(command["fieldPositions"]["value"])]["on" if value == "ON" else "off"], 16)
                     self.logger.debug(f'환기장치 {value} 명령 생성')
                 elif state == 'speed':
                     if value not in ["low", "medium", "high"]:
                         self.logger.error(f"잘못된 팬 속도입니다: {value}")
                         return
-                    packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["setSpeed"], 16)
-                    packet[command["fieldPositions"]["value"]] = int(command[command["fieldPositions"]["value"]]["values"][value], 16)
+                    packet[int(command["fieldPositions"]["commandType"])] = int(command[str(command["fieldPositions"]["commandType"])]["values"]["setSpeed"], 16)
+                    packet[int(command["fieldPositions"]["value"])] = int(command[str(command["fieldPositions"]["value"])]["values"][value], 16)
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
                 
                 # 패킷을 16진수 문자열로 변환
