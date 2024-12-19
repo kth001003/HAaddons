@@ -725,23 +725,25 @@ class WallpadController:
                     for device_name, structure in self.DEVICE_STRUCTURE.items():
                         state_structure = structure['state']
                         if byte_data[0] == int(state_structure['header'], 16):
+                            device_id_pos = state_structure['fieldPositions']['deviceId']
+                            device_id = byte_data[int(device_id_pos)]
                             if device_name == 'Thermo':
-                                device_id = byte_data[int(state_structure['fieldPositions']['deviceId'])]
-                                power = byte_data[int(state_structure['fieldPositions']['power'])]
+                                power_pos = state_structure['fieldPositions']['power']
+                                power = byte_data[int(power_pos)]
                                 # 온도값을 10진수로 직접 해석
                                 current_temp = int(format(byte_data[int(state_structure['fieldPositions']['currentTemp'])], '02x'))
                                 target_temp = int(format(byte_data[int(state_structure['fieldPositions']['targetTemp'])], '02x'))
+                                power_values = state_structure['structure'][power_pos]['values']
                                 self.logger.debug(f'target_temp: {target_temp}#############################################################')
-                                power_values = state_structure['structure'][state_structure['fieldPositions']['power']]['values']
                                 mode_text = 'off' if power == int(power_values['off'], 16) else 'heat'
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
                                 await self.update_temperature(device_id, mode_text, current_temp, target_temp)
                             
                             elif device_name == 'Light':
-                                device_id = byte_data[int(state_structure['fieldPositions']['deviceId'])]
-                                power = byte_data[int(state_structure['fieldPositions']['power'])]
-                                power_values = state_structure['structure']['1']['values']
+                                power_pos = state_structure['fieldPositions']['power']
+                                power = byte_data[int(power_pos)]
+                                power_values = state_structure['structure'][power_pos]['values']
                                 state = "ON" if power == int(power_values['on'], 16) else "OFF"
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
