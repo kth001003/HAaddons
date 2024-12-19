@@ -3,22 +3,22 @@ Light:
   command:
     header: "31"
     structure:
-      1:
+      "1":
         name: deviceId
-      2:
+      "2":
         name: power
         values:
           on: "01"
           off: "00"
-      3: 
+      "3": 
         name: empty
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       deviceId: "1"
@@ -27,22 +27,22 @@ Light:
   state:
     header: "B0"
     structure:
-      1:
+      "1":
         name: power
         values:
           on: "01"
           off: "00"
-      2:
+      "2":
         name: deviceId
-      3: 
+      "3": 
         name: empty
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       power: "1"
@@ -54,23 +54,23 @@ LightBreaker:
   command:
     header: "22"
     structure:
-      1:
+      "1":
         name: deviceId
-      2:
+      "2":
         name: power
         values:
           on: "01"
           off: "00"
-      3:
+      "3":
         name: fixed
         value: "01"
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       deviceId: "1"
@@ -80,23 +80,23 @@ LightBreaker:
   state:
     header: "A0"
     structure:
-      1:
+      "1":
         name: power
         values:
           on: "01"
           off: "00"
-      2:
+      "2":
         name: deviceId
-      3: 
+      "3": 
         name: empty
-      4: 
+      "4": 
         name: empty
-      5:
+      "5":
         name: fixed
         value: "15"
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       power: "1"
@@ -109,26 +109,26 @@ Thermo:
   command:
     header: "04"
     structure:
-      1:
+      "1":
         name: deviceId
-      2:
+      "2":
         name: commandType
         values:
           power: "04"
           change: "03"
-      3:
+      "3":
         name: value
         values:
           on: "81"
           off: "00"
           target: "18"
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       deviceId: "1"
@@ -138,22 +138,22 @@ Thermo:
   state:
     header: "82"
     structure:
-      1:
+      "1":
         name: power
         values:
           on: "81"
           off: "80"
-      2:
+      "2":
         name: deviceId
-      3:
+      "3":
         name: currentTemp
-      4:
+      "4":
         name: targetTemp
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       power: "1"
@@ -167,21 +167,21 @@ Gas:
   command:
     header: "11"
     structure:
-      1:
+      "1":
         name: deviceId
-      2:
+      "2":
         name: power
         values:
           off: "80"
-      3: 
+      "3": 
         name: empty
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       deviceId: "1"
@@ -190,22 +190,22 @@ Gas:
   state:
     header: "90"
     structure:
-      1:
+      "1":
         name: power
         values:
           on: "A0"
           off: "50"
-      2:
+      "2":
         name: powerRepeat
-      3: 
+      "3": 
         name: empty
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       power: "1"
@@ -217,22 +217,22 @@ Outlet:
   command:
     header: "7A"
     structure:
-      1:
+      "1":
         name: deviceId
-      2:
+      "2":
         name: deviceIdRepeat
-      3:
+      "3":
         name: power
         values:
           on: "01"
           off: "00"
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       deviceId: "1"
@@ -242,24 +242,24 @@ Outlet:
   state:
     header: "F9"
     structure:
-      1:
+      "1":
         name: power
         values:
           on: "01"
           off: "00"
-      2:
+      "2":
         name: deviceId
-      3:
+      "3":
         name: fixed1
         value: "11"
-      4:
+      "4":
         name: fixed2
         value: "10"
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       power: "1"
@@ -273,14 +273,14 @@ Fan:
   command:
     header: "78"
     structure:
-      1:
+      "1":
         name: deviceId
-      2:
+      "2":
         name: commandType
         values:
           power: "01"
           setSpeed: "02"
-      3:
+      "3":
         name: value
         values:
           low: "00"
@@ -288,13 +288,13 @@ Fan:
           high: "02"
           off: "00"
           on: "04"
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       deviceId: "1"
@@ -304,22 +304,22 @@ Fan:
   state:
     header: "F6"
     structure:
-      1:
+      "1":
         name: power
         values:
           on: "04"
           off: "00"
-      2:
+      "2":
         name: deviceId
-      3:
+      "3":
         name: speed
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       power: "1"
@@ -332,25 +332,25 @@ EV:
   command:
     header: "A0"
     structure:
-      1:
+      "1":
         name: deviceId
-      2:
+      "2":
         name: power
         values:
           on: "01"
-      3:
+      "3":
         name: fixed1
         value: "00"
-      4:
+      "4":
         name: fixed2
         value: "08"
-      5:
+      "5":
         name: fixed3
         value: "15"
-      6:
+      "6":
         name: fixed4
         value: "00"
-      7:
+      "7":
         name: checksum
     fieldPositions:
       deviceId: "1"
@@ -363,21 +363,21 @@ EV:
   state:
     header: "23"
     structure:
-      1:
+      "1":
         name: power
         values:
           on: "01"
-      2:
+      "2":
         name: deviceId
-      3: 
+      "3": 
         name: empty
-      4: 
+      "4": 
         name: empty
-      5: 
+      "5": 
         name: empty
-      6: 
+      "6": 
         name: empty
-      7:
+      "7":
         name: checksum
     fieldPositions:
       power: "1"
