@@ -749,10 +749,18 @@ class WallpadController:
                                 power = byte_data[int(state_structure['fieldPositions']['power'])]
                                 # 온도값을 10진수로 직접 해석
                                 current_temp = str(byte_data[int(state_structure['fieldPositions']['currentTemp'])])
+
+
+                                # byte_data 로그 출력
+                                self.logger.debug(f'byte_data: {byte_data.hex()}')
+                                # 인덱스 로그
+                                self.logger.debug(f'현재온도 인덱스: {int(state_structure["fieldPositions"]["currentTemp"])}')
                                 # 변환 전 로그
                                 self.logger.debug(f'현재온도 변환 전: {byte_data[int(state_structure["fieldPositions"]["currentTemp"])]}')
                                 # 변환 후 로그 
                                 self.logger.debug(f'현재온도 변환 후: {current_temp}')
+
+                                
                                 target_temp = str(byte_data[int(state_structure['fieldPositions']['targetTemp'])])
                                 
                                 power_values = state_structure['structure'][state_structure['fieldPositions']['power']]['values']
@@ -906,10 +914,10 @@ class WallpadController:
                 
                 if signal_interval > elfin_reboot_interval * 1_000:  # seconds
                     self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
+                    self.COLLECTDATA['last_recv_time'] = time.time_ns()
                     if (self.config.get("elfin_auto_reboot",True)):
                         self.logger.warning('EW11 재시작을 시도합니다.')
                         await self.reboot_elfin_device()
-                        self.COLLECTDATA['last_recv_time'] = time.time_ns()
                 if signal_interval > 150: #150ms이상 여유있을 때 큐 실행
                     await self.process_queue()
                 
