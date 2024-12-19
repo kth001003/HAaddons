@@ -571,14 +571,18 @@ class WallpadController:
                     self.logger.debug(f"전원 명령 처리: {command_value}")
                 elif command_type == int(command_structure[command_type_pos]['values']['CHANGE'], 16):
                     # 온도 설정 명령인 경우 - 켜진 상태로 가정
-                    status_packet[int(power_pos)] = int(state_structure['structure'][power_pos]['values']['ON'], 16)
+                    try:
+                        status_packet[int(power_pos)] = int(state_structure['structure'][power_pos]['values']['ON'], 16)
+                    except KeyError as e:
+                        self.logger.error(f"KeyError 발생: {e}. state_structure: {state_structure}")
+                        return None
                     
                     target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
                     self.logger.debug(f"target_temp: {target_temp}")
                     status_packet[int(state_structure['fieldPositions']['targetTemp'])] = target_temp
                     # 현재 온도는 설정 온도와 동일하게 설정 (실제로는 다를 수 있음)
                     status_packet[int(state_structure['fieldPositions']['currentTemp'])] = target_temp
-                    self.logger.debug(f"현재 온도 설정: {target_temp}") 
+                    self.logger.debug(f"현재 온도 설정: {target_temp}")
                     
             elif device_type == 'Light':
                 # 조명 상태 패킷 생성
