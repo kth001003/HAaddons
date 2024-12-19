@@ -937,6 +937,8 @@ class WallpadController:
                         mqtt_connected.set()
                     else:
                         self.logger.error("메인 루프가 실행되지 않았습니다.")
+                        self.reconnect_mqtt()
+
                 else:
                     self.logger.error(f"MQTT 연결 실패 (코드: {rc})")
                     # 재연결 시도
