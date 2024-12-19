@@ -748,8 +748,11 @@ class WallpadController:
                                 device_id = byte_data[int(state_structure['fieldPositions']['deviceId'])]
                                 power = byte_data[int(state_structure['fieldPositions']['power'])]
                                 # 온도값을 10진수로 직접 해석
-                                self.logger.debug(f'byte_data: {byte_data.hex()}')
                                 current_temp = str(byte_data[int(state_structure['fieldPositions']['currentTemp'])])
+                                # 변환 전 로그
+                                self.logger.debug(f'현재온도 변환 전: {byte_data[int(state_structure["fieldPositions"]["currentTemp"])]}')
+                                # 변환 후 로그 
+                                self.logger.debug(f'현재온도 변환 후: {current_temp}')
                                 target_temp = str(byte_data[int(state_structure['fieldPositions']['targetTemp'])])
                                 
                                 power_values = state_structure['structure'][state_structure['fieldPositions']['power']]['values']
