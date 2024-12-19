@@ -815,11 +815,12 @@ class WallpadController:
                     packet[int(command["fieldPositions"]["commandType"])] = int(command[str(command["fieldPositions"]["commandType"])]["values"]["setSpeed"], 16)
                     packet[int(command["fieldPositions"]["value"])] = int(command[str(command["fieldPositions"]["value"])]["values"][value], 16)
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
-                
-            # 패킷을 16진수 문자열로 변환
-            packet_hex = packet.hex().upper()
-            # 체크섬 추가
-            packet_hex = self.checksum(packet_hex)
+            
+            if packet_hex is None:
+                # 패킷을 16진수 문자열로 변환
+                packet_hex = packet.hex().upper()
+                # 체크섬 추가
+                packet_hex = self.checksum(packet_hex)
 
             if packet_hex:
                 # 예상 상태 패킷 디버그 로그 출력
