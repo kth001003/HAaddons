@@ -39,6 +39,7 @@ class CollectData(TypedDict):
 class QueueItem(TypedDict):
     sendcmd: str
     count: int
+    expected_state: Dict[str, str | int | None]
 
 class WallpadController:
     def __init__(self, config: Dict[str, Any], logger: Logger) -> None:
@@ -765,6 +766,7 @@ class WallpadController:
                 return
 
             # 패킷 초기화 (7바이트)
+            packet_hex = None
             packet = bytearray(7)
             device_structure = self.DEVICE_STRUCTURE[device]
             command = device_structure["command"]
@@ -792,13 +794,13 @@ class WallpadController:
                 if state == 'power':
                     if value == 'heat':
                         self.logger.debug(f'온도조절기 켜기 명령: {device_id}, {cur_temp}, {set_temp}')
-                        sendcmd = self.make_climate_command(device_id, cur_temp, set_temp, 'commandON')
+                        packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandON')
                     else:
                         self.logger.debug(f'온도조절기 끄기 명령: {device_id}')
-                        sendcmd = self.make_climate_command(device_id, cur_temp, set_temp, 'commandOFF')
+                        packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandOFF')
                 elif state == 'setTemp':
-                        sendcmd = self.make_climate_command(device_id, cur_temp, set_temp, 'commandCHANGE')
-                        self.logger.debug(f'온도조절기 설정 온도 변경 명령: {sendcmd}')
+                        packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandCHANGE')
+                        self.logger.debug(f'온도조절기 설정 온도 변경 명령: {packet_hex}')
             elif device == 'Fan':
                 packet[int(command["fieldPositions"]["commandType"])] = int(command[str(command["fieldPositions"]["commandType"])]["values"]["power"], 16)
                 
@@ -815,22 +817,29 @@ class WallpadController:
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
                 
             # 패킷을 16진수 문자열로 변환
-            sendcmd = packet.hex().upper()
+            packet_hex = packet.hex().upper()
             # 체크섬 추가
-            sendcmd = self.checksum(sendcmd)
+            packet_hex = self.checksum(packet_hex)
 
-            if sendcmd:
+            if packet_hex:
                 # 예상 상태 패킷 디버그 로그 출력
-                expected_state = self.generate_expected_state_packet(sendcmd)
-                if expected_state:
-                    self.logger.debug(f'예상 상태 패킷: {expected_state}')
+                expected_state_packet = self.generate_expected_state_packet(packet_hex)
+                if expected_state_packet:
+                    self.logger.debug(f'예상 상태 패킷: {expected_state_packet}')
+                    # TODO: 필수 확인 바이트 위치 배열 추가
+                    # # 필수 확인 바이트 위치 배열 (예: 전원상태, 온도 등의 위치)
+                    # required_positions = [3, 5, 7] # 예시 위치값
+                    # self.QUEUE.append({
+                    #     'sendcmd': packet_hex, 
+                    #     'count': 0, 
+                    #     'expected_state': {
+                    #         'packet': expected_state_packet,
+                    #         'required_positions': required_positions
+                    #     }
+                    # })
                 else:
                     self.logger.error('예상 상태 패킷 생성 실패')
-                if isinstance(sendcmd, list):
-                    for cmd in sendcmd:
-                        self.QUEUE.append({'sendcmd': cmd, 'count': 0})
-                else:
-                    self.QUEUE.append({'sendcmd': sendcmd, 'count': 0})
+                self.QUEUE.append({'sendcmd': packet_hex, 'count': 0, 'expected_state': {}})
         except Exception as e:
             self.logger.error(f"HA 명령 처리 중 오류 발생: {str(e)}")
 
