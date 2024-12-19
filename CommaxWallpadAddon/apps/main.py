@@ -553,7 +553,7 @@ class WallpadController:
                     command_value = command_packet[int(command_structure['fieldPositions']['value'])]
                     status_packet[int(power_pos)] = command_value
                     self.logger.debug(f"전원 명령 처리: {command_value}")
-                elif command_type == int(command_structure["structure"][command_type_pos]['values']['CHANGE'], 16): #03
+                elif command_type == int(command_structure["structure"][command_type_pos]['values']['change'], 16): #03
                     self.logger.debug(f"온도 설정 명령 처리")
                     #Power는 켜진 상태로 설정
                     status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['on'], 16) #81
