@@ -417,51 +417,6 @@ class WallpadController:
             self.logger.error(f"MQTT Discovery 설정 중 오류 발생: {str(e)}")
 
     # 명령 생성 함수들
-    # @require_device_structure(None)
-    # def make_command_packet(self, name, device_id, command_type):
-    #     try:
-    #         assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
-    #         device_structure = self.DEVICE_STRUCTURE[name]
-    #         command = device_structure["command"]
-            
-    #         # 패킷 초기화 (7바이트)
-    #         packet = bytearray(7)
-            
-    #         # 헤더 설정
-    #         packet[0] = int(command["header"], 16)
-            
-    #         # 기기 번호 설정
-    #         packet[1] = device_id
-            
-    #         # 명령 타입 및 값 설정
-    #         if command_type in command["types"]:
-    #             packet[2] = int(command["types"][command_type]["code"], 16)
-    #             if "values" in command["types"][command_type]:
-    #                 if command_type == "power":
-    #                     packet[3] = int(command["types"][command_type]["values"]["on"], 16)
-    #                 elif command_type == "setTemp":
-    #                     packet[3] = 0  # 온도 변경 명령의 경우 기본값 0으로 설정
-    #             else:
-    #                 packet[3] = 0  # 기본값
-    #         else:
-    #             self.logger.error(f'잘못된 명령 타입: {command_type}')
-    #             return None
-            
-    #         # 패킷을 16진수 문자열로 변환
-    #         packet_hex = ''.join([f'{b:02X}' for b in packet])
-            
-    #         # 체크섬 계산 및 추가
-    #         final_packet = self.checksum(packet_hex)
-            
-    #         return final_packet
-
-    #     except KeyError:
-    #         self.logger.error(f'알 수 없는 기기 또는 명령 구조: {name}, {command_type}')
-    #         return None
-    #     except Exception as e:
-    #         self.logger.error(f'명령 패킷 생성 중 오류 발생: {str(e)}')
-    #         return None
-
     @require_device_structure(None)
     def make_climate_command(self, device_id: int, current_temp: int, target_temp: int, command_type: str) -> Union[str, None]:
         """
@@ -506,20 +461,20 @@ class WallpadController:
             value_pos = int(command["fieldPositions"]["value"])
             
             if command_type == 'commandOFF':
-                packet[command_type_pos] = int(command["types"]["power"]["code"], 16)
-                packet[value_pos] = int(command["types"]["power"]["values"]["off"], 16)
+                packet[command_type_pos] = int(command["structure"][command_type_pos]["values"]["OFF"], 16)
+                packet[value_pos] = int(command["structure"][value_pos]["values"]["off"], 16)
             elif command_type == 'commandON':
-                packet[command_type_pos] = int(command["types"]["power"]["code"], 16)
-                packet[value_pos] = int(command["types"]["power"]["values"]["on"], 16)
+                packet[command_type_pos] = int(command["structure"][command_type_pos]["values"]["power"], 16)
+                packet[value_pos] = int(command["structure"][value_pos]["values"]["on"], 16)
             elif command_type == 'commandCHANGE':
-                packet[command_type_pos] = int(command["types"]["setTemp"]["code"], 16)
-                packet[value_pos] = target_temp
+                packet[command_type_pos] = int(command["structure"][command_type_pos]["values"]["CHANGE"], 16)
+                packet[value_pos] = int(str(target_temp),16)
             else:
                 self.logger.error(f'잘못된 명령 타입: {command_type}')
                 return None
             
             # 패킷을 16진수 문자열로 변환
-            packet_hex = ''.join([f'{b:02X}' for b in packet])
+            packet_hex = packet.hex().upper()
             
             # 체크섬 추가하여 return
             return self.checksum(packet_hex)
@@ -623,7 +578,7 @@ class WallpadController:
                         int(device_structure['state']['structure']['1']['values']['on'], 16)
             
             # 상태 패킷을 16진수 문자열로 변환
-            status_hex = ''.join([f'{b:02X}' for b in status_packet])
+            status_hex = status_packet.hex().upper()
             
             # self.checksum을 사용하여 체크섬 추가
             return self.checksum(status_hex)
@@ -841,7 +796,7 @@ class WallpadController:
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
                 
                 # 패킷을 16진수 문자열로 변환
-                sendcmd = ''.join([f'{b:02X}' for b in packet])
+                sendcmd = packet.hex().upper()
                 # 체크섬 추가
                 sendcmd = self.checksum(sendcmd)
 

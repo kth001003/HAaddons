@@ -68,8 +68,8 @@
       "header": "04",
       "structure": {
         "1": {"name": "deviceId"},
-        "2": {"name": "commandType", "values": {"ON": "81", "OFF": "00", "CHANGE": "03"}},
-        "3": {"name": "value"},
+        "2": {"name": "commandType", "values": {"power": "04", "CHANGE": "03"}},
+        "3": {"name": "value", "values": {"on": "81", "off": "00" , "target": "18"}},
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
