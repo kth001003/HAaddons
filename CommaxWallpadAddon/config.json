@@ -1,6 +1,6 @@
 {
   "name": "[TEST] COMMAX Wallpad",
-  "version": "3.0.4",
+  "version": "1.1.0",
   "slug": "commax",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "mqtt 통신을 활용한 코맥스 월패드 컨트롤러",

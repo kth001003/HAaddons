@@ -156,17 +156,12 @@ class WallpadController:
         
     
     def find_device(self) -> Dict[str, Any]:
-        """
-        MQTT에 발행되는 RS485신호에서 기기를 찾는 함수입니다.
-        
-        Returns:
-            Dict[str, Any]: 검색된 기기 타입별 갯수 정보
-        """
+        """MQTT에 발행되는 RS485신호에서 기기를 찾는 함수입니다."""
         if self.DEVICE_STRUCTURE is None:
             self.logger.error("DEVICE_STRUCTURE이 초기화되지 않았습니다.")
             return {}
+        
         try:
-            
             if not os.path.exists(self.share_dir):
                 os.makedirs(self.share_dir)
                 self.logger.info(f'{self.share_dir} 디렉토리를 생성했습니다.')
@@ -182,9 +177,9 @@ class WallpadController:
             
             # 기기별 최대 인덱스 저장
             device_count = {name: 0 for name in state_prefixes.values()}
-
+            
             target_time = time.time() + 20
-
+            
             def on_connect(client, userdata, flags, rc):
                 if rc == 0:
                     self.logger.info("MQTT broker 접속 완료")
@@ -192,7 +187,7 @@ class WallpadController:
                     client.subscribe(f'{self.ELFIN_TOPIC}/#', 0)
                 else:
                     self.logger.error(f"Connection failed with code {rc}")
-
+            
             def on_message(client, userdata, msg):
                 if self.DEVICE_STRUCTURE is None:
                     self.logger.error("DEVICE_STRUCTURE이 초기화되지 않았습니다.")
@@ -212,22 +207,26 @@ class WallpadController:
                             device_count[name], 
                             int(data[device_id_position*2:device_id_position*2+2], 16)
                         )
-
-            mqtt_client = mqtt.Client('commax')
-            mqtt_client.username_pw_set(self.config['mqtt_id'], self.config['mqtt_password'])
-            mqtt_client.on_connect = on_connect
-            mqtt_client.on_message = on_message
-            mqtt_client.connect_async(self.config['mqtt_server'])
-            mqtt_client.loop_start()
-
+            
+            # 임시 MQTT 클라이언트 설정
+            temp_client = self.setup_mqtt('commax_finder')
+            temp_client.on_connect = on_connect
+            temp_client.on_message = on_message
+            
+            # MQTT 연결 및 검색 시작
+            temp_client.connect(self.config['mqtt_server'])
+            temp_client.loop_start()
+            
             while time.time() < target_time:
                 pass
-
-            mqtt_client.loop_stop()
-
+            
+            temp_client.loop_stop()
+            temp_client.disconnect()
+            
+            # 검색 결과 처리
             self.logger.info('다음의 기기들을 찾았습니다...')
             self.logger.info('======================================')
-
+            
             device_list = {}
             
             for name, count in device_count.items():
@@ -239,9 +238,10 @@ class WallpadController:
                     self.logger.info(f'DEVICE: {name}')
                     self.logger.info(f'Count: {count}')
                     self.logger.info('-------------------')
-
+            
             self.logger.info('======================================')
             
+            # 검색 결과 저장
             try:
                 with open(save_path, 'w', encoding='utf-8') as make_file:
                     json.dump(device_list, make_file, indent="\t")
@@ -409,38 +409,65 @@ class WallpadController:
         except Exception as err:
             self.logger.error(f'기기 재시작 오류: {str(err)}')
 
-    def setup_mqtt(self) -> None:
-        """MQTT 클라이언트를 설정합니다."""
-        self.mqtt_client = mqtt.Client(self.HA_TOPIC)
-        self.mqtt_client.username_pw_set(
-            self.config['mqtt_id'], self.config['mqtt_password']
-        )
+    def setup_mqtt(self, client_id: Optional[str] = None) -> mqtt.Client:
+        """MQTT 클라이언트를 설정하고 반환합니다.
         
-        # on_connect 콜백 타입 수정
-        def on_connect_callback(client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
-            if self.loop and self.loop.is_running():
-                asyncio.run_coroutine_threadsafe(
-                    self.on_mqtt_connect(client, userdata, flags, rc), 
-                    self.loop
-                )
-        
-        self.mqtt_client.on_connect = on_connect_callback  # type: ignore
-        self.mqtt_client.on_message = self.on_mqtt_message
-        self.mqtt_client.connect_async(self.config['mqtt_server'])
-        self.mqtt_client.loop_start()
+        Args:
+            client_id (Optional[str]): MQTT 클라이언트 ID. 기본값은 self.HA_TOPIC
+            
+        Returns:
+            mqtt.Client: 설정된 MQTT 클라이언트
+        """
+        try:
+            client = mqtt.Client(client_id or self.HA_TOPIC)
+            client.username_pw_set(
+                self.config['mqtt_id'], 
+                self.config['mqtt_password']
+            )
+            
+            return client
+            
+        except Exception as e:
+            self.logger.error(f"MQTT 클라이언트 설정 중 오류 발생: {str(e)}")
+            raise
+
+    def reconnect_mqtt(self) -> None:
+        """MQTT 브로커에 재연결을 시도합니다."""
+        max_retries = 5
+        retry_interval = 5  # 초
+
+        for attempt in range(max_retries):
+            try:
+                self.logger.info(f"MQTT 브로커 연결 시도 중... (시도 {attempt + 1}/{max_retries})")
+                if self.mqtt_client:
+                    self.mqtt_client.connect(self.config['mqtt_server'])
+                    return
+                else:
+                    raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    self.logger.warning(f"MQTT 연결 실패: {str(e)}. {retry_interval}초 후 재시도...")
+                    time.sleep(retry_interval)
+                else:
+                    self.logger.error(f"MQTT 연결 실패: {str(e)}. 최대 재시도 횟수 초과.")
+                    raise
 
     async def on_mqtt_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], rc: int) -> None:
+        """MQTT 연결 성공/실패 시 호출되는 콜백"""
         if rc == 0:
             self.logger.info("MQTT broker 접속 완료")
             self.logger.info("구독 시작")
-            topics = [
-                (f'{self.HA_TOPIC}/+/+/command', 0),
-                (f'{self.ELFIN_TOPIC}/recv', 0),
-                (f'{self.ELFIN_TOPIC}/send', 0)
-            ]
-            client.subscribe(topics)
-            # MQTT Discovery 메시지 발행
-            await self.publish_discovery_message()
+            try:
+                topics = [
+                    (f'{self.HA_TOPIC}/+/+/command', 0),
+                    (f'{self.ELFIN_TOPIC}/recv', 0),
+                    (f'{self.ELFIN_TOPIC}/send', 0)
+                ]
+                client.subscribe(topics)
+                # MQTT Discovery 메시지 발행
+                await self.publish_discovery_message()
+            except Exception as e:
+                self.logger.error(f"MQTT 토픽 구독 중 오류 발생: {str(e)}")
         else:
             errcode = {
                 1: 'Connection refused - incorrect protocol version',
@@ -449,7 +476,8 @@ class WallpadController:
                 4: 'Connection refused - bad username or password',
                 5: 'Connection refused - not authorised'
             }
-            self.logger.error(f"MQTT 연결 실패: {errcode.get(rc, '알 수 없는 오류')}")
+            error_msg = errcode.get(rc, '알 수 없는 오류')
+            self.logger.error(f"MQTT 연결 실패: {error_msg}")
 
     def on_mqtt_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         try:
@@ -869,19 +897,46 @@ class WallpadController:
             self.logger.info('저장된 기기 정보가 없습니다. mqtt에 접속하여 기기 찾기를 시도합니다.')
             self.device_list = self.find_device()
 
-        self.setup_mqtt()
-        
-        self.loop = asyncio.get_event_loop()
-        tasks = [
-            self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10)),
-        ]
         try:
+            # 메인 MQTT 클라이언트 설정
+            self.mqtt_client = self.setup_mqtt()
+            
+            # MQTT 콜백 설정
+            def on_connect_callback(client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
+                if self.loop and self.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        self.on_mqtt_connect(client, userdata, flags, rc), 
+                        self.loop
+                    )
+
+            def on_disconnect_callback(client: mqtt.Client, userdata: Any, rc: int) -> None:
+                if rc != 0:
+                    self.logger.error(f"예기치 않은 MQTT 연결 끊김 (코드: {rc})")
+                    self.reconnect_mqtt()
+            
+            self.mqtt_client.on_connect = on_connect_callback
+            self.mqtt_client.on_disconnect = on_disconnect_callback
+            self.mqtt_client.on_message = self.on_mqtt_message
+            
+            # MQTT 연결
+            self.reconnect_mqtt()
+            self.mqtt_client.loop_start()
+            
+            # 메인 루프 실행
+            self.loop = asyncio.get_event_loop()
+            tasks = [
+                self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10)),
+            ]
             self.loop.run_until_complete(asyncio.gather(*tasks))
+            
         except Exception as e:
             self.logger.error(f"실행 중 오류 발생: {str(e)}")
+            raise
         finally:
-            self.loop.close()
-            self.mqtt_client.loop_stop() # type: ignore
+            if self.loop:
+                self.loop.close()
+            if self.mqtt_client:
+                self.mqtt_client.loop_stop()
 
     def __del__(self):
         """클래스 인스턴스가 삭제될 때 리소스 정리"""
