@@ -129,11 +129,12 @@ class WallpadController:
             self.logger.info("MQTT 브로커 연결 시도 중...")
             if self.mqtt_client:
                 self.mqtt_client.connect(self.config['mqtt_server'])
-                self.logger.info("MQTT 브로커 연결 성공")
             else:
                 self.logger.error("MQTT 클라이언트가 초기화되지 않았습니다.")
+            return
         except Exception as e:
             self.logger.error(f"MQTT 연결 실패: {str(e)}")
+            return
 
     def reconnect_mqtt(self) -> None:
         """MQTT 브로커 연결이 끊어진 경우 재연결을 시도합니다."""
@@ -730,7 +731,7 @@ class WallpadController:
                                 self.logger.debug(f'power_hex: {power_hex}')
                                 power_values = state_structure['structure'][power_pos]['values']
                                 self.logger.debug(f'power_values: {power_values}')
-                                
+
                                 # power 값과 정의된 값들을 직접 비교
                                 mode_text = 'off'
                                 if power_hex == power_values.get('on', '').upper():
