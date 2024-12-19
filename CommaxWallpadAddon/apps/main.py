@@ -466,7 +466,7 @@ class WallpadController:
             
             # 기기 번호 설정 - 10진수로 직접 설정
             device_id_pos = command["fieldPositions"]["deviceId"]
-            packet[device_id_pos] = device_id
+            packet[int(device_id_pos)] = device_id
             
             # 명령 타입 및 값 설정
             command_type_pos = command["fieldPositions"]["commandType"]
@@ -808,10 +808,10 @@ class WallpadController:
                     packet[int(command["fieldPositions"]["value"])] = int(command[str(command["fieldPositions"]["value"])]["values"][value], 16)
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
                 
-                # 패킷을 16진수 문자열로 변환
-                sendcmd = packet.hex().upper()
-                # 체크섬 추가
-                sendcmd = self.checksum(sendcmd)
+            # 패킷을 16진수 문자열로 변환
+            sendcmd = packet.hex().upper()
+            # 체크섬 추가
+            sendcmd = self.checksum(sendcmd)
 
             if sendcmd:
                 # 예상 상태 패킷 디버그 로그 출력
