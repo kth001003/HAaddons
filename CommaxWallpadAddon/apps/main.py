@@ -563,6 +563,7 @@ class WallpadController:
                 power_pos = state_structure['fieldPositions']['power']
                 self.logger.debug(f"power_pos: {power_pos}")
                 if command_type == int(command_structure[command_type_pos]['values']['POWER'], 16):
+                    self.logger.debug(f"전원 명령 처리")
                     # 전원 명령인 경우
                     # command packet의 값을 상태 패킷에 복사
                     command_value = command_packet[int(command_structure['fieldPositions']['value'])]
@@ -570,7 +571,7 @@ class WallpadController:
                     status_packet[int(power_pos)] = command_value
                     self.logger.debug(f"전원 명령 처리: {command_value}")
                 elif command_type == int(command_structure[command_type_pos]['values']['CHANGE'], 16):
-                    # 온도 설정 명령인 경우 - 켜진 상태로 가정
+                    self.logger.debug(f"온도 설정 명령 처리")
                     try:
                         # power_pos를 문자열로 변환하여 사용
                         power_pos_str = str(power_pos)
