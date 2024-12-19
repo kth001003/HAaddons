@@ -491,17 +491,19 @@ class WallpadController:
         
     
     @require_device_structure(None)
-    def generate_expected_state_packet(self, command_str: str) -> Optional[str]:
+    def generate_expected_state_packet(self, command_str: str) -> Union[dict, None]:
         """명령 패킷으로부터 예상되는 상태 패킷을 생성합니다.
         
         Args:
             command_str (str): 16진수 형태의 명령 패킷 문자열
             
         Returns:
-            Optional[str]: 생성된 상태 패킷 문자열. 실패시 None
+            dict[
+                'expexted_packet': str,
+                'requrired_bytes': list[int]
+            ]
         """
         try:
-            self.logger.debug(f"명령 패킷 수신: {command_str}")
             assert isinstance(self.DEVICE_STRUCTURE, dict)
             
             # 명령 패킷 검증
@@ -511,7 +513,6 @@ class WallpadController:
                 
             # 명령 패킷을 바이트로 변환
             command_packet = bytes.fromhex(command_str)
-            self.logger.debug(f"명령 패킷 바이트 변환: {command_packet.hex().upper()}")
             
             # 헤더로 기기 타입 찾기
             device_type = None
@@ -523,9 +524,7 @@ class WallpadController:
             if not device_type:
                 self.logger.error("알 수 없는 명령 패킷입니다.")
                 return None
-            
-            self.logger.debug(f"기기 타입 확인: {device_type}")
-            
+                        
             # 기기별 상태 패킷 생성
             device_structure = self.DEVICE_STRUCTURE[device_type]
             command_structure = device_structure['command']
@@ -533,16 +532,18 @@ class WallpadController:
             
             # 상태 패킷 초기화 (7바이트 - 체크섬은 나중에 추가)
             status_packet = bytearray(7)
+            # 필요한 바이트 리스트
+            required_bytes = [0] # 헤더는 항상 포함
             
             # 상태 패킷 헤더 설정
             status_packet[0] = int(state_structure['header'], 16)
-            self.logger.debug(f"상태 패킷 헤더 설정: {status_packet[0]}")
             
             # 기기 ID 복사
             device_id_pos = state_structure['fieldPositions']['deviceId']
             status_packet[int(device_id_pos)] = command_packet[int(command_structure['fieldPositions']['deviceId'])]
-            self.logger.debug(f"기기 ID 설정: {status_packet[int(device_id_pos)]}")
-            
+            # 필요한 바이트 리스트에 기기 ID 추가
+            required_bytes.append(int(device_id_pos))
+
             if device_type == 'Thermo':
                 # 온도조절기 상태 패킷 생성
                 command_type_pos = command_structure['fieldPositions']['commandType']
@@ -552,26 +553,29 @@ class WallpadController:
                 if command_type == int(command_structure["structure"][command_type_pos]['values']['power'], 16): #04
                     command_value = command_packet[int(command_structure['fieldPositions']['value'])]
                     status_packet[int(power_pos)] = command_value
-                    self.logger.debug(f"전원 명령 처리: {command_value}")
+                    # 필요한 바이트 리스트에 전원 위치 추가
+                    required_bytes.append(int(power_pos))
                 elif command_type == int(command_structure["structure"][command_type_pos]['values']['change'], 16): #03
-                    self.logger.debug(f"온도 설정 명령 처리")
                     #Power는 켜진 상태로 설정
                     status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['on'], 16) #81
                     
                     target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
-                    self.logger.debug(f"target_temp: {target_temp}")
                     target_temp_pos = state_structure['fieldPositions']['targetTemp']
                     status_packet[int(target_temp_pos)] = target_temp
                     current_temp_pos = state_structure['fieldPositions']['currentTemp']
                     status_packet[int(current_temp_pos)] = target_temp
+                    # 필요한 바이트 리스트에 현재 온도 위치 추가
+                    required_bytes.append(int(target_temp_pos))
             
+
             elif device_type == 'Light':
                 # 조명 상태 패킷 생성
                 power_pos = state_structure['fieldPositions']['power']
                 command_value = command_packet[int(command_structure['fieldPositions']['power'])]
                 status_packet[int(power_pos)] = command_value
-                self.logger.debug(f"조명 상태 설정: {command_value}")
-                
+                # 필요한 바이트 리스트에 전원 위치 추가
+                required_bytes.append(int(power_pos))
+
             # elif device_type == 'Fan':
             #     # 환기장치 상태 패킷 생성
             #     command_type = command_packet[int(device_structure['command']['fieldPositions']['commandType'])]
@@ -589,10 +593,10 @@ class WallpadController:
             
             # 상태 패킷을 16진수 문자열로 변환
             status_hex = status_packet.hex().upper()
-            self.logger.debug(f"상태 패킷 생성: {status_hex}")
-            
-            # self.checksum을 사용하여 체크섬 추가
-            return self.checksum(status_hex)
+            return {
+                'expected_packet': self.checksum(status_hex),
+                'required_bytes': required_bytes
+            }
             
         except Exception as e:
             self.logger.error(f"상태 패킷 생성 중 오류 발생: {str(e)}\n"
@@ -721,17 +725,12 @@ class WallpadController:
                             if device_name == 'Thermo':
                                 power_pos = state_structure['fieldPositions']['power']
                                 power = byte_data[int(power_pos)]
-                                self.logger.debug(f'power: {power}')
                                 # 온도값을 10진수로 직접 해석
                                 current_temp = int(format(byte_data[int(state_structure['fieldPositions']['currentTemp'])], '02x'))
                                 target_temp = int(format(byte_data[int(state_structure['fieldPositions']['targetTemp'])], '02x'))
-                                
                                 # power 값 비교를 16진수 문자열로 변환하여 수행
                                 power_hex = format(power, '02x').upper()
-                                self.logger.debug(f'power_hex: {power_hex}')
                                 power_values = state_structure['structure'][power_pos]['values']
-                                self.logger.debug(f'power_values: {power_values}')
-
                                 # power 값과 정의된 값들을 직접 비교
                                 mode_text = 'off'
                                 if power_hex == power_values.get('on', '').upper():
@@ -834,20 +833,15 @@ class WallpadController:
 
             if packet_hex:
                 # 예상 상태 패킷 디버그 로그 출력
-                expected_state_packet = self.generate_expected_state_packet(packet_hex)
-                if expected_state_packet:
-                    self.logger.debug(f'예상 상태 패킷: {expected_state_packet}')
-                    # TODO: 필수 확인 바이트 위치 배열 추가
-                    # # 필수 확인 바이트 위치 배열 (예: 전원상태, 온도 등의 위치)
-                    # required_positions = [3, 5, 7] # 예시 위치값
-                    # self.QUEUE.append({
-                    #     'sendcmd': packet_hex, 
-                    #     'count': 0, 
-                    #     'expected_state': {
-                    #         'packet': expected_state_packet,
-                    #         'required_positions': required_positions
-                    #     }
-                    # })
+                expected_state = self.generate_expected_state_packet(packet_hex)
+                self.logger.debug(f'예상 상태: {expected_state}')
+                if expected_state:
+                    self.logger.debug(f'예상 상태: {expected_state}')
+                    self.QUEUE.append({
+                        'sendcmd': packet_hex, 
+                        'count': 0, 
+                        'expected_state': expected_state
+                    })
                 else:
                     self.logger.error('예상 상태 패킷 생성 실패')
                 self.QUEUE.append({'sendcmd': packet_hex, 'count': 0, 'expected_state': {}})
@@ -865,14 +859,13 @@ class WallpadController:
         max_send_count = self.config.get("max_send_count",10)  # 최대 전송 횟수 설정
         if self.QUEUE:
             send_data = self.QUEUE.pop(0)
-            if isinstance(send_data['sendcmd'], str):
-                cmd_bytes = bytes.fromhex(send_data['sendcmd'])
-                self.publish_mqtt(f'{self.ELFIN_TOPIC}/send', cmd_bytes.hex())
-                if isinstance(send_data['count'], int):
-                    if send_data['count'] < max_send_count:
-                        send_data['count'] += 1
-                        self.QUEUE.append(send_data)
-        await asyncio.sleep(0.1) #100ms 휴식
+            cmd_bytes = bytes.fromhex(send_data['sendcmd'])
+            self.publish_mqtt(f'{self.ELFIN_TOPIC}/send', cmd_bytes.hex())
+            if isinstance(send_data['count'], int):
+                if send_data['count'] < max_send_count:
+                    send_data['count'] += 1
+                    self.QUEUE.append(send_data)
+        await asyncio.sleep(0.05) #50ms 휴식
 
     async def process_queue_and_monitor(self, elfin_reboot_interval: float) -> bool:
         """
@@ -907,7 +900,7 @@ class WallpadController:
                 self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
                 return True
             
-            await asyncio.sleep(self.config.get("queue_interval_in_second",0.01)) #100ms
+            await asyncio.sleep(self.config.get("queue_interval_in_second",0.01)) #10ms
 
     # 메인 실행 함수
     def run(self) -> None:
