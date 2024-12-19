@@ -559,44 +559,21 @@ class WallpadController:
                 command_type = command_packet[int(command_type_pos)]
                 
                 power_pos = state_structure['fieldPositions']['power']
-                if command_type == int(command_structure["structure"][command_type_pos]['values']['POWER'], 16):
+                if command_type == int(command_structure["structure"][command_type_pos]['values']['POWER'], 16): #04
                     command_value = command_packet[int(command_structure['fieldPositions']['value'])]
                     status_packet[int(power_pos)] = command_value
                     self.logger.debug(f"전원 명령 처리: {command_value}")
-                elif command_type == int(command_structure["structure"][command_type_pos]['values']['CHANGE'], 16):
+                elif command_type == int(command_structure["structure"][command_type_pos]['values']['CHANGE'], 16): #03
                     self.logger.debug(f"온도 설정 명령 처리")
-                    try:
-                        if ('structure' in state_structure and 
-                            power_pos in state_structure['structure'] and 
-                            'values' in state_structure['structure'][power_pos] and 
-                            'ON' in state_structure['structure'][power_pos]['values']):
-                            status_packet[power_pos] = int(state_structure['structure'][power_pos]['values']['ON'], 16)
-                        else:
-                            # 기본값 설정 (예: 0x81)
-                            status_packet[power_pos] = 0x81
-                            self.logger.debug(f"전원 상태에 기본값 사용: 0x81")
-                    except Exception as e:
-                        self.logger.error(f"전원 상태 설정 중 오류 발생: {str(e)}")
-                        self.logger.debug(f"state_structure: {state_structure}")
-                        return None
+                    #Power는 켜진 상태로 설정
+                    status_packet[power_pos] = int(state_structure['structure'][power_pos]['values']['ON'], 16) #81
                     
-                    try:
-                        target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
-                        self.logger.debug(f"target_temp: {target_temp}")
-                        
-                        # targetTemp 위치 확인 및 설정
-                        target_temp_pos = state_structure['fieldPositions']['targetTemp']
-                        status_packet[int(target_temp_pos)] = target_temp
-                        
-                        # currentTemp 위치 확인 및 설정
-                        current_temp_pos = state_structure['fieldPositions']['currentTemp']
-                        status_packet[int(current_temp_pos)] = target_temp
-                        
-                        self.logger.debug(f"온도 설정 완료 - 현재/목표 온도: {target_temp}")
-                    except Exception as e:
-                        self.logger.error(f"온도 설정 중 오류 발생: {str(e)}")
-                        self.logger.debug(f"command_structure: {command_structure}")
-                        return None
+                    target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
+                    self.logger.debug(f"target_temp: {target_temp}")
+                    target_temp_pos = state_structure['fieldPositions']['targetTemp']
+                    status_packet[int(target_temp_pos)] = target_temp
+                    current_temp_pos = state_structure['fieldPositions']['currentTemp']
+                    status_packet[int(current_temp_pos)] = target_temp
             
             elif device_type == 'Light':
                 # 조명 상태 패킷 생성
