@@ -617,7 +617,8 @@ class WallpadController:
             self.logger.error(f"상태 패킷 생성 중 오류 발생: {str(e)}\n"
                             f"장치 타입: {device_type}\n"
                             f"명령 패킷: {command_packet.hex().upper()}\n"
-                            f"상태 패킷: {status_packet.hex().upper() if status_packet else 'None'}\n")
+                            f"상태 패킷: {status_packet.hex().upper() if status_packet else 'None'}\n"
+                            f"KeyError 발생: {e}. state_structure: {state_structure}")
             return None
     
     # 상태 업데이트 함수들
