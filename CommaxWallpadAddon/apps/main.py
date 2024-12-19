@@ -137,7 +137,7 @@ class WallpadController:
                 start_time = time.time()
                 while not self.mqtt_client.is_connected():
                     time.sleep(0.1)
-                    if time.time() - start_time > 30:  # 30초 타임아웃
+                    if time.time() - start_time > 5:  # 5초 타임아웃
                         self.logger.error("MQTT 연결 타임아웃")
                         self.reconnect_mqtt()
                         return  # 예외 대신 함수 종료
@@ -477,7 +477,7 @@ class WallpadController:
                 packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["OFF"], 16)
                 packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["off"], 16)
             elif command_type == 'commandON':
-                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["power"], 16)
+                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["POWER"], 16)
                 packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["on"], 16)
             elif command_type == 'commandCHANGE':
                 packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["CHANGE"], 16)
@@ -546,7 +546,7 @@ class WallpadController:
             status_packet[0] = int(state_structure['header'], 16)
             
             # 기기 ID 복사
-            device_id_pos = state_structure['fieldPositions']['deviceId']
+            device_id_pos = state_structure['fieldPositions']['deviceId'] #'2'
             status_packet[int(device_id_pos)] = command_packet[int(command_structure['fieldPositions']['deviceId'])]
             
             if device_type == 'Thermo':
@@ -599,7 +599,10 @@ class WallpadController:
             return self.checksum(status_hex)
             
         except Exception as e:
-            self.logger.error(f"상태 패킷 생성 중 오류 발생: {str(e)}")
+            self.logger.error(f"상태 패킷 생성 중 오류 발생: {str(e)}\n"
+                            f"장치 타입: {device_type}\n"
+                            f"명령 패킷: {command_packet.hex().upper()}\n"
+                            f"상태 패킷: {status_packet.hex().upper() if status_packet else 'None'}\n")
             return None
     
     # 상태 업데이트 함수들

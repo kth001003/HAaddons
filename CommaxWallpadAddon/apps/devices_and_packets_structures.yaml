@@ -10,6 +10,14 @@ Light:
         values:
           on: "01"
           off: "00"
+      3: 
+        name: empty
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -26,6 +34,14 @@ Light:
           off: "00"
       2:
         name: deviceId
+      3: 
+        name: empty
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -48,6 +64,12 @@ LightBreaker:
       3:
         name: fixed
         value: "01"
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -65,9 +87,15 @@ LightBreaker:
           off: "00"
       2:
         name: deviceId
+      3: 
+        name: empty
+      4: 
+        name: empty
       5:
         name: fixed
         value: "15"
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -86,14 +114,20 @@ Thermo:
       2:
         name: commandType
         values:
-          power: "04"
+          POWER: "04"
           CHANGE: "03"
       3:
         name: value
         values:
-          on: "81"
-          off: "00"
-          target: "18"
+          ON: "81"
+          OFF: "00"
+          TARGET: "18"
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -107,14 +141,18 @@ Thermo:
       1:
         name: power
         values:
-          on: "81"
-          off: "80"
+          ON: "81"
+          OFF: "80"
       2:
         name: deviceId
       3:
         name: currentTemp
       4:
         name: targetTemp
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -134,7 +172,15 @@ Gas:
       2:
         name: power
         values:
-          off: "80"
+          OFF: "80"
+      3: 
+        name: empty
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -147,10 +193,18 @@ Gas:
       1:
         name: power
         values:
-          on: "A0"
-          off: "50"
+          ON: "A0"
+          OFF: "50"
       2:
         name: powerRepeat
+      3: 
+        name: empty
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -170,8 +224,14 @@ Outlet:
       3:
         name: power
         values:
-          on: "01"
-          off: "00"
+          ON: "01"
+          OFF: "00"
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -185,8 +245,8 @@ Outlet:
       1:
         name: power
         values:
-          on: "01"
-          off: "00"
+          ON: "01"
+          OFF: "00"
       2:
         name: deviceId
       3:
@@ -195,6 +255,10 @@ Outlet:
       4:
         name: fixed2
         value: "10"
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -219,11 +283,17 @@ Fan:
       3:
         name: value
         values:
-          low: "00"
-          medium: "01"
-          high: "02"
-          off: "00"
-          on: "04"
+          LOW: "00"
+          MEDIUM: "01"
+          HIGH: "02"
+          OFF: "00"
+          ON: "04"
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -237,12 +307,18 @@ Fan:
       1:
         name: power
         values:
-          on: "04"
-          off: "00"
+          ON: "04"
+          OFF: "00"
       2:
         name: deviceId
       3:
         name: speed
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
@@ -261,7 +337,7 @@ EV:
       2:
         name: power
         values:
-          on: "01"
+          ON: "01"
       3:
         name: fixed1
         value: "00"
@@ -290,9 +366,17 @@ EV:
       1:
         name: power
         values:
-          on: "01"
+          ON: "01"
       2:
         name: deviceId
+      3: 
+        name: empty
+      4: 
+        name: empty
+      5: 
+        name: empty
+      6: 
+        name: empty
       7:
         name: checksum
     fieldPositions:
