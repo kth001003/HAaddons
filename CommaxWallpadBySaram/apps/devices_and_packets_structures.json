@@ -9,9 +9,9 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "deviceId": 1,
-        "power": 2,
-        "checksum": 7
+        "deviceId": "1",
+        "power": "2",
+        "checksum": "7"
       }
     },
     "state": {
@@ -22,9 +22,9 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "power": 1,
-        "deviceId": 2,
-        "checksum": 7
+        "power": "1",
+        "deviceId": "2",
+        "checksum": "7"
       }
     }
   },
@@ -39,10 +39,10 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "deviceId": 1,
-        "power": 2,
-        "fixed": 3,
-        "checksum": 7
+        "deviceId": "1",
+        "power": "2",
+        "fixed": "3",
+        "checksum": "7"
       }
     },
     "state": {
@@ -54,10 +54,10 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "power": 1,
-        "deviceId": 2,
-        "fixed": 5,
-        "checksum": 7
+        "power": "1",
+        "deviceId": "2",
+        "fixed": "5",
+        "checksum": "7"
       }
     }
   },
@@ -73,10 +73,10 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "deviceId": 1,
-        "commandType": 2,
-        "value": 3,
-        "checksum": 7
+        "deviceId": "1",
+        "commandType": "2",
+        "value": "3",
+        "checksum": "7"
       }
     },
     "state": {
@@ -89,11 +89,11 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "power": 1,
-        "deviceId": 2,
-        "currentTemp": 3,
-        "targetTemp": 4,
-        "checksum": 7
+        "power": "1",
+        "deviceId": "2",
+        "currentTemp": "3",
+        "targetTemp": "4",
+        "checksum": "7"
       }
     }
   },
@@ -107,9 +107,9 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "deviceId": 1,
-        "power": 2,
-        "checksum": 7
+        "deviceId": "1",
+        "power": "2",
+        "checksum": "7"
       }
     },
     "state": {
@@ -120,9 +120,9 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "power": 1,
-        "powerRepeat": 2,
-        "checksum": 7
+        "power": "1",
+        "powerRepeat": "2",
+        "checksum": "7"
       }
     }
   },
@@ -137,10 +137,10 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "deviceId": 1,
-        "deviceIdRepeat": 2,
-        "power": 3,
-        "checksum": 7
+        "deviceId": "1",
+        "deviceIdRepeat": "2",
+        "power": "3",
+        "checksum": "7"
       }
     },
     "state": {
@@ -153,11 +153,11 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "power": 1,
-        "deviceId": 2,
-        "fixed1": 3,
-        "fixed2": 4,
-        "checksum": 7
+        "power": "1",
+        "deviceId": "2",
+        "fixed1": "3",
+        "fixed2": "4",
+        "checksum": "7"
       }
     }
   },
@@ -172,14 +172,10 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "deviceId": 1,
-        "commandType": 2,
-        "value": 3,
-        "checksum": 7
-      },
-      "types": {
-        "power": {"code": "01", "values": {"on": "04", "off": "00"}},
-        "setSpeed": {"code": "02", "valuePosition": 3}
+        "deviceId": "1",
+        "commandType": "2",
+        "value": "3",
+        "checksum": "7"
       }
     },
     "state": {
@@ -191,10 +187,10 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "power": 1,
-        "deviceId": 2,
-        "speed": 3,
-        "checksum": 7
+        "power": "1",
+        "deviceId": "2",
+        "speed": "3",
+        "checksum": "7"
       }
     }
   },
@@ -212,13 +208,13 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "deviceId": 1,
-        "power": 2,
-        "fixed1": 3,
-        "fixed2": 4,
-        "fixed3": 5,
-        "fixed4": 6,
-        "checksum": 7
+        "deviceId": "1",
+        "power": "2",
+        "fixed1": "3",
+        "fixed2": "4",
+        "fixed3": "5",
+        "fixed4": "6",
+        "checksum": "7"
       }
     },
     "state": {
@@ -229,9 +225,9 @@
         "7": {"name": "checksum"}
       },
       "fieldPositions": {
-        "power": 1,
-        "deviceId": 2,
-        "checksum": 7
+        "power": "1",
+        "deviceId": "2",
+        "checksum": "7"
       }
     }
   }

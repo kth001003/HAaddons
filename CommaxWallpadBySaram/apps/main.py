@@ -1,5 +1,5 @@
 import sys
-print("Starting...", file=sys.stderr)
+print("\n\n\n\n\nStarting...", file=sys.stderr)
 import paho.mqtt.client as mqtt
 import json
 import time
@@ -123,7 +123,7 @@ class WallpadController:
             # 헤더 설정
             packet[0] = int(command["header"], 16)
             
-            # 기기 번호 설정
+            # 기기 번호 설정 - 10진수로 직접 설정
             packet[command["fieldPositions"]["deviceId"]] = device_id
             
             # 명령 타입 및 값 설정
@@ -133,10 +133,11 @@ class WallpadController:
                 packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["ON"], 16)
             elif command_type == 'commandCHANGE':
                 packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["CHANGE"], 16)
+                # 온도값을 10진수로 직접 설정
                 packet[command["fieldPositions"]["value"]] = target_temp
             else:
                 self.logger.error(f'잘못된 명령 타입: {command_type}')
-                return None  # 잘못된 명령 타입
+                return None
             
             # 패킷을 16진수 문자열로 변환
             packet_hex = ''.join([f'{b:02X}' for b in packet])
@@ -212,7 +213,7 @@ class WallpadController:
                             int(data[device_id_position*2:device_id_position*2+2], 16)
                         )
 
-            mqtt_client = mqtt.Client('cwbs')
+            mqtt_client = mqtt.Client('commax')
             mqtt_client.username_pw_set(self.config['mqtt_id'], self.config['mqtt_password'])
             mqtt_client.on_connect = on_connect
             mqtt_client.on_message = on_message
@@ -561,50 +562,32 @@ class WallpadController:
                     byte_data = bytearray.fromhex(data)
                     
                     for device_name, structure in self.DEVICE_STRUCTURE.items():
-                        state_structure = structure.get('state', {})
-                        if not state_structure:
-                            continue
-                        
-                        header = state_structure.get('header')
-                        if not header or byte_data[0] != int(header, 16):
-                            continue
-
-                        # 필드 위치와 구조 정보 가져오기
-                        field_positions = state_structure.get('fieldPositions', {})
-                        field_structure = state_structure.get('structure', {})
-
-                        if device_name == 'Thermo':
-                            device_id = byte_data[field_positions['deviceId']]
-                            power_pos = field_positions['power']
-                            power_values = field_structure[str(power_pos)]['values']
-                            power_value = byte_data[power_pos]
+                        if byte_data[0] == int(structure['state']['header'], 16):
+                            if device_name == 'Thermo':
+                                device_id = byte_data[structure['state']['fieldPositions']['deviceId']]
+                                power = byte_data[structure['state']['fieldPositions']['power']]
+                                mode_text = 'off' if power == structure['state']['fieldPositions']['power']['values']['off'] else 'heat'
+                                current_temp = byte_data[structure['state']['fieldPositions']['currentTemp']]
+                                target_temp = byte_data[structure['state']['fieldPositions']['targetTemp']]
+                                
+                                self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
+                                await self.update_temperature(device_id, mode_text, current_temp, target_temp)
                             
-                            mode_text = 'off' if format(power_value, '02X') == power_values['off'] else 'heat'
-                            current_temp = byte_data[field_positions['currentTemp']]
-                            target_temp = byte_data[field_positions['targetTemp']]
+                            elif device_name == 'Light':
+                                device_id = byte_data[structure['state']['fieldPositions']['deviceId']]
+                                power = byte_data[structure['state']['fieldPositions']['power']]
+                                state = "ON" if power == structure['state']['fieldPositions']['power']['values']['on'] else "OFF"
+                                
+                                self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
+                                await self.update_light(device_id, state)
+                            #TODO: 다른 기기타입들 추가
                             
-                            self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
-                            await self.update_temperature(device_id, mode_text, current_temp, target_temp)
-                        
-                        elif device_name == 'Light':
-                            device_id = byte_data[field_positions['deviceId']]
-                            power_pos = field_positions['power']
-                            power_values = field_structure[str(power_pos)]['values']
-                            power_value = byte_data[power_pos]
-                            
-                            state = "ON" if format(power_value, '02X') == power_values['on'] else "OFF"
-                            
-                            self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
-                            await self.update_light(device_id, state)
-                        
-                        # 다른 기기 타입들에 대한 처리도 여기에 추가 가능
-                        break
+                            break
                 else:
                     self.logger.signal(f'체크섬 불일치: {data}')
         
         except Exception as e:
             self.logger.error(f"Elfin 데이터 처리 중 오류 발생: {str(e)}")
-            self.logger.error(f"상세 에러: {str(e.__traceback__)}")
 
 
     # TODO
