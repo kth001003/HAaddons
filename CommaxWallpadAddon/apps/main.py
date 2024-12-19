@@ -120,14 +120,29 @@ class WallpadController:
             self.logger.error(f"MQTT 클라이언트 설정 중 오류 발생: {str(e)}")
             raise
 
+    def connect_mqtt(self) -> None:
+        """MQTT 브로커에 최초 연결을 시도합니다."""
+        if self.mqtt_client and self.mqtt_client.is_connected():
+            self.logger.info("기존 MQTT 연결을 종료합니다.")
+            self.mqtt_client.disconnect()
+        try:
+            self.logger.info("MQTT 브로커 연결 시도 중...")
+            if self.mqtt_client:
+                self.mqtt_client.connect(self.config['mqtt_server'])
+            else:
+                raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
+        except Exception as e:
+            self.logger.error(f"MQTT 연결 실패: {str(e)}")
+            raise
+
     def reconnect_mqtt(self) -> None:
-        """MQTT 브로커에 재연결을 시도합니다."""
+        """MQTT 브로커 연결이 끊어진 경우 재연결을 시도합니다."""
         max_retries = 5
         retry_interval = 5  # 초
 
         for attempt in range(max_retries):
             try:
-                self.logger.info(f"MQTT 브로커 연결 시도 중... (시도 {attempt + 1}/{max_retries})")
+                self.logger.info(f"MQTT 브로커 재연결 시도 중... (시도 {attempt + 1}/{max_retries})")
                 if self.mqtt_client:
                     self.mqtt_client.connect(self.config['mqtt_server'])
                     return
@@ -135,10 +150,10 @@ class WallpadController:
                     raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
             except Exception as e:
                 if attempt < max_retries - 1:
-                    self.logger.warning(f"MQTT 연결 실패: {str(e)}. {retry_interval}초 후 재시도...")
+                    self.logger.warning(f"MQTT 재연결 실패: {str(e)}. {retry_interval}초 후 재시도...")
                     time.sleep(retry_interval)
                 else:
-                    self.logger.error(f"MQTT 연결 실패: {str(e)}. 최대 재시도 횟수 초과.")
+                    self.logger.error(f"MQTT 재연결 실패: {str(e)}. 최대 재시도 횟수 초과.")
                     raise
 
     async def on_mqtt_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], rc: int) -> None:
@@ -931,8 +946,8 @@ class WallpadController:
             self.mqtt_client.on_disconnect = on_disconnect_callback
             self.mqtt_client.on_message = self.on_mqtt_message
             
-            # MQTT 연결
-            self.reconnect_mqtt()
+            # MQTT 최초 연결
+            self.connect_mqtt()
             self.mqtt_client.loop_start()
             
             # 메인 루프 실행
