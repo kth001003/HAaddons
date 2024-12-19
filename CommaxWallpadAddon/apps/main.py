@@ -748,26 +748,14 @@ class WallpadController:
                                 device_id = byte_data[int(state_structure['fieldPositions']['deviceId'])]
                                 power = byte_data[int(state_structure['fieldPositions']['power'])]
                                 # 온도값을 10진수로 직접 해석
-                                current_temp = str(byte_data[int(state_structure['fieldPositions']['currentTemp'])])
-
-
-                                # byte_data 로그 출력
-                                self.logger.debug(f'byte_data: {byte_data.hex()}')
-                                # 인덱스 로그
-                                self.logger.debug(f'현재온도 인덱스: {int(state_structure["fieldPositions"]["currentTemp"])}')
-                                # 변환 전 로그
-                                self.logger.debug(f'현재온도 변환 전: {byte_data[int(state_structure["fieldPositions"]["currentTemp"])]}')
-                                # 변환 후 로그 
-                                self.logger.debug(f'현재온도 변환 후: {current_temp}')
-
-                                
-                                target_temp = str(byte_data[int(state_structure['fieldPositions']['targetTemp'])])
+                                current_temp = int(format(byte_data[int(state_structure['fieldPositions']['currentTemp'])], '02x'))
+                                target_temp = int(format(byte_data[int(state_structure['fieldPositions']['targetTemp'])], '02x'))
                                 
                                 power_values = state_structure['structure'][state_structure['fieldPositions']['power']]['values']
                                 mode_text = 'off' if power == int(power_values['off'], 16) else 'heat'
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
-                                await self.update_temperature(device_id, mode_text, int(current_temp), int(target_temp))
+                                await self.update_temperature(device_id, mode_text, current_temp, target_temp)
                             
                             elif device_name == 'Light':
                                 device_id = byte_data[int(state_structure['fieldPositions']['deviceId'])]
