@@ -8,28 +8,38 @@ import telnetlib
 import re
 import os
 from logger import Logger
-from typing import Any, Dict, Union, List
+from typing import Any, Dict, Union, List, Optional, Set, Tuple, Literal, TypedDict
+
+class CollectData(TypedDict):
+    data: Set[str]
+    last_recv_time: int
+
+class QueueItem(TypedDict):
+    sendcmd: str
+    count: int
 
 class WallpadController:
-    def __init__(self, config, logger):
-        self.config = config
-        self.logger = logger
-        self.share_dir = '/share'
-        self.ELFIN_TOPIC = 'ew11'
-        self.HA_TOPIC = config['mqtt_TOPIC']
-        self.STATE_TOPIC = self.HA_TOPIC + '/{}/{}/state'
-        self.HOMESTATE = {}
-        self.QUEUE = []
-        self.COLLECTDATA = {'data': set(), 'EVtime': time.time(), 'LastRecv': time.time_ns()}
-        self.mqtt_client = None
-        self.device_list = None
-        self.OPTION = config.get('OPTION', {})
-        self.device_info = None
-        self.loop = None
-        self.load_device_structures()
+    def __init__(self, config: Dict[str, Any], logger: Logger) -> None:
+        self.config: Dict[str, Any] = config
+        self.logger: Logger = logger
+        self.share_dir: str = '/share'
+        self.ELFIN_TOPIC: str = 'ew11'
+        self.HA_TOPIC: str = config['mqtt_TOPIC']
+        self.STATE_TOPIC: str = self.HA_TOPIC + '/{}/{}/state'
+        self.HOMESTATE: Dict[str, str] = {}
+        self.QUEUE: List[QueueItem] = []
+        self.COLLECTDATA: CollectData = {
+            'data': set(),
+            'last_recv_time': time.time_ns()
+        }
+        self.mqtt_client: Optional[mqtt.Client] = None
+        self.device_list: Optional[Dict[str, Any]] = None
+        self.DEVICE_STRUCTURE: Optional[Dict[str, Any]] = None
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self.load_devices_and_packets_structures() # 기기 정보와 패킷 정보를 로드 to self.DEVICE_STRUCTURE
 
     @staticmethod
-    def checksum(input_hex):
+    def checksum(input_hex: str) -> Optional[str]:
         """
         input_hex에 checksum을 붙여주는 함수
         
@@ -51,38 +61,38 @@ class WallpadController:
             return None
 
     @staticmethod
-    def pad(value):
+    def pad(value: Union[int, str]) -> str:
         value = int(value)
         return '0' + str(value) if value < 10 else str(value)
 
-    def insert_device_index_to_hex(self, device_index, base_hex, position):
-        """
-        기본 16진수 명령어에 기기 인덱스를 삽입하는 함수
+    # def insert_device_index_to_hex(self, device_index: int, base_hex: str, position: int) -> Optional[str]:
+    #     """
+    #     기본 16진수 명령어에 기기 인덱스를 삽입하는 함수
         
-        Args:
-            device_index (int): 기기의 인덱스 번호 (0부터 시작)
-            base_hex (str): 기본 16진수 명령어 문자열
-            position (int): 기기 인덱스를 삽입할 위치 (1부터 시작)
+    #     Args:
+    #         device_index (int): 기기의 인덱스 번호 (0부터 시작)
+    #         base_hex (str): 기본 16진수 명령어 문자열
+    #         position (int): 기기 인덱스를 삽입할 위치 (1부터 시작)
         
-        Returns:
-            str: 체크섬이 포함된 수정된 16진수 명령어. 실패시 None 반환
-        """
-        if base_hex:
-            try:
-                position = int(position)
-                # position-1 위치의 숫자에 device_index를 더해 새로운 명령 생성
-                base_hex = f'{base_hex[:position - 1]}{int(base_hex[position - 1]) + device_index}{base_hex[position:]}'
-            except (ValueError, IndexError) as e:
-                self.logger.error(f'insert_device_index_to_hex 오류: {str(e)}')
-                pass
-        return self.checksum(base_hex)
+    #     Returns:
+    #         str: 체크섬이 포함된 수정된 16진수 명령어. 실패시 None 반환
+    #     """
+    #     if base_hex:
+    #         try:
+    #             position = int(position)
+    #             # position-1 위치의 숫자에 device_index를 더해 새로운 명령 생성
+    #             base_hex = f'{base_hex[:position - 1]}{int(base_hex[position - 1]) + device_index}{base_hex[position:]}'
+    #         except (ValueError, IndexError) as e:
+    #             self.logger.error(f'insert_device_index_to_hex 오류: {str(e)}')
+    #             pass
+    #     return self.checksum(base_hex)
 
-    def make_climate_command(self, device_index: int, current_temp: int, target_temp: int, command_type: str) -> Union[str, None]:
+    def make_climate_command(self, device_id: int, current_temp: int, target_temp: int, command_type: str) -> Union[str, None]:
         """
         온도 조절기의 16진수 명령어를 생성하는 함수
         
         Args:
-            device_index (int): 온도 조절기 장치 인덱스 (0부터 시작)
+            device_id (int): 온도 조절기 장치 id
             current_temp (int): 현재 온도 값
             target_temp (int): 설정하고자 하는 목표 온도 값
             command_type (str): 명령어 타입
@@ -100,32 +110,33 @@ class WallpadController:
             >>> make_climate_command(1, 25, 26, 'commandCHANGE')  # 온도조절기 2번 온도 변경
         """
         try:
+            if self.DEVICE_STRUCTURE is None:
+                self.logger.error("DEVICE_STRUCTURE이 초기화되지 않았습니다.")
+                return None
+            
             thermo_structure = self.DEVICE_STRUCTURE["Thermo"]
             command = thermo_structure["command"]
             
             # 패킷 초기화
-            packet = bytearray([0] * 7)            
+            packet = bytearray([0] * 7)
 
             # 헤더 설정
             packet[0] = int(command["header"], 16)
             
-            # 기기 번호 설정 (1부터 시작하므로 device_index에 1을 더함)
-            packet[command["structure"][0]["position"]] = device_index + 1
+            # 기기 번호 설정
+            packet[command["fieldPositions"]["deviceId"]] = device_id
             
             # 명령 타입 및 값 설정
             if command_type == 'commandOFF':
-                packet[command["structure"][1]["position"]] = int(command["types"]["power"]["code"], 16)
-                packet[command["structure"][2]["position"]] = int(command["types"]["power"]["values"]["off"], 16)
+                packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["OFF"], 16)
             elif command_type == 'commandON':
-                packet[command["structure"][1]["position"]] = int(command["types"]["power"]["code"], 16)
-                packet[command["structure"][2]["position"]] = int(command["types"]["power"]["values"]["on"], 16)
+                packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["ON"], 16)
             elif command_type == 'commandCHANGE':
-                packet[command["structure"][1]["position"]] = int(command["types"]["setTemp"]["code"], 16)
-                packet[command["structure"][2]["position"]] = target_temp
+                packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["CHANGE"], 16)
+                packet[command["fieldPositions"]["value"]] = target_temp
             else:
                 self.logger.error(f'잘못된 명령 타입: {command_type}')
                 return None  # 잘못된 명령 타입
-            
             
             # 패킷을 16진수 문자열로 변환
             packet_hex = ''.join([f'{b:02X}' for b in packet])
@@ -142,25 +153,34 @@ class WallpadController:
             self.logger.error(f'예외 발생: {e}')
             return None
         
-    #TODO commandPower를 만들고있음.. commandON commandOFF를 만들어야함
+    
     def find_device(self) -> Dict[str, Any]:
         """
         MQTT에 발행되는 RS485신호에서 기기를 찾는 함수입니다.
         
         Returns:
-            Dict[str, Any]: 검색된 기기 정보가 포함된 딕셔너리
+            Dict[str, Any]: 검색된 기기 타입별 갯수 정보
         """
+        if self.DEVICE_STRUCTURE is None:
+            self.logger.error("DEVICE_STRUCTURE이 초기화되지 않았습니다.")
+            return {}
         try:
+            
             if not os.path.exists(self.share_dir):
                 os.makedirs(self.share_dir)
                 self.logger.info(f'{self.share_dir} 디렉토리를 생성했습니다.')
             
-            save_path = os.path.join(self.share_dir, 'cwbs_found_device.json')
+            save_path = os.path.join(self.share_dir, 'commax_found_device.json')
             
-            state_prefixes = {self.DEVICE_STRUCTURE[name]["state"]["header"]: name 
-                              for name in self.DEVICE_STRUCTURE if "state" in self.DEVICE_STRUCTURE[name]}
+            # 헤더로 기기 타입 매핑
+            state_prefixes = {
+                self.DEVICE_STRUCTURE[name]["state"]["header"]: name 
+                for name in self.DEVICE_STRUCTURE 
+                if "state" in self.DEVICE_STRUCTURE[name]
+            }
+            
+            # 기기별 최대 인덱스 저장
             device_count = {name: 0 for name in state_prefixes.values()}
-            collect_data = {name: set() for name in state_prefixes.values()}
 
             target_time = time.time() + 20
 
@@ -173,15 +193,24 @@ class WallpadController:
                     self.logger.error(f"Connection failed with code {rc}")
 
             def on_message(client, userdata, msg):
+                if self.DEVICE_STRUCTURE is None:
+                    self.logger.error("DEVICE_STRUCTURE이 초기화되지 않았습니다.")
+                    return {}
                 raw_data = msg.payload.hex().upper()
                 for k in range(0, len(raw_data), 16):
                     data = raw_data[k:k + 16]
                     if data == self.checksum(data) and data[:2] in state_prefixes:
                         name = state_prefixes[data[:2]]
-                        collect_data[name].add(data)
                         device_structure = self.DEVICE_STRUCTURE[name]
-                        device_id_position = next(item["position"] for item in device_structure["state"]["structure"] if item["name"] == "deviceId")
-                        device_count[name] = max(device_count[name], int(data[device_id_position*2:device_id_position*2+2], 16))
+                        device_id_position = next(
+                            item["position"] 
+                            for item in device_structure["state"]["structure"] 
+                            if item["name"] == "deviceId"
+                        )
+                        device_count[name] = max(
+                            device_count[name], 
+                            int(data[device_id_position*2:device_id_position*2+2], 16)
+                        )
 
             mqtt_client = mqtt.Client('cwbs')
             mqtt_client.username_pw_set(self.config['mqtt_id'], self.config['mqtt_password'])
@@ -195,33 +224,19 @@ class WallpadController:
 
             mqtt_client.loop_stop()
 
-            self.logger.info('다음의 데이터를 찾았습니다...')
+            self.logger.info('다음의 기기들을 찾았습니다...')
             self.logger.info('======================================')
 
             device_list = {}
-            for name, data in collect_data.items():
-                if data:
-                    device_structure = self.DEVICE_STRUCTURE[name]
+            
+            for name, count in device_count.items():
+                if count > 0:
                     device_list[name] = {
-                        "type": device_structure["type"],
-                        "list": []
+                        "type": self.DEVICE_STRUCTURE[name]["type"],
+                        "count": count
                     }
-                    for i in range(1, device_count[name] + 1):
-                        device_info = {}
-                        for command_type, command_info in device_structure["command"]["types"].items():
-                            command_packet = self.make_command_packet(name, i, command_type)
-                            if command_packet:
-                                device_info[f"command{command_type.capitalize()}"] = command_packet
-                        for state in ["ON", "OFF"]:
-                            state_packet = next((packet for packet in data if int(packet[2:4], 16) == i and 
-                                                 int(packet[2:4], 16) == (int(device_structure["state"]["structure"][0]["values"][state.lower()], 16) if state == "ON" else 
-                                                                          int(device_structure["state"]["structure"][0]["values"][state.lower()], 16))), None)
-                            if state_packet:
-                                device_info[f"state{state}"] = state_packet
-                        device_list[name]["list"].append(device_info)
-                    
                     self.logger.info(f'DEVICE: {name}')
-                    self.logger.info(f'Count: {device_count[name]}')
+                    self.logger.info(f'Count: {count}')
                     self.logger.info('-------------------')
 
             self.logger.info('======================================')
@@ -234,6 +249,11 @@ class WallpadController:
                 self.logger.error(f'기기리스트 저장 실패: {str(e)}')
             
             return device_list
+            # device_list 내용 예시:
+            # {"light":
+            #   "type":"light",
+            #   "count":0
+            # }
             
         except Exception as e:
             self.logger.error(f'기기 검색 중 오류 발생: {str(e)}')
@@ -241,6 +261,10 @@ class WallpadController:
         
     def make_command_packet(self, name, device_id, command_type):
         try:
+            if self.DEVICE_STRUCTURE is None:
+                self.logger.error("DEVICE_STRUCTURE이 초기화되지 않았습니다.")
+                return None
+            
             device_structure = self.DEVICE_STRUCTURE[name]
             command = device_structure["command"]
             
@@ -282,37 +306,19 @@ class WallpadController:
             self.logger.error(f'명령 패킷 생성 중 오류 발생: {str(e)}')
             return None
 
-    async def publish_mqtt(self, topic, value, retain = False):
+    def publish_mqtt(self, topic: str, value: str, retain: bool = False) -> None:
         if self.mqtt_client:
-            self.mqtt_client.publish(topic, value.encode(),retain=retain)
+            self.mqtt_client.publish(topic, value.encode(), retain=retain)
             self.logger.mqtt(f'{topic} >> {value}')
         else:
             self.logger.error('MQTT 클라이언트가 초기화되지 않았습니다.')
 
-    async def update_light(self, idx, onoff):
+    async def update_light(self, idx: int, onoff: str) -> None:
         state = 'power'
         deviceID = 'Light' + str(idx)
 
         topic = self.STATE_TOPIC.format(deviceID, state)
-        await self.publish_mqtt(topic,onoff)
-        
-    async def update_fan(self, idx, value):
-        try:
-            deviceID = 'Fan' + str(idx + 1)
-            if value == 'OFF':
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                await self.publish_mqtt(topic,'OFF')
-            else:
-                speed_map = {1: 'low', 2: 'medium', 3: 'high'}
-                topic = self.STATE_TOPIC.format(deviceID, 'speed')
-                speed = speed_map.get(int(value), 'low')
-                await self.publish_mqtt(topic, speed)
-                
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                await self.publish_mqtt(topic, 'ON')
-                
-        except Exception as e:
-            self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
+        self.publish_mqtt(topic, onoff)
 
     async def update_temperature(self, idx: int, mode_text: str, curTemp: int, setTemp: int) -> None:
         """
@@ -339,38 +345,56 @@ class WallpadController:
                 # key = deviceID + state
                 val = temperature[state]
                 topic = self.STATE_TOPIC.format(deviceID, state)
-                await self.publish_mqtt(topic, val)
+                self.publish_mqtt(topic, val)
                 self.HOMESTATE[deviceID + state] = val
             
             power_state = mode_text
             power_topic = self.STATE_TOPIC.format(deviceID, 'power')
-            await self.publish_mqtt(power_topic, power_state)
+            self.publish_mqtt(power_topic, power_state)
             
             self.logger.mqtt(f'->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={power_state}')
         except Exception as e:
             self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
+ 
+    # async def update_fan(self, idx, value):
+    #     try:
+    #         deviceID = 'Fan' + str(idx + 1)
+    #         if value == 'OFF':
+    #             topic = self.STATE_TOPIC.format(deviceID, 'power')
+    #             self.publish_mqtt(topic,'OFF')
+    #         else:
+    #             speed_map = {1: 'low', 2: 'medium', 3: 'high'}
+    #             topic = self.STATE_TOPIC.format(deviceID, 'speed')
+    #             speed = speed_map.get(int(value), 'low')
+    #             self.publish_mqtt(topic, speed)
+                
+    #             topic = self.STATE_TOPIC.format(deviceID, 'power')
+    #             self.publish_mqtt(topic, 'ON')
+                
+    #     except Exception as e:
+    #         self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
 
-    async def update_outlet_value(self, idx, val):
-        deviceID = 'Outlet' + str(idx + 1)
-        try:
-            val = '%.1f' % float(int(val) / 10)
-            topic = self.STATE_TOPIC.format(deviceID, 'watt')
-            await self.publish_mqtt(topic, val)
-        except:
-            pass
+    # async def update_outlet_value(self, idx, val):
+    #     deviceID = 'Outlet' + str(idx + 1)
+    #     try:
+    #         val = '%.1f' % float(int(val) / 10)
+    #         topic = self.STATE_TOPIC.format(deviceID, 'watt')
+    #         self.publish_mqtt(topic, val)
+    #     except:
+    #         pass
 
-    async def update_ev_value(self, idx, val):
-        deviceID = 'EV' + str(idx + 1)
-        if self.device_list is not None:
-            try:
-                BF = self.device_list['EV']['BasementFloor']
-                val = str(int(val) - BF + 1) if val >= BF else 'B' + str(BF - int(val))
-                topic = self.STATE_TOPIC.format(deviceID, 'floor')
-                await self.publish_mqtt(topic, val)
-            except:
-                pass
-        else:
-            self.logger.error("device_list가 초기화되지 않았습니다.")
+    # async def update_ev_value(self, idx, val):
+    #     deviceID = 'EV' + str(idx + 1)
+    #     if self.device_list is not None:
+    #         try:
+    #             BF = self.device_list['EV']['BasementFloor']
+    #             val = str(int(val) - BF + 1) if val >= BF else 'B' + str(BF - int(val))
+    #             topic = self.STATE_TOPIC.format(deviceID, 'floor')
+    #             self.publish_mqtt(topic, val)
+    #         except:
+    #             pass
+    #     else:
+    #         self.logger.error("device_list가 초기화되지 않았습니다.")
 
     async def reboot_elfin_device(self):
         try:
@@ -384,18 +408,27 @@ class WallpadController:
         except Exception as err:
             self.logger.error(f'기기 재시작 오류: {str(err)}')
 
-    def setup_mqtt(self):
+    def setup_mqtt(self) -> None:
+        """MQTT 클라이언트를 설정합니다."""
         self.mqtt_client = mqtt.Client(self.HA_TOPIC)
         self.mqtt_client.username_pw_set(
             self.config['mqtt_id'], self.config['mqtt_password']
         )
-        self.mqtt_client.on_connect = lambda client, userdata, flags, rc: \
-            asyncio.create_task(self.on_mqtt_connect(client, userdata, flags, rc))
+        
+        # on_connect 콜백 타입 수정
+        def on_connect_callback(client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
+            if self.loop and self.loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    self.on_mqtt_connect(client, userdata, flags, rc), 
+                    self.loop
+                )
+        
+        self.mqtt_client.on_connect = on_connect_callback  # type: ignore
         self.mqtt_client.on_message = self.on_mqtt_message
         self.mqtt_client.connect_async(self.config['mqtt_server'])
         self.mqtt_client.loop_start()
 
-    async def on_mqtt_connect(self, client, userdata, flags, rc):
+    async def on_mqtt_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], rc: int) -> None:
         if rc == 0:
             self.logger.info("MQTT broker 접속 완료")
             self.logger.info("구독 시작")
@@ -417,7 +450,7 @@ class WallpadController:
             }
             self.logger.error(f"MQTT 연결 실패: {errcode.get(rc, '알 수 없는 오류')}")
 
-    def on_mqtt_message(self, client, userdata, msg):
+    def on_mqtt_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         try:
             topics = msg.topic.split('/')
             
@@ -454,7 +487,7 @@ class WallpadController:
         except Exception as err:
             self.logger.error(f'MQTT 메시지 처리 중 오류 발생: {str(err)}')
 
-    async def process_queue_and_monitor(self, elfin_reboot_interval):
+    async def process_queue_and_monitor(self, elfin_reboot_interval: float) -> bool:
         """
         메시지 큐를 주기적으로 처리하고 기기 상태를 모니터링하는 함수입니다.
 
@@ -471,7 +504,7 @@ class WallpadController:
         while True:
             try:
                 current_time = time.time_ns()
-                last_recv = self.COLLECTDATA['LastRecv']
+                last_recv = self.COLLECTDATA['last_recv_time']
                 signal_interval = (current_time - last_recv)/1_000_000 #ns to ms
                 
                 if signal_interval > elfin_reboot_interval * 1_000:  # seconds
@@ -479,7 +512,7 @@ class WallpadController:
                     if (self.config.get("elfin_auto_reboot",True)):
                         self.logger.warning('EW11 재시작을 시도합니다.')
                         await self.reboot_elfin_device()
-                        self.COLLECTDATA['LastRecv'] = time.time_ns()
+                        self.COLLECTDATA['last_recv_time'] = time.time_ns()
                 if signal_interval > 150: #150ms이상 여유있을 때 큐 실행
                     await self.process_queue()
                 
@@ -489,7 +522,7 @@ class WallpadController:
             
             await asyncio.sleep(self.config.get("queue_interval_in_second",0.01)) #100ms
 
-    async def process_queue(self):
+    async def process_queue(self) -> None:
         """
         큐에 있는 모든 데이터를 처리합니다.
         
@@ -500,19 +533,26 @@ class WallpadController:
         max_send_count = self.config.get("max_send_count",10)  # 최대 전송 횟수 설정
         if self.QUEUE:
             send_data = self.QUEUE.pop(0)
-            await self.publish_mqtt(f'{self.ELFIN_TOPIC}/send', bytes.fromhex(send_data['sendcmd']))
-            if send_data['count'] < max_send_count:
-                send_data['count'] += 1
-                self.QUEUE.append(send_data)
+            if isinstance(send_data['sendcmd'], str):
+                cmd_bytes = bytes.fromhex(send_data['sendcmd'])
+                self.publish_mqtt(f'{self.ELFIN_TOPIC}/send', cmd_bytes.hex())
+                if isinstance(send_data['count'], int):
+                    if send_data['count'] < max_send_count:
+                        send_data['count'] += 1
+                        self.QUEUE.append(send_data)
         await asyncio.sleep(0.1) #100ms 휴식
 
-    async def process_elfin_data(self, raw_data):
+    async def process_elfin_data(self, raw_data: str) -> None:
         """
         Elfin 장치에서 전송된 raw_data를 분석합니다.
         
         Args:
             raw_data (str): Elfin 장치에서 전송된 raw_data.
         """
+        if self.DEVICE_STRUCTURE is None:
+            self.logger.error("DEVICE_STRUCTURE가 초기화되지 않았습니다.")
+            return
+        
         try:
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
@@ -522,48 +562,25 @@ class WallpadController:
                     
                     for device_name, structure in self.DEVICE_STRUCTURE.items():
                         if byte_data[0] == int(structure['state']['header'], 16):
-                            device_info = {}
-                            for field in structure['state']['structure']:
-                                position = field['position']
-                                device_info[field['name']] = byte_data[position]
-                            
                             if device_name == 'Thermo':
-                                sub_id = device_info['deviceId']
-                                mode = device_info['power']
-                                mode_text = 'off' if mode == 0x80 else 'heat'
-                                current_temp = device_info['currentTemp']
-                                set_temp = device_info['targetTemp']
-                                self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {sub_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {set_temp}°C')
-                                await self.update_temperature(sub_id, mode_text, current_temp, set_temp)
+                                device_id = byte_data[structure['state']['fieldPositions']['deviceId']]
+                                power = byte_data[structure['state']['fieldPositions']['power']]
+                                mode_text = 'off' if power == structure['state']['fieldPositions']['power']['values']['off'] else 'heat'
+                                current_temp = byte_data[structure['state']['fieldPositions']['currentTemp']]
+                                target_temp = byte_data[structure['state']['fieldPositions']['targetTemp']]
+                                
+                                self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
+                                await self.update_temperature(device_id, mode_text, current_temp, target_temp)
                             
                             elif device_name == 'Light':
-                                sub_id = device_info['deviceId']
-                                state = "ON" if device_info['power'] == 0x01 else "OFF"
-                                self.logger.signal(f'{byte_data.hex()}: 조명 ### {sub_id}번, 상태: {state}')
-                                await self.update_light(sub_id, state)
+                                device_id = byte_data[structure['state']['fieldPositions']['deviceId']]
+                                power = byte_data[structure['state']['fieldPositions']['power']]
+                                state = "ON" if power == structure['state']['fieldPositions']['power']['values']['on'] else "OFF"
+                                
+                                self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
+                                await self.update_light(device_id, state)
+                            #TODO: 다른 기기타입들 추가
                             
-                            # elif device_name == 'Fan':
-                            #     speed = device_info['speed']
-                            #     state = 'OFF' if speed == 0 else str(speed)
-                            #     self.logger.debug(f'환기장치 속도: {state}')
-                            #     await self.update_fan(0, state)
-                            
-                            # elif device_name == 'EV':
-                            #     if time.time() - self.COLLECTDATA['EVtime'] > 0.5:
-                            #         self.COLLECTDATA['EVtime'] = time.time()
-                            #         floor = device_info['floor']
-                            #         self.logger.debug(f'엘리베이터 층수 업데이트: {floor}')
-                            #         await self.update_ev_value(0, floor)
-                            
-                            # elif device_name == 'Outlet':
-                            #     usage = device_info['usage']
-                            #     self.logger.debug(f'전기 사용량 데이터 감지: {usage}')
-                            #     await self.update_outlet_value(0, usage)
-                            
-                            # elif device_name == 'Gas':
-                            #     usage = device_info['usage']
-                            #     self.logger.debug(f'가스 사용량 데이터 감지: {usage}')
-                            #     await self.update_outlet_value(1, usage)
                             break
                 else:
                     self.logger.signal(f'체크섬 불일치: {data}')
@@ -574,6 +591,10 @@ class WallpadController:
 
     # TODO
     def generate_expected_state_packet(self, command_str):
+        if self.DEVICE_STRUCTURE is None:
+            self.logger.error("DEVICE_STRUCTURE가 초기화되지 않았습니다.")
+            return
+        
         packet_structure = self.DEVICE_STRUCTURE
         if len(command_str) != 16:
             self.logger.error("잘못된 입력 길이입니다. 16자를 예상했습니다.")
@@ -620,77 +641,76 @@ class WallpadController:
         # 상태 패킷을 16진수 문자열로 변환
         return ''.join([f'{b:02x}' for b in status_packet])
     
-    async def process_ha_command(self, topics, value):
+    async def process_ha_command(self, topics: List[str], value: str) -> None:
         try:
             self.logger.debug(f'HA 명령 처리 시작: {topics}, 값: {value}')
             
             device = ''.join(re.findall('[a-zA-Z]', topics[1]))
-            num = int(''.join(re.findall('[0-9]', topics[1]))) - 1
+            device_id = int(''.join(re.findall('[0-9]', topics[1])))
             state = topics[2]
 
-            # DEVICE_LISTS에서 장치가 존재하는지 확인
-            if device not in self.DEVICE_LISTS:
-                self.logger.error(f'장치 {device}가 DEVICE_LISTS에 존재하지 않습니다.')
+            if self.DEVICE_STRUCTURE is None:
+                self.logger.error("DEVICE_STRUCTURE가 초기화되지 않았습니다.")
                 return
 
-            if num < 0 or num >= len(self.DEVICE_LISTS[device]['list']):
-                self.logger.error(f'장치 번호 {num}가 유효하지 않습니다. 범위: 0-{len(self.DEVICE_LISTS[device]["list"]) - 1}')
+            if device not in self.DEVICE_STRUCTURE:
+                self.logger.error(f'장치 {device}가 DEVICE_STRUCTURE에 존재하지 않습니다.')
                 return
+
+            # 패킷 초기화 (7바이트)
+            packet = bytearray(7)
+            device_structure = self.DEVICE_STRUCTURE[device]
+            command = device_structure["command"]
+            
+            # 헤더 설정
+            packet[0] = int(command["header"], 16)
+            
+            # 기기 ID 설정
+            packet[command["fieldPositions"]["deviceId"]] = device_id
 
             if device == 'Light':
-                if value == 'ON':
-                    sendcmd = self.DEVICE_LISTS[device]['list'][num]['commandON']
-                    self.logger.debug(f'조명 켜기 명령: {sendcmd}')
-                else:
-                    sendcmd = self.DEVICE_LISTS[device]['list'][num]['commandOFF']
-                    self.logger.debug(f'조명 끄기 명령: {sendcmd}')
-            elif device == 'Fan':
-                if state == 'power':
-                    if value == 'ON':
-                        sendcmd = self.DEVICE_LISTS[device]['list'][num]['commandON']
-                        self.logger.debug(f'팬 켜기 명령: {sendcmd}')
-                    else:
-                        sendcmd = self.DEVICE_LISTS[device]['list'][num]['commandOFF']
-                        self.logger.debug(f'팬 끄기 명령: {sendcmd}')
-                else:
-                    speed = {'low': 0, 'medium': 1, 'high': 2}
-                    sendcmd = self.DEVICE_LISTS[device]['list'][num]['CHANGE'][speed[value]]
-                    self.logger.debug(f'팬 속도 변경 명령: {sendcmd}')
+                power_value = command["structure"][command["fieldPositions"]["power"]]["values"]["on" if value == "ON" else "off"]
+                packet[command["fieldPositions"]["power"]] = int(power_value, 16)
+                self.logger.debug(f'조명 {value} 명령 생성')
             elif device == 'Thermo':
+                cur_temp_str = self.HOMESTATE.get(topics[1] + 'curTemp')
+                set_temp_str = self.HOMESTATE.get(topics[1] + 'setTemp')
+                if cur_temp_str is None or set_temp_str is None:
+                    self.logger.error('현재 온도 또는 설정 온도가 존재하지 않습니다.')
+                    return
+                
+                cur_temp = int(float(cur_temp_str))
+                set_temp = int(float(set_temp_str))
+                
                 if state == 'power':
-                    if value == 'heat':  # heat는 ON으로 처리
-                        cur_temp = self.HOMESTATE.get(topics[1] + 'curTemp')
-                        set_temp = self.HOMESTATE.get(topics[1] + 'setTemp')
-                        
-                        if cur_temp is None or set_temp is None:
-                            self.logger.error(f'현재 온도 또는 설정 온도가 존재하지 않습니다: curTemp={cur_temp}, setTemp={set_temp}')
-                            return
-                        
-                        sendcmd = self.make_climate_command(num, cur_temp, set_temp, 'commandON')
-                        self.logger.debug(f'온도조절기 켜기 명령: {sendcmd}')
-                    else:  # off는 OFF로 처리
-                        cur_temp = self.HOMESTATE.get(topics[1] + 'curTemp')
-                        set_temp = self.HOMESTATE.get(topics[1] + 'setTemp')
-                        
-                        if cur_temp is None or set_temp is None:
-                            self.logger.error(f'현재 온도 또는 설정 온도가 존재하지 않습니다: curTemp={cur_temp}, setTemp={set_temp}')
-                            return
-                        
-                        sendcmd = self.make_climate_command(num, cur_temp, set_temp, 'commandOFF')
-                        self.logger.debug(f'온도조절기 끄기 명령: {sendcmd}')
+                    if value == 'heat':
+                        self.logger.debug(f'온도조절기 켜기 명령: {device_id}, {cur_temp}, {set_temp}')
+                        sendcmd = self.make_climate_command(device_id, cur_temp, set_temp, 'commandON')
+                    else:
+                        self.logger.debug(f'온도조절기 끄기 명령: {device_id}')
+                        sendcmd = self.make_climate_command(device_id, cur_temp, set_temp, 'commandOFF')
                 elif state == 'setTemp':
-                    # 문자열을 float로 변환한 후 int로 변환
-                    set_temp_value = int(float(value))
-                    
-                    # HOMESTATE에서 현재 온도와 설정 온도가 존재하는지 확인
-                    cur_temp = self.HOMESTATE.get(topics[1] + 'curTemp')
-                    
-                    if cur_temp is None:
-                        self.logger.error(f'현재 온도가 존재하지 않습니다: {topics[1] + "curTemp"}')
+                        sendcmd = self.make_climate_command(device_id, cur_temp, set_temp, 'commandCHANGE')
+                        self.logger.debug(f'온도조절기 설정 온도 변경 명령: {sendcmd}')
+            elif device == 'Fan':
+                packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["power"], 16)
+                
+                if state == 'power':
+                    packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["power"], 16)
+                    packet[command["fieldPositions"]["value"]] = int(command[command["fieldPositions"]["value"]]["on" if value == "ON" else "off"], 16)
+                    self.logger.debug(f'환기장치 {value} 명령 생성')
+                elif state == 'speed':
+                    if value not in ["low", "medium", "high"]:
+                        self.logger.error(f"잘못된 팬 속도입니다: {value}")
                         return
-                    
-                    sendcmd = self.make_climate_command(num, cur_temp, set_temp_value, 'commandCHANGE')
-                    self.logger.debug(f'온도조절기 설정 온도 변경 명령: {sendcmd}')
+                    packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["setSpeed"], 16)
+                    packet[command["fieldPositions"]["value"]] = int(command[command["fieldPositions"]["value"]]["values"][value], 16)
+                    self.logger.debug(f'환기장치 속도 {value} 명령 생성')
+                
+                # 패킷을 16진수 문자열로 변환
+                sendcmd = ''.join([f'{b:02X}' for b in packet])
+                # 체크섬 추가
+                sendcmd = self.checksum(sendcmd)
 
             if sendcmd:
                 if isinstance(sendcmd, list):
@@ -708,58 +728,57 @@ class WallpadController:
             discovery_prefix = "homeassistant"
             
             # 공통 디바이스 정보
-            device_info = {
-                "identifiers": ["cwbs_wallpad"],
+            device_base_info = {
+                "identifiers": ["commax_wallpad"],
                 "name": "코맥스 월패드",
                 "model": "코맥스 월패드",
                 "manufacturer": "Commax"
             }
             
-            for device_type, device_info in self.DEVICE_LISTS.items():
-                if device_info['type'] == 'switch':  # 조명
-                    for idx, _ in enumerate(device_info['list']):
-                        device_id = f"{device_type}{idx+1}"
+            if self.device_list is None:
+                self.logger.error("device_list가 초기화되지 않았습니다.")
+                return
+            
+            for device_name, device_info in self.device_list.items():
+                device_type = device_info['type']
+                device_count = device_info['count']
+                
+                for idx in range(device_count + 1):  # 0부터 count까지
+                    device_id = f"{device_name}{idx}"
+                    
+                    if device_type == 'switch':  # 조명
                         config_topic = f"{discovery_prefix}/switch/{device_id}/config"
-                        
                         payload = {
-                            "name": f"{device_type} {idx+1}",
-                            "unique_id": f"cwbs_{device_id}",
+                            "name": f"{device_name} {idx}",
+                            "unique_id": f"commax_{device_id}",
                             "state_topic": self.STATE_TOPIC.format(device_id, "power"),
                             "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
                             "payload_on": "ON",
                             "payload_off": "OFF",
-                            "device": device_info
+                            "device": device_base_info
                         }
-                        await self.publish_mqtt(config_topic, json.dumps(payload), retain=True)
-
-                elif device_info['type'] == 'fan':  # 환기장치 
-                    for idx, _ in enumerate(device_info['list']):
-                        device_id = f"{device_type}{idx+1}"
-                        config_topic = f"{discovery_prefix}/fan/{device_id}/config"
                         
+                    elif device_type == 'fan':  # 환기장치
+                        config_topic = f"{discovery_prefix}/fan/{device_id}/config"
                         payload = {
-                            "name": f"{device_type} {idx+1}",
-                            "unique_id": f"cwbs_{device_id}",
+                            "name": f"{device_name} {idx}",
+                            "unique_id": f"commax_{device_id}",
                             "state_topic": self.STATE_TOPIC.format(device_id, "power"),
                             "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
                             "speed_state_topic": self.STATE_TOPIC.format(device_id, "speed"),
                             "speed_command_topic": f"{self.HA_TOPIC}/{device_id}/speed/command",
                             "speeds": ["low", "medium", "high"],
-                            "payload_on": "ON", 
+                            "payload_on": "ON",
                             "payload_off": "OFF",
-                            "device": device_info
+                            "device": device_base_info
                         }
-                        await self.publish_mqtt(config_topic, json.dumps(payload), retain=True)
-
-                elif device_info['type'] == 'climate':  # 온도조절기
-                    for idx, _ in enumerate(device_info['list']):
-                        device_id = f"{device_type}{idx+1}"
-                        config_topic = f"{discovery_prefix}/climate/{device_id}/config"
                         
+                    elif device_type == 'climate':  # 온도조절기
+                        config_topic = f"{discovery_prefix}/climate/{device_id}/config"
                         payload = {
-                            "name": f"{device_type} {idx+1}",
-                            "unique_id": f"cwbs_{device_id}",
-                            "device": device_info,
+                            "name": f"{device_name} {idx}",
+                            "unique_id": f"commax_{device_id}",
+                            "device": device_base_info,
                             "current_temperature_topic": self.STATE_TOPIC.format(device_id, "curTemp"),
                             "temperature_command_topic": f"{self.HA_TOPIC}/{device_id}/setTemp/command",
                             "temperature_state_topic": self.STATE_TOPIC.format(device_id, "setTemp"),
@@ -772,8 +791,9 @@ class WallpadController:
                             "temp_step": 1,
                             "precision": 0.1
                         }
-                        
-                        await self.publish_mqtt(config_topic, json.dumps(payload), retain=True)
+                    
+                    if 'payload' in locals():
+                        self.publish_mqtt(config_topic, json.dumps(payload), retain=True)
 
             self.logger.info("MQTT Discovery 설정 완료")
             
@@ -781,74 +801,69 @@ class WallpadController:
             self.logger.error(f"MQTT Discovery 설정 중 오류 발생: {str(e)}")
 
 
-    def generate_device_packets(self, dev_name):
-        """
-        /share/cwbs_found_device.json로부터 각 기기의 패킷을 만드는 함수
+    # def generate_device_packets(self, dev_name: str) -> Optional[Dict[str, Any]]:
+    #     """
+    #     /share/commax_found_device.json로부터 각 기기의 패킷을 만드는 함수
         
-        Args:
-            dev_name (str): 기기 이름
+    #     Args:
+    #         dev_name (str): 기기 이름
         
-        Returns:
-            dict: 기기별 패킷 정보
-        """
-        if self.device_list is None:
-            raise Exception("device_list가 초기화되지 않았습니다.")
-        num = self.device_list[dev_name].get('Number', 0)
-        if num > 0:
-            arr = [{
-                cmd + onoff: self.insert_device_index_to_hex(k, 
-                    self.device_list[dev_name].get(cmd + onoff),
-                    self.device_list[dev_name].get(cmd + 'NUM')
-                )
-                for cmd in ['command', 'state']
-                for onoff in ['ON', 'OFF']
-            } for k in range(num)]
+    #     Returns:
+    #         dict: 기기별 패킷 정보
+    #     """
+    #     if self.device_list is None:
+    #         return None
             
-            if dev_name == 'fan':
-                tmp_hex = arr[0]['stateON']
-                change = self.device_list[dev_name].get('speedNUM')
-                arr[0]['stateON'] = [
-                    self.insert_device_index_to_hex(k, tmp_hex, change) 
-                    for k in range(3)
-                ]
-                tmp_hex = self.device_list[dev_name].get('commandCHANGE')
-                arr[0]['CHANGE'] = [
-                    self.insert_device_index_to_hex(k, tmp_hex, change) 
-                    for k in range(3)
-                ]
+    #     num = self.device_list[dev_name].get('Number', 0)
+    #     if num > 0:
+    #         arr: List[Dict[str, Any]] = [{
+    #             cmd + onoff: self.insert_device_index_to_hex(k, 
+    #                 str(self.device_list[dev_name].get(cmd + onoff, '')),
+    #                 self.device_list[dev_name].get(cmd + 'NUM', 0)
+    #             )
+    #             for cmd in ['command', 'state']
+    #             for onoff in ['ON', 'OFF']
+    #         } for k in range(num)]
+            
+    #         if dev_name == 'fan':
+    #             tmp_hex = arr[0].get('stateON')
+    #             change = self.device_list[dev_name].get('speedNUM')
+    #             if tmp_hex and change:
+    #                 arr[0]['stateON'] = self.insert_device_index_to_hex(0, str(tmp_hex), change)
+    #                 tmp_hex = self.device_list[dev_name].get('commandCHANGE')
+    #                 if tmp_hex:
+    #                     arr[0]['CHANGE'] = self.insert_device_index_to_hex(0, str(tmp_hex), change)
 
-            return {'type': self.device_list[dev_name]['type'], 'list': arr}
-        return None
+    #         return {'type': self.device_list[dev_name]['type'], 'list': arr}
+    #     return None
 
-    def make_device_lists(self):
-        """
-        기기 목록을 생성하는 함수
+    # def make_device_lists(self) -> Dict[str, Any]:
+    #     """
+    #     기기 목록을 생성하는 함수
         
-        Returns:
-            dict: 기기 목록
-        """
-        if self.device_list is None:
-            raise Exception("device_list가 초기화되지 않았습니다.")
-        device_lists = {}
-        for device in self.device_list:
-            result = self.generate_device_packets(device)
-            if result:
-                device_lists[device] = result
-        return device_lists
+    #     Returns:
+    #         dict: 기기 목록
+    #     """
+    #     if self.device_list is None:
+    #         raise Exception("device_list가 초기화되지 않았습니다.")
+    #     device_lists = {}
+    #     for device in self.device_list:
+    #         result = self.generate_device_packets(device)
+    #         if result:
+    #             device_lists[device] = result
+    #     return device_lists
     
-    #TODO: DEVICE_LISTS는 없는데.. device_list,,, 정리하기
-    def run(self):
+    def run(self) -> None:
         self.logger.info("'Commax Wallpad Addon'을 시작합니다.")
-        self.logger.info("저장된 기기정보가 있는지 확인합니다. (/share/cwbs_found_device.json)")
+        self.logger.info("저장된 기기정보가 있는지 확인합니다. (/share/commax_found_device.json)")
         try:
-            with open(self.share_dir + '/cwbs_found_device.json') as file:
+            with open(self.share_dir + '/commax_found_device.json') as file:
                 self.device_list = json.load(file)
             if not self.device_list:
                 self.logger.info('기기 목록이 비어있습니다. 기기 찾기를 시도합니다.')
                 self.device_list = self.find_device()
             else:
-                self.logger.info(f'기기정보를 찾았습니다. \n{json.dumps(self.DEVICE_LISTS, ensure_ascii=False, indent=4)}')
-            self.DEVICE_LISTS = self.make_device_lists()
+                self.logger.info(f'기기정보를 찾았습니다. \n{json.dumps(self.device_list, ensure_ascii=False, indent=4)}')
         except IOError:
             self.logger.info('저장된 기기 정보가 없습니다. mqtt에 접속하여 기기 찾기를 시도합니다.')
             self.device_list = self.find_device()
@@ -878,9 +893,9 @@ class WallpadController:
         if self.loop and not self.loop.is_closed():
             self.loop.close()
             
-    def load_device_structures(self):
+    def load_devices_and_packets_structures(self) -> None:
         try:
-            with open('/apps/devices_and_packet_structures.json') as file:
+            with open('/apps/devices_and_packets_structures.json') as file:
                 self.DEVICE_STRUCTURE = json.load(file)
         except FileNotFoundError:
             self.logger.error('기기 및 패킷 구조 파일을 찾을 수 없습니다.')
