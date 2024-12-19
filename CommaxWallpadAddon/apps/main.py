@@ -498,17 +498,22 @@ class WallpadController:
             packet[0] = int(command["header"], 16)
             
             # 기기 번호 설정 - 10진수로 직접 설정
-            packet[command["fieldPositions"]["deviceId"]] = device_id
+            device_id_pos = int(command["fieldPositions"]["deviceId"])
+            packet[device_id_pos] = device_id
             
             # 명령 타입 및 값 설정
+            command_type_pos = int(command["fieldPositions"]["commandType"])
+            value_pos = int(command["fieldPositions"]["value"])
+            
             if command_type == 'commandOFF':
-                packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["OFF"], 16)
+                packet[command_type_pos] = int(command["types"]["power"]["code"], 16)
+                packet[value_pos] = int(command["types"]["power"]["values"]["off"], 16)
             elif command_type == 'commandON':
-                packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["ON"], 16)
+                packet[command_type_pos] = int(command["types"]["power"]["code"], 16)
+                packet[value_pos] = int(command["types"]["power"]["values"]["on"], 16)
             elif command_type == 'commandCHANGE':
-                packet[command["fieldPositions"]["commandType"]] = int(command[command["fieldPositions"]["commandType"]]["values"]["CHANGE"], 16)
-                # 온도값을 10진수로 직접 설정
-                packet[command["fieldPositions"]["value"]] = target_temp
+                packet[command_type_pos] = int(command["types"]["setTemp"]["code"], 16)
+                packet[value_pos] = target_temp
             else:
                 self.logger.error(f'잘못된 명령 타입: {command_type}')
                 return None
@@ -740,7 +745,6 @@ class WallpadController:
                         state_structure = structure['state']
                         if byte_data[0] == int(state_structure['header'], 16):
                             if device_name == 'Thermo':
-                                # 문자열을 정수로 변환 (16진수가 아닌 10진수로 해석)
                                 device_id = byte_data[int(state_structure['fieldPositions']['deviceId'])]
                                 power = byte_data[int(state_structure['fieldPositions']['power'])]
                                 # 온도값을 10진수로 직접 해석
