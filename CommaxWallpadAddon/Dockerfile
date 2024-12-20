@@ -15,6 +15,6 @@ COPY apps /apps
 COPY apps/devices_and_packets_structures.yaml /share/commax_devices_and_packets_structures.yaml
 
 CMD [
-    "python3",
+    "python",
     "/apps/main.py"
 ]
