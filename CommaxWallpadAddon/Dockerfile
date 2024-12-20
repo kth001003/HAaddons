@@ -9,9 +9,12 @@ RUN pip install --no-cache-dir paho-mqtt==1.6.1
 RUN pip install --no-cache-dir PyYAML==6.0.1
 #RUN pip install --no-cache-dir telnetlib
 
+WORKDIR /share
 # Copy data for add-on
 COPY apps /apps
+COPY apps/devices_and_packets_structures.yaml /share/commax_devices_and_packets_structures.yaml
 
-WORKDIR /share
-RUN chmod a+x /apps/startup.sh
-CMD ["/apps/startup.sh"]
+CMD [
+    "python3",
+    "/apps/main.py"
+]

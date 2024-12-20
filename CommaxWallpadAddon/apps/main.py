@@ -9,6 +9,7 @@ import yaml #PyYAML
 import json
 import re
 import telnetlib
+import shutil
 
 T = TypeVar('T')
 
@@ -95,9 +96,26 @@ class WallpadController:
 
     def load_devices_and_packets_structures(self) -> None:
         try:
-            with open('/apps/devices_and_packets_structures.yaml') as file:
-                self.DEVICE_STRUCTURE = yaml.safe_load(file)
-                
+            # /share 디렉토리의 파일을 먼저 확인
+            share_file_path = '/share/commax_devices_and_packets_structures.yaml'
+            default_file_path = '/apps/devices_and_packets_structures.yaml'
+            
+            if os.path.exists(share_file_path):
+                with open(share_file_path) as file:
+                    self.DEVICE_STRUCTURE = yaml.safe_load(file)
+                    self.logger.info(f'기기 및 패킷 구조를 {share_file_path}에서 로드했습니다.')
+                    self.logger.info(f'파일이 망가진 경우 초기화하려면 파일을 삭제하고 애드온을 재시작하세요.')
+            else:
+                with open(default_file_path) as file:
+                    self.DEVICE_STRUCTURE = yaml.safe_load(file)
+                    self.logger.info(f'기기 및 패킷 구조를 {default_file_path}에서 로드했습니다.')
+                # 기본 파일을 share 디렉토리로 복사
+                self.logger.info(f'기기 및 패킷 구조 복사본을 {share_file_path}로 복사합니다.')
+                try:
+                    shutil.copy2(default_file_path, share_file_path)
+                except Exception as e:
+                    self.logger.error(f'파일 복사 중 오류 발생: {str(e)}')
+                    
             if self.DEVICE_STRUCTURE is not None:
                 # fieldPositions 자동 생성
                 for device_name, device in self.DEVICE_STRUCTURE.items():
@@ -768,9 +786,7 @@ class WallpadController:
                                 power_hex = format(power, '02x').upper()
                                 power_values = state_structure['structure'][power_pos]['values']
                                 # power 값과 정의된 값들을 직접 비교
-                                mode_text = 'off'
-                                if power_hex == power_values.get('on', '').upper():
-                                    mode_text = 'heat'
+                                mode_text = 'off' if power_hex == power_values.get('off', '').upper() else 'heat'
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
                                 await self.update_temperature(device_id, mode_text, current_temp, target_temp)
@@ -798,8 +814,6 @@ class WallpadController:
     @require_device_structure(None)
     async def process_ha_command(self, topics: List[str], value: str) -> None:
         try:
-            self.logger.debug(f'HA 명령 처리 시작: {topics}, 값: {value}')
-            
             device = ''.join(re.findall('[a-zA-Z]', topics[1]))
             device_id = int(''.join(re.findall('[0-9]', topics[1])))
             state = topics[2]
@@ -810,22 +824,17 @@ class WallpadController:
                 self.logger.error(f'장치 {device}가 DEVICE_STRUCTURE에 존재하지 않습니다.')
                 return
 
-            # 패킷 초기화 (7바이트)
             packet_hex = None
             packet = bytearray(7)
             device_structure = self.DEVICE_STRUCTURE[device]
             command = device_structure["command"]
             
-            # 헤더 설정
             packet[0] = int(command["header"], 16)
-            
-            # 기기 ID 설정
             packet[int(command["fieldPositions"]["deviceId"])] = device_id
 
             if device == 'Light':
                 power_value = command["structure"][str(command["fieldPositions"]["power"])]["values"]["on" if value == "ON" else "off"]
                 packet[int(command["fieldPositions"]["power"])] = int(power_value, 16)
-                self.logger.debug(f'조명 {value} 명령 생성')
             elif device == 'Thermo':
                 cur_temp_str = self.HOMESTATE.get(topics[1] + 'curTemp')
                 set_temp_str = self.HOMESTATE.get(topics[1] + 'setTemp')
@@ -839,10 +848,8 @@ class WallpadController:
                 if state == 'power':
                     if value == 'heat':
                         packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandON')
-                        self.logger.debug(f'온도조절기 켜기 명령: {packet_hex}')
                     else:
                         packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandOFF')
-                        self.logger.debug(f'온도조절기 끄기 명령: {packet_hex}')
                 elif state == 'setTemp':
                         packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandCHANGE')
                         self.logger.debug(f'온도조절기 설정 온도 변경 명령: {packet_hex}')
@@ -862,15 +869,11 @@ class WallpadController:
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
             
             if packet_hex is None:
-                # 패킷을 16진수 문자열로 변환
                 packet_hex = packet.hex().upper()
-                # 체크섬 추가
                 packet_hex = self.checksum(packet_hex)
 
             if packet_hex:
-                # 예상 상태 패킷 디버그 로그 출력
                 expected_state = self.generate_expected_state_packet(packet_hex)
-                self.logger.debug(f'명령패킷: {packet_hex}, 예상 상태: {expected_state}')
                 if expected_state:
                     self.logger.debug(f'예상 상태: {expected_state}')
                     self.QUEUE.append({
@@ -904,7 +907,6 @@ class WallpadController:
             
         expected_state = send_data.get('expected_state')
         
-        # 예상 상태 정보가 올바른 경우
         if (isinstance(expected_state, dict) and 
             isinstance(expected_state.get('expected_packet'), str) and 
             isinstance(expected_state.get('required_bytes'), list)):
@@ -919,7 +921,6 @@ class WallpadController:
                 if not isinstance(received_packet, str):
                     continue
                     
-                # 수신된 패킷을 바이트 배열로 변환
                 try:
                     received_bytes = bytes.fromhex(received_packet)
                 except ValueError:
@@ -933,7 +934,6 @@ class WallpadController:
                             match = False
                             break
                             
-                        # 바이트 단위로 직접 비교
                         if (len(received_bytes) <= pos or 
                             len(expected_bytes) <= pos or
                             received_bytes[pos] != expected_bytes[pos]):
@@ -948,7 +948,6 @@ class WallpadController:
                     self.logger.debug(f"예상된 응답을 수신했습니다: {received_packet}")
                     return
             
-            # 예상 응답을 받지 못한 경우, 재전송을 위해 큐에 추가
             if send_data['count'] < max_send_count:
                 self.logger.debug(f"명령 재전송 예약 (시도 {send_data['count']}/{max_send_count}): {send_data['sendcmd']}")
                 self.QUEUE.append(send_data)

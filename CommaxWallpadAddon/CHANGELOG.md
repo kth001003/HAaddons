@@ -2,7 +2,22 @@
 
 모든 주요 변경 사항이 이 파일에 기록됩니다.
 
-## [1.3.2] - 2024-03-21
+## [1.3.3] - 2024-12-20
+
+### 변경됨
+- 애드온 구성 및 성능 개선
+  - 애드온 이름을 "COMMAX Wallpad Addon by ew11-mqtt"로 변경
+  - 성능 향상을 위해 max_send_count를 15로 증가하고 mqtt_log 비활성화
+  - devices_and_packets_structures.yaml 파일을 /share 디렉토리에 복사하도록 Dockerfile 수정
+
+### 개선됨
+- WallpadController의 파일 처리 기능 강화
+  - /share 디렉토리에서 우선적으로 devices_and_packets_structures.yaml 로드
+  - 기본 경로로의 폴백 메커니즘 구현
+  - 파일 작업에 대한 에러 처리 개선
+  - 기기 구조 로딩 및 에러 시나리오에 대한 로깅 개선
+
+## [1.3.2] - 2024-12-20
 
 ### 개선됨
 - devices_and_packets_structures.yaml 파일 구조 개선 및 WallpadController 필드 위치 처리 강화
@@ -141,7 +156,7 @@
 ### 개선됨
 - WallpadController의 기기 상태 처리 로직 개선
   - 온도조절기(Thermo)와 조명(Light) 기기의 상태 처리 간소화
-  - 상태 구조체 참조를 통한 바이트 데이터 접근 방식 개선
+  - 상태 구조체 참조를 통�� 바이트 데이터 접근 방식 개선
   - 온도 및 전원 상태에 대한 로깅 기능 강화
   - 명령 패킷 생성의 정확성 향상
   - 기기 상호작용의 유지보수성 및 가독성 개선
@@ -182,7 +197,7 @@
 ### 개선됨
 - WallpadController의 `process_elfin_data` 메소드 리팩토링
   - 온도조절기(Thermo)와 조명(Light) 기기의 데이터 처리 로직 개선
-  - 바이트 데이터 접근 방식 개선 (��자열 인덱스를 정수로 변환)
+  - 바이트 데이터 접근 방식 개선 (자열 인덱스를 정수로 변환)
   - 기기 상태 로깅 기능 강화
   - 타입 힌트 개선으로 코드 가독성 및 유지보수성 향상
 
