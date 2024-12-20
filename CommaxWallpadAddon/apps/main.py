@@ -999,7 +999,6 @@ class WallpadController:
 
     # 메인 실행 함수
     def run(self) -> None:
-        self.logger.info("'Commax Wallpad Addon'을 시작합니다.")
         self.logger.info("저장된 기기정보가 있는지 확인합니다. (/share/commax_found_device.json)")
         try:
             with open(self.share_dir + '/commax_found_device.json') as file:
@@ -1104,5 +1103,7 @@ if __name__ == '__main__':
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
     logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
+    logger.info("########################################################")
+    logger.info("'Commax Wallpad Addon by ew11-mqtt'을 시작합니다.")
     controller = WallpadController(CONFIG, logger)
     controller.run()
