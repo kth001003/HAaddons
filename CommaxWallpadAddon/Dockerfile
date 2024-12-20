@@ -14,7 +14,4 @@ WORKDIR /share
 COPY apps /apps
 COPY apps/devices_and_packets_structures.yaml /share/commax_devices_and_packets_structures.yaml
 
-CMD [
-    "python",
-    "/apps/main.py"
-]
+CMD ["python3", "/apps/main.py"]
