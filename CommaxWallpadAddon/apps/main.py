@@ -97,6 +97,28 @@ class WallpadController:
         try:
             with open('/apps/devices_and_packets_structures.yaml') as file:
                 self.DEVICE_STRUCTURE = yaml.safe_load(file)
+                
+            if self.DEVICE_STRUCTURE is not None:
+                # fieldPositions 자동 생성
+                for device_name, device in self.DEVICE_STRUCTURE.items():
+                    for packet_type in ['command', 'state']:
+                        if packet_type in device:
+                            structure = device[packet_type]['structure']
+                            field_positions = {}
+                            
+                            for pos, field in structure.items():
+                                field_name = field['name']
+                                if field_name != 'empty':
+                                    if field_name in field_positions:
+                                        self.logger.error(
+                                            f"중복된 필드 이름 발견: {device_name}.{packet_type} - "
+                                            f"'{field_name}' (위치: {field_positions[field_name]}, {pos})"
+                                        )
+                                    else:
+                                        field_positions[field_name] = pos
+                                    
+                            device[packet_type]['fieldPositions'] = field_positions
+                        
         except FileNotFoundError:
             self.logger.error('기기 및 패킷 구조 파일을 찾을 수 없습니다.')
         except yaml.YAMLError:
