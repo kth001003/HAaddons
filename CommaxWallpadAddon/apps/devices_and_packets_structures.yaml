@@ -141,7 +141,7 @@ Thermo:
       "1":
         name: power
         values:
-          "on": "81"
+          "idle": "81"
           "heating": "83"
           "off": "80"
       "2":

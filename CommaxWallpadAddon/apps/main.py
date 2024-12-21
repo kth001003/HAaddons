@@ -391,9 +391,9 @@ class WallpadController:
             # 공통 디바이스 정보
             device_base_info = {
                 "identifiers": ["commax_wallpad"],
-                "name": "코맥스 월패드",
-                "model": "코맥스 월패드",
-                "manufacturer": "Commax"
+                "name": "commax_wallpad",
+                "model": "commax_wallpad",
+                "manufacturer": "commax_wallpad"
             }
             
             if self.device_list is None:
@@ -450,12 +450,12 @@ class WallpadController:
                             "temperature_state_topic": self.STATE_TOPIC.format(device_id, "setTemp"),
                             "mode_command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
                             "mode_state_topic": self.STATE_TOPIC.format(device_id, "power"),
+                            "action_state_topic": self.STATE_TOPIC.format(device_id, "action"),
                             "modes": ["off", "heat"],
                             "temperature_unit": "C",
                             "min_temp": 10,
                             "max_temp": 30,
                             "temp_step": 1,
-                            "precision": 0.1
                         }
                     
                     if 'payload' in locals():
@@ -667,13 +667,14 @@ class WallpadController:
         self.publish_mqtt(topic, onoff)
         self.HOMESTATE[deviceID + state] = onoff
 
-    async def update_temperature(self, idx: int, mode_text: str, curTemp: int, setTemp: int) -> None:
+    async def update_temperature(self, idx: int, mode_text: str, action_text: str, curTemp: int, setTemp: int) -> None:
         """
         온도 조절기 상태를 업데이트하는 함수입니다.
 
         Args:
             idx (int): 온도 조절기 장치의 인덱스 번호.
             mode_text (str): 온도 조절기의 모드 텍스트 (예: 'heat', 'off').
+            action_text (str): 온도 조절기의 동작 텍스트 (예: 'heating', 'idle').
             curTemp (int): 현재 온도 값.
             setTemp (int): 설정하고자 하는 목표 온도 값.
 
@@ -695,11 +696,12 @@ class WallpadController:
                 self.publish_mqtt(topic, val)
                 self.HOMESTATE[deviceID + state] = val
             
-            power_state = mode_text
             power_topic = self.STATE_TOPIC.format(deviceID, 'power')
-            self.publish_mqtt(power_topic, power_state)
+            action_topic = self.STATE_TOPIC.format(deviceID, 'action')
+            self.publish_mqtt(power_topic, mode_text)
+            self.publish_mqtt(action_topic, action_text)
             
-            self.logger.mqtt(f'->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={power_state}')
+            self.logger.mqtt(f'->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={mode_text} {action_text}')
         except Exception as e:
             self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
  
@@ -786,10 +788,12 @@ class WallpadController:
                                 power_hex = format(power, '02x').upper()
                                 power_values = state_structure['structure'][power_pos]['values']
                                 # power 값과 정의된 값들을 직접 비교
-                                mode_text = 'off' if power_hex == power_values.get('off', '').upper() else 'heat'
-                                
+                                power_off_hex = power_values.get('off', '').upper()
+                                power_heating_hex = power_values.get('heating', '').upper()
+                                mode_text = 'off' if power_hex == power_off_hex else 'heat'
+                                action_text = 'heating' if power_hex == power_heating_hex else 'idle'
                                 self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
-                                await self.update_temperature(device_id, mode_text, current_temp, target_temp)
+                                await self.update_temperature(device_id, mode_text, action_text, current_temp, target_temp)
                             
                             elif device_name == 'Light':
                                 power_pos = state_structure['fieldPositions']['power']
