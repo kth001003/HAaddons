@@ -35,9 +35,17 @@ class WebServer:
             send_packets = list(self.wallpad_controller.COLLECTDATA.get('send_data', set()))[-50:]
             recv_packets = list(self.wallpad_controller.COLLECTDATA.get('recv_data', set()))[-50:]
             
+            # 패킷 정보 추가
+            def add_packet_info(packets, packet_type):
+                return [{
+                    'packet': packet,
+                    'type': packet_type,
+                    'device': self._get_device_info(packet)
+                } for packet in packets]
+            
             return jsonify({
-                'send': send_packets,
-                'recv': recv_packets
+                'send': add_packet_info(send_packets, 'send'),
+                'recv': add_packet_info(recv_packets, 'recv')
             })
             
         @self.app.route('/api/find_devices', methods=['POST'])
@@ -61,27 +69,21 @@ class WebServer:
                     if checksum_result:
                         expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
                     
-                    return jsonify({
-                        "success": True,
-                        "checksum": checksum_result,
-                        "expected_state": expected_state
-                    })
-                else:  # state packet analysis
                     # 헤더로 기기 찾기
                     header = command[:2]
                     device_info = None
                     device_name = None
                     
                     for name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
-                        if 'state' in device and device['state']['header'] == header:
-                            device_info = device['state']
+                        if 'command' in device and device['command']['header'] == header:
+                            device_info = device['command']
                             device_name = name
                             break
                     
                     if not device_info:
                         return jsonify({
                             "success": False,
-                            "error": "알 수 없는 상태 패킷입니다."
+                            "error": "알 수 없는 명령 패킷입니다."
                         }), 400
                     
                     # 각 바이트 분석
@@ -114,6 +116,8 @@ class WebServer:
                  
                 return jsonify({
                     "success": True,
+                    "checksum": checksum_result,
+                    "expected_state": expected_state,
                     "device": device_name,
                     "analysis": byte_analysis
                 })
@@ -134,6 +138,50 @@ class WebServer:
                 }
              
             return jsonify(structures)
+        
+        @self.app.route('/api/packet_suggestions')
+        def get_packet_suggestions():
+            """패킷 입력 도우미를 위한 정보를 제공합니다."""
+            suggestions = {
+                'headers': {},  # 헤더 정보
+                'values': {}    # 각 바이트 위치별 가능한 값
+            }
+            
+            # 명령 패킷 헤더
+            command_headers = []
+            for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+                if 'command' in device:
+                    command_headers.append({
+                        'header': device['command']['header'],
+                        'device': device_name
+                    })
+            suggestions['headers']['command'] = command_headers
+            
+            # 상태 패킷 헤더
+            state_headers = []
+            for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+                if 'state' in device:
+                    state_headers.append({
+                        'header': device['state']['header'],
+                        'device': device_name
+                    })
+            suggestions['headers']['state'] = state_headers
+            
+            # 각 기기별 가능한 값들
+            for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+                for packet_type in ['command', 'state']:
+                    if packet_type in device:
+                        key = f"{device_name}_{packet_type}"
+                        suggestions['values'][key] = {}
+                        
+                        for pos, field in device[packet_type]['structure'].items():
+                            if 'values' in field:
+                                suggestions['values'][key][pos] = {
+                                    'name': field['name'],
+                                    'values': field['values']
+                                }
+            
+            return jsonify(suggestions)
     
     def run(self):
         threading.Thread(target=self._run_server, daemon=True).start()
@@ -211,3 +259,22 @@ class WebServer:
             "byte_desc": byte_desc,
             "examples": examples
         } 
+    
+    def _get_device_info(self, packet: str) -> Dict[str, str]:
+        """패킷의 헤더를 기반으로 기기 정보를 반환합니다."""
+        if len(packet) < 2:
+            return {"name": "Unknown", "packet_type": "Unknown"}
+            
+        header = packet[:2]
+        
+        # 명령 패킷 확인
+        for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+            if 'command' in device and device['command']['header'] == header:
+                return {"name": device_name, "packet_type": "Command"}
+                
+        # 상태 패킷 확인
+        for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+            if 'state' in device and device['state']['header'] == header:
+                return {"name": device_name, "packet_type": "State"}
+                
+        return {"name": "Unknown", "packet_type": "Unknown"} 

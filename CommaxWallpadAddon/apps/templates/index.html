@@ -169,70 +169,165 @@
             margin-right: 10px;
             font-size: 0.9em;
         }
+        .device-label {
+            display: inline-block;
+            min-width: 120px;
+            margin-right: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        .packet-log-entry.unknown-packet {
+            opacity: 0.7;
+        }
         @keyframes fadeEffect {
             from {opacity: 0;}
             to {opacity: 1;}
+        }
+        .device-section {
+            margin: 20px 0 30px 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .device-section button {
+            margin-bottom: 20px;
+        }
+        .packet-analyzer-section {
+            margin-top: 30px;
+        }
+        .packet-analyzer {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .packet-reference {
+            margin: 30px 0;
+        }
+        .packet-log {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .packet-builder {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .packet-builder select {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 150px;
+        }
+        .byte-input {
+            display: inline-block;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .byte-input input {
+            width: 40px;
+            text-align: center;
+        }
+        .byte-input select {
+            min-width: 100px;
+        }
+        .byte-label {
+            display: block;
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 3px;
         }
     </style>
 </head>
 <body>
     <h1>Commax Wallpad Controller</h1>
     
-    <div class="packet-analyzer">
-        <h2>명령 패킷 분석기</h2>
-        <p><small>* 14자리 또는 16자리 패킷을 입력하세요. 14자리만 입력하면 체크섬이 자동으로 계산됩니다.</small></p>
-        <div>
-            <input type="text" id="commandInput" placeholder="명령 패킷 입력 (예: F70100000000)">
-            <button onclick="analyzePacket()">분석</button>
-        </div>
-        <div class="packet-result" id="packetResult">
-            <!-- 분석 결과가 여기에 표시됩니다 -->
-        </div>
-        
-        <div class="packet-reference">
-            <button type="button" class="collapsible">📚 명령 패킷 참조 자료</button>
-            <div class="content">
-                <div class="tab-container">
-                    <div class="tab-buttons" id="deviceTabs">
-                        <!-- 탭 버튼이 동적으로 추가됩니다 -->
-                    </div>
-                    <div id="tabContents">
-                        <!-- 탭 내용이 동적으로 추가됩니다 -->
-                    </div>
-                </div>
-                <p><small>* 모든 패킷은 체크섬이 자동으로 계산되어 추가됩니다.</small></p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="packet-analyzer">
-        <h2>상태 패킷 분석기</h2>
-        <p><small>* 14자리 또는 16자리 패킷을 입력하세요. 14자리만 입력하면 체크섬이 자동으로 계산됩니다.</small></p>
-        <div>
-            <input type="text" id="stateInput" placeholder="상태 패킷 입력 (예: B0010000000000)">
-            <button onclick="analyzeStatePacket()">분석</button>
-        </div>
-        <div class="packet-result" id="statePacketResult">
-            <!-- 분석 결과가 여기에 표시됩니다 -->
+    <div class="device-section">
+        <button onclick="findDevices()">기기 검색</button>
+        <div class="device-list" id="deviceList">
+            <!-- 기기 목록이 여기에 동적으로 추가됩니다 -->
         </div>
     </div>
     
     <div class="packet-log">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2>패킷 로그</h2>
-            <button onclick="clearPacketLog()">로그 지우기</button>
+            <div>
+                <label>
+                    <input type="checkbox" id="hideUnknown" onchange="updatePacketLogDisplay()"> Unknown 패킷 숨기기
+                </label>
+                <button onclick="clearPacketLog()">로그 지우기</button>
+            </div>
         </div>
         <div class="packet-log-content" id="packetLog">
             <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
         </div>
     </div>
+
+    <div class="packet-reference">
+        <button type="button" class="collapsible">📚 패킷 참조 자료</button>
+        <div class="content">
+            <div class="tab-container">
+                <div class="tab-buttons" id="deviceTabs">
+                    <!-- 탭 버튼이 동적으로 추가됩니다 -->
+                </div>
+                <div id="tabContents">
+                    <!-- 탭 내용이 동적으로 추가됩니다 -->
+                </div>
+            </div>
+            <p><small>* 모든 패킷은 체크섬이 자동으로 계산되어 추가됩니다.</small></p>
+        </div>
+    </div>
     
-    <hr>
-    
-    <button onclick="findDevices()">기기 검색</button>
-    
-    <div class="device-list" id="deviceList">
-        <!-- 기기 목록이 여기에 동적으로 추가됩니다 -->
+    <div class="packet-analyzer-section">
+        <div class="packet-analyzer">
+            <h2>명령 패킷 분석기</h2>
+            <p><small>* 14자리 또는 16자리 패킷을 입력하세요. 14자리만 입력하면 체크섬이 자동으로 계산됩니다.</small></p>
+            <div class="packet-builder">
+                <div>
+                    <select id="commandHeaderSelect" onchange="handleHeaderSelect('command')">
+                        <option value="">헤더 선택...</option>
+                    </select>
+                    <div id="commandByteInputs" style="display: inline-block;">
+                        <!-- 바이트 입력 필드가 동적으로 추가됩니다 -->
+                    </div>
+                </div>
+            </div>
+            <div>
+                <input type="text" id="commandInput" placeholder="명령 패킷 입력 (예: F70100000000)">
+                <button onclick="analyzePacket()">분석</button>
+            </div>
+            <div class="packet-result" id="packetResult">
+                <!-- 분석 결과가 여기에 표시됩니다 -->
+            </div>
+        </div>
+        
+        <div class="packet-analyzer">
+            <h2>상태 패킷 분석기</h2>
+            <p><small>* 14자리 또는 16자리 패킷을 입력하세요. 14자리만 입력하면 체크섬이 자동으로 계산됩니다.</small></p>
+            <div class="packet-builder">
+                <div>
+                    <select id="stateHeaderSelect" onchange="handleHeaderSelect('state')">
+                        <option value="">헤더 선택...</option>
+                    </select>
+                    <div id="stateByteInputs" style="display: inline-block;">
+                        <!-- 바이트 입력 필드가 동적으로 추가됩니다 -->
+                    </div>
+                </div>
+            </div>
+            <div>
+                <input type="text" id="stateInput" placeholder="상태 패킷 입력 (예: B0010000000000)">
+                <button onclick="analyzeStatePacket()">분석</button>
+            </div>
+            <div class="packet-result" id="statePacketResult">
+                <!-- 분석 결과가 여기에 표시됩니다 -->
+            </div>
+        </div>
     </div>
 
     <script>
@@ -269,11 +364,17 @@
         }
         
         function createPacketLogEntry(timestamp, packet, type) {
+            const deviceInfo = packet.device;
+            const deviceText = deviceInfo.name !== "Unknown" ? 
+                `${deviceInfo.name} ${deviceInfo.packet_type}` : 
+                "Unknown";
+            
             return `
-                <div class="packet-log-entry ${type}" onclick="handlePacketClick('${packet}', '${type}')">
+                <div class="packet-log-entry ${type} ${deviceInfo.name === 'Unknown' ? 'unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}', '${type}')">
                     <span class="timestamp">${timestamp}</span>
                     <span class="packet-type-label">[${type.toUpperCase()}]</span>
-                    <span class="packet">${packet}</span>
+                    <span class="packet">${packet.packet}</span>
+                    <span class="device-label">[${deviceText}]</span>
                 </div>`;
         }
         
@@ -393,14 +494,28 @@
                 if (data.success) {
                     let html = '<h3>분석 결과:</h3>';
                     
+                    if (data.device) {
+                        html += `<p>기기: <strong>${data.device}</strong></p>`;
+                    }
+                    
                     if (data.checksum) {
                         html += `<p>체크섬이 포함된 패킷: <strong>${data.checksum}</strong></p>`;
                     } else {
                         html += '<p class="error">체크섬 계산 실패</p>';
                     }
                     
+                    if (data.analysis && data.analysis.length > 0) {
+                        html += '<h4>바이트별 분석:</h4>';
+                        html += '<div style="font-family: monospace;">';
+                        data.analysis.forEach(desc => {
+                            html += `<div>${desc}</div>`;
+                        });
+                        html += '</div>';
+                    }
+                    
                     if (data.expected_state) {
-                        html += `<p>예상되는 상태 패킷: <strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" style="color: #2196F3; text-decoration: none;">${data.expected_state.expected_packet}</a></strong></p>`;
+                        html += `<h4>예상되는 상태 패킷:</h4>`;
+                        html += `<p><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" style="color: #2196F3; text-decoration: none;">${data.expected_state.expected_packet}</a></strong></p>`;
                         html += `<p>필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
                     } else {
                         html += '<p>예상 상태 패킷을 생성할 수 없습니다.</p>';
@@ -566,6 +681,129 @@
                 analyzeStatePacket();
             }
         });
+
+        // 패킷 로그 표시 업데이트
+        function updatePacketLogDisplay() {
+            const hideUnknown = document.getElementById('hideUnknown').checked;
+            const unknownPackets = document.querySelectorAll('.unknown-packet');
+            
+            unknownPackets.forEach(packet => {
+                packet.style.display = hideUnknown ? 'none' : '';
+            });
+        }
+
+        // 패킷 입력 도우미 관련 변수
+        let packetSuggestions = null;
+        let currentDevice = {
+            command: null,
+            state: null
+        };
+        
+        // 패킷 입력 도우미 초기화
+        function initializePacketBuilder() {
+            fetch('./api/packet_suggestions')
+                .then(response => response.json())
+                .then(data => {
+                    packetSuggestions = data;
+                    
+                    // 명령 패킷 헤더 옵션 추가
+                    const commandSelect = document.getElementById('commandHeaderSelect');
+                    data.headers.command.forEach(header => {
+                        const option = document.createElement('option');
+                        option.value = header.header;
+                        option.textContent = `${header.device} (${header.header})`;
+                        commandSelect.appendChild(option);
+                    });
+                    
+                    // 상태 패킷 헤더 옵션 추가
+                    const stateSelect = document.getElementById('stateHeaderSelect');
+                    data.headers.state.forEach(header => {
+                        const option = document.createElement('option');
+                        option.value = header.header;
+                        option.textContent = `${header.device} (${header.header})`;
+                        stateSelect.appendChild(option);
+                    });
+                });
+        }
+        
+        function handleHeaderSelect(type) {
+            const headerSelect = document.getElementById(`${type}HeaderSelect`);
+            const byteInputsDiv = document.getElementById(`${type}ByteInputs`);
+            const packetInput = document.getElementById(`${type}Input`);
+            
+            const selectedHeader = headerSelect.value;
+            if (!selectedHeader) {
+                byteInputsDiv.innerHTML = '';
+                return;
+            }
+            
+            // 선택된 헤더에 해당하는 기기 찾기
+            const deviceInfo = packetSuggestions.headers[type].find(h => h.header === selectedHeader);
+            if (!deviceInfo) return;
+            
+            currentDevice[type] = deviceInfo.device;
+            const deviceKey = `${deviceInfo.device}_${type}`;
+            
+            // 바이트 입력 필드 생성
+            let html = '';
+            for (let i = 1; i < 6; i++) {  // 헤더 이후 5개 바이트
+                const byteInfo = packetSuggestions.values[deviceKey]?.[i];
+                if (byteInfo) {
+                    html += `
+                        <div class="byte-input">
+                            <label class="byte-label">Byte ${i}: ${byteInfo.name}</label>
+                            <select onchange="updatePacket('${type}')" data-byte="${i}">
+                                <option value="">선택...</option>
+                                ${Object.entries(byteInfo.values).map(([key, value]) => 
+                                    `<option value="${value}">${key} (${value})</option>`
+                                ).join('')}
+                            </select>
+                        </div>`;
+                } else {
+                    html += `
+                        <div class="byte-input">
+                            <label class="byte-label">Byte ${i}</label>
+                            <input type="text" maxlength="2" pattern="[0-9A-Fa-f]{2}" 
+                                   onchange="updatePacket('${type}')" data-byte="${i}"
+                                   placeholder="00">
+                        </div>`;
+                }
+            }
+            byteInputsDiv.innerHTML = html;
+            
+            // 패킷 초기값 설정
+            updatePacket(type);
+        }
+        
+        function updatePacket(type) {
+            const byteInputsDiv = document.getElementById(`${type}ByteInputs`);
+            const packetInput = document.getElementById(`${type}Input`);
+            const headerSelect = document.getElementById(`${type}HeaderSelect`);
+            
+            let packet = headerSelect.value;  // 헤더로 시작
+            
+            // 각 바이트 값 수집
+            for (let i = 1; i < 6; i++) {
+                const input = byteInputsDiv.querySelector(`[data-byte="${i}"]`);
+                if (input) {
+                    let value = input.value || '00';
+                    if (value.length === 1) value = '0' + value;
+                    packet += value;
+                } else {
+                    packet += '00';
+                }
+            }
+            
+            // 나머지 바이트를 0으로 채움
+            while (packet.length < 12) {
+                packet += '00';
+            }
+            
+            packetInput.value = packet;
+        }
+        
+        // 초기화
+        initializePacketBuilder();
     </script>
 </body>
 </html> 
