@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Commax Wallpad Controller</title>
+    <meta charset="utf-8">
+    <style>
+        body { 
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .device-list {
+            margin: 20px 0;
+        }
+        .device-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Commax Wallpad Controller</h1>
+    
+    <button onclick="findDevices()">기기 검색</button>
+    
+    <div class="device-list" id="deviceList">
+        <!-- 기기 목록이 여기에 동적으로 추가됩니다 -->
+    </div>
+
+    <script>
+        function updateDeviceList() {
+            fetch('/api/devices')
+                .then(response => response.json())
+                .then(devices => {
+                    const deviceList = document.getElementById('deviceList');
+                    deviceList.innerHTML = '';
+                    
+                    for (const [deviceName, info] of Object.entries(devices)) {
+                        const card = document.createElement('div');
+                        card.className = 'device-card';
+                        card.innerHTML = `
+                            <h3>${deviceName}</h3>
+                            <p>타입: ${info.type}</p>
+                            <p>개수: ${info.count}</p>
+                        `;
+                        deviceList.appendChild(card);
+                    }
+                });
+        }
+
+        function findDevices() {
+            fetch('/api/find_devices', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    updateDeviceList();
+                }
+            });
+        }
+
+        // 초기 로드
+        updateDeviceList();
+        
+        // 30초마다 상태 업데이트
+        setInterval(updateDeviceList, 30000);
+    </script>
+</body>
+</html> 

@@ -5,11 +5,12 @@ import os
 from logger import Logger
 from typing import Any, Dict, Union, List, Optional, Set, TypedDict, Callable, TypeVar, Callable
 from functools import wraps
-import yaml #PyYAML
+import yaml # type: ignore #PyYAML
 import json
 import re
 import telnetlib
 import shutil
+from web_server import WebServer
 
 T = TypeVar('T')
 
@@ -65,6 +66,7 @@ class WallpadController:
         self.DEVICE_STRUCTURE: Optional[Dict[str, Any]] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.load_devices_and_packets_structures() # 기기 정보와 패킷 정보를 로드 to self.DEVICE_STRUCTURE
+        self.web_server = WebServer(self)
 
     # 유틸리티 함수들
     @staticmethod
@@ -1017,6 +1019,9 @@ class WallpadController:
             self.device_list = self.find_device()
 
         try:
+            # 웹서버 시작
+            self.web_server.run()
+            
             # 메인 MQTT 클라이언트 설정
             self.mqtt_client = self.setup_mqtt()
             
