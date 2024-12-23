@@ -92,6 +92,77 @@
             overflow: hidden;
             background-color: #f1f1f1;
         }
+        /* 탭 스타일 */
+        .tab-container {
+            margin-top: 20px;
+        }
+        .tab-buttons {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+        }
+        .tab-buttons button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+            color: black;
+        }
+        .tab-buttons button:hover {
+            background-color: #ddd;
+        }
+        .tab-buttons button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-top: none;
+            animation: fadeEffect 1s;
+        }
+        /* 패킷 로그 스타일 */
+        .packet-log {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .packet-log-content {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            background-color: #fff;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .packet-log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .packet-log-entry:last-child {
+            border-bottom: none;
+        }
+        .packet-log-entry .timestamp {
+            color: #666;
+            font-size: 0.9em;
+            margin-right: 10px;
+        }
+        .packet-log-entry.recv {
+            color: #2196F3;
+        }
+        .packet-log-entry.send {
+            color: #4CAF50;
+        }
+        @keyframes fadeEffect {
+            from {opacity: 0;}
+            to {opacity: 1;}
+        }
     </style>
 </head>
 <body>
@@ -110,22 +181,26 @@
         <div class="packet-reference">
             <button type="button" class="collapsible">📚 명령 패킷 참조 자료</button>
             <div class="content">
-                <h3>기기별 명령 패킷 구조</h3>
-                <table id="packetReferenceTable">
-                    <thead>
-                        <tr>
-                            <th>기기</th>
-                            <th>헤더</th>
-                            <th>명령 예시</th>
-                            <th>설명</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- 동적으로 채워질 내용 -->
-                    </tbody>
-                </table>
+                <div class="tab-container">
+                    <div class="tab-buttons" id="deviceTabs">
+                        <!-- 탭 버튼이 동적으로 추가됩니다 -->
+                    </div>
+                    <div id="tabContents">
+                        <!-- 탭 내용이 동적으로 추가됩니다 -->
+                    </div>
+                </div>
                 <p><small>* 모든 패킷은 체크섬이 자동으로 계산되어 추가됩니다.</small></p>
             </div>
+        </div>
+    </div>
+    
+    <div class="packet-log">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>패킷 로그</h2>
+            <button onclick="clearPacketLog()">로그 지우기</button>
+        </div>
+        <div class="packet-log-content" id="packetLog">
+            <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
         </div>
     </div>
     
@@ -138,23 +213,94 @@
     </div>
 
     <script>
+        // 패킷 로그 관련 변수와 함수
+        let lastPackets = new Set();
+        
+        function updatePacketLog() {
+            fetch('./api/packet_logs')
+                .then(response => response.json())
+                .then(packets => {
+                    const logDiv = document.getElementById('packetLog');
+                    let newContent = '';
+                    
+                    // 새로운 패킷만 필터링
+                    const newPackets = packets.filter(packet => !lastPackets.has(packet));
+                    
+                    // 새 패킷이 있으면 추가
+                    if (newPackets.length > 0) {
+                        newPackets.forEach(packet => {
+                            const timestamp = new Date().toLocaleTimeString();
+                            // 패킷 타입 추정 (첫 바이트로 판단)
+                            const isCommand = packet.substring(0, 2) in {
+                                '31': true, '04': true, '78': true, '11': true, '7A': true, 'A0': true
+                            };
+                            const type = isCommand ? 'send' : 'recv';
+                            
+                            newContent += `
+                                <div class="packet-log-entry ${type}">
+                                    <span class="timestamp">${timestamp}</span>
+                                    <span class="packet">${packet}</span>
+                                </div>`;
+                        });
+                        
+                        logDiv.innerHTML = newContent + logDiv.innerHTML;
+                        lastPackets = new Set(packets);
+                    }
+                });
+        }
+        
         // 패킷 구조 정보 로드
         function loadPacketStructures() {
             fetch('./api/packet_structures')
                 .then(response => response.json())
                 .then(structures => {
-                    const tbody = document.querySelector('#packetReferenceTable tbody');
-                    tbody.innerHTML = '';
+                    const tabButtons = document.getElementById('deviceTabs');
+                    const tabContents = document.getElementById('tabContents');
+                    tabButtons.innerHTML = '';
+                    tabContents.innerHTML = '';
+                    
+                    let isFirst = true;
                     
                     for (const [deviceName, info] of Object.entries(structures)) {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${deviceName}</td>
-                            <td><code>${info.header}</code></td>
-                            <td><code>${info.example}</code></td>
-                            <td>${info.description}</td>
+                        // 탭 버튼 추가
+                        const button = document.createElement('button');
+                        button.className = `tablinks ${isFirst ? 'active' : ''}`;
+                        button.onclick = function(evt) { openDeviceTab(evt, deviceName); };
+                        button.textContent = deviceName;
+                        tabButtons.appendChild(button);
+                        
+                        // 탭 내용 추가
+                        const tabContent = document.createElement('div');
+                        tabContent.id = deviceName;
+                        tabContent.className = 'tab-content';
+                        tabContent.style.display = isFirst ? 'block' : 'none';
+                        tabContent.innerHTML = `
+                            <h3>${deviceName} (${info.type})</h3>
+                            <table class="packet-reference-table">
+                                <tr>
+                                    <th style="width: 50%">패킷 구조</th>
+                                    <th>예시</th>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div style="font-family: monospace;">
+                                            ${info.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        ${info.examples.map(ex => `
+                                            <div style="margin-bottom: 10px;">
+                                                <code>${ex.packet}</code><br>
+                                                <small>${ex.desc}</small>
+                                            </div>
+                                        `).join('')}
+                                    </td>
+                                </tr>
+                            </table>
                         `;
-                        tbody.appendChild(row);
+                        tabContents.appendChild(tabContent);
+                        
+                        isFirst = false;
                     }
                 })
                 .catch(error => {
@@ -259,6 +405,19 @@
         
         // 30초마다 상태 업데이트
         setInterval(updateDeviceList, 30000);
+        
+        // 1초마다 패킷 로그 업데이트
+        setInterval(updatePacketLog, 1000);
+        
+        // 패킷 로그 지우기
+        function clearPacketLog() {
+            const logDiv = document.getElementById('packetLog');
+            logDiv.innerHTML = '';
+            lastPackets.clear();
+        }
+        
+        // 초기 패킷 로그 로드
+        updatePacketLog();
 
         // 접을 수 있는 참조 자료 섹션 기능
         var coll = document.getElementsByClassName("collapsible");
@@ -272,6 +431,26 @@
                     content.style.display = "block";
                 }
             });
+        }
+
+        function openDeviceTab(evt, deviceName) {
+            var i, tabcontent, tablinks;
+            
+            // 모든 탭 내용 숨기기
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            
+            // 모든 탭 버튼 비활성화
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            
+            // 선택된 탭 내용 표시 및 버튼 활성화
+            document.getElementById(deviceName).style.display = "block";
+            evt.currentTarget.className += " active";
         }
     </script>
 </body>

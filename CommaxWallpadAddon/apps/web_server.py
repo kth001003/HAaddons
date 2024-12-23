@@ -28,6 +28,12 @@ class WebServer:
         def get_state():
             return jsonify(self.wallpad_controller.HOMESTATE)
             
+        @self.app.route('/api/packet_logs')
+        def get_packet_logs():
+            # COLLECTDATA에서 최근 100개의 패킷을 가져옴
+            packets = list(self.wallpad_controller.COLLECTDATA['data'])[-100:]
+            return jsonify(packets)
+            
         @self.app.route('/api/find_devices', methods=['POST'])
         def find_devices():
             self.wallpad_controller.device_list = self.wallpad_controller.find_device()
@@ -61,28 +67,53 @@ class WebServer:
         @self.app.route('/api/packet_structures')
         def get_packet_structures():
             structures = {}
-            for device_type, commands in self.wallpad_controller.PACKET_STRUCTURE.items():
-                structures[device_type] = {}
-                for command_name, command in commands.items():
-                    example = [0x00] * len(command['structure'])
+            for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+                if 'command' in device:
+                    command = device['command']
+                    byte_desc = []
+                    examples = []
                     
-                    # 기본값 설정
+                    # 헤더 설명
+                    byte_desc.append(f"Byte 0: 헤더 ({command['header']})")
+                    
+                    # 각 바이트 설명 생성
                     for pos, field in command['structure'].items():
                         pos = int(pos)
-                        if 'default' in field:
-                            example[pos] = int(field['default'], 16)
-                            
-                    # 전원 값 설정 (있는 경우에만)
-                    for pos, field in command['structure'].items():
-                        pos = int(pos)
-                        if 'values' in field and ('on' in field['values'] or 'off' in field['values']):
-                            example[pos] = int(field['values'].get('on', '0x00'), 16)
+                        if field['name'] == 'empty':
+                            byte_desc.append(f"Byte {pos}: 예약됨 (00)")
+                        elif field['name'] == 'checksum':
+                            byte_desc.append(f"Byte {pos}: 체크섬")
+                        else:
+                            desc = f"Byte {pos}: {field['name']}"
+                            if 'values' in field:
+                                values = [f"{k}={v}" for k, v in field['values'].items()]
+                                desc += f" ({', '.join(values)})"
+                            byte_desc.append(desc)
                     
-                    structures[device_type][command_name] = {
-                        'structure': command['structure'],
-                        'example': ' '.join([format(b, '02X') for b in example])
+                    # 예시 패킷 생성
+                    if device_name == 'Thermo':
+                        examples.extend([
+                            {"packet": "040104810000", "desc": "1번 온도조절기 켜기"},
+                            {"packet": "040103180000", "desc": "1번 온도조절기 온도 24도로 설정"}
+                        ])
+                    elif device_name == 'Light':
+                        examples.extend([
+                            {"packet": "310100000000", "desc": "1번 조명 끄기"},
+                            {"packet": "310101000000", "desc": "1번 조명 켜기"}
+                        ])
+                    elif device_name == 'Fan':
+                        examples.extend([
+                            {"packet": "780101040000", "desc": "1번 환기장치 켜기"},
+                            {"packet": "780102000000", "desc": "1번 환기장치 약(low)으로 설정"}
+                        ])
+                    
+                    structures[device_name] = {
+                        "type": device['type'],
+                        "header": command['header'],
+                        "byte_desc": byte_desc,
+                        "examples": examples
                     }
-            
+             
             return jsonify(structures)
     
     def run(self):
