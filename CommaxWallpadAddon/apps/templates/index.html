@@ -180,6 +180,7 @@
     
     <div class="packet-analyzer">
         <h2>명령 패킷 분석기</h2>
+        <p><small>* 14자리 또는 16자리 패킷을 입력하세요. 14자리만 입력하면 체크섬이 자동으로 계산됩니다.</small></p>
         <div>
             <input type="text" id="commandInput" placeholder="명령 패킷 입력 (예: F70100000000)">
             <button onclick="analyzePacket()">분석</button>
@@ -206,6 +207,7 @@
     
     <div class="packet-analyzer">
         <h2>상태 패킷 분석기</h2>
+        <p><small>* 14자리 또는 16자리 패킷을 입력하세요. 14자리만 입력하면 체크섬이 자동으로 계산됩니다.</small></p>
         <div>
             <input type="text" id="stateInput" placeholder="상태 패킷 입력 (예: B0010000000000)">
             <button onclick="analyzeStatePacket()">분석</button>
@@ -314,17 +316,34 @@
                             <h3>${deviceName} (${info.type})</h3>
                             <table class="packet-reference-table">
                                 <tr>
-                                    <th style="width: 50%">패킷 구조</th>
-                                    <th>예시</th>
+                                    <th colspan="2">명령 패킷</th>
                                 </tr>
                                 <tr>
                                     <td>
                                         <div style="font-family: monospace;">
-                                            ${info.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
+                                            ${info.command.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
                                         </div>
                                     </td>
                                     <td>
-                                        ${info.examples.map(ex => `
+                                        ${info.command.examples.map(ex => `
+                                            <div style="margin-bottom: 10px;">
+                                                <code>${ex.packet}</code><br>
+                                                <small>${ex.desc}</small>
+                                            </div>
+                                        `).join('')}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th colspan="2">상태 패킷</th>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div style="font-family: monospace;">
+                                            ${info.state.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        ${info.state.examples.map(ex => `
                                             <div style="margin-bottom: 10px;">
                                                 <code>${ex.packet}</code><br>
                                                 <small>${ex.desc}</small>
@@ -381,7 +400,7 @@
                     }
                     
                     if (data.expected_state) {
-                        html += `<p>예상되는 상태 패킷: <strong>${data.expected_state.expected_packet}</strong></p>`;
+                        html += `<p>예상되는 상태 패킷: <strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" style="color: #2196F3; text-decoration: none;">${data.expected_state.expected_packet}</a></strong></p>`;
                         html += `<p>필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
                     } else {
                         html += '<p>예상 상태 패킷을 생성할 수 없습니다.</p>';
@@ -532,6 +551,13 @@
             .catch(error => {
                 resultDiv.innerHTML = `<p class="error">요청 실패: ${error}</p>`;
             });
+        }
+        
+        function analyzeExpectedState(packet) {
+            document.getElementById('stateInput').value = packet;
+            analyzeStatePacket();
+            // 상태 패킷 분석기로 스크롤
+            document.getElementById('stateInput').scrollIntoView({ behavior: 'smooth' });
         }
         
         // Enter 키 입력 처리 (상태 패킷)

@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request # type: ignore
 import threading
 import logging
 import os
+from typing import Dict, Any
 
 class WebServer:
     def __init__(self, wallpad_controller):
@@ -126,51 +127,11 @@ class WebServer:
         def get_packet_structures():
             structures = {}
             for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
-                if 'command' in device:
-                    command = device['command']
-                    byte_desc = []
-                    examples = []
-                    
-                    # 헤더 설명
-                    byte_desc.append(f"Byte 0: 헤더 ({command['header']})")
-                    
-                    # 각 바이트 설명 생성
-                    for pos, field in command['structure'].items():
-                        pos = int(pos)
-                        if field['name'] == 'empty':
-                            byte_desc.append(f"Byte {pos}: 예약됨 (00)")
-                        elif field['name'] == 'checksum':
-                            byte_desc.append(f"Byte {pos}: 체크섬")
-                        else:
-                            desc = f"Byte {pos}: {field['name']}"
-                            if 'values' in field:
-                                values = [f"{k}={v}" for k, v in field['values'].items()]
-                                desc += f" ({', '.join(values)})"
-                            byte_desc.append(desc)
-                    
-                    # 예시 패킷 생성
-                    if device_name == 'Thermo':
-                        examples.extend([
-                            {"packet": "040104810000", "desc": "1번 온도조절기 켜기"},
-                            {"packet": "040103180000", "desc": "1번 온도조절기 온도 24도로 설정"}
-                        ])
-                    elif device_name == 'Light':
-                        examples.extend([
-                            {"packet": "310100000000", "desc": "1번 조명 끄기"},
-                            {"packet": "310101000000", "desc": "1번 조명 켜기"}
-                        ])
-                    elif device_name == 'Fan':
-                        examples.extend([
-                            {"packet": "780101040000", "desc": "1번 환기장치 켜기"},
-                            {"packet": "780102000000", "desc": "1번 환기장치 약(low)으로 설정"}
-                        ])
-                    
-                    structures[device_name] = {
-                        "type": device['type'],
-                        "header": command['header'],
-                        "byte_desc": byte_desc,
-                        "examples": examples
-                    }
+                structures[device_name] = {
+                    "type": device['type'],
+                    "command": self._get_packet_structure(device_name, device, 'command'),
+                    "state": self._get_packet_structure(device_name, device, 'state')
+                }
              
             return jsonify(structures)
     
@@ -184,3 +145,69 @@ class WebServer:
             use_reloader=False,
             threaded=True
         ) 
+    
+    def _get_packet_structure(self, device_name: str, device: Dict[str, Any], packet_type: str) -> Dict[str, Any]:
+        """패킷 구조 정보를 생성합니다."""
+        if packet_type not in device:
+            return {}
+            
+        structure = device[packet_type]
+        byte_desc = []
+        examples = []
+        
+        # 헤더 설명
+        byte_desc.append(f"Byte 0: 헤더 ({structure['header']})")
+        
+        # 각 바이트 설명 생성
+        for pos, field in structure['structure'].items():
+            pos = int(pos)
+            if field['name'] == 'empty':
+                byte_desc.append(f"Byte {pos}: 예약됨 (00)")
+            elif field['name'] == 'checksum':
+                byte_desc.append(f"Byte {pos}: 체크섬")
+            else:
+                desc = f"Byte {pos}: {field['name']}"
+                if 'values' in field:
+                    values = [f"{k}={v}" for k, v in field['values'].items()]
+                    desc += f" ({', '.join(values)})"
+                byte_desc.append(desc)
+        
+        # 예시 패킷 생성
+        if packet_type == 'command':
+            if device_name == 'Thermo':
+                examples.extend([
+                    {"packet": "040104810000", "desc": "1번 온도조절기 켜기"},
+                    {"packet": "040103180000", "desc": "1번 온도조절기 온도 24도로 설정"}
+                ])
+            elif device_name == 'Light':
+                examples.extend([
+                    {"packet": "310100000000", "desc": "1번 조명 끄기"},
+                    {"packet": "310101000000", "desc": "1번 조명 켜기"}
+                ])
+            elif device_name == 'Fan':
+                examples.extend([
+                    {"packet": "780101040000", "desc": "1번 환기장치 켜기"},
+                    {"packet": "780102000000", "desc": "1번 환기장치 약(low)으로 설정"}
+                ])
+        else:  # state
+            if device_name == 'Thermo':
+                examples.extend([
+                    {"packet": "828101180000", "desc": "1번 온도조절기 대기 상태 (현재 24도, 설정 24도)"},
+                    {"packet": "828301180000", "desc": "1번 온도조절기 난방 중 (현재 24도, 설정 24도)"}
+                ])
+            elif device_name == 'Light':
+                examples.extend([
+                    {"packet": "B0000000000000", "desc": "1번 조명 꺼짐"},
+                    {"packet": "B0010000000000", "desc": "1번 조명 켜짐"}
+                ])
+            elif device_name == 'Fan':
+                examples.extend([
+                    {"packet": "F6040100000000", "desc": "1번 환기장치 켜짐 (약)"},
+                    {"packet": "F6000000000000", "desc": "1번 환기장치 꺼짐"}
+                ])
+        
+        return {
+            "header": structure['header'],
+            "byte_desc": byte_desc,
+            "examples": examples
+        } 

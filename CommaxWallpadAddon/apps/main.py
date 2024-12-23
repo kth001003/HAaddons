@@ -241,15 +241,17 @@ class WallpadController:
                 if topics[1] == 'recv':
                     raw_data = msg.payload.hex().upper()
                     self.logger.signal(f'->> 수신: {raw_data}')
-                    self.COLLECTDATA['recv_data'].add(raw_data)
-                    if len(self.COLLECTDATA['recv_data']) > 100:
-                        self.COLLECTDATA['recv_data'] = set(list(self.COLLECTDATA['recv_data'])[-100:])
-                    
-                    # 수신 간격 계산
+                    if self.loop and self.loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            self.process_elfin_data(raw_data),
+                            self.loop
+                        )
                     current_time = time.time_ns()
-                    if 'last_recv_time' in self.COLLECTDATA:
-                        interval = current_time - self.COLLECTDATA['last_recv_time']
                     self.COLLECTDATA['last_recv_time'] = current_time
+                    # # 수신 간격 계산
+                    # if 'last_recv_time' in self.COLLECTDATA:
+                    #     interval = current_time - self.COLLECTDATA['last_recv_time']
+                    #     self.logger.debug(f'수신 간격: {interval} ns')
                     
                 elif topics[1] == 'send':
                     raw_data = msg.payload.hex().upper()
