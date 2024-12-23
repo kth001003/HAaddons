@@ -1,3 +1,79 @@
+# pylint: disable=all
+# flake8: noqa
+# type: ignore
+# mypy: ignore-errors
+# ruff: noqa
+
+# 기기 정보 및 패킷 구조 정의
+DEVICE_LISTS = {
+    'Light': {
+        'type': 'light',
+        'list': [
+            {'commandON': '3101010000000033', 'commandOFF': '3101000000000032',
+             'stateON': 'B0010100000000B2', 'stateOFF': 'B0000100000000B1'},
+            {'commandON': '3102010000000034', 'commandOFF': '3102000000000033',
+             'stateON': 'B0020100000000B3', 'stateOFF': 'B0020000000000B2'},
+            {'commandON': '3103010000000035', 'commandOFF': '3103000000000034',
+             'stateON': 'B0030100000000B4', 'stateOFF': 'B0030000000000B3'}
+        ]
+    },
+    'Thermo': {
+        'type': 'climate',
+        'list': [
+            {'commandON': '040104810000008A', 'commandOFF': '0401040000000009',
+             'stateON': ['8281012322000049', '8283012322000047'], 'stateOFF': '8280012322000048'},
+            {'commandON': '040204810000008B', 'commandOFF': '0402040000000008',
+             'stateON': ['8281022322000048', '8283022322000046'], 'stateOFF': '8280022322000049'},
+            {'commandON': '040304810000008C', 'commandOFF': '0403040000000007',
+             'stateON': ['8281032322000047', '8283032322000045'], 'stateOFF': '828003232200004A'},
+            {'commandON': '040404810000008D', 'commandOFF': '0404040000000006',
+             'stateON': ['8281042322000046', '8283042322000044'], 'stateOFF': '828004232200004B'},
+            {'commandON': '040504810000008E', 'commandOFF': '0405040000000005',
+             'stateON': ['8281052322000045', '8283052322000043'], 'stateOFF': '828005232200004C'}
+        ]
+    },
+    'LightBreaker': {
+        'type': 'switch',
+        'list': [
+            {'commandON': '2201010100000025', 'commandOFF': '2201000100000024',
+             'stateON': 'A0010100001500B7', 'stateOFF': 'A0000100001500B6'}
+        ]
+    },
+    'Gas': {
+        'type': 'button',
+        'list': [
+            {'commandOFF': '1101800000000092',
+             'stateON': '90A0A000000000D0', 'stateOFF': '9050500000000030'}
+        ]
+    },
+    'Outlet': {
+        'type': 'switch',
+        'list': [
+            {'commandON': '7A0101010000007D', 'commandOFF': '7A0101000000007C',
+             'stateON': 'F90101110000000C', 'stateOFF': 'F90001110000000B'},
+            {'commandON': '7A0201010000007E', 'commandOFF': '7A0201000000007D',
+             'stateON': 'F90201110000000D', 'stateOFF': 'F90201110000000D'}
+        ]
+    },
+    'Fan': {
+        'type': 'fan',
+        'list': [
+            {'commandON': '780101040000007C', 'commandOFF': '780101000000007A',
+             'stateON': ['F6040101000000FC', 'F6040102000000FD', 'F6040103000000FE'],
+             'stateOFF': 'F6000100000000F7',
+             'CHANGE': ['780102010000007C', '780102020000007D', '780102030000007E']}
+        ]
+    },
+    'EV': {
+        'type': 'button',
+        'list': [
+            {'commandON': 'A0010100081500BF',
+             'stateON': '2301000000000024'}
+        ]
+    }
+}
+
+
 import paho.mqtt.client as mqtt
 import json
 import time
@@ -164,7 +240,6 @@ def do_work(config, device_list):
         else:
             return None
 
-    DEVICE_LISTS = {}
     for name in device_list:
         device_info = make_device_info(name)
         if device_info:

@@ -242,6 +242,16 @@
             color: #666;
             margin-bottom: 3px;
         }
+        .packet {
+            font-family: monospace;
+            letter-spacing: 0.5em;  /* 글자 간격 */
+            margin-right: -0.5em;   /* 마지막 글자 뒤의 여백 제거 */
+        }
+        .byte-spaced {
+            font-family: monospace;
+            letter-spacing: 0.5em;
+            margin-right: -0.5em;
+        }
     </style>
 </head>
 <body>
@@ -369,7 +379,7 @@
                     html += `<p>기기: <strong>${data.device}</strong></p>`;
                     
                     if (data.checksum) {
-                        html += `<p>체크섬이 포함된 패킷: <strong>${data.checksum}</strong></p>`;
+                        html += `<p>체크섬이 포함된 패킷: <strong class="byte-spaced">${data.checksum}</strong></p>`;
                     } else {
                         html += '<p class="error">체크섬 계산 실패</p>';
                     }
@@ -385,7 +395,7 @@
                     
                     if (packetType === 'command' && data.expected_state) {
                         html += `<h4>예상되는 상태 패킷:</h4>`;
-                        html += `<p><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" style="color: #2196F3; text-decoration: none;">${data.expected_state.expected_packet}</a></strong></p>`;
+                        html += `<p><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" style="color: #2196F3; text-decoration: none;" class="byte-spaced">${data.expected_state.expected_packet}</a></strong></p>`;
                         html += `<p>필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
                     }
                     
@@ -489,7 +499,7 @@
                                     <td>
                                         ${info.command.examples.map(ex => `
                                             <div style="margin-bottom: 10px;">
-                                                <code>${ex.packet}</code><br>
+                                                <code class="byte-spaced">${ex.packet}</code><br>
                                                 <small>${ex.desc}</small>
                                             </div>
                                         `).join('')}
@@ -507,7 +517,7 @@
                                     <td>
                                         ${info.state.examples.map(ex => `
                                             <div style="margin-bottom: 10px;">
-                                                <code>${ex.packet}</code><br>
+                                                <code class="byte-spaced">${ex.packet}</code><br>
                                                 <small>${ex.desc}</small>
                                             </div>
                                         `).join('')}
@@ -568,6 +578,7 @@
                 const option = document.createElement('option');
                 option.value = packet;
                 option.textContent = packet;
+                option.className = 'byte-spaced';  // 옵션에도 간격 적용
                 select.appendChild(option);
             });
         }
@@ -710,7 +721,7 @@
                     html += `<p>기기: <strong>${data.device}</strong></p>`;
                     
                     if (data.checksum) {
-                        html += `<p>체크섬이 포함된 패킷: <strong>${data.checksum}</strong></p>`;
+                        html += `<p>체크섬이 포함된 패킷: <strong class="byte-spaced">${data.checksum}</strong></p>`;
                     } else {
                         html += '<p class="error">체크섬 계산 실패</p>';
                     }

@@ -419,8 +419,44 @@ class WallpadController:
                 for idx in range(1, device_count + 1):
                     device_id = f"{device_name}{idx}"
                     
-                    if device_type == 'switch':  # 조명
-                        config_topic = f"{discovery_prefix}/switch/{device_id}/config"
+                    if device_type == 'switch':  # 기타 스위치
+                        if device_name == 'Outlet':  # 콘센트인 경우
+                            # 스위치 설정
+                            config_topic = f"{discovery_prefix}/switch/{device_id}/config"
+                            payload = {
+                                "name": f"{device_name} {idx}",
+                                "unique_id": f"commax_{device_id}",
+                                "state_topic": self.STATE_TOPIC.format(device_id, "power"),
+                                "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
+                                "payload_on": "ON",
+                                "payload_off": "OFF",
+                                "device_class": "outlet",
+                                "device": device_base_info
+                            }
+                            # 전력 센서 설정
+                            config_topic = f"{discovery_prefix}/sensor/{device_id}_watt/config"
+                            payload = {
+                                "name": f"{device_name} {idx} Power",
+                                "unique_id": f"commax_{device_id}_watt",
+                                "state_topic": self.STATE_TOPIC.format(device_id, "watt"),
+                                "unit_of_measurement": "W",
+                                "device_class": "power",
+                                "state_class": "measurement",
+                                "device": device_base_info
+                            }
+                        else:  # 일반 스위치인 경우
+                            config_topic = f"{discovery_prefix}/switch/{device_id}/config"
+                            payload = {
+                                "name": f"{device_name} {idx}",
+                                "unique_id": f"commax_{device_id}",
+                                "state_topic": self.STATE_TOPIC.format(device_id, "power"),
+                                "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
+                                "payload_on": "ON",
+                                "payload_off": "OFF",
+                                "device": device_base_info
+                            }
+                    elif device_type == 'light':  # 조명
+                        config_topic = f"{discovery_prefix}/light/{device_id}/config"
                         payload = {
                             "name": f"{device_name} {idx}",
                             "unique_id": f"commax_{device_id}",
@@ -430,7 +466,6 @@ class WallpadController:
                             "payload_off": "OFF",
                             "device": device_base_info
                         }
-                        
                     elif device_type == 'fan':  # 환기장치
                         config_topic = f"{discovery_prefix}/fan/{device_id}/config"
                         payload = {
@@ -464,7 +499,15 @@ class WallpadController:
                             "max_temp": 30,
                             "temp_step": 1,
                         }
-                    
+                    elif device_type == 'button':  # 버튼형 기기 (가스밸브, 엘리베이터 호출)
+                        config_topic = f"{discovery_prefix}/button/{device_id}/config"
+                        payload = {
+                            "name": f"{device_name} {idx}",
+                            "unique_id": f"commax_{device_id}",
+                            "state_topic": self.STATE_TOPIC.format(device_id, "power"),
+                            "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
+                            "device": device_base_info
+                        }
                     if 'payload' in locals():
                         self.publish_mqtt(config_topic, json.dumps(payload), retain=True)
 

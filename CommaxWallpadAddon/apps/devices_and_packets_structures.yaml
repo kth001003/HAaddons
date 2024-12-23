@@ -20,10 +20,6 @@ Light:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   deviceId: "1"
-    #   power: "2"
-    #   checksum: "7"
   state:
     header: "B0"
     structure:
@@ -44,10 +40,6 @@ Light:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   power: "1"
-    #   deviceId: "2"
-    #   checksum: "7"
 
 LightBreaker:
   type: switch
@@ -72,11 +64,6 @@ LightBreaker:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   deviceId: "1"
-    #   power: "2"
-    #   fixed: "3"
-    #   checksum: "7"
   state:
     header: "A0"
     structure:
@@ -98,11 +85,6 @@ LightBreaker:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   power: "1"
-    #   deviceId: "2"
-    #   fixed: "5"
-    #   checksum: "7"
 
 Thermo:
   type: climate
@@ -130,11 +112,6 @@ Thermo:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   deviceId: "1"
-    #   commandType: "2"
-    #   value: "3"
-    #   checksum: "7"
   state:
     header: "82"
     structure:
@@ -156,12 +133,6 @@ Thermo:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   power: "1"
-    #   deviceId: "2"
-    #   currentTemp: "3"
-    #   targetTemp: "4"
-    #   checksum: "7"
 
 Gas:
   type: button
@@ -184,10 +155,6 @@ Gas:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   deviceId: "1"
-    #   power: "2"
-    #   checksum: "7"
   state:
     header: "90"
     structure:
@@ -208,10 +175,6 @@ Gas:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   power: "1"
-    #   powerRepeat: "2"
-    #   checksum: "7"
 
 Outlet:
   type: switch
@@ -221,7 +184,8 @@ Outlet:
       "1":
         name: deviceId
       "2":
-        name: deviceIdRepeat
+        name: fixed
+        value: "01"
       "3":
         name: power
         values:
@@ -235,11 +199,6 @@ Outlet:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   deviceId: "1"
-    #   deviceIdRepeat: "2"
-    #   power: "3"
-    #   checksum: "7"
   state:
     header: "F9"
     structure:
@@ -254,7 +213,7 @@ Outlet:
         name: fixed1
         value: "11"
       "4":
-        name: fixed2
+        name: wattage
         value: "10"
       "5": 
         name: empty
@@ -262,12 +221,6 @@ Outlet:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   power: "1"
-    #   deviceId: "2"
-    #   fixed1: "3"
-    #   fixed2: "4"
-    #   checksum: "7"
 
 Fan:
   type: fan
@@ -284,10 +237,10 @@ Fan:
       "3":
         name: value
         values:
-          low: "00"
-          medium: "01"
-          high: "02"
           "off": "00"
+          low: "01"
+          medium: "02"
+          high: "03"
           "on": "04"
       "4": 
         name: empty
@@ -297,11 +250,6 @@ Fan:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   deviceId: "1"
-    #   commandType: "2"
-    #   value: "3"
-    #   checksum: "7"
   state:
     header: "F6"
     structure:
@@ -314,6 +262,10 @@ Fan:
         name: deviceId
       "3":
         name: speed
+        values:
+          low: "01"
+          medium: "02"
+          high: "03"
       "4": 
         name: empty
       "5": 
@@ -322,11 +274,6 @@ Fan:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   power: "1"
-    #   deviceId: "2"
-    #   speed: "3"
-    #   checksum: "7"
 
 EV:
   type: button
@@ -341,7 +288,7 @@ EV:
           "on": "01"
       "3":
         name: fixed1
-        value: "00"
+        value: "01"
       "4":
         name: fixed2
         value: "08"
@@ -349,29 +296,20 @@ EV:
         name: fixed3
         value: "15"
       "6":
-        name: fixed4
-        value: "00"
+        name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   deviceId: "1"
-    #   power: "2"
-    #   fixed1: "3"
-    #   fixed2: "4"
-    #   fixed3: "5"
-    #   fixed4: "6"
-    #   checksum: "7"
   state:
     header: "23"
     structure:
       "1":
+        name: deviceId
+      "2":
         name: power
         values:
           "on": "01"
-      "2":
-        name: deviceId
-      "3": 
-        name: empty
+      "3":
+        name: floor
       "4": 
         name: empty
       "5": 
@@ -380,7 +318,3 @@ EV:
         name: empty
       "7":
         name: checksum
-    # fieldPositions:
-    #   power: "1"
-    #   deviceId: "2"
-    #   checksum: "7" 
