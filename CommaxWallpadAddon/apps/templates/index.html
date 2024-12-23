@@ -353,7 +353,7 @@
                 "Unknown";
             
             return `
-                <div class="packet-log-entry ${type} ${deviceInfo.name === 'Unknown' ? 'unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}', '${type}')">
+                <div class="packet-log-entry ${type} ${deviceInfo.name === 'Unknown' ? 'unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
                     <span class="timestamp">${timestamp}</span>
                     <span class="packet-type-label">[${type.toUpperCase()}]</span>
                     <span class="packet">${packet.packet}</span>
@@ -362,13 +362,8 @@
         }
         
         function handlePacketClick(packet, type) {
-            if (type === 'send') {
-                document.getElementById('commandInput').value = packet;
-                analyzePacket();
-            } else {
-                document.getElementById('stateInput').value = packet;
-                analyzeStatePacket();
-            }
+            document.getElementById('packetInput').value = packet;
+            analyzePacket();
         }
         
         // 패킷 구조 정보 로드
@@ -734,10 +729,8 @@
         }
         
         function analyzeExpectedState(packet) {
-            document.getElementById('stateInput').value = packet;
-            analyzeStatePacket();
-            // 상태 패킷 분석기로 스크롤
-            document.getElementById('stateInput').scrollIntoView({ behavior: 'smooth' });
+            document.getElementById('packetInput').value = packet;
+            analyzePacket();
         }
         
         // Enter 키 입력 처리 (상태 패킷)
