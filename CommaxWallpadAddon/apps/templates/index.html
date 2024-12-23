@@ -28,10 +28,107 @@
         button:hover {
             background-color: #45a049;
         }
+        .packet-analyzer {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .packet-result {
+            margin-top: 15px;
+            font-family: monospace;
+        }
+        input[type="text"] {
+            width: 300px;
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error {
+            color: #ff0000;
+        }
+        .packet-reference {
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+        .packet-reference table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .packet-reference th, .packet-reference td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .packet-reference th {
+            background-color: #f0f0f0;
+        }
+        .packet-reference code {
+            background-color: #f8f8f8;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .collapsible {
+            background-color: #eee;
+            color: #444;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+        }
+        .active, .collapsible:hover {
+            background-color: #ccc;
+        }
+        .content {
+            padding: 0 18px;
+            display: none;
+            overflow: hidden;
+            background-color: #f1f1f1;
+        }
     </style>
 </head>
 <body>
     <h1>Commax Wallpad Controller</h1>
+    
+    <div class="packet-analyzer">
+        <h2>패킷 분석기</h2>
+        <div>
+            <input type="text" id="commandInput" placeholder="명령 패킷 입력 (예: F70100000000)">
+            <button onclick="analyzePacket()">분석</button>
+        </div>
+        <div class="packet-result" id="packetResult">
+            <!-- 분석 결과가 여기에 표시됩니다 -->
+        </div>
+        
+        <div class="packet-reference">
+            <button type="button" class="collapsible">📚 명령 패킷 참조 자료</button>
+            <div class="content">
+                <h3>기기별 명령 패킷 구조</h3>
+                <table id="packetReferenceTable">
+                    <thead>
+                        <tr>
+                            <th>기기</th>
+                            <th>헤더</th>
+                            <th>명령 예시</th>
+                            <th>설명</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 동적으로 채워질 내용 -->
+                    </tbody>
+                </table>
+                <p><small>* 모든 패킷은 체크섬이 자동으로 계산되어 추가됩니다.</small></p>
+            </div>
+        </div>
+    </div>
+    
+    <hr>
     
     <button onclick="findDevices()">기기 검색</button>
     
@@ -40,6 +137,90 @@
     </div>
 
     <script>
+        // 패킷 구조 정보 로드
+        function loadPacketStructures() {
+            fetch('./api/packet_structures')
+                .then(response => response.json())
+                .then(structures => {
+                    const tbody = document.querySelector('#packetReferenceTable tbody');
+                    tbody.innerHTML = '';
+                    
+                    for (const [deviceName, info] of Object.entries(structures)) {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${deviceName}</td>
+                            <td><code>${info.header}</code></td>
+                            <td><code>${info.example}</code></td>
+                            <td>${info.description}</td>
+                        `;
+                        tbody.appendChild(row);
+                    }
+                })
+                .catch(error => {
+                    console.error('패킷 구조 로드 실패:', error);
+                });
+        }
+        
+        // 초기 로드 시 패킷 구조 정보 가져오기
+        loadPacketStructures();
+        
+        function analyzePacket() {
+            const commandInput = document.getElementById('commandInput');
+            const resultDiv = document.getElementById('packetResult');
+            const command = commandInput.value.trim();
+            
+            if (!command) {
+                resultDiv.innerHTML = '<p class="error">명령 패킷을 입력하세요.</p>';
+                return;
+            }
+            
+            if (!/^[0-9A-Fa-f]+$/.test(command)) {
+                resultDiv.innerHTML = '<p class="error">유효한 16진수 값을 입력하세요.</p>';
+                return;
+            }
+            
+            fetch('./api/analyze_packet', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ command: command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let html = '<h3>분석 결과:</h3>';
+                    
+                    if (data.checksum) {
+                        html += `<p>체크섬이 포함된 패킷: <strong>${data.checksum}</strong></p>`;
+                    } else {
+                        html += '<p class="error">체크섬 계산 실패</p>';
+                    }
+                    
+                    if (data.expected_state) {
+                        html += `<p>예상되는 상태 패킷: <strong>${data.expected_state.expected_packet}</strong></p>`;
+                        html += `<p>필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
+                    } else {
+                        html += '<p>예상 상태 패킷을 생성할 수 없습니다.</p>';
+                    }
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<p class="error">오류: ${data.error}</p>`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<p class="error">요청 실패: ${error}</p>`;
+            });
+        }
+        
+        // Enter 키 입력 처리
+        document.getElementById('commandInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                analyzePacket();
+            }
+        });
+        
         function updateDeviceList() {
             fetch('./api/devices')
                 .then(response => response.json())
@@ -77,6 +258,20 @@
         
         // 30초마다 상태 업데이트
         setInterval(updateDeviceList, 30000);
+
+        // 접을 수 있는 참조 자료 섹션 기능
+        var coll = document.getElementsByClassName("collapsible");
+        for (var i = 0; i < coll.length; i++) {
+            coll[i].addEventListener("click", function() {
+                this.classList.toggle("active");
+                var content = this.nextElementSibling;
+                if (content.style.display === "block") {
+                    content.style.display = "none";
+                } else {
+                    content.style.display = "block";
+                }
+            });
+        }
     </script>
 </body>
 </html> 
