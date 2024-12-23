@@ -348,7 +348,7 @@
             }
             
             if (!/^[0-9A-Fa-f]{14}$/.test(packet) && !/^[0-9A-Fa-f]{16}$/.test(packet)) {
-                resultDiv.innerHTML = '<p class="error">패��은 7바이트(14자리) 또는 8바이트(16자리)여야 합니다.</p>';
+                resultDiv.innerHTML = '<p class="error">패킷은 7바이트(14자리) 또는 8바이트(16자리)여야 합니다.</p>';
                 return;
             }
             
@@ -405,6 +405,15 @@
                         html += `<h4>예상되는 상태 패킷:</h4>`;
                         html += `<p><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" style="color: #2196F3; text-decoration: none;" class="byte-spaced" data-packet="${formattedExpectedPacket}">&nbsp;</a></strong></p>`;
                         html += `<p>필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
+                        
+                        if (data.expected_state.analysis && data.expected_state.analysis.length > 0) {
+                            html += '<h4>예상 패킷 바이트별 분석:</h4>';
+                            html += '<div style="font-family: monospace;">';
+                            data.expected_state.analysis.forEach(desc => {
+                                html += `<div>${desc}</div>`;
+                            });
+                            html += '</div>';
+                        }
                     }
                     
                     resultDiv.innerHTML = html;
@@ -665,7 +674,7 @@
         
         // 주기적 업데이트 설정
         setInterval(updateDeviceList, 30000);  // 30초마다 상태 업데이트
-        setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이��
+        setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
         
         // 패킷 로그 지우기
         function clearPacketLog() {
@@ -799,7 +808,7 @@
                     // 명든 헤더 옵션 추가
                     const headerSelect = document.getElementById('packetHeaderSelect');
                     
-                    // 명령 패킷 ��더
+                    // 명령 패킷 헤더
                     const commandGroup = document.createElement('optgroup');
                     commandGroup.label = '명령 패킷';
                     data.headers.command.forEach(header => {
