@@ -41,7 +41,7 @@
 
     <script>
         function updateDeviceList() {
-            fetch('/api/devices')
+            fetch('./api/devices')
                 .then(response => response.json())
                 .then(devices => {
                     const deviceList = document.getElementById('deviceList');
@@ -61,7 +61,7 @@
         }
 
         function findDevices() {
-            fetch('/api/find_devices', {
+            fetch('./api/find_devices', {
                 method: 'POST'
             })
             .then(response => response.json())

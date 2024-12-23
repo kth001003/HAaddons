@@ -1,6 +1,7 @@
 from flask import Flask, render_template, jsonify, request # type: ignore
 import threading
 import logging
+import os
 
 class WebServer:
     def __init__(self, wallpad_controller):
@@ -10,6 +11,9 @@ class WebServer:
         # 로깅 비활성화
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
+        
+        # Home Assistant Ingress 베이스 URL 설정
+        self.base_url = os.environ.get('SUPERVISOR_TOKEN', '')
         
         # 라우트 설정
         @self.app.route('/')
@@ -33,4 +37,9 @@ class WebServer:
         threading.Thread(target=self._run_server, daemon=True).start()
         
     def _run_server(self):
-        self.app.run(host='0.0.0.0', port=8099) 
+        self.app.run(
+            host='0.0.0.0',
+            port=8099,
+            use_reloader=False,
+            threaded=True
+        ) 
