@@ -244,13 +244,19 @@
         }
         .packet {
             font-family: monospace;
-            letter-spacing: 0.5em;  /* 글자 간격 */
-            margin-right: -0.5em;   /* 마지막 글자 뒤의 여백 제거 */
+            word-spacing: 1em;  /* 바이트 간격 */
+        }
+        .packet::before {
+            content: attr(data-packet);
+            letter-spacing: 0;  /* 각 바이트 내 글자 간격 제거 */
         }
         .byte-spaced {
             font-family: monospace;
-            letter-spacing: 0.5em;
-            margin-right: -0.5em;
+            word-spacing: 1em;
+        }
+        .byte-spaced::before {
+            content: attr(data-packet);
+            letter-spacing: 0;
         }
     </style>
 </head>
@@ -342,7 +348,7 @@
             }
             
             if (!/^[0-9A-Fa-f]{14}$/.test(packet) && !/^[0-9A-Fa-f]{16}$/.test(packet)) {
-                resultDiv.innerHTML = '<p class="error">패킷은 7바이트(14자리) 또는 8바이트(16자리)여야 합니다.</p>';
+                resultDiv.innerHTML = '<p class="error">패��은 7바이트(14자리) 또는 8바이트(16자리)여야 합니다.</p>';
                 return;
             }
             
@@ -379,7 +385,8 @@
                     html += `<p>기기: <strong>${data.device}</strong></p>`;
                     
                     if (data.checksum) {
-                        html += `<p>체크섬이 포함된 패킷: <strong class="byte-spaced">${data.checksum}</strong></p>`;
+                        const formattedChecksum = data.checksum.match(/.{2}/g).join(' ');
+                        html += `<p>체크섬이 포함된 패킷: <strong class="byte-spaced" data-packet="${formattedChecksum}">&nbsp;</strong></p>`;
                     } else {
                         html += '<p class="error">체크섬 계산 실패</p>';
                     }
@@ -394,8 +401,9 @@
                     }
                     
                     if (packetType === 'command' && data.expected_state) {
+                        const formattedExpectedPacket = data.expected_state.expected_packet.match(/.{2}/g).join(' ');
                         html += `<h4>예상되는 상태 패킷:</h4>`;
-                        html += `<p><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" style="color: #2196F3; text-decoration: none;" class="byte-spaced">${data.expected_state.expected_packet}</a></strong></p>`;
+                        html += `<p><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" style="color: #2196F3; text-decoration: none;" class="byte-spaced" data-packet="${formattedExpectedPacket}">&nbsp;</a></strong></p>`;
                         html += `<p>필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
                     }
                     
@@ -445,11 +453,14 @@
                 `${deviceInfo.name} ${deviceInfo.packet_type}` : 
                 "Unknown";
             
+            // 패킷을 2자리씩 분할
+            const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
+            
             return `
                 <div class="packet-log-entry ${type} ${deviceInfo.name === 'Unknown' ? 'unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
                     <span class="timestamp">${timestamp}</span>
                     <span class="packet-type-label">[${type.toUpperCase()}]</span>
-                    <span class="packet">${packet.packet}</span>
+                    <span class="packet" data-packet="${formattedPacket}">&nbsp;</span>
                     <span class="device-label">[${deviceText}]</span>
                 </div>`;
         }
@@ -497,12 +508,15 @@
                                         </div>
                                     </td>
                                     <td>
-                                        ${info.command.examples.map(ex => `
-                                            <div style="margin-bottom: 10px;">
-                                                <code class="byte-spaced">${ex.packet}</code><br>
-                                                <small>${ex.desc}</small>
-                                            </div>
-                                        `).join('')}
+                                        ${info.command.examples.map(ex => {
+                                            const formattedPacket = ex.packet.match(/.{2}/g).join(' ');
+                                            return `
+                                                <div style="margin-bottom: 10px;">
+                                                    <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code><br>
+                                                    <small>${ex.desc}</small>
+                                                </div>
+                                            `;
+                                        }).join('')}
                                     </td>
                                 </tr>
                                 <tr>
@@ -515,12 +529,15 @@
                                         </div>
                                     </td>
                                     <td>
-                                        ${info.state.examples.map(ex => `
-                                            <div style="margin-bottom: 10px;">
-                                                <code class="byte-spaced">${ex.packet}</code><br>
-                                                <small>${ex.desc}</small>
-                                            </div>
-                                        `).join('')}
+                                        ${info.state.examples.map(ex => {
+                                            const formattedPacket = ex.packet.match(/.{2}/g).join(' ');
+                                            return `
+                                                <div style="margin-bottom: 10px;">
+                                                    <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code><br>
+                                                    <small>${ex.desc}</small>
+                                                </div>
+                                            `;
+                                        }).join('')}
                                     </td>
                                 </tr>
                             </table>
@@ -575,10 +592,12 @@
             
             // 히스토리 옵션 추가
             history.forEach(packet => {
+                const formattedPacket = packet.match(/.{2}/g).join(' ');
                 const option = document.createElement('option');
                 option.value = packet;
-                option.textContent = packet;
-                option.className = 'byte-spaced';  // 옵션에도 간격 적용
+                option.setAttribute('data-packet', formattedPacket);
+                option.className = 'byte-spaced';
+                option.innerHTML = '&nbsp;';
                 select.appendChild(option);
             });
         }
@@ -646,7 +665,7 @@
         
         // 주기적 업데이트 설정
         setInterval(updateDeviceList, 30000);  // 30초마다 상태 업데이트
-        setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
+        setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이��
         
         // 패킷 로그 지우기
         function clearPacketLog() {
@@ -780,7 +799,7 @@
                     // 명든 헤더 옵션 추가
                     const headerSelect = document.getElementById('packetHeaderSelect');
                     
-                    // 명령 패킷 헤더
+                    // 명령 패킷 ��더
                     const commandGroup = document.createElement('optgroup');
                     commandGroup.label = '명령 패킷';
                     data.headers.command.forEach(header => {
