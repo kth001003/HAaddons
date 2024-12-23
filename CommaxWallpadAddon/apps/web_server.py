@@ -60,49 +60,27 @@ class WebServer:
             
         @self.app.route('/api/packet_structures')
         def get_packet_structures():
-            if not self.wallpad_controller.DEVICE_STRUCTURE:
-                return jsonify({"error": "Device structure not initialized"}), 400
-                
             structures = {}
-            for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
-                if 'command' in device:
-                    command = device['command']
-                    example = bytearray([0] * 7)  # 7바이트 (체크섬 제외)
-                    desc_parts = []
+            for device_type, commands in self.wallpad_controller.PACKET_STRUCTURE.items():
+                structures[device_type] = {}
+                for command_name, command in commands.items():
+                    example = [0x00] * len(command['structure'])
                     
-                    # 헤더 설정
-                    example[0] = int(command['header'], 16)
+                    # 기본값 설정
+                    for pos, field in command['structure'].items():
+                        pos = int(pos)
+                        if 'default' in field:
+                            example[pos] = int(field['default'], 16)
+                            
+                    # 전원 값 설정 (있는 경우에만)
+                    for pos, field in command['structure'].items():
+                        pos = int(pos)
+                        if 'values' in field and ('on' in field['values'] or 'off' in field['values']):
+                            example[pos] = int(field['values'].get('on', '0x00'), 16)
                     
-                    # deviceId는 1로 설정
-                    device_id_pos = int(command['fieldPositions']['deviceId'])
-                    example[device_id_pos] = 1
-                    desc_parts.append("01: deviceId")
-                    
-                    # 기기별 특수 처리
-                    if device_name == 'Thermo':
-                        # 온도조절기 전원 켜기 예시
-                        example[int(command['fieldPositions']['commandType'])] = int(command['structure']['2']['values']['power'], 16)
-                        example[int(command['fieldPositions']['value'])] = int(command['structure']['3']['values']['on'], 16)
-                        desc_parts.append("04: power")
-                        desc_parts.append("81: on")
-                    elif device_name == 'Fan':
-                        # 환기장치 전원 켜기 예시
-                        example[int(command['fieldPositions']['commandType'])] = int(command['structure']['2']['values']['power'], 16)
-                        example[int(command['fieldPositions']['value'])] = int(command['structure']['3']['values']['on'], 16)
-                        desc_parts.append("01: power")
-                        desc_parts.append("04: on")
-                    else:
-                        # 일반적인 전원 켜기 예시
-                        power_pos = command['fieldPositions'].get('power')
-                        if power_pos:
-                            example[int(power_pos)] = int(command['structure'][power_pos]['values']['on'], 16)
-                            desc_parts.append("01: on")
-                    
-                    structures[device_name] = {
-                        "type": device['type'],
-                        "header": command['header'],
-                        "example": example.hex().upper(),
-                        "description": f"1번 {device_name} 켜기 ({', '.join(desc_parts)})"
+                    structures[device_type][command_name] = {
+                        'structure': command['structure'],
+                        'example': ' '.join([format(b, '02X') for b in example])
                     }
             
             return jsonify(structures)
