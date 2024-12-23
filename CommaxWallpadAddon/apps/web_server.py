@@ -30,9 +30,14 @@ class WebServer:
             
         @self.app.route('/api/packet_logs')
         def get_packet_logs():
-            # COLLECTDATA에서 최근 100개의 패킷을 가져옴
-            packets = list(self.wallpad_controller.COLLECTDATA['data'])[-100:]
-            return jsonify(packets)
+            # 송수신 패킷 모두 가져오기
+            send_packets = list(self.wallpad_controller.COLLECTDATA.get('send_data', set()))[-50:]
+            recv_packets = list(self.wallpad_controller.COLLECTDATA.get('recv_data', set()))[-50:]
+            
+            return jsonify({
+                'send': send_packets,
+                'recv': recv_packets
+            })
             
         @self.app.route('/api/find_devices', methods=['POST'])
         def find_devices():
@@ -44,19 +49,72 @@ class WebServer:
             try:
                 data = request.get_json()
                 command = data.get('command', '').strip()
+                packet_type = data.get('type', 'command')  # 'command' 또는 'state'
                 
-                # 체크섬 계산
-                checksum_result = self.wallpad_controller.checksum(command)
-                
-                # 예상 상태 패킷 생성
-                expected_state = None
-                if checksum_result:
-                    expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
-                
+                if packet_type == 'command':
+                    # 체크섬 계산
+                    checksum_result = self.wallpad_controller.checksum(command)
+                    
+                    # 예상 상태 패킷 생성
+                    expected_state = None
+                    if checksum_result:
+                        expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
+                    
+                    return jsonify({
+                        "success": True,
+                        "checksum": checksum_result,
+                        "expected_state": expected_state
+                    })
+                else:  # state packet analysis
+                    # 헤더로 기기 찾기
+                    header = command[:2]
+                    device_info = None
+                    device_name = None
+                    
+                    for name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+                        if 'state' in device and device['state']['header'] == header:
+                            device_info = device['state']
+                            device_name = name
+                            break
+                    
+                    if not device_info:
+                        return jsonify({
+                            "success": False,
+                            "error": "알 수 없는 상태 패킷입니다."
+                        }), 400
+                    
+                    # 각 바이트 분석
+                    byte_analysis = []
+                    for pos, field in device_info['structure'].items():
+                        pos = int(pos)
+                        if pos * 2 + 2 <= len(command):
+                            byte_value = command[pos*2:pos*2+2]
+                            desc = f"Byte {pos}: {field['name']}"
+                            
+                            if field['name'] == 'empty':
+                                desc = f"Byte {pos}: 예약됨 (00)"
+                            elif field['name'] == 'checksum':
+                                desc = f"Byte {pos}: 체크섬"
+                            elif 'values' in field:
+                                # 알려진 값과 매칭
+                                matched_value = None
+                                for key, value in field['values'].items():
+                                    if value == byte_value:
+                                        matched_value = key
+                                        break
+                                if matched_value:
+                                    desc += f" = {matched_value} ({byte_value})"
+                                else:
+                                    desc += f" = {byte_value}"
+                            else:
+                                desc += f" = {byte_value}"
+                            
+                            byte_analysis.append(desc)
+                 
                 return jsonify({
                     "success": True,
-                    "checksum": checksum_result,
-                    "expected_state": expected_state
+                    "device": device_name,
+                    "analysis": byte_analysis
                 })
             except Exception as e:
                 return jsonify({

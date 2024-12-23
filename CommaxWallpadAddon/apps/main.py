@@ -34,7 +34,8 @@ def require_device_structure(default_return: Any = None) -> Callable:
     return decorator
 
 class CollectData(TypedDict):
-    data: Set[str]
+    send_data: Set[str]
+    recv_data: Set[str]
     last_recv_time: int
 
 class ExpectedStatePacket(TypedDict):
@@ -58,7 +59,8 @@ class WallpadController:
         self.HOMESTATE: Dict[str, str] = {}
         self.QUEUE: List[QueueItem] = []
         self.COLLECTDATA: CollectData = {
-            'data': set(),
+            'send_data': set(),
+            'recv_data': set(),
             'last_recv_time': time.time_ns()
         }
         self.mqtt_client: Optional[mqtt.Client] = None
@@ -238,22 +240,23 @@ class WallpadController:
             if topics[0] == self.ELFIN_TOPIC:
                 if topics[1] == 'recv':
                     raw_data = msg.payload.hex().upper()
-                    self.logger.signal(f'->> 수신: {raw_data}')                    
+                    self.logger.signal(f'->> 수신: {raw_data}')
+                    self.COLLECTDATA['recv_data'].add(raw_data)
+                    if len(self.COLLECTDATA['recv_data']) > 100:
+                        self.COLLECTDATA['recv_data'] = set(list(self.COLLECTDATA['recv_data'])[-100:])
+                    
                     # 수신 간격 계산
                     current_time = time.time_ns()
                     if 'last_recv_time' in self.COLLECTDATA:
                         interval = current_time - self.COLLECTDATA['last_recv_time']
-                        # self.logger.signal(f'RS485 수신 간격: {interval/1_000_000} ms')
                     self.COLLECTDATA['last_recv_time'] = current_time
                     
-                    if self.loop and self.loop.is_running():
-                        asyncio.run_coroutine_threadsafe(
-                            self.process_elfin_data(raw_data),
-                            self.loop
-                        )
                 elif topics[1] == 'send':
                     raw_data = msg.payload.hex().upper()
                     self.logger.signal(f'<<- 송신: {raw_data}')
+                    self.COLLECTDATA['send_data'].add(raw_data)
+                    if len(self.COLLECTDATA['send_data']) > 100:
+                        self.COLLECTDATA['send_data'] = set(list(self.COLLECTDATA['send_data'])[-100:])
                     
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
@@ -769,9 +772,9 @@ class WallpadController:
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
                 if data == self.checksum(data):
-                    self.COLLECTDATA['data'].add(data)
-                    if len(self.COLLECTDATA['data']) > 100:
-                        self.COLLECTDATA['data'] = set(list(self.COLLECTDATA['data'])[-100:])
+                    self.COLLECTDATA['recv_data'].add(data)
+                    if len(self.COLLECTDATA['recv_data']) > 100:
+                        self.COLLECTDATA['recv_data'] = set(list(self.COLLECTDATA['recv_data'])[-100:])
                     
                     byte_data = bytearray.fromhex(data)
                     
@@ -923,7 +926,7 @@ class WallpadController:
             assert isinstance(required_bytes, (list)), "required_bytes must be a list"
             
             # 수집된 데이터에서 예상 패킷 확인
-            for received_packet in self.COLLECTDATA['data']:
+            for received_packet in self.COLLECTDATA['recv_data']:
                 if not isinstance(received_packet, str):
                     continue
                     

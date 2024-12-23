@@ -144,9 +144,13 @@
         .packet-log-entry {
             padding: 4px 0;
             border-bottom: 1px solid #eee;
+            cursor: pointer;
         }
         .packet-log-entry:last-child {
             border-bottom: none;
+        }
+        .packet-log-entry:hover {
+            background-color: #f0f0f0;
         }
         .packet-log-entry .timestamp {
             color: #666;
@@ -159,6 +163,12 @@
         .packet-log-entry.send {
             color: #4CAF50;
         }
+        .packet-type-label {
+            display: inline-block;
+            min-width: 50px;
+            margin-right: 10px;
+            font-size: 0.9em;
+        }
         @keyframes fadeEffect {
             from {opacity: 0;}
             to {opacity: 1;}
@@ -169,7 +179,7 @@
     <h1>Commax Wallpad Controller</h1>
     
     <div class="packet-analyzer">
-        <h2>패킷 분석기</h2>
+        <h2>명령 패킷 분석기</h2>
         <div>
             <input type="text" id="commandInput" placeholder="명령 패킷 입력 (예: F70100000000)">
             <button onclick="analyzePacket()">분석</button>
@@ -191,6 +201,17 @@
                 </div>
                 <p><small>* 모든 패킷은 체크섬이 자동으로 계산되어 추가됩니다.</small></p>
             </div>
+        </div>
+    </div>
+    
+    <div class="packet-analyzer">
+        <h2>상태 패킷 분석기</h2>
+        <div>
+            <input type="text" id="stateInput" placeholder="상태 패킷 입력 (예: B0010000000000)">
+            <button onclick="analyzeStatePacket()">분석</button>
+        </div>
+        <div class="packet-result" id="statePacketResult">
+            <!-- 분석 결과가 여기에 표시됩니다 -->
         </div>
     </div>
     
@@ -219,34 +240,49 @@
         function updatePacketLog() {
             fetch('./api/packet_logs')
                 .then(response => response.json())
-                .then(packets => {
+                .then(data => {
                     const logDiv = document.getElementById('packetLog');
                     let newContent = '';
                     
-                    // 새로운 패킷만 필터링
-                    const newPackets = packets.filter(packet => !lastPackets.has(packet));
+                    // 송신 패킷 처리
+                    const newSendPackets = data.send.filter(packet => !lastPackets.has('send:' + packet));
+                    newSendPackets.forEach(packet => {
+                        const timestamp = new Date().toLocaleTimeString();
+                        newContent += createPacketLogEntry(timestamp, packet, 'send');
+                        lastPackets.add('send:' + packet);
+                    });
                     
-                    // 새 패킷이 있으면 추가
-                    if (newPackets.length > 0) {
-                        newPackets.forEach(packet => {
-                            const timestamp = new Date().toLocaleTimeString();
-                            // 패킷 타입 추정 (첫 바이트로 판단)
-                            const isCommand = packet.substring(0, 2) in {
-                                '31': true, '04': true, '78': true, '11': true, '7A': true, 'A0': true
-                            };
-                            const type = isCommand ? 'send' : 'recv';
-                            
-                            newContent += `
-                                <div class="packet-log-entry ${type}">
-                                    <span class="timestamp">${timestamp}</span>
-                                    <span class="packet">${packet}</span>
-                                </div>`;
-                        });
-                        
+                    // 수신 패킷 처리
+                    const newRecvPackets = data.recv.filter(packet => !lastPackets.has('recv:' + packet));
+                    newRecvPackets.forEach(packet => {
+                        const timestamp = new Date().toLocaleTimeString();
+                        newContent += createPacketLogEntry(timestamp, packet, 'recv');
+                        lastPackets.add('recv:' + packet);
+                    });
+                    
+                    if (newContent) {
                         logDiv.innerHTML = newContent + logDiv.innerHTML;
-                        lastPackets = new Set(packets);
                     }
                 });
+        }
+        
+        function createPacketLogEntry(timestamp, packet, type) {
+            return `
+                <div class="packet-log-entry ${type}" onclick="handlePacketClick('${packet}', '${type}')">
+                    <span class="timestamp">${timestamp}</span>
+                    <span class="packet-type-label">[${type.toUpperCase()}]</span>
+                    <span class="packet">${packet}</span>
+                </div>`;
+        }
+        
+        function handlePacketClick(packet, type) {
+            if (type === 'send') {
+                document.getElementById('commandInput').value = packet;
+                analyzePacket();
+            } else {
+                document.getElementById('stateInput').value = packet;
+                analyzeStatePacket();
+            }
         }
         
         // 패킷 구조 정보 로드
@@ -452,6 +488,58 @@
             document.getElementById(deviceName).style.display = "block";
             evt.currentTarget.className += " active";
         }
+
+        function analyzeStatePacket() {
+            const stateInput = document.getElementById('stateInput');
+            const resultDiv = document.getElementById('statePacketResult');
+            const packet = stateInput.value.trim();
+            
+            if (!packet) {
+                resultDiv.innerHTML = '<p class="error">상태 패킷을 입력하세요.</p>';
+                return;
+            }
+            
+            if (!/^[0-9A-Fa-f]+$/.test(packet)) {
+                resultDiv.innerHTML = '<p class="error">유효한 16진수 값을 입력하세요.</p>';
+                return;
+            }
+            
+            fetch('./api/analyze_packet', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    command: packet,
+                    type: 'state'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let html = '<h3>분석 결과:</h3>';
+                    html += `<p>기기: <strong>${data.device}</strong></p>`;
+                    html += '<div style="font-family: monospace;">';
+                    data.analysis.forEach(desc => {
+                        html += `<div>${desc}</div>`;
+                    });
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<p class="error">오류: ${data.error}</p>`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<p class="error">요청 실패: ${error}</p>`;
+            });
+        }
+        
+        // Enter 키 입력 처리 (상태 패킷)
+        document.getElementById('stateInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                analyzeStatePacket();
+            }
+        });
     </script>
 </body>
 </html> 
