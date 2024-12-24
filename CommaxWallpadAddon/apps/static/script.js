@@ -247,7 +247,6 @@ function loadPacketStructures() {
             console.error('패킷 구조 로드 실패:', error);
         });
 }
-
 // 패킷 히스토리 관련 함수들
 function loadPacketHistory() {
     try {
@@ -322,29 +321,39 @@ function updateDeviceList() {
             const deviceList = document.getElementById('deviceList');
             deviceList.innerHTML = '';
             
+            const deviceTable = document.createElement('table');
+            deviceTable.className = 'device-table';
+            
+            // 헤더 행 추가
+            const headerRow = document.createElement('tr');
+            ['기기', '타입', '개수'].forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            deviceTable.appendChild(headerRow);
+            
+            // 기기 정보 행 추가
             for (const [deviceName, info] of Object.entries(devices)) {
-                const card = document.createElement('div');
-                card.className = 'device-card';
-                card.innerHTML = `
-                    <h3>${deviceName}</h3>
-                    <p>타입: ${info.type}</p>
-                    <p>개수: ${info.count}</p>
-                `;
-                deviceList.appendChild(card);
+                const row = document.createElement('tr');
+                
+                const nameCell = document.createElement('td');
+                nameCell.textContent = deviceName;
+                
+                const typeCell = document.createElement('td');
+                typeCell.textContent = info.type;
+                
+                const countCell = document.createElement('td');
+                countCell.textContent = info.count;
+                
+                row.appendChild(nameCell);
+                row.appendChild(typeCell);
+                row.appendChild(countCell);
+                deviceTable.appendChild(row);
             }
+            
+            deviceList.appendChild(deviceTable);
         });
-}
-
-function findDevices() {
-    fetch('./api/find_devices', {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            updateDeviceList();
-        }
-    });
 }
 
 // 초기화 함수

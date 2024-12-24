@@ -295,4 +295,28 @@ input[type="text"] {
     display: block;
     color: #666;
     margin-top: 5px;
+}
+.device-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background-color: #fff;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.device-table th, .device-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+.device-table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #495057;
+}
+.device-table tr:last-child td {
+    border-bottom: none;
+}
+.device-table tr:hover td {
+    background-color: #f8f9fa;
 } 
