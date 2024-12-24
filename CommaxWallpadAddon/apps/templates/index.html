@@ -325,6 +325,28 @@ input[type="text"] {
 }
 .device-table tr:hover td {
     background-color: #f8f9fa;
+}
+.byte-desc {
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    color: #666;
+}
+.byte-values {
+    margin-bottom: 5px;
+    font-size: 0.85em;
+}
+.value-item {
+    margin: 2px 0;
+    color: #444;
+}
+.byte-example {
+    font-family: monospace;
+    color: #0066cc;
+    font-size: 0.9em;
+}
+.command-cell {
+    vertical-align: top;
+    padding: 8px;
 } 
     </style>
 </head>
@@ -976,12 +998,13 @@ function updatePacket() {
 }
 
 function createPacketTable(deviceData) {
+    // 새로운 테이블 엘리먼트 생성
     const table = document.createElement('table');
     table.className = 'packet-table';
     
-    // 헤더 행 생성
+    // 테이블 헤더 행 생성
     const headerRow = document.createElement('tr');
-    const headers = ['Byte/설명', '명령', '상태', '상태조회', '응답'];
+    const headers = ['Byte', '명령', '상태', '상태조회', '응답'];
     headers.forEach(header => {
         const th = document.createElement('th');
         th.textContent = header;
@@ -989,42 +1012,75 @@ function createPacketTable(deviceData) {
     });
     table.appendChild(headerRow);
     
-    // 바이트별 행 생성 (0~7)
+    // 8개의 바이트(0-7)에 대한 행 생성
     for (let byte = 0; byte < 8; byte++) {
         const row = document.createElement('tr');
         
-        // 바이트 번호와 설명
+        // 첫 번째 셀 - 바이트 번호만 표시
         const byteCell = document.createElement('td');
         byteCell.className = 'byte-header';
-        
-        // 바이트 설명 찾기
-        let byteDesc = '';
-        if (deviceData.command?.byte_desc?.[byte]) {
-            byteDesc = deviceData.command.byte_desc[byte];
-        } else if (deviceData.state?.byte_desc?.[byte]) {
-            byteDesc = deviceData.state.byte_desc[byte];
-        }
-        
-        byteCell.innerHTML = `Byte ${byte}<br><small>${byteDesc || ''}</small>`;
+        byteCell.textContent = `Byte ${byte}`;
         row.appendChild(byteCell);
         
-        // 각 패킷 타입별 값 추가
+        // 각 패킷 타입의 설명과 값 추출
         const types = {
-            'command': deviceData.command?.examples?.[0]?.packet,
-            'state': deviceData.state?.examples?.[0]?.packet,
-            'state_request': deviceData.state_request?.examples?.[0]?.packet,
-            'ack': deviceData.ack?.examples?.[0]?.packet
+            'command': {
+                desc: deviceData.command?.byte_desc?.[byte] || '',
+                values: deviceData.command?.byte_values?.[byte] || {},
+                example: deviceData.command?.examples?.[0]?.packet
+            },
+            'state': {
+                desc: deviceData.state?.byte_desc?.[byte] || '',
+                values: deviceData.state?.byte_values?.[byte] || {},
+                example: deviceData.state?.examples?.[0]?.packet
+            },
+            'state_request': {
+                desc: deviceData.state_request?.byte_desc?.[byte] || '',
+                values: deviceData.state_request?.byte_values?.[byte] || {},
+                example: deviceData.state_request?.examples?.[0]?.packet
+            },
+            'ack': {
+                desc: deviceData.ack?.byte_desc?.[byte] || '',
+                values: deviceData.ack?.byte_values?.[byte] || {},
+                example: deviceData.ack?.examples?.[0]?.packet
+            }
         };
         
-        Object.values(types).forEach(packet => {
+        // 각 타입의 패킷 정보를 테이블 셀에 추가
+        Object.values(types).forEach(typeInfo => {
             const td = document.createElement('td');
             td.className = 'command-cell';
-            if (packet) {
-                const bytes = packet.match(/.{2}/g) || [];
-                td.textContent = bytes[byte] || '--';
-            } else {
-                td.textContent = '--';
+            
+            // 설명 추가
+            if (typeInfo.desc) {
+                const descDiv = document.createElement('div');
+                descDiv.className = 'byte-desc';
+                descDiv.textContent = typeInfo.desc;
+                td.appendChild(descDiv);
             }
+            
+            // 가능한 값 목록 추가
+            if (Object.keys(typeInfo.values).length > 0) {
+                const valuesDiv = document.createElement('div');
+                valuesDiv.className = 'byte-values';
+                Object.entries(typeInfo.values).forEach(([key, value]) => {
+                    const valueSpan = document.createElement('div');
+                    valueSpan.className = 'value-item';
+                    valueSpan.textContent = `${key}: ${value}`;
+                    valuesDiv.appendChild(valueSpan);
+                });
+                td.appendChild(valuesDiv);
+            }
+            
+            // 예시 값 추가
+            if (typeInfo.example) {
+                const bytes = typeInfo.example.match(/.{2}/g) || [];
+                const exampleDiv = document.createElement('div');
+                exampleDiv.className = 'byte-example';
+                exampleDiv.textContent = `예시: ${bytes[byte] || '--'}`;
+                td.appendChild(exampleDiv);
+            }
+            
             row.appendChild(td);
         });
         

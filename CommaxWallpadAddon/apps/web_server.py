@@ -7,7 +7,7 @@ import time
 
 class WebServer:
     def __init__(self, wallpad_controller):
-        self.app = Flask(__name__, template_folder='templates', static_folder='static')
+        self.app = Flask(__name__, template_folder='templates')
         self.wallpad_controller = wallpad_controller
         
         # 로깅 비활성화
@@ -20,27 +20,7 @@ class WebServer:
         # 라우트 설정
         @self.app.route('/')
         def home():
-            # 디버깅을 위한 경로 출력
-            print(f"Static folder path: {self.app.static_folder}")
-            print(f"CSS path: {os.path.join(self.app.static_folder, 'style.css')}")
-            print(f"JS path: {os.path.join(self.app.static_folder, 'script.js')}")
-            
-            try:
-                css_mtime = os.path.getmtime(os.path.join(self.app.static_folder, 'style.css'))
-                js_mtime = os.path.getmtime(os.path.join(self.app.static_folder, 'script.js'))
-                version = max(css_mtime, js_mtime)
-            except OSError as e:
-                print(f"Error accessing static files: {e}")
-                version = time.time()  # os.time.time() -> time.time()로 수정
-            return render_template('index.html', version=version)
-            
-        @self.app.after_request
-        def add_header(response):
-            if 'static' in request.path:
-                response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
-                response.headers['Pragma'] = 'no-cache'
-                response.headers['Expires'] = '-1'
-            return response 
+            return render_template('index.html')
         
         @self.app.route('/api/devices')
         def get_devices():
