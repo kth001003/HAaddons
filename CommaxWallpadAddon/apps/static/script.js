@@ -232,6 +232,7 @@ function loadPacketStructures() {
                                 }).join('')}
                             </td>
                         </tr>
+                        ${info.state_request ? `
                         <tr>
                             <th colspan="2">상태 요청 패킷</th>
                         </tr>
@@ -253,6 +254,8 @@ function loadPacketStructures() {
                                 }).join('')}
                             </td>
                         </tr>
+                        ` : ''}
+                        ${info.ack ? `
                         <tr>
                             <th colspan="2">응답 패킷</th>
                         </tr>
@@ -274,6 +277,7 @@ function loadPacketStructures() {
                                 }).join('')}
                             </td>
                         </tr>
+                        ` : ''}
                     </table>
                 `;
                 tabContents.appendChild(tabContent);
@@ -398,7 +402,7 @@ function initialize() {
 document.addEventListener('DOMContentLoaded', function() {
     initialize(); // 초기화 함수 호출
 
-    // 주기적 업데��트 설정
+    // 주기적 업데이트 설정
     setInterval(updateDeviceList, 30000);  // 30초마다 상태 업데이트
     setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
 

@@ -35,72 +35,61 @@ class WebServer:
             try:
                 send_packets = []
                 recv_packets = []
-                
+
+                # 가능한 패킷 타입
+                packet_types = ['command', 'state_request', 'state', 'ack']
+
                 # 송신 패킷 처리
                 for packet in self.wallpad_controller.COLLECTDATA['send_data']:
-                    device_info = self._analyze_packet_structure(packet, 'command')
-                    if device_info['success']:
-                        send_packets.append({
-                            'packet': packet,
-                            'device': {
-                                'name': device_info['device'],
-                                'packet_type': 'command'
-                            }
-                        })
-                    else:
-                        device_info = self._analyze_packet_structure(packet, 'state_request')
+                    packet_info = {
+                        'packet': packet,
+                        'results': []
+                    }
+                    for packet_type in packet_types:
+                        device_info = self._analyze_packet_structure(packet, packet_type)
                         if device_info['success']:
-                            send_packets.append({
-                                'packet': packet,
-                                'device': {
-                                    'name': device_info['device'],
-                                    'packet_type': 'state_request'
-                                }
+                            packet_info['results'].append({
+                                'device': device_info['device'],
+                                'packet_type': packet_type
                             })
-                        else:
-                            send_packets.append({
-                                'packet': packet,
-                                'device': {
-                                    'name': 'Unknown',
-                                    'packet_type': 'Unknown'
-                                }
-                            })
-                
-                # 수신 패킷 처리
+                    
+                    # 분석 결과가 없는 경우 Unknown으로 처리
+                    if not packet_info['results']:
+                        packet_info['results'].append({
+                            'device': 'Unknown',
+                            'packet_type': 'Unknown'
+                        })
+
+                    send_packets.append(packet_info)
+
+                # 수신 패킷 처리 (송신 패킷 처리와 동일한 로직 적용)
                 for packet in self.wallpad_controller.COLLECTDATA['recv_data']:
-                    device_info = self._analyze_packet_structure(packet, 'state')
-                    if device_info['success']:
-                        recv_packets.append({
-                            'packet': packet,
-                            'device': {
-                                'name': device_info['device'],
-                                'packet_type': 'state'
-                            }
-                        })
-                    else:
-                        device_info = self._analyze_packet_structure(packet, 'ack')
+                    packet_info = {
+                        'packet': packet,
+                        'results': []
+                    }
+                    for packet_type in packet_types:
+                        device_info = self._analyze_packet_structure(packet, packet_type)
                         if device_info['success']:
-                            recv_packets.append({
-                                'packet': packet,
-                                'device': {
-                                    'name': device_info['device'],
-                                    'packet_type': 'ack'
-                                }
+                            packet_info['results'].append({
+                                'device': device_info['device'],
+                                'packet_type': packet_type
                             })
-                        else:
-                            recv_packets.append({
-                                'packet': packet,
-                                'device': {
-                                    'name': 'Unknown',
-                                    'packet_type': 'Unknown'
-                                }
-                            })
-                
+
+                    # 분석 결과가 없는 경우 Unknown으로 처리
+                    if not packet_info['results']:
+                        packet_info['results'].append({
+                            'device': 'Unknown',
+                            'packet_type': 'Unknown'
+                        })
+
+                    recv_packets.append(packet_info)
+
                 return jsonify({
                     'send': send_packets,
                     'recv': recv_packets
                 })
-                
+
             except Exception as e:
                 return jsonify({
                     'error': str(e)
