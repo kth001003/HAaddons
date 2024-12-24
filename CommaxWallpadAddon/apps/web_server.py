@@ -19,7 +19,11 @@ class WebServer:
         # 라우트 설정
         @self.app.route('/')
         def home():
-            return render_template('index.html')
+            # static 파일들의 수정 시간 중 가장 최근 시간을 버전으로 사용
+            css_mtime = os.path.getmtime('apps/static/style.css')
+            js_mtime = os.path.getmtime('apps/static/script.js')
+            version = max(css_mtime, js_mtime)
+            return render_template('index.html', version=version)
             
         @self.app.route('/api/devices')
         def get_devices():
@@ -123,7 +127,7 @@ class WebServer:
                     "checksum": checksum_result
                 }
 
-                # command 패킷인 경우 예상 상태 패킷 추가
+                # command 패킷 경우 예상 상태 패킷 추가
                 if packet_type == 'command' and checksum_result:
                     expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
                     if expected_state:
@@ -515,9 +519,17 @@ class WebServer:
             if 'command' in device and device['command']['header'] == header:
                 return {"name": device_name, "packet_type": "Command"}
                 
-        # 상태 패킷 확인
+        # 태 패킷 확인
         for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
             if 'state' in device and device['state']['header'] == header:
                 return {"name": device_name, "packet_type": "State"}
                 
         return {"name": "Unknown", "packet_type": "Unknown"} 
+
+    @app.after_request
+    def add_header(self, response):
+        if 'static' in request.path:
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '-1'
+        return response 
