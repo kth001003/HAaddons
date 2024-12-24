@@ -3,6 +3,7 @@ import threading
 import logging
 import os
 from typing import Dict, Any
+import time
 
 class WebServer:
     def __init__(self, wallpad_controller):
@@ -19,14 +20,18 @@ class WebServer:
         # 라우트 설정
         @self.app.route('/')
         def home():
-            # static 파일들의 수정 시간 중 가장 최근 시간을 버전으로 사용
+            # 디버깅을 위한 경로 출력
+            print(f"Static folder path: {self.app.static_folder}")
+            print(f"CSS path: {os.path.join(self.app.static_folder, 'style.css')}")
+            print(f"JS path: {os.path.join(self.app.static_folder, 'script.js')}")
+            
             try:
                 css_mtime = os.path.getmtime(os.path.join(self.app.static_folder, 'style.css'))
                 js_mtime = os.path.getmtime(os.path.join(self.app.static_folder, 'script.js'))
                 version = max(css_mtime, js_mtime)
-            except OSError:
-                # 파일을 찾을 수 없는 경우 현재 시간을 사용
-                version = os.time.time()
+            except OSError as e:
+                print(f"Error accessing static files: {e}")
+                version = time.time()  # os.time.time() -> time.time()로 수정
             return render_template('index.html', version=version)
             
         @self.app.after_request
@@ -215,7 +220,7 @@ class WebServer:
                     })
             suggestions['headers']['ack'] = ack_headers
             
-            # 각 기기별 가능한 ���들
+            # 각 기기별 가능한 값들
             for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
                 for packet_type in ['command', 'state', 'state_request', 'ack']:
                     if packet_type in device:
