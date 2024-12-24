@@ -153,7 +153,8 @@ Thermo:
         values:
           "on": "81"
           "off": "00"
-          "target": "18"
+          "target": "FF"
+        memo: "target은 10진수 온도"
       "4": 
         name: empty
       "5": 
@@ -196,8 +197,14 @@ Thermo:
           "id": "FF"
       "3":
         name: currentTemp
+        values:
+          "currentTemp": "FF"
+        memo: 16진수가 아닌 10진수 그대로 (24도면 24)
       "4":
         name: targetTemp
+        values:
+          "targetTemp": "FF"
+        memo: 16진수가 아닌 10진수 그대로 (24도면 24)
       "5": 
         name: empty
       "6": 
@@ -308,8 +315,8 @@ Outlet:
       "2":
         name: unknown
         values: 
-          "unknown": "01"
-          "unknown": "02"
+          "unknown1": "01"
+          "unknown2": "02"
       "3": 
         name: empty
       "4": 
@@ -336,8 +343,8 @@ Outlet:
       "3":
         name: unknown1
         values: 
-          "unknown": "11"
-          "unknown": "21"
+          "unknown1": "11"
+          "unknown2": "21"
         memo: 상태조회 byte2가 01일때 11로 응답, 02일때 21로 응답
       "4":
         name: unknown2

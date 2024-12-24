@@ -262,25 +262,50 @@ input[type="text"] {
     width: 100%;
     border-collapse: collapse;
     margin: 20px 0;
+    background-color: #fff;
 }
 .packet-table th, .packet-table td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: center;
+    border: 1px solid #dee2e6;
+    padding: 12px;
 }
 .packet-table th {
-    background-color: #f5f5f5;
+    background-color: #f8f9fa;
     font-weight: bold;
 }
-.packet-table tr:nth-child(even) {
-    background-color: #f9f9f9;
+.byte-header {
+    background-color: #f8f9fa;
+    font-weight: 500;
+    width: 80px;
 }
-.packet-table .byte-header {
-    background-color: #eef;
-    font-weight: bold;
+.command-cell {
+    vertical-align: top;
+    width: calc((100% - 80px) / 4);  /* 첫번째 열(80px)을 제외한 나머지를 4등분 */
 }
-.packet-table .command-cell {
+.byte-desc {
+    margin-bottom: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    color: #333;
+}
+.byte-values {
+    margin: 8px 0;
+    font-size: 0.9em;
+    color: #444;
+}
+.value-item {
+    margin: 4px 0;
+}
+.byte-example {
     font-family: monospace;
+    color: #666;
+    font-size: 0.9em;
+    margin-top: 8px;
+}
+.byte-memo {
+    margin: 8px 0;
+    font-size: 0.9em;
+    color: #666;
+    font-style: italic;
 }
 .packet-examples {
     margin: 20px 0;
@@ -326,58 +351,6 @@ input[type="text"] {
 .device-table tr:hover td {
     background-color: #f8f9fa;
 }
-.byte-desc {
-    margin-bottom: 8px;
-    font-size: 0.95em;
-    color: #333;
-    font-weight: 500;
-    background-color: #e9ecef;
-    padding: 6px 10px;
-    border-radius: 4px;
-    border-left: 3px solid #007bff;
-}
-.byte-values {
-    margin: 8px 0;
-    font-size: 0.85em;
-    background-color: #fff;
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid #dee2e6;
-}
-.value-item {
-    margin: 4px 0;
-    color: #444;
-    padding: 2px 0;
-}
-.byte-example {
-    font-family: monospace;
-    color: #0066cc;
-    font-size: 0.9em;
-    margin-top: 8px;
-    padding: 4px 8px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-}
-.command-cell {
-    vertical-align: top;
-    padding: 12px;
-    border: 1px solid #dee2e6;
-}
-.byte-memo {
-    margin: 8px 0;
-    font-size: 0.85em;
-    color: #666;
-    font-style: italic;
-    background-color: #f8f9fa;
-    padding: 4px 8px;
-    border-radius: 4px;
-    border-left: 3px solid #4CAF50;
-}
-.command-cell {
-    vertical-align: top;
-    padding: 12px;
-    border: 1px solid #dee2e6;
-} 
     </style>
 </head>
 <body>
@@ -463,7 +436,7 @@ const MAX_HISTORY = 20;
 function analyzePacket() {
     const packetInput = document.getElementById('packetInput');
     const resultDiv = document.getElementById('packetResult');
-    // 입력값에서 공백 제거
+    // ���력값에서 공백 제거
     const packet = packetInput.value.replace(/\s+/g, '').trim();
     
     if (!packet) {
@@ -1012,7 +985,7 @@ function updatePacket() {
     const [type, header] = headerSelect.value.split(':');
     let packet = header;  // 헤더로 시작
     
-    // 각 바이트 값 수집 (7바이트)
+    //  바이트 값 수집 (7바이트)
     for (let i = 1; i < 7; i++) {
         const input = byteInputsDiv.querySelector(`[data-byte="${i}"]`);
         if (input) {
@@ -1034,7 +1007,7 @@ function createPacketTable(deviceData) {
     
     // 테이블 헤더 행 생성
     const headerRow = document.createElement('tr');
-    const headers = ['Byte', '명령', '상태', '상태조회', '응답'];
+    const headers = ['Byte', '명령', '응답', '상태요청', '상태'];
     headers.forEach(header => {
         const th = document.createElement('th');
         th.textContent = header;
@@ -1052,8 +1025,8 @@ function createPacketTable(deviceData) {
         byteCell.textContent = `Byte ${byte}`;
         row.appendChild(byteCell);
         
-        // 각 패킷 타입의 설명과 값 추출
-        const types = ['command', 'state', 'state_request', 'ack'];
+        // 각 패킷 타입의 설명과 값 추출 (순서 변경)
+        const types = ['command', 'ack', 'state_request', 'state'];
         types.forEach(type => {
             const td = document.createElement('td');
             td.className = 'command-cell';
