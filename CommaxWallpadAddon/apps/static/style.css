@@ -251,4 +251,28 @@ input[type="text"] {
 .byte-spaced::before {
     content: attr(data-packet);
     letter-spacing: 0;
+}
+.packet-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+.packet-table th, .packet-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+.packet-table th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+.packet-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+.packet-table .byte-header {
+    background-color: #eef;
+    font-weight: bold;
+}
+.packet-table .command-cell {
+    font-family: monospace;
 } 

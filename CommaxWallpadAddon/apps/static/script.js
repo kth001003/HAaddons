@@ -183,106 +183,20 @@ function loadPacketStructures() {
                 button.textContent = deviceName;
                 tabButtons.appendChild(button);
                 
-                // 탭 내용 추가
+                // 탭 내용 생성
                 const tabContent = document.createElement('div');
                 tabContent.id = deviceName;
                 tabContent.className = 'tab-content';
                 tabContent.style.display = isFirst ? 'block' : 'none';
-                tabContent.innerHTML = `
-                    <h3>${deviceName} (${info.type})</h3>
-                    <table class="packet-reference-table">
-                        <tr>
-                            <th colspan="2">명령 패킷</th>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div style="font-family: monospace;">
-                                    ${info.command.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
-                                </div>
-                            </td>
-                            <td>
-                                ${info.command.examples.map(ex => {
-                                    const formattedPacket = ex.packet.match(/.{2}/g).join(' ');
-                                    return `
-                                        <div style="margin-bottom: 10px;">
-                                            <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code><br>
-                                            <small>${ex.desc}</small>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </td>
-                        </tr>
-                        <tr>
-                            <th colspan="2">상태 패킷</th>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div style="font-family: monospace;">
-                                    ${info.state.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
-                                </div>
-                            </td>
-                            <td>
-                                ${info.state.examples.map(ex => {
-                                    const formattedPacket = ex.packet.match(/.{2}/g).join(' ');
-                                    return `
-                                        <div style="margin-bottom: 10px;">
-                                            <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code><br>
-                                            <small>${ex.desc}</small>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </td>
-                        </tr>
-                        ${info.state_request ? `
-                        <tr>
-                            <th colspan="2">상태 요청 패킷</th>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div style="font-family: monospace;">
-                                    ${info.state_request.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
-                                </div>
-                            </td>
-                            <td>
-                                ${info.state_request.examples.map(ex => {
-                                    const formattedPacket = ex.packet.match(/.{2}/g).join(' ');
-                                    return `
-                                        <div style="margin-bottom: 10px;">
-                                            <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code><br>
-                                            <small>${ex.desc}</small>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </td>
-                        </tr>
-                        ` : ''}
-                        ${info.ack ? `
-                        <tr>
-                            <th colspan="2">응답 패킷</th>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div style="font-family: monospace;">
-                                    ${info.ack.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
-                                </div>
-                            </td>
-                            <td>
-                                ${info.ack.examples.map(ex => {
-                                    const formattedPacket = ex.packet.match(/.{2}/g).join(' ');
-                                    return `
-                                        <div style="margin-bottom: 10px;">
-                                            <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code><br>
-                                            <small>${ex.desc}</small>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </td>
-                        </tr>
-                        ` : ''}
-                    </table>
-                `;
-                tabContents.appendChild(tabContent);
                 
+                // 디바이스 정보 헤더 추가
+                tabContent.innerHTML = `<h3>${deviceName} (${info.type || '알 수 없음'})</h3>`;
+                
+                // 새로운 패킷 테이블 생성
+                const table = createPacketTable(info);
+                tabContent.appendChild(table);
+                
+                tabContents.appendChild(tabContent);
                 isFirst = false;
             }
         })
@@ -525,7 +439,7 @@ function initializePacketBuilder() {
                 ackGroup.appendChild(option);
             });
 
-            // 헤더 선택 엘리먼트에 그룹 추가 (한 번만)
+            // 헤더 선택 엘리먼트에 그룹 추가 (�� 번만)
             headerSelect.appendChild(commandGroup);
             headerSelect.appendChild(stateGroup);
             headerSelect.appendChild(stateRequestGroup);
@@ -604,4 +518,80 @@ function updatePacket() {
     }
     
     packetInput.value = packet;
+}
+
+function createPacketTable(deviceData) {
+    const table = document.createElement('table');
+    table.className = 'packet-table';
+    
+    // 헤더 행 생성
+    const headerRow = document.createElement('tr');
+    const headers = ['Byte/설명', '명령', '상태', '상태조회', '응답'];
+    headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        headerRow.appendChild(th);
+    });
+    table.appendChild(headerRow);
+    
+    // 바이트별 행 생성 (0~7)
+    for (let byte = 0; byte < 8; byte++) {
+        const row = document.createElement('tr');
+        
+        // 바이트 번호와 설명
+        const byteCell = document.createElement('td');
+        byteCell.className = 'byte-header';
+        
+        // 바이트 설명 찾기
+        let byteDesc = '';
+        if (deviceData.command?.byte_desc?.[byte]) {
+            byteDesc = deviceData.command.byte_desc[byte];
+        } else if (deviceData.state?.byte_desc?.[byte]) {
+            byteDesc = deviceData.state.byte_desc[byte];
+        }
+        
+        byteCell.innerHTML = `Byte ${byte}<br><small>${byteDesc || ''}</small>`;
+        row.appendChild(byteCell);
+        
+        // 각 패킷 타입별 값 추가
+        const types = {
+            'command': deviceData.command?.examples?.[0]?.packet,
+            'state': deviceData.state?.examples?.[0]?.packet,
+            'state_request': deviceData.state_request?.examples?.[0]?.packet,
+            'ack': deviceData.ack?.examples?.[0]?.packet
+        };
+        
+        Object.values(types).forEach(packet => {
+            const td = document.createElement('td');
+            td.className = 'command-cell';
+            if (packet) {
+                const bytes = packet.match(/.{2}/g) || [];
+                td.textContent = bytes[byte] || '--';
+            } else {
+                td.textContent = '--';
+            }
+            row.appendChild(td);
+        });
+        
+        table.appendChild(row);
+    }
+    
+    return table;
+}
+
+function updatePacketReference(data) {
+    const tabContents = document.getElementById('tabContents');
+    tabContents.innerHTML = '';
+    
+    // 각 디바이스에 대한 테이블 생성
+    Object.entries(data).forEach(([deviceName, deviceData]) => {
+        const deviceSection = document.createElement('div');
+        deviceSection.id = `device-${deviceName}`;
+        deviceSection.className = 'tab-content';
+        
+        const table = createPacketTable(deviceData);
+        deviceSection.appendChild(table);
+        
+        tabContents.appendChild(deviceSection);
+    });
 } 
