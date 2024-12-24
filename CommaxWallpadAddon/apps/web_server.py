@@ -6,7 +6,7 @@ from typing import Dict, Any
 
 class WebServer:
     def __init__(self, wallpad_controller):
-        self.app = Flask(__name__)
+        self.app = Flask(__name__, template_folder='templates', static_folder='static')
         self.wallpad_controller = wallpad_controller
         
         # 로깅 비활성화
