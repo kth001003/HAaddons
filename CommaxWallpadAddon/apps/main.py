@@ -648,13 +648,13 @@ class WallpadController:
                 
                 power_pos = state_structure['fieldPositions']['power']
                 if command_type == int(command_structure["structure"][command_type_pos]['values']['power'], 16): #04
-                    command_value = command_packet[int(command_structure['fieldPositions']['value'])]
-                    status_packet[int(power_pos)] = command_value
+                    command_value = command_packet[int(command_structure['fieldPositions']['value'])] #command value on:81, off:00
+                    status_packet[int(power_pos)] = command_value #81,83,00 중 81 or 00
                     # 필요한 바이트 리스트에 전원 위치 추가
                     required_bytes.append(int(power_pos))
                 elif command_type == int(command_structure["structure"][command_type_pos]['values']['change'], 16): #03
-                    #Power는 켜진 상태로 설정
-                    status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['on'], 16) #81
+                    #Power는 idle 상태로 가정
+                    status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['idle'], 16) #81
                     
                     target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
                     target_temp_pos = state_structure['fieldPositions']['targetTemp']
