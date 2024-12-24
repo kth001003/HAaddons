@@ -20,13 +20,17 @@ class WebServer:
         @self.app.route('/')
         def home():
             # static 파일들의 수정 시간 중 가장 최근 시간을 버전으로 사용
-            css_mtime = os.path.getmtime('apps/static/style.css')
-            js_mtime = os.path.getmtime('apps/static/script.js')
-            version = max(css_mtime, js_mtime)
+            try:
+                css_mtime = os.path.getmtime(os.path.join(self.app.static_folder, 'style.css'))
+                js_mtime = os.path.getmtime(os.path.join(self.app.static_folder, 'script.js'))
+                version = max(css_mtime, js_mtime)
+            except OSError:
+                # 파일을 찾을 수 없는 경우 현재 시간을 사용
+                version = os.time.time()
             return render_template('index.html', version=version)
             
         @self.app.after_request
-        def add_header(self, response):
+        def add_header(response):
             if 'static' in request.path:
                 response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
                 response.headers['Pragma'] = 'no-cache'
@@ -211,7 +215,7 @@ class WebServer:
                     })
             suggestions['headers']['ack'] = ack_headers
             
-            # 각 기기별 가능한 값들
+            # 각 기기별 가능한 ���들
             for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
                 for packet_type in ['command', 'state', 'state_request', 'ack']:
                     if packet_type in device:
