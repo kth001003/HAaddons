@@ -5,6 +5,8 @@ Light:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: power
         values:
@@ -25,6 +27,8 @@ Light:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: empty
       "3": 
@@ -47,6 +51,8 @@ Light:
           "off": "00"
       "2":
         name: deviceId
+        values:
+          "id": "FF"
       "3": 
         name: empty
       "4": 
@@ -65,6 +71,8 @@ LightBreaker:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: power
         values:
@@ -87,6 +95,8 @@ LightBreaker:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: empty
       "3": 
@@ -109,6 +119,8 @@ LightBreaker:
           "off": "00"
       "2":
         name: deviceId
+        values:
+          "id": "FF"
       "3": 
         name: empty
       "4": 
@@ -129,6 +141,8 @@ Thermo:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: commandType
         values:
@@ -153,6 +167,8 @@ Thermo:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: empty
       "3": 
@@ -176,6 +192,8 @@ Thermo:
           "off": "80"
       "2":
         name: deviceId
+        values:
+          "id": "FF"
       "3":
         name: currentTemp
       "4":
@@ -197,6 +215,8 @@ Thermo:
           "off": "80"
       "2":
         name: deviceId
+        values:
+          "id": "FF"
       "3":
         name: currentTemp
       "4":
@@ -215,6 +235,8 @@ Gas:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: power
         values:
@@ -257,6 +279,8 @@ Outlet:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: unknown
         values: 
@@ -279,6 +303,8 @@ Outlet:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: unknown
         values: 
@@ -302,28 +328,33 @@ Outlet:
         values:
           "on": "01"
           "off": "11"
-          #반대일수도있음.
+        memo: 반대일수도있음.
       "2":
         name: deviceId
+        values:
+          "id": "FF"
       "3":
-        name: unknown
+        name: unknown1
         values: 
           "unknown": "11"
           "unknown": "21"
-          #상태조회 byte2가 01일때 11로 응답, 02일때 21로 응답
+        memo: 상태조회 byte2가 01일때 11로 응답, 02일때 21로 응답
       "4":
-        name: unknown
+        name: unknown2
         values: 
-          "unknown": "00"
-          "unknown": "10"
+          "unknown1": "00"
+          "unknown2": "10"
+        memo: wattage 관련으로 보임
       "5": 
-        name: unknown
+        name: unknown3
         values: 
           "unknown": "12"
+        memo: wattage 관련으로 보임
       "6": 
-        name: unknown
+        name: unknown4
         values: 
           "unknown": "49"
+        memo: wattage 관련으로 보임
       "7":
         name: checksum
 
@@ -334,6 +365,8 @@ Fan:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: commandType
         values:
@@ -360,6 +393,8 @@ Fan:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
       "2":
         name: empty
       "3": 
@@ -380,8 +415,11 @@ Fan:
         values:
           "on": "04"
           "off": "00"
+        memo: 명령에 없는 night, auto가 존재한다고함.
       "2":
         name: deviceId
+        values:
+          "id": "FF"
       "3":
         name: speed
         values:
@@ -401,26 +439,30 @@ EV:
   type: button
   command:
     header: "A0"
-    # 일관조명차단기 상태헤더와 중복임
+    # 일괄조명차단기 상태헤더와 중복임
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
+        memo: 기기 번호로 추정됨..
       "2":
         name: power
         values:
           "on": "01"
+        memo: 추정됨..
       "3":
         name: unknown1
         values: 
-          "unknown": "01"
+          "fixed": "01"
       "4":
         name: unknown2
         values: 
-          "unknown": "08"
+          "fixed": "08"
       "5":
         name: unknown3
         values: 
-          "unknown": "15"
+          "fixed": "15"
       "6":
         name: empty
       "7":
@@ -430,12 +472,18 @@ EV:
     structure:
       "1":
         name: deviceId
+        values:
+          "id": "FF"
+        memo: 기기 번호로 추정됨..
       "2":
         name: power
         values:
           "on": "01"
       "3":
         name: floor
+        values:
+          "floor": "FF"
+        memo: 층으로 추정됨..
       "4": 
         name: empty
       "5": 

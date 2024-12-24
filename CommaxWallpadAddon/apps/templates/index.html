@@ -327,26 +327,56 @@ input[type="text"] {
     background-color: #f8f9fa;
 }
 .byte-desc {
-    margin-bottom: 5px;
-    font-size: 0.9em;
-    color: #666;
+    margin-bottom: 8px;
+    font-size: 0.95em;
+    color: #333;
+    font-weight: 500;
+    background-color: #e9ecef;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border-left: 3px solid #007bff;
 }
 .byte-values {
-    margin-bottom: 5px;
+    margin: 8px 0;
     font-size: 0.85em;
+    background-color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
 }
 .value-item {
-    margin: 2px 0;
+    margin: 4px 0;
     color: #444;
+    padding: 2px 0;
 }
 .byte-example {
     font-family: monospace;
     color: #0066cc;
     font-size: 0.9em;
+    margin-top: 8px;
+    padding: 4px 8px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
 }
 .command-cell {
     vertical-align: top;
-    padding: 8px;
+    padding: 12px;
+    border: 1px solid #dee2e6;
+}
+.byte-memo {
+    margin: 8px 0;
+    font-size: 0.85em;
+    color: #666;
+    font-style: italic;
+    background-color: #f8f9fa;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border-left: 3px solid #4CAF50;
+}
+.command-cell {
+    vertical-align: top;
+    padding: 12px;
+    border: 1px solid #dee2e6;
 } 
     </style>
 </head>
@@ -374,7 +404,7 @@ input[type="text"] {
             </div>
         </div>
         <div class="packet-log-content" id="packetLog">
-            <!-- 패킷 로그가 여기에 ���적으로 추가됩니다 -->
+            <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
         </div>
     </div>
 
@@ -1048,6 +1078,14 @@ function createPacketTable(deviceData) {
                         valuesDiv.appendChild(valueSpan);
                     });
                     td.appendChild(valuesDiv);
+                }
+                
+                // memo 정보 추가
+                if (deviceData[type].byte_memos && deviceData[type].byte_memos[byte]) {
+                    const memoDiv = document.createElement('div');
+                    memoDiv.className = 'byte-memo';
+                    memoDiv.textContent = `💡 ${deviceData[type].byte_memos[byte]}`;
+                    td.appendChild(memoDiv);
                 }
                 
                 // 예시 값 추가

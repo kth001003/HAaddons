@@ -291,6 +291,7 @@ class WebServer:
         structure = device[packet_type]
         byte_desc = {}
         byte_values = {}
+        byte_memos = {}  # memo 정보를 저장할 딕셔너리
         examples = []
 
         # 헤더 설명
@@ -307,6 +308,8 @@ class WebServer:
                 byte_desc[pos] = field['name']
                 if 'values' in field:
                     byte_values[pos] = field['values']
+                if 'memo' in field:  # memo 필드가 있는 경우 저장
+                    byte_memos[pos] = field['memo']
 
         # 예시 패킷 동적 생성
         if device['type'] == 'Thermo':
@@ -337,7 +340,7 @@ class WebServer:
                 packet = list('00' * 7)
                 packet[0] = structure['header']
                 packet[1] = '81'  # 상태
-                packet[2] = '01'  # 1��� 온도조절기
+                packet[2] = '01'  # 1번 온도조절기
                 packet[3] = '18'  # 24도
                 examples.append({
                     "packet": ''.join(packet),
@@ -496,6 +499,7 @@ class WebServer:
             "header": structure['header'],
             "byte_desc": byte_desc,
             "byte_values": byte_values,
+            "byte_memos": byte_memos,  # memo 정보 추가
             "examples": examples
         } 
     
