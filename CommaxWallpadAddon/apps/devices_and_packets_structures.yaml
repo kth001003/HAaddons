@@ -20,6 +20,23 @@ Light:
         name: empty
       "7":
         name: checksum
+  state_request:
+    header: "30"
+    structure:
+      "1":
+        name: deviceId
+      "2":
+        name: empty
+      "3": 
+        name: empty
+      "4": 
+        name: empty
+      "5": 
+        name: empty
+      "6": 
+        name: empty
+      "7":
+        name: checksum
   state:
     header: "B0"
     structure:
@@ -57,6 +74,23 @@ LightBreaker:
         name: unknown
         values: 
           "unknown": "01"
+      "4": 
+        name: empty
+      "5": 
+        name: empty
+      "6": 
+        name: empty
+      "7":
+        name: checksum
+  state_request:
+    header: "20"
+    structure:
+      "1":
+        name: deviceId
+      "2":
+        name: empty
+      "3": 
+        name: empty
       "4": 
         name: empty
       "5": 
@@ -106,6 +140,23 @@ Thermo:
           "on": "81"
           "off": "00"
           "target": "18"
+      "4": 
+        name: empty
+      "5": 
+        name: empty
+      "6": 
+        name: empty
+      "7":
+        name: checksum
+  state_request:
+    header: "02"
+    structure:
+      "1":
+        name: deviceId
+      "2":
+        name: empty
+      "3": 
+        name: empty
       "4": 
         name: empty
       "5": 
@@ -223,6 +274,26 @@ Outlet:
         name: empty
       "7":
         name: checksum
+  state_request:
+    header: "79"
+    structure:
+      "1":
+        name: deviceId
+      "2":
+        name: unknown
+        values: 
+          "unknown": "01"
+          "unknown": "02"
+      "3": 
+        name: empty
+      "4": 
+        name: empty
+      "5": 
+        name: empty
+      "6": 
+        name: empty
+      "7":
+        name: checksum
   state:
     header: "F9"
     structure:
@@ -230,21 +301,29 @@ Outlet:
         name: power
         values:
           "on": "01"
-          "off": "00"
+          "off": "11"
+          #반대일수도있음.
       "2":
         name: deviceId
       "3":
         name: unknown
         values: 
           "unknown": "11"
+          "unknown": "21"
+          #상태조회 byte2가 01일때 11로 응답, 02일때 21로 응답
       "4":
-        name: wattage
+        name: unknown
         values: 
-          "wattage": "10"
+          "unknown": "00"
+          "unknown": "10"
       "5": 
-        name: empty
+        name: unknown
+        values: 
+          "unknown": "12"
       "6": 
-        name: empty
+        name: unknown
+        values: 
+          "unknown": "49"
       "7":
         name: checksum
 
@@ -268,6 +347,23 @@ Fan:
           "medium": "02"
           "high": "03"
           "on": "04"
+      "4": 
+        name: empty
+      "5": 
+        name: empty
+      "6": 
+        name: empty
+      "7":
+        name: checksum
+  state_request:
+    header: "76"
+    structure:
+      "1":
+        name: deviceId
+      "2":
+        name: empty
+      "3": 
+        name: empty
       "4": 
         name: empty
       "5": 
@@ -304,7 +400,8 @@ Fan:
 EV:
   type: button
   command:
-    header: "20"
+    header: "A0"
+    # 일관조명차단기 상태헤더와 중복임
     structure:
       "1":
         name: deviceId
@@ -329,7 +426,7 @@ EV:
       "7":
         name: checksum
   state:
-    header: "2D"
+    header: "23"
     structure:
       "1":
         name: deviceId

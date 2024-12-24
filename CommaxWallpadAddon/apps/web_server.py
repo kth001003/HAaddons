@@ -39,24 +39,62 @@ class WebServer:
                 # 송신 패킷 처리
                 for packet in self.wallpad_controller.COLLECTDATA['send_data']:
                     device_info = self._analyze_packet_structure(packet, 'command')
-                    send_packets.append({
-                        'packet': packet,
-                        'device': {
-                            'name': device_info['device'] if device_info['success'] else 'Unknown',
-                            'packet_type': 'command'
-                        }
-                    })
+                    if device_info['success']:
+                        send_packets.append({
+                            'packet': packet,
+                            'device': {
+                                'name': device_info['device'],
+                                'packet_type': 'command'
+                            }
+                        })
+                    else:
+                        device_info = self._analyze_packet_structure(packet, 'state_request')
+                        if device_info['success']:
+                            send_packets.append({
+                                'packet': packet,
+                                'device': {
+                                    'name': device_info['device'],
+                                    'packet_type': 'state_request'
+                                }
+                            })
+                        else:
+                            send_packets.append({
+                                'packet': packet,
+                                'device': {
+                                    'name': 'Unknown',
+                                    'packet_type': 'Unknown'
+                                }
+                            })
                 
                 # 수신 패킷 처리
                 for packet in self.wallpad_controller.COLLECTDATA['recv_data']:
                     device_info = self._analyze_packet_structure(packet, 'state')
-                    recv_packets.append({
-                        'packet': packet,
-                        'device': {
-                            'name': device_info['device'] if device_info['success'] else 'Unknown',
-                            'packet_type': 'state'
-                        }
-                    })
+                    if device_info['success']:
+                        recv_packets.append({
+                            'packet': packet,
+                            'device': {
+                                'name': device_info['device'],
+                                'packet_type': 'state'
+                            }
+                        })
+                    else:
+                        device_info = self._analyze_packet_structure(packet, 'ack')
+                        if device_info['success']:
+                            recv_packets.append({
+                                'packet': packet,
+                                'device': {
+                                    'name': device_info['device'],
+                                    'packet_type': 'ack'
+                                }
+                            })
+                        else:
+                            recv_packets.append({
+                                'packet': packet,
+                                'device': {
+                                    'name': 'Unknown',
+                                    'packet_type': 'Unknown'
+                                }
+                            })
                 
                 return jsonify({
                     'send': send_packets,
@@ -117,7 +155,9 @@ class WebServer:
                 structures[device_name] = {
                     "type": device['type'],
                     "command": self._get_packet_structure(device_name, device, 'command'),
-                    "state": self._get_packet_structure(device_name, device, 'state')
+                    "state": self._get_packet_structure(device_name, device, 'state'),
+                    "state_request": self._get_packet_structure(device_name, device, 'state_request'),
+                    "ack": self._get_packet_structure(device_name, device, 'ack')
                 }
              
             return jsonify(structures)
@@ -150,9 +190,29 @@ class WebServer:
                     })
             suggestions['headers']['state'] = state_headers
             
+            # 상태 요청 패킷 헤더
+            state_request_headers = []
+            for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+                if 'state_request' in device:
+                    state_request_headers.append({
+                        'header': device['state_request']['header'],
+                        'device': device_name
+                    })
+            suggestions['headers']['state_request'] = state_request_headers
+            
+            # 응답 패킷 헤더
+            ack_headers = []
+            for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+                if 'ack' in device:
+                    ack_headers.append({
+                        'header': device['ack']['header'],
+                        'device': device_name
+                    })
+            suggestions['headers']['ack'] = ack_headers
+            
             # 각 기기별 가능한 값들
             for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
-                for packet_type in ['command', 'state']:
+                for packet_type in ['command', 'state', 'state_request', 'ack']:
                     if packet_type in device:
                         key = f"{device_name}_{packet_type}"
                         suggestions['values'][key] = {}
@@ -288,7 +348,7 @@ class WebServer:
                     "packet": ''.join(packet),
                     "desc": "1번 온도조절기 온도 24도로 설정"
                 })
-            else:  # state
+            elif packet_type == 'state':
                 # 대기 상태
                 packet = list('00' * 7)
                 packet[0] = structure['header']
@@ -309,6 +369,24 @@ class WebServer:
                 examples.append({
                     "packet": ''.join(packet),
                     "desc": "1번 온도조절기 난방 중 (현재 24도, 설정 24도)"
+                })
+            elif packet_type == 'state_request':
+                # 상태 요청
+                packet = list('00' * 7)
+                packet[0] = structure['header']
+                packet[1] = '01'  # 1번 온도조절기
+                examples.append({
+                    "packet": ''.join(packet),
+                    "desc": "1번 온도조절기 상태 요청"
+                })
+            elif packet_type == 'ack':
+                # 상태 요청
+                packet = list('00' * 7)
+                packet[0] = structure['header']
+                packet[1] = '01'  # 1번 온도조절기
+                examples.append({
+                    "packet": ''.join(packet),
+                    "desc": "1번 온도조절기 상태 요청"
                 })
                 
         elif device['type'] == 'Light':
@@ -332,7 +410,7 @@ class WebServer:
                     "packet": ''.join(packet),
                     "desc": "1번 조명 켜기"
                 })
-            else:  # state
+            elif packet_type == 'state':
                 # 조명 꺼짐
                 packet = list('00' * 7)
                 packet[0] = structure['header']
@@ -349,6 +427,24 @@ class WebServer:
                 examples.append({
                     "packet": ''.join(packet),
                     "desc": "1번 조명 켜짐"
+                })
+            elif packet_type == 'state_request':
+                # 상태 요청
+                packet = list('00' * 7)
+                packet[0] = structure['header']
+                packet[1] = '01'  # 1번 조명
+                examples.append({
+                    "packet": ''.join(packet),
+                    "desc": "1번 조명 상태 요청"
+                })
+            elif packet_type == 'ack':
+                # 상태 요청
+                packet = list('00' * 7)
+                packet[0] = structure['header']
+                packet[1] = '01'  # 1번 조명
+                examples.append({
+                    "packet": ''.join(packet),
+                    "desc": "1번 조명 상태 요청"
                 })
                 
         elif device['type'] == 'Fan':
@@ -374,7 +470,7 @@ class WebServer:
                     "packet": ''.join(packet),
                     "desc": "1번 환기장치 약(low)으로 설정"
                 })
-            else:  # state
+            elif packet_type == 'state':
                 # 환기장치 켜짐 (약)
                 packet = list('00' * 7)
                 packet[0] = structure['header']
@@ -392,6 +488,24 @@ class WebServer:
                 examples.append({
                     "packet": ''.join(packet),
                     "desc": "1번 환기장치 꺼짐"
+                })
+            elif packet_type == 'state_request':
+                # 상태 요청
+                packet = list('00' * 7)
+                packet[0] = structure['header']
+                packet[1] = '01'  # 1번 환기장치
+                examples.append({
+                    "packet": ''.join(packet),
+                    "desc": "1번 환기장치 상태 요청"
+                })
+            elif packet_type == 'ack':
+                # 상태 요청
+                packet = list('00' * 7)
+                packet[0] = structure['header']
+                packet[1] = '01'  # 1번 환기장치
+                examples.append({
+                    "packet": ''.join(packet),
+                    "desc": "1번 환기장치 상태 요청"
                 })
         
         return {

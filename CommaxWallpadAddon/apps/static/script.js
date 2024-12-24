@@ -8,6 +8,7 @@ const MAX_HISTORY = 20;
 function analyzePacket() {
     const packetInput = document.getElementById('packetInput');
     const resultDiv = document.getElementById('packetResult');
+    // 입력값에서 공백 제거
     const packet = packetInput.value.replace(/\s+/g, '').trim();
     
     if (!packet) {
@@ -30,8 +31,14 @@ function analyzePacket() {
     // packetSuggestions이 초기화된 경우에만 패킷 타입 감지 시도
     if (packetSuggestions && packetSuggestions.headers) {
         const isState = packetSuggestions.headers.state.some(h => h.header === header);
+        const isStateRequest = packetSuggestions.headers.state_request.some(h => h.header === header);
+        const isAck = packetSuggestions.headers.ack.some(h => h.header === header);
         if (isState) {
             packetType = 'state';
+        } else if (isStateRequest) {
+            packetType = 'state_request';
+        } else if (isAck) {
+            packetType = 'ack';
         }
     }
     
@@ -49,7 +56,15 @@ function analyzePacket() {
     .then(data => {
         if (data.success) {
             let html = '<h3>분석 결과:</h3>';
-            html += `<p>패킷 타입: <strong>${packetType === 'command' ? '명령' : '상태'}</strong></p>`;
+            if (packetType === 'command') {
+                html += `<p>패킷 타입: <strong>명령</strong></p>`;
+            } else if (packetType === 'state') {
+                html += `<p>패킷 타입: <strong>상태</strong></p>`;
+            } else if (packetType === 'state_request') {
+                html += `<p>패킷 타입: <strong>상태 요청</strong></p>`;
+            } else if (packetType === 'ack') {
+                html += `<p>패킷 타입: <strong>응답</strong></p>`;
+            }
             html += `<p>기기: <strong>${data.device}</strong></p>`;
             
             if (data.checksum) {
@@ -217,6 +232,48 @@ function loadPacketStructures() {
                                 }).join('')}
                             </td>
                         </tr>
+                        <tr>
+                            <th colspan="2">상태 요청 패킷</th>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div style="font-family: monospace;">
+                                    ${info.state_request.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
+                                </div>
+                            </td>
+                            <td>
+                                ${info.state_request.examples.map(ex => {
+                                    const formattedPacket = ex.packet.match(/.{2}/g).join(' ');
+                                    return `
+                                        <div style="margin-bottom: 10px;">
+                                            <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code><br>
+                                            <small>${ex.desc}</small>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th colspan="2">응답 패킷</th>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div style="font-family: monospace;">
+                                    ${info.ack.byte_desc.map(desc => `<div>${desc}</div>`).join('')}
+                                </div>
+                            </td>
+                            <td>
+                                ${info.ack.examples.map(ex => {
+                                    const formattedPacket = ex.packet.match(/.{2}/g).join(' ');
+                                    return `
+                                        <div style="margin-bottom: 10px;">
+                                            <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code><br>
+                                            <small>${ex.desc}</small>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </td>
+                        </tr>
                     </table>
                 `;
                 tabContents.appendChild(tabContent);
@@ -341,7 +398,7 @@ function initialize() {
 document.addEventListener('DOMContentLoaded', function() {
     initialize(); // 초기화 함수 호출
 
-    // 주기적 업데이트 설정
+    // 주기적 업데��트 설정
     setInterval(updateDeviceList, 30000);  // 30초마다 상태 업데이트
     setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
 
@@ -363,7 +420,7 @@ function clearPacketLog() {
     lastPackets.clear();
 }
 
-// 접을 수 있는 참조 자료 섹션 기능
+// 접 수 있는 참조 자료 섹션 기능
 var coll = document.getElementsByClassName("collapsible");
 for (var i = 0; i < coll.length; i++) {
     coll[i].addEventListener("click", function() {
@@ -442,10 +499,32 @@ function initializePacketBuilder() {
                 option.textContent = `${header.device} (${header.header})`;
                 stateGroup.appendChild(option);
             });
+            
+            // 상태 요청 패킷 헤더
+            const stateRequestGroup = document.createElement('optgroup');
+            stateRequestGroup.label = '상태 요청 패킷';
+            data.headers.state_request.forEach(header => {
+                const option = document.createElement('option');
+                option.value = `state_request:${header.header}`;
+                option.textContent = `${header.device} (${header.header})`;
+                stateRequestGroup.appendChild(option);
+            });
+            
+            // 응답 패킷 헤더
+            const ackGroup = document.createElement('optgroup');
+            ackGroup.label = '응답 패킷';
+            data.headers.ack.forEach(header => {
+                const option = document.createElement('option');
+                option.value = `ack:${header.header}`;
+                option.textContent = `${header.device} (${header.header})`;
+                ackGroup.appendChild(option);
+            });
 
             // 헤더 선택 엘리먼트에 그룹 추가 (한 번만)
             headerSelect.appendChild(commandGroup);
             headerSelect.appendChild(stateGroup);
+            headerSelect.appendChild(stateRequestGroup);
+            headerSelect.appendChild(ackGroup);
         });
 }
 
