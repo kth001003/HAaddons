@@ -140,16 +140,17 @@ function updatePacketLog() {
 }
 
 function createPacketLogEntry(timestamp, packet, type) {
-    const deviceInfo = packet.device;
-    const deviceText = deviceInfo.name !== "Unknown" ? 
-        `${deviceInfo.name} ${deviceInfo.packet_type}` : 
+    // 패킷 정보에서 첫 번째 결과 사용 (없는 경우 Unknown으로 처리)
+    const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
+    const deviceText = deviceInfo.device !== "Unknown" ? 
+        `${deviceInfo.device} ${deviceInfo.packet_type}` : 
         "Unknown";
     
     // 패킷을 2자리씩 분할
     const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
     
     return `
-        <div class="packet-log-entry ${type} ${deviceInfo.name === 'Unknown' ? 'unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
+        <div class="packet-log-entry ${type} ${deviceInfo.device === 'Unknown' ? 'unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
             <span class="timestamp">${timestamp}</span>
             <span class="packet-type-label">[${type.toUpperCase()}]</span>
             <span class="packet" data-packet="${formattedPacket}">&nbsp;</span>
