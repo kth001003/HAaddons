@@ -367,7 +367,7 @@ input[type="text"] {
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2>감지된 패킷 목록</h2>
             <span style="color: #666; font-size: 0.9em;">
-                최근 수신/송신된 패킷 중 중복을 제외한 목록입니다. 1초마다 업데이트
+                최근 수신/송신된 패킷 중 중복을 제외한 목록입니다.
             </span>
             <div>
                 <label>
@@ -436,8 +436,8 @@ const MAX_HISTORY = 20;
 function analyzePacket() {
     const packetInput = document.getElementById('packetInput');
     const resultDiv = document.getElementById('packetResult');
-    // ���력값에서 공백 제거
-    const packet = packetInput.value.replace(/\s+/g, '').trim();
+    // 입력값에서 공백 제거
+    const packet = packetInput.value.replace(/[\s-]+/g, '').trim();
     
     if (!packet) {
         resultDiv.innerHTML = '<p class="error">패킷을 입력하세요.</p>';
@@ -549,7 +549,7 @@ function updatePacketLog() {
             const newSendPackets = data.send.filter(packet => !lastPackets.has('send:' + packet.packet));
             newSendPackets.forEach(packet => {
                 const timestamp = new Date().toLocaleTimeString();
-                newContent += createPacketLogEntry(timestamp, packet, 'send');
+                newContent += createPacketLogEntry(packet, 'send');
                 lastPackets.add('send:' + packet.packet);
             });
             
@@ -557,7 +557,7 @@ function updatePacketLog() {
             const newRecvPackets = data.recv.filter(packet => !lastPackets.has('recv:' + packet.packet));
             newRecvPackets.forEach(packet => {
                 const timestamp = new Date().toLocaleTimeString();
-                newContent += createPacketLogEntry(timestamp, packet, 'recv');
+                newContent += createPacketLogEntry(packet, 'recv');
                 lastPackets.add('recv:' + packet.packet);
             });
             
@@ -567,7 +567,7 @@ function updatePacketLog() {
         });
 }
 
-function createPacketLogEntry(timestamp, packet, type) {
+function createPacketLogEntry(packet, type) {
     // 패킷 정보에서 첫 번째 결과 사용 (없는 경우 Unknown으로 처리)
     const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
     const deviceText = deviceInfo.device !== "Unknown" ? 
@@ -579,7 +579,6 @@ function createPacketLogEntry(timestamp, packet, type) {
     
     return `
         <div class="packet-log-entry ${type} ${deviceInfo.device === 'Unknown' ? 'unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
-            <span class="timestamp">${timestamp}</span>
             <span class="packet-type-label">[${type.toUpperCase()}]</span>
             <span class="packet" data-packet="${formattedPacket}">&nbsp;</span>
             <span class="device-label">[${deviceText}]</span>
