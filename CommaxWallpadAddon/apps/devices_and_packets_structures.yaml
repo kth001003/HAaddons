@@ -135,6 +135,27 @@ Thermo:
         name: empty
       "7":
         name: checksum
+  ack:
+    header: "84"
+    structure:
+      "1":
+        name: power
+        values:
+          "idle": "81"
+          "heating": "83"
+          "off": "80"
+      "2":
+        name: deviceId
+      "3":
+        name: currentTemp
+      "4":
+        name: targetTemp
+      "5": 
+        name: empty
+      "6": 
+        name: empty
+      "7":
+        name: checksum
 
 Gas:
   type: button
@@ -163,8 +184,8 @@ Gas:
       "1":
         name: power
         values:
-          "on": "A0"
-          "off": "50"
+          "on": "80"
+          "off": "48"
       "2":
         name: powerRepeat
       "3": 
@@ -283,7 +304,7 @@ Fan:
 EV:
   type: button
   command:
-    header: "A0"
+    header: "20"
     structure:
       "1":
         name: deviceId
@@ -308,7 +329,7 @@ EV:
       "7":
         name: checksum
   state:
-    header: "23"
+    header: "2D"
     structure:
       "1":
         name: deviceId

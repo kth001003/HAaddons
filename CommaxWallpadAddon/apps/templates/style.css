@@ -1,0 +1,254 @@
+body { 
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #aaaaaa;
+}
+.device-list {
+    margin: 20px 0;
+}
+.device-card {
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 5px;
+}
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #45a049;
+}
+.packet-analyzer {
+    margin: 20px 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+}
+.packet-result {
+    margin-top: 15px;
+    font-family: monospace;
+}
+input[type="text"] {
+    width: 300px;
+    padding: 8px;
+    margin-right: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+.error {
+    color: #ff0000;
+}
+.packet-reference {
+    margin-top: 20px;
+    font-size: 0.9em;
+}
+.packet-reference table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+.packet-reference th, .packet-reference td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+.packet-reference th {
+    background-color: #f0f0f0;
+}
+.packet-reference code {
+    background-color: #f8f8f8;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+}
+.collapsible {
+    background-color: #eee;
+    color: #444;
+    cursor: pointer;
+    padding: 18px;
+    width: 100%;
+    border: none;
+    text-align: left;
+    outline: none;
+    font-size: 15px;
+}
+.active, .collapsible:hover {
+    background-color: #ccc;
+}
+.content {
+    padding: 0 18px;
+    display: none;
+    overflow: hidden;
+    background-color: #f1f1f1;
+}
+/* 탭 스타일 */
+.tab-container {
+    margin-top: 20px;
+}
+.tab-buttons {
+    overflow: hidden;
+    border: 1px solid #ccc;
+    background-color: #f1f1f1;
+}
+.tab-buttons button {
+    background-color: inherit;
+    float: left;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    transition: 0.3s;
+    color: black;
+}
+.tab-buttons button:hover {
+    background-color: #ddd;
+}
+.tab-buttons button.active {
+    background-color: #4CAF50;
+    color: white;
+}
+.tab-content {
+    display: none;
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    border-top: none;
+    animation: fadeEffect 1s;
+}
+/* 패킷 로그 스타일 */
+.packet-log {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+}
+.packet-log-content {
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: monospace;
+    background-color: #fff;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+.packet-log-entry {
+    padding: 4px 0;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+.packet-log-entry:last-child {
+    border-bottom: none;
+}
+.packet-log-entry:hover {
+    background-color: #f0f0f0;
+}
+.packet-log-entry .timestamp {
+    color: #666;
+    font-size: 0.9em;
+    margin-right: 10px;
+}
+.packet-log-entry.recv {
+    color: #2196F3;
+}
+.packet-log-entry.send {
+    color: #4CAF50;
+}
+.packet-type-label {
+    display: inline-block;
+    min-width: 50px;
+    margin-right: 10px;
+    font-size: 0.9em;
+}
+.device-label {
+    display: inline-block;
+    min-width: 120px;
+    margin-right: 10px;
+    font-size: 0.9em;
+    color: #666;
+}
+.packet-log-entry.unknown-packet {
+    opacity: 0.7;
+}
+@keyframes fadeEffect {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+.device-section {
+    margin: 20px 0 30px 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+}
+.device-section button {
+    margin-bottom: 20px;
+}
+.packet-analyzer-section {
+    margin-top: 30px;
+}
+.packet-analyzer {
+    margin: 20px 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+}
+.packet-reference {
+    margin: 30px 0;
+}
+.packet-log {
+    margin: 30px 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+}
+.packet-builder {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+.packet-builder select {
+    padding: 8px;
+    margin-right: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-width: 150px;
+}
+.byte-input {
+    display: inline-block;
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+.byte-input input {
+    width: 40px;
+    text-align: center;
+}
+.byte-input select {
+    min-width: 100px;
+}
+.byte-label {
+    display: block;
+    font-size: 0.8em;
+    color: #666;
+    margin-bottom: 3px;
+}
+.packet {
+    font-family: monospace;
+    word-spacing: 1em;  /* 바이트 간격 */
+}
+.packet::before {
+    content: attr(data-packet);
+    letter-spacing: 0;  /* 각 바이트 내 자 간격 제거 */
+}
+.byte-spaced {
+    font-family: monospace;
+    word-spacing: 1em;
+}
+.byte-spaced::before {
+    content: attr(data-packet);
+    letter-spacing: 0;
+} 
