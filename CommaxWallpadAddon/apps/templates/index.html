@@ -904,6 +904,37 @@
             
             packetInput.value = packet;
         }
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            // 패킷 입력 필드 이벤트 리스너
+            const packetInput = document.getElementById('packetInput');
+            if (packetInput) {
+                packetInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        analyzePacket();
+                    }
+                });
+            }
+
+            // 상태 패킷 입력 필드 이벤트 리스너
+            const stateInput = document.getElementById('stateInput');
+            if (stateInput) {
+                stateInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        analyzeStatePacket();
+                    }
+                });
+            }
+
+            // 초기화 함수들 호출
+            loadPacketStructures();
+            initializePacketBuilder();
+            updateHistorySelect();
+            
+            // 패킷 로그 업데이트 시작
+            setInterval(updatePacketLog, 1000);
+        });
     </script>
 </body>
 </html> 
