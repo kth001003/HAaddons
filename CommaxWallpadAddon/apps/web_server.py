@@ -25,6 +25,14 @@ class WebServer:
             version = max(css_mtime, js_mtime)
             return render_template('index.html', version=version)
             
+        @self.app.after_request
+        def add_header(self, response):
+            if 'static' in request.path:
+                response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+                response.headers['Pragma'] = 'no-cache'
+                response.headers['Expires'] = '-1'
+            return response 
+        
         @self.app.route('/api/devices')
         def get_devices():
             return jsonify(self.wallpad_controller.device_list or {})
@@ -525,11 +533,3 @@ class WebServer:
                 return {"name": device_name, "packet_type": "State"}
                 
         return {"name": "Unknown", "packet_type": "Unknown"} 
-
-    @app.after_request
-    def add_header(self, response):
-        if 'static' in request.path:
-            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
-            response.headers['Pragma'] = 'no-cache'
-            response.headers['Expires'] = '-1'
-        return response 
