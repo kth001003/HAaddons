@@ -31,22 +31,42 @@ class WebServer:
             
         @self.app.route('/api/packet_logs')
         def get_packet_logs():
-            # 송수신 패킷 모두 가져오기
-            send_packets = list(self.wallpad_controller.COLLECTDATA.get('send_data', set()))[-50:]
-            recv_packets = list(self.wallpad_controller.COLLECTDATA.get('recv_data', set()))[-50:]
-            
-            # 패킷 정보 추가
-            def add_packet_info(packets, packet_type):
-                return [{
-                    'packet': packet,
-                    'type': packet_type,
-                    'device': self._get_device_info(packet)
-                } for packet in packets]
-            
-            return jsonify({
-                'send': add_packet_info(send_packets, 'send'),
-                'recv': add_packet_info(recv_packets, 'recv')
-            })
+            """패킷 로그를 제공합니다."""
+            try:
+                send_packets = []
+                recv_packets = []
+                
+                # 송신 패킷 처리
+                for packet in self.wallpad_controller.COLLECTDATA['send_data']:
+                    device_info = self._analyze_packet_structure(packet, 'command')
+                    send_packets.append({
+                        'packet': packet,
+                        'device': {
+                            'name': device_info['device'] if device_info['success'] else 'Unknown',
+                            'packet_type': 'command'
+                        }
+                    })
+                
+                # 수신 패킷 처리
+                for packet in self.wallpad_controller.COLLECTDATA['recv_data']:
+                    device_info = self._analyze_packet_structure(packet, 'state')
+                    recv_packets.append({
+                        'packet': packet,
+                        'device': {
+                            'name': device_info['device'] if device_info['success'] else 'Unknown',
+                            'packet_type': 'state'
+                        }
+                    })
+                
+                return jsonify({
+                    'send': send_packets,
+                    'recv': recv_packets
+                })
+                
+            except Exception as e:
+                return jsonify({
+                    'error': str(e)
+                }), 500
             
         @self.app.route('/api/find_devices', methods=['POST'])
         def find_devices():
