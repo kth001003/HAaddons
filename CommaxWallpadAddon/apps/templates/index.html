@@ -374,7 +374,7 @@ input[type="text"] {
             </div>
         </div>
         <div class="packet-log-content" id="packetLog">
-            <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
+            <!-- 패킷 로그가 여기에 ���적으로 추가됩니다 -->
         </div>
     </div>
 
@@ -916,7 +916,7 @@ function initializePacketBuilder() {
                 ackGroup.appendChild(option);
             });
 
-            // 헤더 선택 엘리먼트에 그룹 추가 (�� 번만)
+            // 헤더 선택 엘리먼트에 그룹 추가
             headerSelect.appendChild(commandGroup);
             headerSelect.appendChild(stateGroup);
             headerSelect.appendChild(stateRequestGroup);
@@ -1016,69 +1016,48 @@ function createPacketTable(deviceData) {
     for (let byte = 0; byte < 8; byte++) {
         const row = document.createElement('tr');
         
-        // 첫 번째 셀 - 바이트 번호만 표시
+        // 첫 번째 셀 - 바이트 번호
         const byteCell = document.createElement('td');
         byteCell.className = 'byte-header';
         byteCell.textContent = `Byte ${byte}`;
         row.appendChild(byteCell);
         
         // 각 패킷 타입의 설명과 값 추출
-        const types = {
-            'command': {
-                desc: deviceData.command?.byte_desc?.[byte] || '',
-                values: deviceData.command?.byte_values?.[byte] || {},
-                example: deviceData.command?.examples?.[0]?.packet
-            },
-            'state': {
-                desc: deviceData.state?.byte_desc?.[byte] || '',
-                values: deviceData.state?.byte_values?.[byte] || {},
-                example: deviceData.state?.examples?.[0]?.packet
-            },
-            'state_request': {
-                desc: deviceData.state_request?.byte_desc?.[byte] || '',
-                values: deviceData.state_request?.byte_values?.[byte] || {},
-                example: deviceData.state_request?.examples?.[0]?.packet
-            },
-            'ack': {
-                desc: deviceData.ack?.byte_desc?.[byte] || '',
-                values: deviceData.ack?.byte_values?.[byte] || {},
-                example: deviceData.ack?.examples?.[0]?.packet
-            }
-        };
-        
-        // 각 타입의 패킷 정보를 테이블 셀에 추가
-        Object.values(types).forEach(typeInfo => {
+        const types = ['command', 'state', 'state_request', 'ack'];
+        types.forEach(type => {
             const td = document.createElement('td');
             td.className = 'command-cell';
             
-            // 설명 추가
-            if (typeInfo.desc) {
-                const descDiv = document.createElement('div');
-                descDiv.className = 'byte-desc';
-                descDiv.textContent = typeInfo.desc;
-                td.appendChild(descDiv);
-            }
-            
-            // 가능한 값 목록 추가
-            if (Object.keys(typeInfo.values).length > 0) {
-                const valuesDiv = document.createElement('div');
-                valuesDiv.className = 'byte-values';
-                Object.entries(typeInfo.values).forEach(([key, value]) => {
-                    const valueSpan = document.createElement('div');
-                    valueSpan.className = 'value-item';
-                    valueSpan.textContent = `${key}: ${value}`;
-                    valuesDiv.appendChild(valueSpan);
-                });
-                td.appendChild(valuesDiv);
-            }
-            
-            // 예시 값 추가
-            if (typeInfo.example) {
-                const bytes = typeInfo.example.match(/.{2}/g) || [];
-                const exampleDiv = document.createElement('div');
-                exampleDiv.className = 'byte-example';
-                exampleDiv.textContent = `예시: ${bytes[byte] || '--'}`;
-                td.appendChild(exampleDiv);
+            if (deviceData[type]) {
+                // 설명 추가
+                if (deviceData[type].byte_desc && deviceData[type].byte_desc[byte] !== undefined) {
+                    const descDiv = document.createElement('div');
+                    descDiv.className = 'byte-desc';
+                    descDiv.textContent = deviceData[type].byte_desc[byte];
+                    td.appendChild(descDiv);
+                }
+                
+                // 가능한 값 목록 추가
+                if (deviceData[type].byte_values && deviceData[type].byte_values[byte]) {
+                    const valuesDiv = document.createElement('div');
+                    valuesDiv.className = 'byte-values';
+                    Object.entries(deviceData[type].byte_values[byte]).forEach(([key, value]) => {
+                        const valueSpan = document.createElement('div');
+                        valueSpan.className = 'value-item';
+                        valueSpan.textContent = `${key}: ${value}`;
+                        valuesDiv.appendChild(valueSpan);
+                    });
+                    td.appendChild(valuesDiv);
+                }
+                
+                // 예시 값 추가
+                if (deviceData[type].examples && deviceData[type].examples[0]) {
+                    const bytes = deviceData[type].examples[0].packet.match(/.{2}/g) || [];
+                    const exampleDiv = document.createElement('div');
+                    exampleDiv.className = 'byte-example';
+                    exampleDiv.textContent = `예시: ${bytes[byte] || '--'}`;
+                    td.appendChild(exampleDiv);
+                }
             }
             
             row.appendChild(td);

@@ -289,31 +289,25 @@ class WebServer:
             return {}
 
         structure = device[packet_type]
-        byte_desc = []
+        byte_desc = {}
+        byte_values = {}
         examples = []
 
-        # 패킷 구조 분석을 통해 byte_desc 생성
-        analysis_result = self._analyze_packet_structure('00' * len(structure['structure']), packet_type)
-        if analysis_result["success"]:
-            byte_desc = [desc.split(" = ")[0] for desc in analysis_result["analysis"]]
-
         # 헤더 설명
-        byte_desc.append(f"Byte 0: 헤더 ({structure['header']})")
+        byte_desc[0] = f"헤더 ({structure['header']})"
         
-        # 각 바이트 설명 생성
+        # 각 바이트 설명과 값 생성
         for pos, field in structure['structure'].items():
             pos = int(pos)
             if field['name'] == 'empty':
-                byte_desc.append(f"Byte {pos}: (00)")
+                byte_desc[pos] = "(00)"
             elif field['name'] == 'checksum':
-                byte_desc.append(f"Byte {pos}: 체크섬")
+                byte_desc[pos] = "체크섬"
             else:
-                desc = f"Byte {pos}: {field['name']}"
+                byte_desc[pos] = field['name']
                 if 'values' in field:
-                    values = [f"{k}={v}" for k, v in field['values'].items()]
-                    desc += f" ({', '.join(values)})"
-                byte_desc.append(desc)
-        
+                    byte_values[pos] = field['values']
+
         # 예시 패킷 동적 생성
         if device['type'] == 'Thermo':
             if packet_type == 'command':
@@ -343,7 +337,7 @@ class WebServer:
                 packet = list('00' * 7)
                 packet[0] = structure['header']
                 packet[1] = '81'  # 상태
-                packet[2] = '01'  # 1번 온도조절기
+                packet[2] = '01'  # 1��� 온도조절기
                 packet[3] = '18'  # 24도
                 examples.append({
                     "packet": ''.join(packet),
@@ -501,6 +495,7 @@ class WebServer:
         return {
             "header": structure['header'],
             "byte_desc": byte_desc,
+            "byte_values": byte_values,
             "examples": examples
         } 
     
