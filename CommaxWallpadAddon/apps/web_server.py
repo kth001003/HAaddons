@@ -63,117 +63,68 @@ class WebServer:
                 # 체크섬 계산
                 checksum_result = self.wallpad_controller.checksum(command)
                 
-                if packet_type == 'command':
-                    # 예상 상태 패킷 생성
-                    expected_state = None
-                    if checksum_result:
-                        expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
-                    
-                    # 헤더로 기기 찾기
-                    header = command[:2]
-                    device_info = None
-                    device_name = None
-                    
-                    for name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
-                        if 'command' in device and device['command']['header'] == header:
-                            device_info = device['command']
-                            device_name = name
-                            break
-                    
-                    if not device_info:
-                        return jsonify({
-                            "success": False,
-                            "error": "알 수 없는 명령 패킷입니다."
-                        }), 400
-                    
-                    # 각 바이트 분석
-                    byte_analysis = []
-                    for pos, field in device_info['structure'].items():
-                        pos = int(pos)
-                        if pos * 2 + 2 <= len(command):
-                            byte_value = command[pos*2:pos*2+2]
-                            desc = f"Byte {pos}: {field['name']}"
-                            
-                            if field['name'] == 'empty':
-                                desc = f"Byte {pos}: 예약됨 (00)"
-                            elif field['name'] == 'checksum':
-                                desc = f"Byte {pos}: 체크섬"
-                            elif 'values' in field:
-                                # 알려진 값과 매칭
-                                matched_value = None
-                                for key, value in field['values'].items():
-                                    if value == byte_value:
-                                        matched_value = key
-                                        break
-                                if matched_value:
-                                    desc += f" = {matched_value} ({byte_value})"
-                                else:
-                                    desc += f" = {byte_value}"
-                            else:
-                                desc += f" = {byte_value}"
-                            
-                            byte_analysis.append(desc)
-                    
-                    return jsonify({
-                        "success": True,
-                        "checksum": checksum_result,
-                        "expected_state": expected_state,
-                        "device": device_name,
-                        "analysis": byte_analysis
-                    })
+                # 헤더로 기기 찾기
+                header = command[:2]
+                device_info = None
+                device_name = None
                 
-                else:  # state packet analysis
-                    # 헤더로 기기 찾기
-                    header = command[:2]
-                    device_info = None
-                    device_name = None
-                    
-                    for name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
-                        if 'state' in device and device['state']['header'] == header:
-                            device_info = device['state']
-                            device_name = name
-                            break
-                    
-                    if not device_info:
-                        return jsonify({
-                            "success": False,
-                            "error": "알 수 없는 상태 패킷입니다."
-                        }), 400
-                    
-                    # 각 바이트 분석
-                    byte_analysis = []
-                    for pos, field in device_info['structure'].items():
-                        pos = int(pos)
-                        if pos * 2 + 2 <= len(command):
-                            byte_value = command[pos*2:pos*2+2]
-                            desc = f"Byte {pos}: {field['name']}"
-                            
-                            if field['name'] == 'empty':
-                                desc = f"Byte {pos}: 예약됨 (00)"
-                            elif field['name'] == 'checksum':
-                                desc = f"Byte {pos}: 체크섬"
-                            elif 'values' in field:
-                                # 알려진 값과 매칭
-                                matched_value = None
-                                for key, value in field['values'].items():
-                                    if value == byte_value:
-                                        matched_value = key
-                                        break
-                                if matched_value:
-                                    desc += f" = {matched_value} ({byte_value})"
-                                else:
-                                    desc += f" = {byte_value}"
+                for name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
+                    if packet_type in device and device[packet_type]['header'] == header:
+                        device_info = device[packet_type]
+                        device_name = name
+                        break
+                
+                if not device_info:
+                    return jsonify({
+                        "success": False,
+                        "error": f"알 수 없는 {packet_type} 패킷입니다."
+                    }), 400
+                
+                # 각 바이트 분석
+                byte_analysis = []
+                # 헤더 추가
+                byte_analysis.append(f"Byte 0: header = {device_name} {packet_type} ({header})")
+                
+                for pos, field in device_info['structure'].items():
+                    pos = int(pos)
+                    if pos * 2 + 2 <= len(command):
+                        byte_value = command[pos*2:pos*2+2]
+                        desc = f"Byte {pos}: {field['name']}"
+                        
+                        if field['name'] == 'empty':
+                            desc = f"Byte {pos}: 예약됨 (00)"
+                        elif field['name'] == 'checksum':
+                            desc = f"Byte {pos}: 체크섬"
+                        elif 'values' in field:
+                            # 알려진 값과 매칭
+                            matched_value = None
+                            for key, value in field['values'].items():
+                                if value == byte_value:
+                                    matched_value = key
+                                    break
+                            if matched_value:
+                                desc += f" = {matched_value} ({byte_value})"
                             else:
                                 desc += f" = {byte_value}"
-                            
-                            byte_analysis.append(desc)
-                    
-                    return jsonify({
-                        "success": True,
-                        "device": device_name,
-                        "analysis": byte_analysis,
-                        "checksum": checksum_result
-                    })
+                        else:
+                            desc += f" = {byte_value}"
+                        
+                        byte_analysis.append(desc)
+                
+                response = {
+                    "success": True,
+                    "device": device_name,
+                    "analysis": byte_analysis,
+                    "checksum": checksum_result
+                }
+                
+                # command 패킷인 경우 예상 상태 패킷 추가
+                if packet_type == 'command' and checksum_result:
+                    expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
+                    if expected_state:
+                        response["expected_state"] = expected_state
+                
+                return jsonify(response)
                 
             except Exception as e:
                 return jsonify({

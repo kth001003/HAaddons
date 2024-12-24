@@ -696,7 +696,7 @@ class WallpadController:
                 return None
             return ExpectedStatePacket(
                 expected_packet=status_hex,
-                required_bytes=required_bytes
+                required_bytes=sorted(required_bytes)
             )
             
         except Exception as e:

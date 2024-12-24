@@ -54,8 +54,9 @@ LightBreaker:
           "on": "01"
           "off": "00"
       "3":
-        name: fixed
-        value: "01"
+        name: unknown
+        values: 
+          "unknown": "01"
       "4": 
         name: empty
       "5": 
@@ -79,8 +80,9 @@ LightBreaker:
       "4": 
         name: empty
       "5":
-        name: fixed
-        value: "15"
+        name: unknown
+        values: 
+          "unknown": "15"
       "6": 
         name: empty
       "7":
@@ -184,8 +186,9 @@ Outlet:
       "1":
         name: deviceId
       "2":
-        name: fixed
-        value: "01"
+        name: unknown
+        values: 
+          "unknown": "01"
       "3":
         name: power
         values:
@@ -210,11 +213,13 @@ Outlet:
       "2":
         name: deviceId
       "3":
-        name: fixed1
-        value: "11"
+        name: unknown
+        values: 
+          "unknown": "11"
       "4":
         name: wattage
-        value: "10"
+        values: 
+          "wattage": "10"
       "5": 
         name: empty
       "6": 
@@ -238,9 +243,9 @@ Fan:
         name: value
         values:
           "off": "00"
-          low: "01"
-          medium: "02"
-          high: "03"
+          "low": "01"
+          "medium": "02"
+          "high": "03"
           "on": "04"
       "4": 
         name: empty
@@ -263,9 +268,9 @@ Fan:
       "3":
         name: speed
         values:
-          low: "01"
-          medium: "02"
-          high: "03"
+          "low": "01"
+          "medium": "02"
+          "high": "03"
       "4": 
         name: empty
       "5": 
@@ -287,14 +292,17 @@ EV:
         values:
           "on": "01"
       "3":
-        name: fixed1
-        value: "01"
+        name: unknown1
+        values: 
+          "unknown": "01"
       "4":
-        name: fixed2
-        value: "08"
+        name: unknown2
+        values: 
+          "unknown": "08"
       "5":
-        name: fixed3
-        value: "15"
+        name: unknown3
+        values: 
+          "unknown": "15"
       "6":
         name: empty
       "7":
