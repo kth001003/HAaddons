@@ -435,19 +435,19 @@
                     let newContent = '';
                     
                     // 송신 패킷 처리
-                    const newSendPackets = data.send.filter(packet => !lastPackets.has('send:' + packet));
+                    const newSendPackets = data.send.filter(packet => !lastPackets.has('send:' + packet.packet));
                     newSendPackets.forEach(packet => {
                         const timestamp = new Date().toLocaleTimeString();
                         newContent += createPacketLogEntry(timestamp, packet, 'send');
-                        lastPackets.add('send:' + packet);
+                        lastPackets.add('send:' + packet.packet);
                     });
                     
                     // 수신 패킷 처리
-                    const newRecvPackets = data.recv.filter(packet => !lastPackets.has('recv:' + packet));
+                    const newRecvPackets = data.recv.filter(packet => !lastPackets.has('recv:' + packet.packet));
                     newRecvPackets.forEach(packet => {
                         const timestamp = new Date().toLocaleTimeString();
                         newContent += createPacketLogEntry(timestamp, packet, 'recv');
-                        lastPackets.add('recv:' + packet);
+                        lastPackets.add('recv:' + packet.packet);
                     });
                     
                     if (newContent) {
@@ -717,70 +717,10 @@
             evt.currentTarget.className += " active";
         }
 
-        function analyzeStatePacket() {
-            const stateInput = document.getElementById('stateInput');
-            const resultDiv = document.getElementById('statePacketResult');
-            const packet = stateInput.value.trim();
-            
-            if (!packet) {
-                resultDiv.innerHTML = '<p class="error">상태 패킷을 입력하세요.</p>';
-                return;
-            }
-            
-            if (!/^[0-9A-Fa-f]{14}$/.test(packet) && !/^[0-9A-Fa-f]{16}$/.test(packet)) {
-                resultDiv.innerHTML = '<p class="error">패킷은 7바이트(14자리) 또는 8바이트(16자리)여야 합니다.</p>';
-                return;
-            }
-            
-            fetch('./api/analyze_packet', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                    command: packet,
-                    type: 'state'
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    let html = '<h3>분석 결과:</h3>';
-                    html += `<p>기기: <strong>${data.device}</strong></p>`;
-                    
-                    if (data.checksum) {
-                        html += `<p>체크섬이 포함된 패킷: <strong class="byte-spaced">${data.checksum}</strong></p>`;
-                    } else {
-                        html += '<p class="error">체크섬 계산 실패</p>';
-                    }
-                    
-                    html += '<h4>바이트별 분석:</h4>';
-                    html += '<div style="font-family: monospace;">';
-                    data.analysis.forEach(desc => {
-                        html += `<div>${desc}</div>`;
-                    });
-                    html += '</div>';
-                    resultDiv.innerHTML = html;
-                } else {
-                    resultDiv.innerHTML = `<p class="error">오류: ${data.error}</p>`;
-                }
-            })
-            .catch(error => {
-                resultDiv.innerHTML = `<p class="error">요청 실패: ${error}</p>`;
-            });
-        }
-        
         function analyzeExpectedState(packet) {
             document.getElementById('packetInput').value = packet;
             analyzePacket();
         }
-        
-        // Enter 키 입력 처리 (상태 패킷)
-        document.getElementById('stateInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                analyzeStatePacket();
-            }
-        });
 
         // 패킷 로그 표시 업데이트
         function updatePacketLogDisplay() {
@@ -913,16 +853,6 @@
                 packetInput.addEventListener('keypress', function(e) {
                     if (e.key === 'Enter') {
                         analyzePacket();
-                    }
-                });
-            }
-
-            // 상태 패킷 입력 필드 이벤트 리스너
-            const stateInput = document.getElementById('stateInput');
-            if (stateInput) {
-                stateInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        analyzeStatePacket();
                     }
                 });
             }
