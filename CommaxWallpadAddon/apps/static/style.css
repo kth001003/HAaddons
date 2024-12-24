@@ -275,4 +275,24 @@ input[type="text"] {
 }
 .packet-table .command-cell {
     font-family: monospace;
+}
+.packet-examples {
+    margin: 20px 0;
+    padding: 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+.packet-example {
+    margin: 10px 0;
+    padding: 5px 0;
+    border-bottom: 1px solid #eee;
+}
+.packet-example:last-child {
+    border-bottom: none;
+}
+.packet-example small {
+    display: block;
+    color: #666;
+    margin-top: 5px;
 } 

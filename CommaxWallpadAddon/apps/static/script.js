@@ -190,11 +190,54 @@ function loadPacketStructures() {
                 tabContent.style.display = isFirst ? 'block' : 'none';
                 
                 // 디바이스 정보 헤더 추가
-                tabContent.innerHTML = `<h3>${deviceName} (${info.type || '알 수 없음'})</h3>`;
+                const deviceHeader = document.createElement('h3');
+                deviceHeader.textContent = `${deviceName} (${info.type || '알 수 없음'})`;
+                tabContent.appendChild(deviceHeader);
                 
                 // 새로운 패킷 테이블 생성
                 const table = createPacketTable(info);
                 tabContent.appendChild(table);
+                
+                // 예시 패킷 섹션 추가
+                if (info.command?.examples?.length > 0 || 
+                    info.state?.examples?.length > 0 || 
+                    info.state_request?.examples?.length > 0 || 
+                    info.ack?.examples?.length > 0) {
+                    
+                    const examplesHeader = document.createElement('h4');
+                    examplesHeader.textContent = '예시 패킷';
+                    tabContent.appendChild(examplesHeader);
+                    
+                    const examplesDiv = document.createElement('div');
+                    examplesDiv.className = 'packet-examples';
+                    
+                    // 각 타입별 예시 추가
+                    ['command', 'state', 'state_request', 'ack'].forEach(type => {
+                        if (info[type]?.examples?.length > 0) {
+                            const typeHeader = document.createElement('h5');
+                            typeHeader.textContent = {
+                                'command': '명령 패킷',
+                                'state': '상태 패킷',
+                                'state_request': '상태 요청 패킷',
+                                'ack': '응답 패킷'
+                            }[type];
+                            examplesDiv.appendChild(typeHeader);
+                            
+                            info[type].examples.forEach(example => {
+                                const exampleDiv = document.createElement('div');
+                                exampleDiv.className = 'packet-example';
+                                const formattedPacket = example.packet.match(/.{2}/g).join(' ');
+                                exampleDiv.innerHTML = `
+                                    <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code>
+                                    <small>${example.desc || ''}</small>
+                                `;
+                                examplesDiv.appendChild(exampleDiv);
+                            });
+                        }
+                    });
+                    
+                    tabContent.appendChild(examplesDiv);
+                }
                 
                 tabContents.appendChild(tabContent);
                 isFirst = false;
