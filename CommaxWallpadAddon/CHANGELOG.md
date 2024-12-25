@@ -2,6 +2,16 @@
 
 모든 주요 변경 사항이 이 파일에 기록됩니다.
 
+## [1.4.9] - 2024-12-25
+
+### 변경됨
+- 설정 및 구성 개선
+  - config.json 스키마 업데이트
+    - vendor 옵션 추가 (commax/custom 선택)
+  - 기기 패킷 구조 파일 정리
+    - packet_structures_commax.yaml로 파일명 변경
+- Web UI에 live packet 페이지 추가
+
 ## [1.4.8] - 2024-12-25
 
 ### 변경됨

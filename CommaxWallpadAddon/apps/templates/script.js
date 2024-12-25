@@ -7,6 +7,9 @@ const MAX_HISTORY = 20;
 let historyIndex = -1;  // 히스토리 인덱스 추가
 let currentInput = '';   // 현재 입력값 저장용 변수 추가
 
+// 실시간 패킷 로그 관련 함수들
+let liveLastPackets = new Set();
+
 // ===============================
 // 페이지 전환 함수
 // ===============================
@@ -227,14 +230,8 @@ function updatePacketLog() {
             
             if (newContent) {
                 logDiv.innerHTML = newContent + logDiv.innerHTML;
-                // 새 내용이 추가된 후 Unknown 패킷 숨기기 상태 적용
-                const hideUnknown = document.getElementById('hideUnknown').checked;
-                if (hideUnknown) {
-                    const unknownPackets = logDiv.querySelectorAll('.unknown-packet');
-                    unknownPackets.forEach(packet => {
-                        packet.classList.add('hidden');
-                    });
-                }
+                // Unknown 패킷 숨기기 상태 적용
+                updatePacketLogDisplay();
             }
         });
 }
@@ -374,10 +371,9 @@ function createPacketTable(deviceData) {
     
     const headerRow = document.createElement('tr');
     const headers = ['Byte', '명령', '응답', '상태요청', '상태'];
-    headers.forEach((header, index) => {
+    headers.forEach(header => {
         const th = document.createElement('th');
-        th.className = 'px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ' + 
-            (index === 0 ? 'w-[10%]' : 'w-[22.5%]');
+        th.className = 'px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
         th.textContent = header;
         headerRow.appendChild(th);
     });
@@ -388,14 +384,14 @@ function createPacketTable(deviceData) {
         row.className = byte % 2 === 0 ? 'bg-white' : 'bg-gray-50';
         
         const byteCell = document.createElement('td');
-        byteCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 w-[10%]';
+        byteCell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900';
         byteCell.textContent = `Byte ${byte}`;
         row.appendChild(byteCell);
         
         const types = ['command', 'ack', 'state_request', 'state'];
         types.forEach(type => {
             const td = document.createElement('td');
-            td.className = 'px-4 py-3 text-sm text-gray-500 w-[22.5%]';
+            td.className = 'px-6 py-4 text-sm text-gray-500';
             
             if (deviceData[type]) {
                 if (deviceData[type].byte_desc && deviceData[type].byte_desc[byte] !== undefined) {
@@ -550,6 +546,72 @@ function updateRecentMessages() {
         });
 }
 
+// 실시간 패킷 로그 관련 함수들
+function updateLivePacketLog() {
+    fetch('./api/packet_logs')
+        .then(response => response.json())
+        .then(data => {
+            const logDiv = document.getElementById('livePacketLog');
+            let newContent = '';
+            
+            // 송신 패킷 처리
+            data.send.forEach(packet => {
+                const timestamp = new Date().toLocaleTimeString();
+                newContent += createLivePacketLogEntry(packet, 'send', timestamp);
+            });
+            
+            // 수신 패킷 처리
+            data.recv.forEach(packet => {
+                const timestamp = new Date().toLocaleTimeString();
+                newContent += createLivePacketLogEntry(packet, 'recv', timestamp);
+            });
+            
+            if (newContent) {
+                logDiv.innerHTML = newContent + logDiv.innerHTML;
+                // Unknown 패킷 숨기기 상태 적용
+                updateLivePacketLogDisplay();
+            }
+        });
+}
+
+function createLivePacketLogEntry(packet, type, timestamp) {
+    const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
+    const deviceText = deviceInfo.device !== "Unknown" ? 
+        `${deviceInfo.device} ${deviceInfo.packet_type}` : 
+        "Unknown";
+    
+    const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
+    
+    return `
+        <div class="p-2 border-b border-gray-200 hover:bg-gray-50 cursor-pointer ${deviceInfo.device === 'Unknown' ? 'opacity-70 unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
+            <div class="flex items-center justify-between">
+                <span class="text-xs text-gray-500">${timestamp}</span>
+                <span class="inline-block min-w-[50px] text-sm font-semibold ${type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${type.toUpperCase()}]</span>
+            </div>
+            <div class="font-mono">${formattedPacket}</div>
+            <div class="text-sm text-gray-600">[${deviceText}]</div>
+        </div>`;
+}
+
+function clearLivePacketLog() {
+    const logDiv = document.getElementById('livePacketLog');
+    logDiv.innerHTML = '';
+    liveLastPackets.clear();
+}
+
+function updateLivePacketLogDisplay() {
+    const hideUnknown = document.getElementById('liveHideUnknown').checked;
+    const unknownPackets = document.querySelectorAll('#livePacketLog .unknown-packet');
+    
+    unknownPackets.forEach(packet => {
+        if (hideUnknown) {
+            packet.classList.add('hidden');
+        } else {
+            packet.classList.remove('hidden');
+        }
+    });
+}
+
 // 페이지 로드 완료 후 초기화 실행 및 주기적 업데이트 설정
 document.addEventListener('DOMContentLoaded', function() {
     initialize();
@@ -559,6 +621,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
+    setInterval(updateLivePacketLog, 1000);    // 1초마다 실시간 패킷 로그 업데이트
     
     // 패킷 입력 필드 이벤트 리스너 설정
     const packetInput = document.getElementById('packetInput');
