@@ -587,6 +587,8 @@
                 .then(structures => {
                     const tabButtons = document.getElementById('deviceTabs');
                     const tabContents = document.getElementById('tabContents');
+                    if (!tabButtons || !tabContents) return;
+                    
                     tabButtons.innerHTML = '';
                     tabContents.innerHTML = '';
                     
@@ -606,31 +608,33 @@
                         tabContent.className = 'tab-content';
                         tabContent.style.display = isFirst ? 'block' : 'none';
                         
-                        let html = `<h3>${deviceName} (${info.type})</h3>`;
+                        let html = `<h3>${deviceName} (${info.type || 'Unknown'})</h3>`;
                         
                         // 패킷 타입별 정보 추가
                         ['command', 'state', 'state_request', 'ack'].forEach(packetType => {
-                            if (info[packetType]) {
+                            if (info[packetType] && typeof info[packetType] === 'object') {
                                 html += `
                                     <div class="packet-type-section">
                                         <h4>${getPacketTypeKorean(packetType)} 패킷</h4>
                                         <div class="packet-structure">
                                             <div class="byte-descriptions">
-                                                ${Object.entries(info[packetType].byte_desc).map(([pos, desc]) => 
+                                                ${Object.entries(info[packetType].byte_desc || {}).map(([pos, desc]) => 
                                                     `<div class="byte-desc">Byte ${pos}: ${desc}</div>`
                                                 ).join('')}
                                             </div>
                                             ${info[packetType].byte_values ? `
                                                 <div class="byte-values">
                                                     <h5>가능한 값들:</h5>
-                                                    ${Object.entries(info[packetType].byte_values).map(([pos, values]) => `
-                                                        <div class="byte-value">
-                                                            <span>Byte ${pos}:</span>
-                                                            ${Object.entries(values).map(([key, value]) => 
-                                                                `<span>${key}: ${value}</span>`
-                                                            ).join(', ')}
-                                                        </div>
-                                                    `).join('')}
+                                                    ${Object.entries(info[packetType].byte_values).map(([pos, values]) => 
+                                                        values ? `
+                                                            <div class="byte-value">
+                                                                <span>Byte ${pos}:</span>
+                                                                ${Object.entries(values).map(([key, value]) => 
+                                                                    `<span>${key}: ${value}</span>`
+                                                                ).join(', ')}
+                                                            </div>
+                                                        ` : ''
+                                                    ).join('')}
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -647,6 +651,15 @@
                 })
                 .catch(error => {
                     console.error('패킷 구조 로드 실패:', error);
+                    const tabContents = document.getElementById('tabContents');
+                    if (tabContents) {
+                        tabContents.innerHTML = `
+                            <div class="text-red-500 p-4">
+                                패킷 구조를 로드하는 중 오류가 발생했습니다.<br>
+                                ${error.message}
+                            </div>
+                        `;
+                    }
                 });
         }
 
