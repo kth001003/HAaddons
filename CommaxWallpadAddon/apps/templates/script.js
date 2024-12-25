@@ -374,9 +374,10 @@ function createPacketTable(deviceData) {
     
     const headerRow = document.createElement('tr');
     const headers = ['Byte', '명령', '응답', '상태요청', '상태'];
-    headers.forEach(header => {
+    headers.forEach((header, index) => {
         const th = document.createElement('th');
-        th.className = 'px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+        th.className = 'px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ' + 
+            (index === 0 ? 'w-[10%]' : 'w-[22.5%]');
         th.textContent = header;
         headerRow.appendChild(th);
     });
@@ -387,14 +388,14 @@ function createPacketTable(deviceData) {
         row.className = byte % 2 === 0 ? 'bg-white' : 'bg-gray-50';
         
         const byteCell = document.createElement('td');
-        byteCell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900';
+        byteCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 w-[10%]';
         byteCell.textContent = `Byte ${byte}`;
         row.appendChild(byteCell);
         
         const types = ['command', 'ack', 'state_request', 'state'];
         types.forEach(type => {
             const td = document.createElement('td');
-            td.className = 'px-6 py-4 text-sm text-gray-500';
+            td.className = 'px-4 py-3 text-sm text-gray-500 w-[22.5%]';
             
             if (deviceData[type]) {
                 if (deviceData[type].byte_desc && deviceData[type].byte_desc[byte] !== undefined) {
