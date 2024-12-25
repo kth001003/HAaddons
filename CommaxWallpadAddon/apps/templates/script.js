@@ -510,7 +510,7 @@ function updateMqttStatus() {
             document.getElementById('brokerInfo').textContent = data.broker || '-';
             document.getElementById('clientId').textContent = data.client_id || '-';
             
-            // 구독 ��인 토픽 표시
+            // 구독 중인 토픽 표시
             const topicsDiv = document.getElementById('subscribedTopics');
             topicsDiv.innerHTML = data.subscribed_topics.map(topic => 
                 `<div class="text-sm bg-gray-50 p-2 rounded">${topic}</div>`

@@ -24,6 +24,9 @@
                         <a href="#" onclick="showPage('playground')" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                             플레이그라운드
                         </a>
+                        <a href="#" onclick="showPage('packet_reference')" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            패킷 참조자료
+                        </a>
                     </div>
                 </div>
             </div>
@@ -31,7 +34,7 @@
     </nav>
 
     <!-- 메인 컨텐츠 영역 -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-full mx-auto px-2 sm:px-4 lg:px-4 py-4">
         <!-- 대시보드 페이지 -->
         <div id="dashboard" class="page">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -92,68 +95,72 @@
     
         <!-- 플레이그라운드 페이지 -->
         <div id="playground" class="page hidden">
-            <div class="space-y-6">
+            <div class="grid grid-cols-12 gap-4">
                 <!-- 패킷 로그 -->
-                <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex justify-between items-center mb-4">
+                <div class="col-span-4 bg-white rounded-lg shadow p-4">
+                    <div class="flex justify-between items-center mb-4">
                         <h2 class="text-lg font-semibold">감지된 패킷 목록</h2>
-                <div class="flex items-center gap-4">
-                    <label class="inline-flex items-center">
-                        <input type="checkbox" id="hideUnknown" onchange="updatePacketLogDisplay()" class="form-checkbox h-4 w-4 text-indigo-600">
-                        <span class="ml-2 text-gray-700">Unknown 패킷 숨기기</span>
-                    </label>
-                    <button onclick="clearPacketLog()" class="text-gray-500 hover:text-red-500 transition-colors" title="패킷 목록 초기화">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
+                        <div class="flex items-center gap-4">
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="hideUnknown" onchange="updatePacketLogDisplay()" class="form-checkbox h-4 w-4 text-indigo-600">
+                                <span class="ml-2 text-gray-700">Unknown 패킷 숨기기</span>
+                            </label>
+                            <button onclick="clearPacketLog()" class="text-gray-500 hover:text-red-500 transition-colors" title="패킷 목록 초기화">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="packetLog" class="h-[calc(100vh-16rem)] overflow-y-auto">
+                        <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
+                    </div>
                 </div>
-            </div>
-            <div id="packetLog" class="h-96 overflow-y-auto">
-                <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
-            </div>
-        </div>
 
                 <!-- 패킷 분석기 -->
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h2 class="text-lg font-semibold mb-4">패킷 분석기</h2>
-                    <p class="text-sm text-gray-600 mb-4">* 패킷은 7바이트(14자리)로 입력하세요. 체크섬은 자동으로 계산됩니다.</p>
-            <div class="flex gap-2 mb-2">
-                <div class="flex-grow">
-                    <input type="text" id="packetInput" placeholder="패킷 입력 (예: F7010104000000)" class="form-input block w-full py-2 px-3 border border-gray-300 rounded shadow focus:outline-none focus:shadow-outline">
+                <div class="col-span-8 space-y-4">
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h2 class="text-lg font-semibold mb-4">패킷 분석기</h2>
+                        <p class="text-sm text-gray-600 mb-4">* 패킷은 7바이트(14자리)로 입력하세요. 체크섬은 자동으로 계산됩니다.</p>
+                        <div class="flex gap-2 mb-2">
+                            <div class="flex-grow">
+                                <input type="text" id="packetInput" placeholder="패킷 입력 (예: F7010104000000)" class="form-input block w-full py-2 px-3 border border-gray-300 rounded shadow focus:outline-none focus:shadow-outline">
+                            </div>
+                            <button onclick="analyzePacket()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                                분석
+                            </button>
+                        </div>
+                        <div id="packetResult" class="mt-4">
+                            <!-- 분석 결과가 여기에 표시됩니다 -->
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-gray-200">
+                            <button id="sendPacketButton" onclick="sendPacket()" class="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                                현재 패킷 전송
+                            </button>
+                            <p id="sendPacketWarning" class="text-sm text-red-500 mt-2">
+                                ⚠️ 패킷 전송은 현재 입력된 패킷을 그대로 전송하며, 유효성 검증을 거치지 않습니다.<br>
+                                알 수 없는 패킷을 전송하는 경우 예상하지 못한 동작이 있을 수 있습니다.<br>
+                                명령 패킷이 원하는 동작이 되지 않는다면 여러 번 전송을 시도해 보세요.
+                            </p>
+                        </div>
+                    </div>
                 </div>
-                <button onclick="analyzePacket()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                    분석
-                </button>
             </div>
-            <div id="packetResult" class="mt-4">
-                <!-- 분석 결과가 여기에 표시됩니다 -->
-            </div>
-            <div class="mt-4 pt-4 border-t border-gray-200">
-                <button id="sendPacketButton" onclick="sendPacket()" class="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-                    현재 패킷 전송
-                </button>
-                <p id="sendPacketWarning" class="text-sm text-red-500 mt-2">
-                    ⚠️ 패킷 전송은 현재 입력된 패킷을 그대로 전송하며, 유효성 검증을 거치지 않습니다.<br>
-                    알 수 없는 패킷을 전송하는 경우 예상하지 못한 동작이 있을 수 있습니다.<br>
-                    명령 패킷이 원하는 동작이 되지 않는다면 여러 번 전송을 시도해 보세요.
-                </p>
         </div>
-    </div>
 
-                <!-- 패킷 참조 자료 -->
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h2 class="text-lg font-semibold mb-4">📚 패킷 참조 자료</h2>
-        <div>
-            <div id="deviceTabs" class="flex border-b border-gray-200">
-                <!-- 탭 버튼이 동적으로 추가됩니다 -->
-            </div>
-            <div id="tabContents" class="mt-4">
-                <!-- 각 디바이스별 패킷 테이블이 여기에 추가됩니다 -->
-            </div>
-        </div>
-        <p class="text-sm text-gray-600 mt-2">*FF로 표시된 값은 정수값이 들어올 수 있습니다.</p>
-    </div>
+        <!-- 패킷 참조자료 페이지 -->
+        <div id="packet_reference" class="page hidden">
+            <div class="bg-white rounded-lg shadow p-4">
+                <h2 class="text-lg font-semibold mb-4">📚 패킷 참조 자료</h2>
+                <div>
+                    <div id="deviceTabs" class="flex border-b border-gray-200">
+                        <!-- 탭 버튼이 동적으로 추가됩니다 -->
+                    </div>
+                    <div id="tabContents" class="mt-4">
+                        <!-- 각 디바이스별 패킷 테이블이 여기에 추가됩니다 -->
+                    </div>
+                </div>
+                <p class="text-sm text-gray-600 mt-2">*FF로 표시된 값은 정수값이 들어올 수 있습니다.</p>
             </div>
         </div>
     </div>
