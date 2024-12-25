@@ -360,15 +360,13 @@ class WebServer:
         examples = []
 
         # 헤더 설명
-        byte_desc[0] = f"헤더 ({structure['header']})"
+        byte_desc[0] = f"header ({structure['header']})"
         
         # 각 바이트 설명과 값 생성
         for pos, field in structure['structure'].items():
             pos = int(pos)
             if field['name'] == 'empty':
-                byte_desc[pos] = "(00)"
-            elif field['name'] == 'checksum':
-                byte_desc[pos] = "체크섬"
+                byte_desc[pos] = "00"
             else:
                 byte_desc[pos] = field['name']
                 if 'values' in field:

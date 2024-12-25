@@ -99,27 +99,33 @@ class WallpadController:
         return '0' + str(value) if value < 10 else str(value)
 
     def load_devices_and_packets_structures(self) -> None:
+        """
+        기기 및 패킷 구조를 로드하는 함수
+        
+        config의 vendor 설정에 따라 기본 구조 파일 또는 커스텀 구조 파일을 로드합니다.
+        vendor가 설정되지 않은 경우 기본값으로 'commax'를 사용합니다.
+        """
         try:
-            # /share 디렉토리의 파일을 먼저 확인
-            share_file_path = '/share/commax_devices_and_packets_structures.yaml'
-            default_file_path = '/apps/devices_and_packets_structures.yaml'
-            
-            if os.path.exists(share_file_path):
-                with open(share_file_path) as file:
-                    self.DEVICE_STRUCTURE = yaml.safe_load(file)
-                    self.logger.info(f'기기 및 패킷 구조를 {share_file_path}에서 로드했습니다.')
-                    self.logger.info(f'파일이 망가진 경우 초기화하려면 파일을 삭제하고 애드온을 재시작하세요.')
-            else:
-                with open(default_file_path) as file:
-                    self.DEVICE_STRUCTURE = yaml.safe_load(file)
-                    self.logger.info(f'기기 및 패킷 구조를 {default_file_path}에서 로드했습니다.')
-                # 기본 파일을 share 디렉토리로 복사
-                self.logger.info(f'기기 및 패킷 구조 복사본을 {share_file_path}로 복사합니다.')
+            vendor = self.config.get('vendor', 'commax').lower()
+            default_file_path = f'/apps/packet_structures_{vendor}.yaml'
+            custom_file_path = f'/share/packet_structures_custom.yaml'
+
+            if vendor == 'custom':
                 try:
-                    shutil.copy2(default_file_path, share_file_path)
-                except Exception as e:
-                    self.logger.error(f'파일 복사 중 오류 발생: {str(e)}')
-                    
+                    with open(custom_file_path) as file:
+                        self.DEVICE_STRUCTURE = yaml.safe_load(file)
+                    self.logger.info(f'{vendor} 패킷 구조를 로드했습니다.')
+                except FileNotFoundError:
+                    self.logger.error(f'{custom_file_path} 파일을 찾을 수 없습니다.')
+            else:
+                try:
+                    with open(default_file_path) as file:
+                        self.DEVICE_STRUCTURE = yaml.safe_load(file)
+                    self.logger.info(f'{vendor} 패킷 구조를 로드했습니다.')
+                except FileNotFoundError:
+                    self.logger.error(f'{vendor} 패킷 구조 파일을 찾을 수 없습니다.')
+                    return
+
             if self.DEVICE_STRUCTURE is not None:
                 # fieldPositions 자동 생성
                 for device_name, device in self.DEVICE_STRUCTURE.items():
@@ -151,7 +157,7 @@ class WallpadController:
         """MQTT 클라이언트를 설정하고 반환합니다.
         
         Args:
-            client_id (Optional[str]): MQTT 클라이언트 ID. ���본값은 self.HA_TOPIC
+            client_id (Optional[str]): MQTT 클라이언트 ID. 기본값은 self.HA_TOPIC
             
         Returns:
             mqtt.Client: 설정된 MQTT 클라이언트
@@ -280,9 +286,9 @@ class WallpadController:
             if topic.endswith('/send'):
                 self.mqtt_client.publish(topic, value, retain=retain)
                 self.logger.mqtt(f'{topic} >> {value}')
-                return
-            self.mqtt_client.publish(topic, value.encode(), retain=retain)
-            self.logger.mqtt(f'{topic} >> {value}')
+            else:
+                self.mqtt_client.publish(topic, value.encode(), retain=retain)
+                self.logger.mqtt(f'{topic} >> {value}')
         else:
             self.logger.error('MQTT 클라이언트가 초기화되지 않았습니다.')
 
@@ -530,7 +536,7 @@ class WallpadController:
             target_temp (int): 설정하고자 하는 목표 온도 값
             command_type (str): 명령어 타입
                 - 'commandOFF': 전원 끄기 명령
-                - 'commandON': 전원 켜기 명���
+                - 'commandON': 전원 켜기 명령
                 - 'commandCHANGE': 온도 변경 명령
         
         Returns:
@@ -628,6 +634,8 @@ class WallpadController:
             device_structure = self.DEVICE_STRUCTURE[device_type]
             command_structure = device_structure['command']
             state_structure = device_structure['state']
+            command_field_positions = command_structure['fieldPositions']
+            state_field_positions = state_structure['fieldPositions']
             
             # 상태 패킷 초기화 (7바이트 - 체크섬은 나중에 추가)
             status_packet = bytearray(7)
@@ -638,30 +646,29 @@ class WallpadController:
             status_packet[0] = int(state_structure['header'], 16)
             
             # 기기 ID 복사
-            device_id_pos = state_structure['fieldPositions']['deviceId']
-            status_packet[int(device_id_pos)] = command_packet[int(command_structure['fieldPositions']['deviceId'])]
+            device_id_pos = state_field_positions.get('deviceId', 2)
+            status_packet[int(device_id_pos)] = command_packet[int(command_field_positions.get('deviceId', 1))]
             # 필요한 바이트 리스트에 기기 ID 추가
             required_bytes.append(int(device_id_pos))
 
             if device_type == 'Thermo':
                 # 온도조절기 상태 패킷 생성
-                command_type_pos = command_structure['fieldPositions']['commandType']
+                command_type_pos = command_field_positions.get('commandType', 2)
                 command_type = command_packet[int(command_type_pos)]
                 
-                power_pos = state_structure['fieldPositions']['power']
+                power_pos = state_field_positions.get('power',1)
                 if command_type == int(command_structure["structure"][command_type_pos]['values']['power'], 16): #04
-                    command_value = command_packet[int(command_structure['fieldPositions']['value'])] #command value on:81, off:00
+                    command_value = command_packet[int(command_field_positions.get('value', 3))] #command value on:81, off:00
                     status_packet[int(power_pos)] = command_value #81,83,00 중 81 or 00
                     # 필요한 바이트 리스트에 전원 위치 추가
                     required_bytes.append(int(power_pos))
                 elif command_type == int(command_structure["structure"][command_type_pos]['values']['change'], 16): #03
                     #Power는 idle 상태로 가정
                     status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['idle'], 16) #81
-                    
-                    target_temp = command_packet[int(command_structure['fieldPositions']['value'])]
-                    target_temp_pos = state_structure['fieldPositions']['targetTemp']
+                    target_temp = command_packet[int(command_field_positions.get('value', 3))]
+                    target_temp_pos = state_field_positions.get('targetTemp', 4)
                     status_packet[int(target_temp_pos)] = target_temp
-                    current_temp_pos = state_structure['fieldPositions']['currentTemp']
+                    current_temp_pos = state_field_positions.get('currentTemp', 5)
                     status_packet[int(current_temp_pos)] = target_temp
                     # 필요한 바이트 리스트에 현재 온도 위치 추가
                     required_bytes.append(int(target_temp_pos))
@@ -669,24 +676,38 @@ class WallpadController:
 
             elif device_type == 'Light':
                 # 조명 상태 패킷 생성
-                power_pos = state_structure['fieldPositions']['power']
-                command_value = command_packet[int(command_structure['fieldPositions']['power'])]
+                power_pos = state_field_positions.get('power',1)
+                command_value = command_packet[int(command_field_positions.get('power',2))]
                 status_packet[int(power_pos)] = command_value
                 # 필요한 바이트 리스트에 전원 위치 추가
                 required_bytes.append(int(power_pos))
 
-            # elif device_type == 'Fan':
-            #     # 환기장치 상태 패킷 생성
-            #     command_type = command_packet[int(device_structure['command']['fieldPositions']['commandType'])]
-            #     command_value = command_packet[int(device_structure['command']['fieldPositions']['value'])]
-                
+            elif device_type == 'LightBreaker':
+                # 조명 상태 패킷 생성
+                power_pos = state_field_positions.get('power',1)
+                command_value = command_packet[int(command_field_positions.get('power',2))]
+                status_packet[int(power_pos)] = command_value
+                # 필요한 바이트 리스트에 전원 위치 추가
+                required_bytes.append(int(power_pos))
+
+            elif device_type == 'Fan':
+                # 환기장치 상태 패킷 생성
+                power_pos = state_field_positions.get('power',1)
+                command_type_pos = command_field_positions.get('commandType', 2)
+                command_type = command_packet[int(command_type_pos)]
+                command_value = command_packet[int(command_field_positions.get('value', 3))]
+                status_packet[int(power_pos)] = command_value
+                # 필요한 바이트 리스트에 전원 위치 추가
+                required_bytes.append(int(power_pos))
+
+
             #     if command_type == int(device_structure['command']['types']['power']['code'], 16):
             #         # 전원 명령
             #         status_packet[int(device_structure['state']['fieldPositions']['power'])] = command_value
             #     elif command_type == int(device_structure['command']['types']['setSpeed']['code'], 16):
             #         # 속도 설정 명령
             #         status_packet[int(device_structure['state']['fieldPositions']['speed'])] = command_value
-            #         # 전���은 켜진 상태로 설정
+            #         # 전원은 켜진 상태로 설정
             #         status_packet[int(device_structure['state']['fieldPositions']['power'])] = \
             #             int(device_structure['state']['structure']['1']['values']['on'], 16)
             
@@ -714,6 +735,14 @@ class WallpadController:
     async def update_light(self, idx: int, onoff: str) -> None:
         state = 'power'
         deviceID = 'Light' + str(idx)
+
+        topic = self.STATE_TOPIC.format(deviceID, state)
+        self.publish_mqtt(topic, onoff)
+        self.HOMESTATE[deviceID + state] = onoff
+    
+    async def update_light_breaker(self, idx: int, onoff: str) -> None:
+        state = 'power'
+        deviceID = 'LightBreaker' + str(idx)
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.publish_mqtt(topic, onoff)
@@ -757,45 +786,54 @@ class WallpadController:
         except Exception as e:
             self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
  
-    # async def update_fan(self, idx, value):
-    #     try:
-    #         deviceID = 'Fan' + str(idx + 1)
-    #         if value == 'OFF':
-    #             topic = self.STATE_TOPIC.format(deviceID, 'power')
-    #             self.publish_mqtt(topic,'OFF')
-    #         else:
-    #             speed_map = {1: 'low', 2: 'medium', 3: 'high'}
-    #             topic = self.STATE_TOPIC.format(deviceID, 'speed')
-    #             speed = speed_map.get(int(value), 'low')
-    #             self.publish_mqtt(topic, speed)
+    async def update_fan(self, idx: int, power_text: str, speed_text: str) -> None:
+        try:
+            deviceID = 'Fan' + str(idx)
+            if power_text == 'OFF':
+                topic = self.STATE_TOPIC.format(deviceID, 'power')
+                self.publish_mqtt(topic,'OFF')
+                self.HOMESTATE[deviceID + 'power'] = 'OFF'
+            else:
+                topic = self.STATE_TOPIC.format(deviceID, 'speed')
+                self.publish_mqtt(topic, speed_text)
+                self.HOMESTATE[deviceID + 'speed'] = speed_text
+                topic = self.STATE_TOPIC.format(deviceID, 'power')
+                self.publish_mqtt(topic, 'ON')
+                self.HOMESTATE[deviceID + 'power'] = 'ON'
                 
-    #             topic = self.STATE_TOPIC.format(deviceID, 'power')
-    #             self.publish_mqtt(topic, 'ON')
-                
-    #     except Exception as e:
-    #         self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
 
-    # async def update_outlet_value(self, idx, val):
-    #     deviceID = 'Outlet' + str(idx + 1)
-    #     try:
-    #         val = '%.1f' % float(int(val) / 10)
-    #         topic = self.STATE_TOPIC.format(deviceID, 'watt')
-    #         self.publish_mqtt(topic, val)
-    #     except:
-    #         pass
+    async def update_outlet(self, idx: int, power_text: str, watt: int) -> None:
+        try:
+            deviceID = 'Outlet' + str(idx + 1)
+            if power_text == 'ON':
+                topic = self.STATE_TOPIC.format(deviceID, 'power')
+                self.publish_mqtt(topic, 'ON')
+                self.HOMESTATE[deviceID + 'power'] = 'ON'
+                val = '%.1f' % float(int(watt) / 10)
+                topic = self.STATE_TOPIC.format(deviceID, 'watt')
+                self.publish_mqtt(topic, val)
+                self.HOMESTATE[deviceID + 'watt'] = val
+            else:
+                topic = self.STATE_TOPIC.format(deviceID, 'power')
+                self.publish_mqtt(topic, 'OFF')
+                self.HOMESTATE[deviceID + 'power'] = 'OFF'
+        except Exception as e:
+            self.logger.error(f"콘센트 상태 업데이트 중 오류 발생: {str(e)}")
 
-    # async def update_ev_value(self, idx, val):
-    #     deviceID = 'EV' + str(idx + 1)
-    #     if self.device_list is not None:
-    #         try:
-    #             BF = self.device_list['EV']['BasementFloor']
-    #             val = str(int(val) - BF + 1) if val >= BF else 'B' + str(BF - int(val))
-    #             topic = self.STATE_TOPIC.format(deviceID, 'floor')
-    #             self.publish_mqtt(topic, val)
-    #         except:
-    #             pass
-    #     else:
-    #         self.logger.error("device_list가 초기화되지 않았습니다.")
+    async def update_ev(self, idx: int, power_text: str, floor_text: str) -> None:
+        try:
+            deviceID = 'EV' + str(idx)
+            if power_text == 'ON':
+                topic = self.STATE_TOPIC.format(deviceID, 'power')
+                self.publish_mqtt(topic, 'ON')
+                self.HOMESTATE[deviceID + 'power'] = 'ON'
+                topic = self.STATE_TOPIC.format(deviceID, 'floor')
+                self.publish_mqtt(topic, floor_text)
+                self.HOMESTATE[deviceID + 'floor'] = floor_text
+        except Exception as e:
+            self.logger.error(f"엘리베이터 상태 업데이트 중 오류 발생: {str(e)}")
 
     async def reboot_elfin_device(self):
         try:
@@ -827,19 +865,18 @@ class WallpadController:
                     
                     for device_name, structure in self.DEVICE_STRUCTURE.items():
                         state_structure = structure['state']
+                        field_positions = state_structure['fieldPositions']
                         if byte_data[0] == int(state_structure['header'], 16):
-                            device_id_pos = state_structure['fieldPositions']['deviceId']
+                            device_id_pos = field_positions['deviceId']
                             device_id = byte_data[int(device_id_pos)]
                             if device_name == 'Thermo':
-                                power_pos = state_structure['fieldPositions']['power']
+                                power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
                                 # 온도값을 10진수로 직접 해석
-                                current_temp = int(format(byte_data[int(state_structure['fieldPositions']['currentTemp'])], '02x'))
-                                target_temp = int(format(byte_data[int(state_structure['fieldPositions']['targetTemp'])], '02x'))
-                                # power 값 비교를 16진수 문자열로 변환하여 수행
+                                current_temp = int(format(byte_data[int(field_positions.get('currentTemp', 3))], '02x'))
+                                target_temp = int(format(byte_data[int(field_positions.get('targetTemp', 4))], '02x'))
                                 power_hex = format(power, '02x').upper()
                                 power_values = state_structure['structure'][power_pos]['values']
-                                # power 값과 정의된 값들을 직접 비교
                                 power_off_hex = power_values.get('off', '').upper()
                                 power_heating_hex = power_values.get('heating', '').upper()
                                 mode_text = 'off' if power_hex == power_off_hex else 'heat'
@@ -848,7 +885,7 @@ class WallpadController:
                                 await self.update_temperature(device_id, mode_text, action_text, current_temp, target_temp)
                             
                             elif device_name == 'Light':
-                                power_pos = state_structure['fieldPositions']['power']
+                                power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
                                 power_values = state_structure['structure'][power_pos]['values']
                                 power_hex = format(power, '02x').upper()
@@ -857,11 +894,60 @@ class WallpadController:
                                 self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
                                 await self.update_light(device_id, state)
 
-                            #TODO: 다른 기기타입들 추가
+                            elif device_name == 'LightBreaker':
+                                power_pos = field_positions.get('power', 1)
+                                power = byte_data[int(power_pos)]
+                                power_values = state_structure['structure'][power_pos]['values']
+                                power_hex = format(power, '02x').upper()
+                                state = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
+                                
+                                self.logger.signal(f'{byte_data.hex()}: 조명차단기 ### {device_id}번, 상태: {state}')
+                                await self.update_light_breaker(device_id, state)
+                                
+                            elif device_name == 'Outlet':
+                                power_pos = field_positions.get('power', 1)
+                                power = byte_data[int(power_pos)]
+                                power_values = state_structure['structure'][power_pos]['values']
+                                power_hex = format(power, '02x').upper()
+                                power_text = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
+                                #TODO 전력량 지원.. 
+                                watt_pos = field_positions.get('watt', 5)
+                                watt = byte_data[int(watt_pos)]
+                                self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}')
+                                await self.update_outlet(device_id, power_text, watt)
+
+                            elif device_name == 'Fan':
+                                power_pos = field_positions.get('power', 1)
+                                power = byte_data[int(power_pos)]
+                                power_values = state_structure['structure'][power_pos]['values']
+                                power_hex = format(power, '02x').upper()
+                                power_text = "OFF" if power_hex == power_values.get('off', '').upper() else "ON"
+                                speed_pos = field_positions.get('speed', 3)  
+                                speed = byte_data[int(speed_pos)]
+                                speed_values = state_structure['structure'][speed_pos]['values']
+                                speed_hex = format(speed, '02x').upper()
+                                speed_text = speed_values.get(speed_hex, 'low')
+                                
+                                self.logger.signal(f'{byte_data.hex()}: 환기장치 ### {device_id}번, 상태: {power_text}, 속도: {speed_text}')
+                                await self.update_fan(device_id, power_text, speed_text)
                             
+                            elif device_name == 'EV':
+                                power_pos = field_positions.get('power', 1)
+                                power = byte_data[int(power_pos)]
+                                power_values = state_structure['structure'][power_pos]['values']
+                                power_hex = format(power, '02x').upper()
+                                power_text = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
+                                floor_pos = field_positions.get('floor', 3)
+                                floor = byte_data[int(floor_pos)]
+                                floor_values = state_structure['structure'][floor_pos]['values']
+                                floor_hex = format(floor, '02x').upper()
+                                floor_text = floor_values.get(floor_hex, 'B')
+                                self.logger.signal(f'{byte_data.hex()}: 엘리베이터 ### {device_id}번, 상태: {power_text}, 층: {floor_text}')
+                                await self.update_ev(device_id, power_text, floor_text)
+
                             break
                 else:
-                    self.logger.signal(f'체크섬 ��일치: {data}')
+                    self.logger.signal(f'체크섬 불일치: {data}')
         
         except Exception as e:
             self.logger.error(f"Elfin 데이터 처리 중 오류 발생: {str(e)}")
@@ -1147,7 +1233,7 @@ class WallpadController:
                 self.mqtt_client.loop_stop()
 
     def __del__(self):
-        """클래스 인스���스가 삭제될 때 리소스 정리"""
+        """클래스 인스턴스가 삭제될 때 리소스 정리"""
         if self.mqtt_client:
             try:
                 self.mqtt_client.loop_stop()

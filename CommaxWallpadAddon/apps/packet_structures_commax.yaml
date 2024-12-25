@@ -74,14 +74,16 @@ LightBreaker:
         values:
           "id": "FF"
       "2":
-        name: power
+        name: commandType
         values:
+          "power": "01"
+        memo: 추정입니다
+      "3":
+        name: power
+        values: 
           "on": "01"
           "off": "00"
-      "3":
-        name: unknown
-        values: 
-          "unknown": "01"
+        memo: 추정입니다
       "4": 
         name: empty
       "5": 
@@ -289,9 +291,10 @@ Outlet:
         values:
           "id": "FF"
       "2":
-        name: unknown
+        name: commandType
         values: 
-          "unknown": "01"
+          "power": "01"
+        memo: 추정입니다
       "3":
         name: power
         values:
@@ -478,14 +481,15 @@ EV:
     header: "23"
     structure:
       "1":
+        name: power
+        values:
+          "on": "01"
+        memo: power로 추정됨..
+      "2":
         name: deviceId
         values:
           "id": "FF"
         memo: 기기 번호로 추정됨..
-      "2":
-        name: power
-        values:
-          "on": "01"
       "3":
         name: floor
         values:
