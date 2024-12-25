@@ -9,3 +9,4 @@ __pycache__/
 # OS 생성 파일
 .DS_Store
 Thumbs.db
+jsconfig.json
