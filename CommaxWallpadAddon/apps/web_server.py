@@ -9,6 +9,7 @@ class WebServer:
     def __init__(self, wallpad_controller):
         self.app = Flask(__name__, template_folder='templates')
         self.wallpad_controller = wallpad_controller
+        self.recent_messages = []  # 최근 메시지를 저장할 리스트
         
         # 로깅 비활성화
         log = logging.getLogger('werkzeug')
@@ -29,7 +30,49 @@ class WebServer:
         @self.app.route('/api/state')
         def get_state():
             return jsonify(self.wallpad_controller.HOMESTATE)
-            
+
+        @self.app.route('/api/mqtt_status')
+        def get_mqtt_status():
+            """MQTT 연결 상태 정보를 제공합니다."""
+            if not self.wallpad_controller.mqtt_client:
+                return jsonify({
+                    'connected': False,
+                    'broker': None,
+                    'client_id': None,
+                    'subscribed_topics': []
+                })
+
+            client = self.wallpad_controller.mqtt_client
+            return jsonify({
+                'connected': client.is_connected(),
+                'broker': f"{self.wallpad_controller.config['mqtt_server']}",
+                'client_id': client._client_id.decode() if client._client_id else None,
+                'subscribed_topics': [
+                    f'{self.wallpad_controller.HA_TOPIC}/+/+/command',
+                    f'{self.wallpad_controller.ELFIN_TOPIC}/recv',
+                    f'{self.wallpad_controller.ELFIN_TOPIC}/send'
+                ]
+            })
+
+        @self.app.route('/api/config')
+        def get_config():
+            """CONFIG 객체의 내용을 제공합니다."""
+            # 민감한 정보 필터링
+            filtered_config = {}
+            for key, value in self.wallpad_controller.config.items():
+                if key in ['mqtt_id', 'mqtt_password', 'elfin_id', 'elfin_password']:
+                    filtered_config[key] = '********'  # 민감한 정보 마스킹
+                else:
+                    filtered_config[key] = value
+            return jsonify(filtered_config)
+
+        @self.app.route('/api/recent_messages')
+        def get_recent_messages():
+            """최근 MQTT 메시지 목록을 제공합니다."""
+            return jsonify({
+                'messages': self.recent_messages[-50:]  # 최근 50개 메시지만 반환
+            })
+
         @self.app.route('/api/packet_logs')
         def get_packet_logs():
             """패킷 로그를 제공합니다."""
@@ -95,7 +138,7 @@ class WebServer:
                 return jsonify({
                     'error': str(e)
                 }), 500
-            
+
         @self.app.route('/api/find_devices', methods=['POST'])
         def find_devices():
             self.wallpad_controller.device_list = self.wallpad_controller.find_device()
@@ -137,7 +180,7 @@ class WebServer:
                     "success": False,
                     "error": str(e)
                 }), 400
-            
+
         @self.app.route('/api/packet_structures')
         def get_packet_structures():
             structures = {}
@@ -151,7 +194,7 @@ class WebServer:
                 }
              
             return jsonify(structures)
-        
+
         @self.app.route('/api/packet_suggestions')
         def get_packet_suggestions():
             """패킷 입력 도우미를 위한 정보를 제공합니다."""
@@ -215,7 +258,7 @@ class WebServer:
                                 }
             
             return jsonify(suggestions)
-        
+
         @self.app.route('/api/send_packet', methods=['POST'])
         def send_packet():
             try:
@@ -237,7 +280,7 @@ class WebServer:
             
             except Exception as e:
                 return jsonify({"success": False, "error": str(e)}), 500
-    
+
     def run(self):
         threading.Thread(target=self._run_server, daemon=True).start()
         
@@ -247,8 +290,8 @@ class WebServer:
             port=8099,
             use_reloader=False,
             threaded=True
-        ) 
-    
+        )
+
     def _analyze_packet_structure(self, command: str, packet_type: str) -> Dict[str, Any]:
         """패킷 구조를 분석하고 관련 정보를 반환합니다."""
         # 헤더 기기 찾기
@@ -523,8 +566,8 @@ class WebServer:
             "byte_values": byte_values,
             "byte_memos": byte_memos,  # memo 정보 추가
             # "examples": examples
-        } 
-    
+        }
+
     def _get_device_info(self, packet: str) -> Dict[str, str]:
         """패킷의 헤더를 기반으로 기기 정보를 반환합니다."""
         if len(packet) < 2:
@@ -537,9 +580,20 @@ class WebServer:
             if 'command' in device and device['command']['header'] == header:
                 return {"name": device_name, "packet_type": "Command"}
                 
-        # 태 패킷 확인
+        # 상태 패킷 확인
         for device_name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
             if 'state' in device and device['state']['header'] == header:
                 return {"name": device_name, "packet_type": "State"}
                 
-        return {"name": "Unknown", "packet_type": "Unknown"} 
+        return {"name": "Unknown", "packet_type": "Unknown"}
+
+    def add_mqtt_message(self, topic: str, payload: str) -> None:
+        """MQTT 메시지를 최근 메시지 목록에 추가합니다."""
+        self.recent_messages.append({
+            'topic': topic,
+            'payload': payload,
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+        })
+        # 최근 100개 메시지만 유지
+        if len(self.recent_messages) > 100:
+            self.recent_messages = self.recent_messages[-100:] 
