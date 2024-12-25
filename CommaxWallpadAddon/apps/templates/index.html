@@ -341,7 +341,7 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
+                body: JSON.stringify({ 
                     command: packet
                 })
             })
@@ -374,7 +374,7 @@
                         `;
                     }
                     
-                    html += '</div>';
+                            html += '</div>';
                     resultDiv.innerHTML = html;
                     sendButton.disabled = false;
                     
@@ -584,11 +584,311 @@
         function loadPacketStructures() {
             fetch('./api/packet_structures')
                 .then(response => response.json())
-                .then(data => {
-                    // 패킷 구조 정보를 저장하고 표시
-                    console.log('패킷 구조 로드됨:', data);
+                .then(structures => {
+                    const tabButtons = document.getElementById('deviceTabs');
+                    const tabContents = document.getElementById('tabContents');
+                    tabButtons.innerHTML = '';
+                    tabContents.innerHTML = '';
+                    
+                    let isFirst = true;
+                    
+                    for (const [deviceName, info] of Object.entries(structures)) {
+                        // 탭 버튼 추가
+                        const button = document.createElement('button');
+                        button.className = `tablinks ${isFirst ? 'active' : ''}`;
+                        button.onclick = function(evt) { openDeviceTab(evt, deviceName); };
+                        button.textContent = deviceName;
+                        tabButtons.appendChild(button);
+                        
+                        // 탭 내용 추가
+                        const tabContent = document.createElement('div');
+                        tabContent.id = deviceName;
+                        tabContent.className = 'tab-content';
+                        tabContent.style.display = isFirst ? 'block' : 'none';
+                        
+                        let html = `<h3>${deviceName} (${info.type})</h3>`;
+                        
+                        // 패킷 타입별 정보 추가
+                        ['command', 'state', 'state_request', 'ack'].forEach(packetType => {
+                            if (info[packetType]) {
+                                html += `
+                                    <div class="packet-type-section">
+                                        <h4>${getPacketTypeKorean(packetType)} 패킷</h4>
+                                        <div class="packet-structure">
+                                            <div class="byte-descriptions">
+                                                ${Object.entries(info[packetType].byte_desc).map(([pos, desc]) => 
+                                                    `<div class="byte-desc">Byte ${pos}: ${desc}</div>`
+                                                ).join('')}
+                                            </div>
+                                            ${info[packetType].byte_values ? `
+                                                <div class="byte-values">
+                                                    <h5>가능한 값들:</h5>
+                                                    ${Object.entries(info[packetType].byte_values).map(([pos, values]) => `
+                                                        <div class="byte-value">
+                                                            <span>Byte ${pos}:</span>
+                                                            ${Object.entries(values).map(([key, value]) => 
+                                                                `<span>${key}: ${value}</span>`
+                                                            ).join(', ')}
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        });
+                        
+                        tabContent.innerHTML = html;
+                        tabContents.appendChild(tabContent);
+                        
+                        isFirst = false;
+                    }
                 })
-                .catch(error => console.error('패킷 구조 로드 실패:', error));
+                .catch(error => {
+                    console.error('패킷 구조 로드 실패:', error);
+                });
+        }
+
+        function getPacketTypeKorean(type) {
+            const types = {
+                'command': '명령',
+                'state': '상태',
+                'state_request': '상태 요청',
+                'ack': '응답'
+            };
+            return types[type] || type;
+        }
+
+        function openDeviceTab(evt, deviceName) {
+            const tabContents = document.getElementsByClassName('tab-content');
+            for (let content of tabContents) {
+                content.style.display = 'none';
+            }
+            
+            const tabButtons = document.getElementsByClassName('tablinks');
+            for (let button of tabButtons) {
+                button.classList.remove('active');
+            }
+            
+            document.getElementById(deviceName).style.display = 'block';
+            evt.currentTarget.classList.add('active');
+        }
+        // 패킷 입력 도우미 관련 함수들
+        function initializePacketBuilder() {
+            fetch('./api/packet_suggestions')
+                .then(response => response.json())
+                .then(data => {
+                    packetSuggestions = data;
+
+                    // 모든 헤더 옵션 추가
+                    const headerSelect = document.getElementById('packetHeaderSelect');
+                    headerSelect.innerHTML = '<option value="">헤더 선택...</option>'; // 기존 옵션 제거
+
+                    // 명령 패킷 헤더
+                    const commandGroup = document.createElement('optgroup');
+                    commandGroup.label = '명령 패킷';
+                    data.headers.command.forEach(header => {
+                        const option = document.createElement('option');
+                        option.value = `command:${header.header}`;
+                        option.textContent = `${header.device} (${header.header})`;
+                        commandGroup.appendChild(option);
+                    });
+
+                    // 상태 패킷 헤더
+                    const stateGroup = document.createElement('optgroup');
+                    stateGroup.label = '상태 패킷';
+                    data.headers.state.forEach(header => {
+                        const option = document.createElement('option');
+                        option.value = `state:${header.header}`;
+                        option.textContent = `${header.device} (${header.header})`;
+                        stateGroup.appendChild(option);
+                    });
+                    
+                    // 상태 요청 패킷 헤더
+                    const stateRequestGroup = document.createElement('optgroup');
+                    stateRequestGroup.label = '상태 요청 패킷';
+                    data.headers.state_request.forEach(header => {
+                        const option = document.createElement('option');
+                        option.value = `state_request:${header.header}`;
+                        option.textContent = `${header.device} (${header.header})`;
+                        stateRequestGroup.appendChild(option);
+                    });
+
+                    // 응답 패킷 헤더
+                    const ackGroup = document.createElement('optgroup');
+                    ackGroup.label = '응답 패킷';
+                    data.headers.ack.forEach(header => {
+                        const option = document.createElement('option');
+                        option.value = `ack:${header.header}`;
+                        option.textContent = `${header.device} (${header.header})`;
+                        ackGroup.appendChild(option);
+                    });
+
+                    // 헤더 선택 엘리먼트에 그룹 추가
+                    headerSelect.appendChild(commandGroup);
+                    headerSelect.appendChild(stateGroup);
+                    headerSelect.appendChild(stateRequestGroup);
+                    headerSelect.appendChild(ackGroup);
+                });
+        }
+
+        function handleHeaderSelect() {
+            const headerSelect = document.getElementById('packetHeaderSelect');
+            const byteInputsDiv = document.getElementById('packetByteInputs');
+            const packetInput = document.getElementById('packetInput');
+            
+            const selectedValue = headerSelect.value;
+            if (!selectedValue) {
+                byteInputsDiv.innerHTML = '';
+                return;
+            }
+            
+            const [type, header] = selectedValue.split(':');
+            
+            // 선택된 헤더에 해당하는 기기 찾기
+            const deviceInfo = packetSuggestions.headers[type].find(h => h.header === header);
+            if (!deviceInfo) return;
+            
+            const deviceKey = `${deviceInfo.device}_${type}`;
+            
+            // 바이트 입력 필드 생성 (7바이트)
+            let html = '';
+            for (let i = 1; i < 7; i++) {
+                const byteInfo = packetSuggestions.values[deviceKey]?.[i];
+                if (byteInfo) {
+                    html += `
+                        <div class="byte-input">
+                            <label class="byte-label">Byte ${i}: ${byteInfo.name}</label>
+                            <select onchange="updatePacket()" data-byte="${i}">
+                                <option value="">선택...</option>
+                                ${Object.entries(byteInfo.values).map(([key, value]) => 
+                                    `<option value="${value}">${key} (${value})</option>`
+                                ).join('')}
+                            </select>
+                        </div>`;
+                } else {
+                    html += `
+                        <div class="byte-input">
+                            <label class="byte-label">Byte ${i}</label>
+                            <input type="text" maxlength="2" pattern="[0-9A-Fa-f]{2}" 
+                                   onchange="updatePacket()" data-byte="${i}"
+                                   placeholder="00">
+                        </div>`;
+                }
+            }
+            byteInputsDiv.innerHTML = html;
+            updatePacket();
+        }
+
+        function updatePacket() {
+            const byteInputsDiv = document.getElementById('packetByteInputs');
+            const packetInput = document.getElementById('packetInput');
+            const headerSelect = document.getElementById('packetHeaderSelect');
+            
+            const [type, header] = headerSelect.value.split(':');
+            let packet = header;  // 헤더로 시작
+            
+            // 각 바이트 값 수집 (7바이트)
+            for (let i = 1; i < 7; i++) {
+                const input = byteInputsDiv.querySelector(`[data-byte="${i}"]`);
+                if (input) {
+                    let value = input.value || '00';
+                    if (value.length === 1) value = '0' + value;
+                    packet += value;
+                } else {
+                    packet += '00';
+                }
+            }
+            
+            packetInput.value = packet;
+            analyzePacket();
+        }
+
+        // 패킷 히스토리 관련 함수들
+        function loadPacketHistory() {
+            try {
+                return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        function savePacketHistory(packet) {
+            if (!packet) return;
+            
+            let history = loadPacketHistory();
+            
+            // 중복 제거
+            history = history.filter(p => p !== packet);
+            
+            // 새 패킷을 앞에 추가
+            history.unshift(packet);
+            
+            // 최대 개수 유지
+            if (history.length > MAX_HISTORY) {
+                history = history.slice(0, MAX_HISTORY);
+            }
+            
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            updateHistorySelect();
+        }
+
+        function updateHistorySelect() {
+            const history = loadPacketHistory();
+            const select = document.getElementById('packetHistory');
+            if (!select) return;
+            
+            // 옵션 제거 (첫 번째 옵션 제외)
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            // 히스토리 옵션 추가
+            history.forEach(packet => {
+                const formattedPacket = packet.match(/.{2}/g).join(' ');
+                const option = document.createElement('option');
+                option.value = packet;
+                option.setAttribute('data-packet', formattedPacket);
+                option.className = 'byte-spaced';
+                option.innerHTML = '&nbsp;';
+                select.appendChild(option);
+            });
+        }
+
+        function loadPacketFromHistory() {
+            const select = document.getElementById('packetHistory');
+            const packet = select.value;
+            if (packet) {
+                document.getElementById('packetInput').value = packet;
+                analyzePacket();
+                select.selectedIndex = 0;  // 선택 초기화
+            }
+        }
+
+        // 패킷 로그 관련 함수들
+        function createPacketLogEntry(timestamp, packet, type) {
+            // 패킷 정보에서 첫 번째 결과 사용 (없는 경우 Unknown으로 처리)
+            const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
+            const deviceText = deviceInfo.device !== "Unknown" ? 
+                `${deviceInfo.device} ${deviceInfo.packet_type}` : 
+                "Unknown";
+            
+            // 패킷을 2자리씩 분할
+            const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
+            
+            return `
+                <div class="packet-log-entry ${type} ${deviceInfo.device === 'Unknown' ? 'unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
+                    <span class="timestamp">${timestamp}</span>
+                    <span class="packet-type-label">[${type.toUpperCase()}]</span>
+                    <span class="packet" data-packet="${formattedPacket}">&nbsp;</span>
+                    <span class="device-label">[${deviceText}]</span>
+                </div>`;
+        }
+
+        function handlePacketClick(packet) {
+            document.getElementById('packetInput').value = packet;
+            analyzePacket();
         }
 
         // 페킷 입력 필드 이벤트 처리 함수들
