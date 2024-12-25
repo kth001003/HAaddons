@@ -215,6 +215,28 @@ class WebServer:
                                 }
             
             return jsonify(suggestions)
+        
+        @self.app.route('/api/send_packet', methods=['POST'])
+        def send_packet():
+            try:
+                data = request.get_json()
+                packet = data.get('packet', '').strip()
+                
+                if not packet:
+                    return jsonify({"success": False, "error": "패킷이 비어있습니다."}), 400
+                
+                # 패킷 체크섬 검증
+                if packet != self.wallpad_controller.checksum(packet):
+                    return jsonify({"success": False, "error": "잘못된 패킷입니다."}), 400
+                
+                # 패킷을 bytes로 변환하여 MQTT로 발행
+                packet_bytes = bytes.fromhex(packet)
+                self.wallpad_controller.publish_mqtt(f'{self.wallpad_controller.ELFIN_TOPIC}/send', packet_bytes)
+                
+                return jsonify({"success": True})
+            
+            except Exception as e:
+                return jsonify({"success": False, "error": str(e)}), 500
     
     def run(self):
         threading.Thread(target=self._run_server, daemon=True).start()
@@ -311,196 +333,196 @@ class WebServer:
                 if 'memo' in field:  # memo 필드가 있는 경우 저장
                     byte_memos[pos] = field['memo']
 
-        # 예시 패킷 동적 생성
-        if device['type'] == 'Thermo':
-            if packet_type == 'command':
-                # 온도조절기 켜기
-                packet = list('00' * 7)  # 7바이트 초기화
-                packet[0] = structure['header']  # 헤더
-                packet[1] = '01'  # 1번 온도조절기
-                packet[2] = '04'  # 전원
-                packet[3] = '81'  # ON
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 온도조절기 켜기"
-                })
+        # # 예시 패킷 동적 생성
+        # if device['type'] == 'Thermo':
+        #     if packet_type == 'command':
+        #         # 온도조절기 켜기
+        #         packet = list('00' * 7)  # 7바이트 초기화
+        #         packet[0] = structure['header']  # 헤더
+        #         packet[1] = '01'  # 1번 온도조절기
+        #         packet[2] = '04'  # 전원
+        #         packet[3] = '81'  # ON
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 온도조절기 켜기"
+        #         })
                 
-                # 온도 설정
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 온도조절기
-                packet[2] = '03'  # 온도 설정
-                packet[3] = '18'  # 24도
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 온도조절기 온도 24도로 설정"
-                })
-            elif packet_type == 'state':
-                # 대기 상태
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '81'  # 상태
-                packet[2] = '01'  # 1번 온도조절기
-                packet[3] = '18'  # 24도
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 온도조절기 대기 상태 (현재 24도, 설정 24도)"
-                })
+        #         # 온도 설정
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 온도조절기
+        #         packet[2] = '03'  # 온도 설정
+        #         packet[3] = '18'  # 24도
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 온도조절기 온도 24도로 설정"
+        #         })
+        #     elif packet_type == 'state':
+        #         # 대기 상태
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '81'  # 상태
+        #         packet[2] = '01'  # 1번 온도조절기
+        #         packet[3] = '18'  # 24도
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 온도조절기 대기 상태 (현재 24도, 설정 24도)"
+        #         })
                 
-                # 난방 중
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '83'  # 난방
-                packet[2] = '01'  # 1번 온도조절기
-                packet[3] = '18'  # 24도
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 온도조절기 난방 중 (현재 24도, 설정 24도)"
-                })
-            elif packet_type == 'state_request':
-                # 상태 요청
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 온도조절기
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 온도조절기 상태 요청"
-                })
-            elif packet_type == 'ack':
-                # 상태 요청
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 온도조절기
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 온도조절기 상태 요청"
-                })
+        #         # 난방 중
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '83'  # 난방
+        #         packet[2] = '01'  # 1번 온도조절기
+        #         packet[3] = '18'  # 24도
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 온도조절기 난방 중 (현재 24도, 설정 24도)"
+        #         })
+        #     elif packet_type == 'state_request':
+        #         # 상태 요청
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 온도조절기
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 온도조절기 상태 요청"
+        #         })
+        #     elif packet_type == 'ack':
+        #         # 상태 요청
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 온도조절기
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 온도조절기 상태 요청"
+        #         })
                 
-        elif device['type'] == 'Light':
-            if packet_type == 'command':
-                # 조명 끄기
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 조명
-                packet[2] = '00'  # OFF
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 조명 끄기"
-                })
+        # elif device['type'] == 'Light':
+        #     if packet_type == 'command':
+        #         # 조명 끄기
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 조명
+        #         packet[2] = '00'  # OFF
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 조명 끄기"
+        #         })
                 
-                # 조명 켜기
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 조명
-                packet[2] = '01'  # ON
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 조명 켜기"
-                })
-            elif packet_type == 'state':
-                # 조명 꺼짐
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '00'  # OFF
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 조명 꺼짐"
-                })
+        #         # 조명 켜기
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 조명
+        #         packet[2] = '01'  # ON
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 조명 켜기"
+        #         })
+        #     elif packet_type == 'state':
+        #         # 조명 꺼짐
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '00'  # OFF
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 조명 꺼짐"
+        #         })
                 
-                # 조명 켜짐
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # ON
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 조명 켜짐"
-                })
-            elif packet_type == 'state_request':
-                # 상태 요청
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 조명
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 조명 상태 요청"
-                })
-            elif packet_type == 'ack':
-                # 상태 요청
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 조명
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 조명 상태 요청"
-                })
+        #         # 조명 켜짐
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # ON
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 조명 켜짐"
+        #         })
+        #     elif packet_type == 'state_request':
+        #         # 상태 요청
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 조명
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 조명 상태 요청"
+        #         })
+        #     elif packet_type == 'ack':
+        #         # 상태 요청
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 조명
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 조명 상태 요청"
+        #         })
                 
-        elif device['type'] == 'Fan':
-            if packet_type == 'command':
-                # 환기장치 켜기
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 환기장치
-                packet[2] = '01'  # 전원
-                packet[3] = '04'  # ON
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 환기장치 켜기"
-                })
+        # elif device['type'] == 'Fan':
+        #     if packet_type == 'command':
+        #         # 환기장치 켜기
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 환기장치
+        #         packet[2] = '01'  # 전원
+        #         packet[3] = '04'  # ON
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 환기장치 켜기"
+        #         })
                 
-                # 환기장치 약으로 설정
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 환기장치
-                packet[2] = '02'  # 풍량
-                packet[3] = '00'  # 약(low)
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 환기장치 약(low)으로 설정"
-                })
-            elif packet_type == 'state':
-                # 환기장치 켜짐 (약)
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '04'  # ON
-                packet[2] = '01'  # 1번 환기장치
-                packet[3] = '00'  # 약(low)
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 환기장치 켜짐 (약)"
-                })
+        #         # 환기장치 약으로 설정
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 환기장치
+        #         packet[2] = '02'  # 풍량
+        #         packet[3] = '00'  # 약(low)
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 환기장치 약(low)으로 설정"
+        #         })
+        #     elif packet_type == 'state':
+        #         # 환기장치 켜짐 (약)
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '04'  # ON
+        #         packet[2] = '01'  # 1번 환기장치
+        #         packet[3] = '00'  # 약(low)
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 환기장치 켜짐 (약)"
+        #         })
                 
-                # 환기장치 꺼짐
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 환기장치 꺼짐"
-                })
-            elif packet_type == 'state_request':
-                # 상태 요청
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 환기장치
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 환기장치 상태 요청"
-                })
-            elif packet_type == 'ack':
-                # 상태 요청
-                packet = list('00' * 7)
-                packet[0] = structure['header']
-                packet[1] = '01'  # 1번 환기장치
-                examples.append({
-                    "packet": ''.join(packet),
-                    "desc": "1번 환기장치 상태 요청"
-                })
+        #         # 환기장치 꺼짐
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 환기장치 꺼짐"
+        #         })
+        #     elif packet_type == 'state_request':
+        #         # 상태 요청
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 환기장치
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 환기장치 상태 요청"
+        #         })
+        #     elif packet_type == 'ack':
+        #         # 상태 요청
+        #         packet = list('00' * 7)
+        #         packet[0] = structure['header']
+        #         packet[1] = '01'  # 1번 환기장치
+        #         examples.append({
+        #             "packet": ''.join(packet),
+        #             "desc": "1번 환기장치 상태 요청"
+        #         })
         
         return {
             "header": structure['header'],
             "byte_desc": byte_desc,
             "byte_values": byte_values,
             "byte_memos": byte_memos,  # memo 정보 추가
-            "examples": examples
+            # "examples": examples
         } 
     
     def _get_device_info(self, packet: str) -> Dict[str, str]:

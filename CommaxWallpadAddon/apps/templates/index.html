@@ -3,428 +3,97 @@
 <head>
     <title>Commax Wallpad Controller</title>
     <meta charset="utf-8">
-    <style>
-        body { 
-    font-family: Arial, sans-serif;
-    margin: 20px;
-    background-color: #aaaaaa;
-}
-.device-list {
-    margin: 20px 0;
-}
-.device-card {
-    border: 1px solid #ddd;
-    padding: 15px;
-    margin: 10px 0;
-    border-radius: 5px;
-}
-button {
-    background-color: #4CAF50;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-button:hover {
-    background-color: #45a049;
-}
-.packet-analyzer {
-    margin: 20px 0;
-    padding: 20px;
-    background-color: #f5f5f5;
-    border-radius: 5px;
-}
-.packet-result {
-    margin-top: 15px;
-    font-family: monospace;
-}
-input[type="text"] {
-    width: 300px;
-    padding: 8px;
-    margin-right: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-.error {
-    color: #ff0000;
-}
-.packet-reference {
-    margin-top: 20px;
-    font-size: 0.9em;
-}
-.packet-reference table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
-.packet-reference th, .packet-reference td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: left;
-}
-.packet-reference th {
-    background-color: #f0f0f0;
-}
-.packet-reference code {
-    background-color: #f8f8f8;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-family: monospace;
-}
-.collapsible {
-    background-color: #eee;
-    color: #444;
-    cursor: pointer;
-    padding: 18px;
-    width: 100%;
-    border: none;
-    text-align: left;
-    outline: none;
-    font-size: 15px;
-}
-.active, .collapsible:hover {
-    background-color: #ccc;
-}
-.content {
-    padding: 0 18px;
-    display: none;
-    overflow: hidden;
-    background-color: #f1f1f1;
-}
-/* 탭 스타일 */
-.tab-container {
-    margin-top: 20px;
-}
-.tab-buttons {
-    overflow: hidden;
-    border: 1px solid #ccc;
-    background-color: #f1f1f1;
-}
-.tab-buttons button {
-    background-color: inherit;
-    float: left;
-    border: none;
-    outline: none;
-    cursor: pointer;
-    padding: 14px 16px;
-    transition: 0.3s;
-    color: black;
-}
-.tab-buttons button:hover {
-    background-color: #ddd;
-}
-.tab-buttons button.active {
-    background-color: #4CAF50;
-    color: white;
-}
-.tab-content {
-    display: none;
-    padding: 6px 12px;
-    border: 1px solid #ccc;
-    border-top: none;
-    animation: fadeEffect 1s;
-}
-/* 패킷 로그 스타일 */
-.packet-log {
-    margin-top: 20px;
-    padding: 20px;
-    background-color: #f5f5f5;
-    border-radius: 5px;
-}
-.packet-log-content {
-    max-height: 300px;
-    overflow-y: auto;
-    font-family: monospace;
-    background-color: #fff;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-.packet-log-entry {
-    padding: 4px 0;
-    border-bottom: 1px solid #eee;
-    cursor: pointer;
-}
-.packet-log-entry:last-child {
-    border-bottom: none;
-}
-.packet-log-entry:hover {
-    background-color: #f0f0f0;
-}
-.packet-log-entry .timestamp {
-    color: #666;
-    font-size: 0.9em;
-    margin-right: 10px;
-}
-.packet-log-entry.recv {
-    color: #2196F3;
-}
-.packet-log-entry.send {
-    color: #4CAF50;
-}
-.packet-type-label {
-    display: inline-block;
-    min-width: 50px;
-    margin-right: 10px;
-    font-size: 0.9em;
-}
-.device-label {
-    display: inline-block;
-    min-width: 120px;
-    margin-right: 10px;
-    font-size: 0.9em;
-    color: #666;
-}
-.packet-log-entry.unknown-packet {
-    opacity: 0.7;
-}
-@keyframes fadeEffect {
-    from {opacity: 0;}
-    to {opacity: 1;}
-}
-.device-section {
-    margin: 20px 0 30px 0;
-    padding: 20px;
-    background-color: #f5f5f5;
-    border-radius: 5px;
-}
-.device-section button {
-    margin-bottom: 20px;
-}
-.packet-analyzer-section {
-    margin-top: 30px;
-}
-.packet-analyzer {
-    margin: 20px 0;
-    padding: 20px;
-    background-color: #f5f5f5;
-    border-radius: 5px;
-}
-.packet-reference {
-    margin: 30px 0;
-}
-.packet-log {
-    margin: 30px 0;
-    padding: 20px;
-    background-color: #f5f5f5;
-    border-radius: 5px;
-}
-.packet-builder {
-    margin-bottom: 15px;
-    padding: 10px;
-    background-color: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-.packet-builder select {
-    padding: 8px;
-    margin-right: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    min-width: 150px;
-}
-.byte-input {
-    display: inline-block;
-    margin-right: 10px;
-    margin-bottom: 10px;
-}
-.byte-input input {
-    width: 40px;
-    text-align: center;
-}
-.byte-input select {
-    min-width: 100px;
-}
-.byte-label {
-    display: block;
-    font-size: 0.8em;
-    color: #666;
-    margin-bottom: 3px;
-}
-.packet {
-    font-family: monospace;
-    word-spacing: 1em;  /* 바이트 간격 */
-}
-.packet::before {
-    content: attr(data-packet);
-    letter-spacing: 0;  /* 각 바이트 내 자 간격 제거 */
-}
-.byte-spaced {
-    font-family: monospace;
-    word-spacing: 1em;
-}
-.byte-spaced::before {
-    content: attr(data-packet);
-    letter-spacing: 0;
-}
-.packet-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 20px 0;
-    background-color: #fff;
-}
-.packet-table th, .packet-table td {
-    border: 1px solid #dee2e6;
-    padding: 12px;
-}
-.packet-table th {
-    background-color: #f8f9fa;
-    font-weight: bold;
-}
-.byte-header {
-    background-color: #f8f9fa;
-    font-weight: 500;
-    width: 80px;
-}
-.command-cell {
-    vertical-align: top;
-    width: calc((100% - 80px) / 4);  /* 첫번째 열(80px)을 제외한 나머지를 4등분 */
-}
-.byte-desc {
-    margin-bottom: 8px;
-    font-size: 1em;
-    font-weight: 600;
-    color: #333;
-}
-.byte-values {
-    margin: 8px 0;
-    font-size: 0.9em;
-    color: #444;
-}
-.value-item {
-    margin: 4px 0;
-}
-.byte-example {
-    font-family: monospace;
-    color: #666;
-    font-size: 0.9em;
-    margin-top: 8px;
-}
-.byte-memo {
-    margin: 8px 0;
-    font-size: 0.9em;
-    color: #666;
-    font-style: italic;
-}
-.packet-examples {
-    margin: 20px 0;
-    padding: 10px;
-    background-color: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-.packet-example {
-    margin: 10px 0;
-    padding: 5px 0;
-    border-bottom: 1px solid #eee;
-}
-.packet-example:last-child {
-    border-bottom: none;
-}
-.packet-example small {
-    display: block;
-    color: #666;
-    margin-top: 5px;
-}
-.device-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-    background-color: #fff;
-    border-radius: 4px;
-    overflow: hidden;
-}
-.device-table th, .device-table td {
-    padding: 8px 12px;
-    text-align: left;
-    border-bottom: 1px solid #eee;
-}
-.device-table th {
-    background-color: #f8f9fa;
-    font-weight: bold;
-    color: #495057;
-}
-.device-table tr:last-child td {
-    border-bottom: none;
-}
-.device-table tr:hover td {
-    background-color: #f8f9fa;
-}
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <h1>Commax Wallpad Controller</h1>
+<body class="bg-gray-100 p-4">
+    <h1 class="text-2xl font-bold mb-4">Commax Wallpad Controller</h1>
     
-    <div class="device-section">
-        <h2>연결된 기기</h2>
-        <div class="device-list" id="deviceList">
+    <div class="mb-8">
+        <h2 class="text-xl font-bold mb-2">연결된 기기</h2>
+        <div id="deviceList" class="bg-white p-4 rounded shadow">
             <!-- 기기 목록이 여기에 동적으로 추가됩니다 -->
         </div>
     </div>
     
-    <div class="packet-log">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2>감지된 패킷 목록</h2>
-            <span style="color: #666; font-size: 0.9em;">
-                최근 수신/송신된 패킷 중 중복을 제외한 목록입니다.
-            </span>
-            <div>
-                <label>
-                    <input type="checkbox" id="hideUnknown" onchange="updatePacketLogDisplay()"> Unknown 패킷 숨기기
-                </label>
-                <button onclick="clearPacketLog()">로그 지우기</button>
-            </div>
-        </div>
-        <div class="packet-log-content" id="packetLog">
-            <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
-        </div>
-    </div>
-
-    <div class="packet-reference">
-        <button type="button" class="collapsible">📚 패킷 참조 자료</button>
-        <div class="content">
-            <div class="tab-container">
-                <div class="tab-buttons" id="deviceTabs">
-                    <!-- 탭 버튼이 동적으로 추가됩니다 -->
-                </div>
-                <div id="tabContents">
-                    <!-- 각 디바이스별 패킷 테이블이 여기에 추가됩니다 -->
-                </div>
-            </div>
-            <p><small>* 모든 패킷은 체크섬이 자동으로 계산되어 추가됩니다.</small></p>
-        </div>
-    </div>
-    
-    <div class="packet-analyzer-section">
-        <div class="packet-analyzer">
-            <h2>패킷 분석기</h2>
-            <p><small>* 패킷은 7바이트(14자리)로 입력하세요. 체크섬은 자동으로 계산됩니다.</small></p>
-            <div class="packet-builder">
+    <div class="flex flex-col md:flex-row gap-4">
+        <div class="bg-white p-4 rounded shadow flex-1">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">감지된 패킷 목록</h2>
+                <p class="text-sm text-gray-600">
+                    최근 수신/송신된 패킷 중 중복을 제외한 목록입니다.
+                </p>
                 <div>
-                    <select id="packetHeaderSelect" onchange="handleHeaderSelect()">
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="hideUnknown" onchange="updatePacketLogDisplay()" class="form-checkbox h-4 w-4 text-indigo-600">
+                        <span class="ml-2 text-gray-700">Unknown 패킷 숨기기</span>
+                    </label>
+                    <button onclick="clearPacketLog()" class="ml-4 bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">
+                        로그 지우기
+                    </button>
+                </div>
+            </div>
+            <div id="packetLog" class="h-96 overflow-y-auto">
+                <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded shadow flex-1">
+            <div class="mb-4">
+                <h2 class="text-xl font-bold mb-2">패킷 분석기</h2>
+                <p class="text-sm text-gray-600">* 패킷은 7바이트(14자리)로 입력하세요. 체크섬은 자동으로 계산됩니다.</p>
+            </div>
+            <div class="mb-4">
+                <div>
+                    <select id="packetHeaderSelect" onchange="handleHeaderSelect()" class="form-select block w-full py-2 px-3 border border-gray-300 bg-white rounded shadow focus:outline-none focus:shadow-outline">
                         <option value="">헤더 선택...</option>
                     </select>
-                    <div id="packetByteInputs" style="display: inline-block;">
+                    <div id="packetByteInputs" class="mt-2">
                         <!-- 바이트 입력 필드가 동적으로 추가됩니다 -->
                     </div>
                 </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="flex-grow: 1; display: flex; gap: 10px;">
-                    <input type="text" id="packetInput" placeholder="패킷 입력 (예: F7010104000000)">
-                    <select id="packetHistory" style="min-width: 100px;" onchange="loadPacketFromHistory()">
-                        <option value="">최근 입력...</option>
-                    </select>
+            <div class="flex gap-2 mb-2">
+                <div class="flex-grow">
+                    <input type="text" id="packetInput" placeholder="패킷 입력 (예: F7010104000000)" class="form-input block w-full py-2 px-3 border border-gray-300 rounded shadow focus:outline-none focus:shadow-outline">
                 </div>
-                <button onclick="analyzePacket()">분석</button>
+                <select id="packetHistory" onchange="loadPacketFromHistory()" class="form-select block py-2 px-3 border border-gray-300 bg-white rounded shadow focus:outline-none focus:shadow-outline">
+                    <option value="">최근 입력...</option>
+                </select>
+                <button onclick="analyzePacket()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                    분석
+                </button>
+                <button id="sendPacketButton" onclick="sendPacket()" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded hidden">
+                    전송
+                </button>
             </div>
-            <div class="packet-result" id="packetResult">
+            <p id="sendPacketWarning" class="text-sm text-red-500 mb-2 hidden">
+                ⚠️ 명령 전송은 현재 입력된 패킷을 그대로 전송하며, 유효성 검증을 거치지 않습니다. 
+                응답 패킷이나 예상 패킷을 기다리지 않으므로 타이밍에 따라 예상된 동작이 되지 않을 수 있습니다.
+                원하는 동작이 되지 않는다면 여러 번 전송을 시도해 보세요.
+            </p>
+            <div id="packetResult" class="mt-4">
                 <!-- 분석 결과가 여기에 표시됩니다 -->
             </div>
         </div>
     </div>
 
+    <div class="mt-8">
+        <button type="button" class="collapsible bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
+            <span>📚 패킷 참조 자료</span>
+        </button>
+        <div class="content bg-white p-4 rounded shadow mt-2 hidden">
+            <div>
+                <div id="deviceTabs" class="flex border-b border-gray-200">
+                    <!-- 탭 버튼이 동적으로 추가됩니다 -->
+                </div>
+                <div id="tabContents" class="mt-4">
+                    <!-- 각 디바이스별 패킷 테이블이 여기에 추가됩니다 -->
+                </div>
+            </div>
+            <p class="text-sm text-gray-600 mt-2">* 모든 패킷은 체크섬이 자동으로 계산되어 추가됩니다.</p>
+        </div>
+    </div>
+    
     <script>
         // 전역 변수 선언
 let lastPackets = new Set();
@@ -483,28 +152,28 @@ function analyzePacket() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            let html = '<h3>분석 결과:</h3>';
+            let html = '<h3 class="text-lg font-bold mb-2">분석 결과:</h3>';
             if (packetType === 'command') {
-                html += `<p>패킷 타입: <strong>명령</strong></p>`;
+                html += `<p class="mb-2">패킷 타입: <strong>명령</strong></p>`;
             } else if (packetType === 'state') {
-                html += `<p>패킷 타입: <strong>상태</strong></p>`;
+                html += `<p class="mb-2">패킷 타입: <strong>상태</strong></p>`;
             } else if (packetType === 'state_request') {
-                html += `<p>패킷 타입: <strong>상태 요청</strong></p>`;
+                html += `<p class="mb-2">패킷 타입: <strong>상태 요청</strong></p>`;
             } else if (packetType === 'ack') {
-                html += `<p>패킷 타입: <strong>응답</strong></p>`;
+                html += `<p class="mb-2">패킷 타입: <strong>응답</strong></p>`;
             }
-            html += `<p>기기: <strong>${data.device}</strong></p>`;
+            html += `<p class="mb-2">기기: <strong>${data.device}</strong></p>`;
             
             if (data.checksum) {
                 const formattedChecksum = data.checksum.match(/.{2}/g).join(' ');
-                html += `<p>체크섬이 포함된 패킷: <strong class="byte-spaced" data-packet="${formattedChecksum}">&nbsp;</strong></p>`;
+                html += `<p class="mb-2">체크섬이 포함된 패킷: <strong class="font-mono" data-packet="${formattedChecksum}">&nbsp;</strong></p>`;
             } else {
-                html += '<p class="error">체크섬 계산 실패</p>';
+                html += '<p class="text-red-500">체크섬 계산 실패</p>';
             }
             
             if (data.analysis && data.analysis.length > 0) {
-                html += '<h4>바이트별 분석:</h4>';
-                html += '<div style="font-family: monospace;">';
+                html += '<h4 class="text-md font-bold mt-4 mb-2">바이트별 분석:</h4>';
+                html += '<div class="font-mono space-y-1">';
                 data.analysis.forEach(desc => {
                     html += `<div>${desc}</div>`;
                 });
@@ -513,13 +182,13 @@ function analyzePacket() {
             
             if (packetType === 'command' && data.expected_state) {
                 const formattedExpectedPacket = data.expected_state.expected_packet.match(/.{2}/g).join(' ');
-                html += `<h4>예상되는 상태 패킷:</h4>`;
-                html += `<p><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" style="color: #2196F3; text-decoration: none;" class="byte-spaced" data-packet="${formattedExpectedPacket}">&nbsp;</a></strong></p>`;
-                html += `<p>필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
+                html += `<h4 class="text-md font-bold mt-4 mb-2">예상되는 상태 패킷:</h4>`;
+                html += `<p class="mb-2"><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" class="text-blue-500 hover:text-blue-700 font-mono" data-packet="${formattedExpectedPacket}">&nbsp;</a></strong></p>`;
+                html += `<p class="mb-2">필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
                 
                 if (data.expected_state.analysis && data.expected_state.analysis.length > 0) {
-                    html += '<h4>예상 패킷 바이트별 분석:</h4>';
-                    html += '<div style="font-family: monospace;">';
+                    html += '<h4 class="text-md font-bold mt-4 mb-2">예상 패킷 바이트별 분석:</h4>';
+                    html += '<div class="font-mono space-y-1">';
                     data.expected_state.analysis.forEach(desc => {
                         html += `<div>${desc}</div>`;
                     });
@@ -528,12 +197,21 @@ function analyzePacket() {
             }
             
             resultDiv.innerHTML = html;
+            
+            // 명령 패킷인 경우 전송 버튼과 주의 문구 표시
+            if (packetType === 'command') {
+                document.getElementById('sendPacketButton').style.display = 'inline-block';
+                document.getElementById('sendPacketWarning').style.display = 'block';
+            } else {
+                document.getElementById('sendPacketButton').style.display = 'none';
+                document.getElementById('sendPacketWarning').style.display = 'none';
+            }
         } else {
-            resultDiv.innerHTML = `<p class="error">오류: ${data.error}</p>`;
+            resultDiv.innerHTML = `<p class="text-red-500">오류: ${data.error}</p>`;
         }
     })
     .catch(error => {
-        resultDiv.innerHTML = `<p class="error">요청 실패: ${error}</p>`;
+        resultDiv.innerHTML = `<p class="text-red-500">요청 실패: ${error}</p>`;
     });
 }
 
@@ -568,20 +246,18 @@ function updatePacketLog() {
 }
 
 function createPacketLogEntry(packet, type) {
-    // 패킷 정보에서 첫 번째 결과 사용 (없는 경우 Unknown으로 처리)
     const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
     const deviceText = deviceInfo.device !== "Unknown" ? 
         `${deviceInfo.device} ${deviceInfo.packet_type}` : 
         "Unknown";
     
-    // 패킷을 2자리씩 분할
     const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
     
     return `
-        <div class="packet-log-entry ${type} ${deviceInfo.device === 'Unknown' ? 'unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
-            <span class="packet-type-label">[${type.toUpperCase()}]</span>
-            <span class="packet" data-packet="${formattedPacket}">&nbsp;</span>
-            <span class="device-label">[${deviceText}]</span>
+        <div class="p-2 border-b border-gray-200 hover:bg-gray-50 cursor-pointer ${deviceInfo.device === 'Unknown' ? 'opacity-70' : ''}" onclick="handlePacketClick('${packet.packet}')">
+            <span class="inline-block min-w-[50px] mr-2 text-sm font-semibold ${type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${type.toUpperCase()}]</span>
+            <span class="font-mono" data-packet="${formattedPacket}">&nbsp;</span>
+            <span class="inline-block min-w-[120px] ml-2 text-sm text-gray-600">[${deviceText}]</span>
         </div>`;
 }
 
@@ -605,7 +281,7 @@ function loadPacketStructures() {
             for (const [deviceName, info] of Object.entries(structures)) {
                 // 탭 버튼 추가
                 const button = document.createElement('button');
-                button.className = `tablinks ${isFirst ? 'active' : ''}`;
+                button.className = `px-4 py-2 text-sm font-medium border-b-2 focus:outline-none ${isFirst ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`;
                 button.onclick = function(evt) { openDeviceTab(evt, deviceName); };
                 button.textContent = deviceName;
                 tabButtons.appendChild(button);
@@ -618,6 +294,7 @@ function loadPacketStructures() {
                 
                 // 디바이스 정보 헤더 추가
                 const deviceHeader = document.createElement('h3');
+                deviceHeader.className = 'text-lg font-bold mb-4';
                 deviceHeader.textContent = `${deviceName} (${info.type || '알 수 없음'})`;
                 tabContent.appendChild(deviceHeader);
                 
@@ -632,16 +309,18 @@ function loadPacketStructures() {
                     info.ack?.examples?.length > 0) {
                     
                     const examplesHeader = document.createElement('h4');
+                    examplesHeader.className = 'text-md font-bold mt-6 mb-3';
                     examplesHeader.textContent = '예시 패킷';
                     tabContent.appendChild(examplesHeader);
                     
                     const examplesDiv = document.createElement('div');
-                    examplesDiv.className = 'packet-examples';
+                    examplesDiv.className = 'bg-white p-4 rounded shadow space-y-4';
                     
                     // 각 타입별 예시 추가
                     ['command', 'state', 'state_request', 'ack'].forEach(type => {
                         if (info[type]?.examples?.length > 0) {
                             const typeHeader = document.createElement('h5');
+                            typeHeader.className = 'text-sm font-semibold text-gray-700';
                             typeHeader.textContent = {
                                 'command': '명령 패킷',
                                 'state': '상태 패킷',
@@ -652,11 +331,11 @@ function loadPacketStructures() {
                             
                             info[type].examples.forEach(example => {
                                 const exampleDiv = document.createElement('div');
-                                exampleDiv.className = 'packet-example';
+                                exampleDiv.className = 'py-2 border-b border-gray-200 last:border-b-0';
                                 const formattedPacket = example.packet.match(/.{2}/g).join(' ');
                                 exampleDiv.innerHTML = `
-                                    <code class="byte-spaced" data-packet="${formattedPacket}">&nbsp;</code>
-                                    <small>${example.desc || ''}</small>
+                                    <code class="font-mono text-sm" data-packet="${formattedPacket}">&nbsp;</code>
+                                    <small class="block mt-1 text-gray-500">${example.desc || ''}</small>
                                 `;
                                 examplesDiv.appendChild(exampleDiv);
                             });
@@ -749,34 +428,41 @@ function updateDeviceList() {
             deviceList.innerHTML = '';
             
             const deviceTable = document.createElement('table');
-            deviceTable.className = 'device-table';
+            deviceTable.className = 'min-w-full divide-y divide-gray-200';
             
             // 헤더 행 추가
             const headerRow = document.createElement('tr');
             ['기기', '타입', '개수'].forEach(header => {
                 const th = document.createElement('th');
+                th.className = 'px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
                 th.textContent = header;
                 headerRow.appendChild(th);
             });
             deviceTable.appendChild(headerRow);
             
             // 기기 정보 행 추가
+            let index = 0;
             for (const [deviceName, info] of Object.entries(devices)) {
                 const row = document.createElement('tr');
+                row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
                 
                 const nameCell = document.createElement('td');
+                nameCell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900';
                 nameCell.textContent = deviceName;
                 
                 const typeCell = document.createElement('td');
+                typeCell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500';
                 typeCell.textContent = info.type;
                 
                 const countCell = document.createElement('td');
+                countCell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500';
                 countCell.textContent = info.count;
                 
                 row.appendChild(nameCell);
                 row.appendChild(typeCell);
                 row.appendChild(countCell);
                 deviceTable.appendChild(row);
+                index++;
             }
             
             deviceList.appendChild(deviceTable);
@@ -844,12 +530,12 @@ function openDeviceTab(evt, deviceName) {
     // 모든 탭 버튼 비활성화
     tablinks = document.getElementsByClassName("tablinks");
     for (i = 0; i < tablinks.length; i++) {
-        tablinks[i].className = tablinks[i].className.replace(" active", "");
+        tablinks[i].className = tablinks[i].className.replace("border-blue-500 text-blue-600", "border-transparent text-gray-500");
     }
     
     // 선택된 탭 내용 표시 및 버튼 활성화
     document.getElementById(deviceName).style.display = "block";
-    evt.currentTarget.className += " active";
+    evt.currentTarget.className = evt.currentTarget.className.replace("border-transparent text-gray-500", "border-blue-500 text-blue-600");
 }
 
 function analyzeExpectedState(packet) {
@@ -951,9 +637,9 @@ function handleHeaderSelect() {
         const byteInfo = packetSuggestions.values[deviceKey]?.[i];
         if (byteInfo) {
             html += `
-                <div class="byte-input">
-                    <label class="byte-label">Byte ${i}: ${byteInfo.name}</label>
-                    <select onchange="updatePacket()" data-byte="${i}">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Byte ${i}: ${byteInfo.name}</label>
+                    <select onchange="updatePacket()" data-byte="${i}" class="form-select block w-full py-2 px-3 border border-gray-300 bg-white rounded shadow focus:outline-none focus:shadow-outline">
                         <option value="">선택...</option>
                         ${Object.entries(byteInfo.values).map(([key, value]) => 
                             `<option value="${value}">${key} (${value})</option>`
@@ -962,11 +648,12 @@ function handleHeaderSelect() {
                 </div>`;
         } else {
             html += `
-                <div class="byte-input">
-                    <label class="byte-label">Byte ${i}</label>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Byte ${i}</label>
                     <input type="text" maxlength="2" pattern="[0-9A-Fa-f]{2}" 
                            onchange="updatePacket()" data-byte="${i}"
-                           placeholder="00">
+                           placeholder="00"
+                           class="form-input block w-full py-2 px-3 border border-gray-300 rounded shadow focus:outline-none focus:shadow-outline">
                 </div>`;
         }
     }
@@ -1000,73 +687,58 @@ function updatePacket() {
 }
 
 function createPacketTable(deviceData) {
-    // 새로운 테이블 엘리먼트 생성
     const table = document.createElement('table');
-    table.className = 'packet-table';
+    table.className = 'min-w-full divide-y divide-gray-200';
     
-    // 테이블 헤더 행 생성
     const headerRow = document.createElement('tr');
     const headers = ['Byte', '명령', '응답', '상태요청', '상태'];
     headers.forEach(header => {
         const th = document.createElement('th');
+        th.className = 'px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
         th.textContent = header;
         headerRow.appendChild(th);
     });
     table.appendChild(headerRow);
     
-    // 8개의 바이트(0-7)에 대한 행 생성
     for (let byte = 0; byte < 8; byte++) {
         const row = document.createElement('tr');
+        row.className = byte % 2 === 0 ? 'bg-white' : 'bg-gray-50';
         
-        // 첫 번째 셀 - 바이트 번호
         const byteCell = document.createElement('td');
-        byteCell.className = 'byte-header';
+        byteCell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900';
         byteCell.textContent = `Byte ${byte}`;
         row.appendChild(byteCell);
         
-        // 각 패킷 타입의 설명과 값 추출 (순서 변경)
         const types = ['command', 'ack', 'state_request', 'state'];
         types.forEach(type => {
             const td = document.createElement('td');
-            td.className = 'command-cell';
+            td.className = 'px-6 py-4 text-sm text-gray-500';
             
             if (deviceData[type]) {
-                // 설명 추가
                 if (deviceData[type].byte_desc && deviceData[type].byte_desc[byte] !== undefined) {
                     const descDiv = document.createElement('div');
-                    descDiv.className = 'byte-desc';
+                    descDiv.className = 'font-medium text-gray-900 mb-2';
                     descDiv.textContent = deviceData[type].byte_desc[byte];
                     td.appendChild(descDiv);
                 }
                 
-                // 가능한 값 목록 추가
                 if (deviceData[type].byte_values && deviceData[type].byte_values[byte]) {
                     const valuesDiv = document.createElement('div');
-                    valuesDiv.className = 'byte-values';
+                    valuesDiv.className = 'space-y-1';
                     Object.entries(deviceData[type].byte_values[byte]).forEach(([key, value]) => {
                         const valueSpan = document.createElement('div');
-                        valueSpan.className = 'value-item';
+                        valueSpan.className = 'text-sm text-gray-600';
                         valueSpan.textContent = `${key}: ${value}`;
                         valuesDiv.appendChild(valueSpan);
                     });
                     td.appendChild(valuesDiv);
                 }
                 
-                // memo 정보 추가
                 if (deviceData[type].byte_memos && deviceData[type].byte_memos[byte]) {
                     const memoDiv = document.createElement('div');
-                    memoDiv.className = 'byte-memo';
+                    memoDiv.className = 'mt-2 text-sm text-gray-500 italic';
                     memoDiv.textContent = `💡 ${deviceData[type].byte_memos[byte]}`;
                     td.appendChild(memoDiv);
-                }
-                
-                // 예시 값 추가
-                if (deviceData[type].examples && deviceData[type].examples[0]) {
-                    const bytes = deviceData[type].examples[0].packet.match(/.{2}/g) || [];
-                    const exampleDiv = document.createElement('div');
-                    exampleDiv.className = 'byte-example';
-                    exampleDiv.textContent = `예시: ${bytes[byte] || '--'}`;
-                    td.appendChild(exampleDiv);
                 }
             }
             
@@ -1095,6 +767,27 @@ function updatePacketReference(data) {
         tabContents.appendChild(deviceSection);
     });
 } 
+
+function sendPacket() {
+    const packetInput = document.getElementById('packetInput');
+    const packet = packetInput.value.replace(/[\s-]+/g, '').trim();
+    
+    fetch('./api/send_packet', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ packet: packet })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('패킷을 전송했습니다.');
+        } else {
+            alert('패킷 전송에 실패했습니다.');
+        }
+    });
+}
 
     </script>
 </body>
