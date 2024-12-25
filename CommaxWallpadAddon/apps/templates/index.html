@@ -38,8 +38,8 @@
                 <!-- 연결된 기기 -->
                 <div class="bg-white rounded-lg shadow p-6">
                     <h2 class="text-lg font-semibold mb-4">현재 연결된 기기</h2>
-                    <div id="deviceList">
-                        <!-- 기기 목록이 여기에 동적으로 추가됩니다 -->
+            <div id="deviceList">
+                <!-- 기기 목록이 여기에 동적으로 추가됩니다 -->
                     </div>
                 </div>
 
@@ -86,78 +86,78 @@
                 <h2 class="text-lg font-semibold mb-4">애드온 설정</h2>
                 <div id="configDisplay" class="space-y-4">
                     <!-- CONFIG 객체 내용이 여기에 동적으로 추가됩니다 -->
-                </div>
             </div>
         </div>
-
+    </div>
+    
         <!-- 플레이그라운드 페이지 -->
         <div id="playground" class="page hidden">
             <div class="space-y-6">
                 <!-- 패킷 로그 -->
                 <div class="bg-white rounded-lg shadow p-6">
-                    <div class="flex justify-between items-center mb-4">
+            <div class="flex justify-between items-center mb-4">
                         <h2 class="text-lg font-semibold">감지된 패킷 목록</h2>
-                        <div class="flex items-center gap-4">
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" id="hideUnknown" onchange="updatePacketLogDisplay()" class="form-checkbox h-4 w-4 text-indigo-600">
-                                <span class="ml-2 text-gray-700">Unknown 패킷 숨기기</span>
-                            </label>
-                            <button onclick="clearPacketLog()" class="text-gray-500 hover:text-red-500 transition-colors" title="패킷 목록 초기화">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                    <div id="packetLog" class="h-96 overflow-y-auto">
-                        <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
-                    </div>
+                <div class="flex items-center gap-4">
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="hideUnknown" onchange="updatePacketLogDisplay()" class="form-checkbox h-4 w-4 text-indigo-600">
+                        <span class="ml-2 text-gray-700">Unknown 패킷 숨기기</span>
+                    </label>
+                    <button onclick="clearPacketLog()" class="text-gray-500 hover:text-red-500 transition-colors" title="패킷 목록 초기화">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
                 </div>
+            </div>
+            <div id="packetLog" class="h-96 overflow-y-auto">
+                <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
 
                 <!-- 패킷 분석기 -->
                 <div class="bg-white rounded-lg shadow p-6">
                     <h2 class="text-lg font-semibold mb-4">패킷 분석기</h2>
                     <p class="text-sm text-gray-600 mb-4">* 패킷은 7바이트(14자리)로 입력하세요. 체크섬은 자동으로 계산됩니다.</p>
-                    <div class="flex gap-2 mb-2">
-                        <div class="flex-grow">
-                            <input type="text" id="packetInput" placeholder="패킷 입력 (예: F7010104000000)" class="form-input block w-full py-2 px-3 border border-gray-300 rounded shadow focus:outline-none focus:shadow-outline">
-                        </div>
-                        <button onclick="analyzePacket()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                            분석
-                        </button>
-                    </div>
-                    <div id="packetResult" class="mt-4">
-                        <!-- 분석 결과가 여기에 표시됩니다 -->
-                    </div>
-                    <div class="mt-4 pt-4 border-t border-gray-200">
-                        <button id="sendPacketButton" onclick="sendPacket()" class="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-                            현재 패킷 전송
-                        </button>
-                        <p id="sendPacketWarning" class="text-sm text-red-500 mt-2">
-                            ⚠️ 패킷 전송은 현재 입력된 패킷을 그대로 전송하며, 유효성 검증을 거치지 않습니다.<br>
-                            알 수 없는 패킷을 전송하는 경우 예상하지 못한 동작이 있을 수 있습니다.<br>
-                            명령 패킷이 원하는 동작이 되지 않는다면 여러 번 전송을 시도해 보세요.
-                        </p>
-                    </div>
+            <div class="flex gap-2 mb-2">
+                <div class="flex-grow">
+                    <input type="text" id="packetInput" placeholder="패킷 입력 (예: F7010104000000)" class="form-input block w-full py-2 px-3 border border-gray-300 rounded shadow focus:outline-none focus:shadow-outline">
                 </div>
+                <button onclick="analyzePacket()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                    분석
+                </button>
+            </div>
+            <div id="packetResult" class="mt-4">
+                <!-- 분석 결과가 여기에 표시됩니다 -->
+            </div>
+            <div class="mt-4 pt-4 border-t border-gray-200">
+                <button id="sendPacketButton" onclick="sendPacket()" class="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                    현재 패킷 전송
+                </button>
+                <p id="sendPacketWarning" class="text-sm text-red-500 mt-2">
+                    ⚠️ 패킷 전송은 현재 입력된 패킷을 그대로 전송하며, 유효성 검증을 거치지 않습니다.<br>
+                    알 수 없는 패킷을 전송하는 경우 예상하지 못한 동작이 있을 수 있습니다.<br>
+                    명령 패킷이 원하는 동작이 되지 않는다면 여러 번 전송을 시도해 보세요.
+                </p>
+        </div>
+    </div>
 
                 <!-- 패킷 참조 자료 -->
                 <div class="bg-white rounded-lg shadow p-6">
                     <h2 class="text-lg font-semibold mb-4">📚 패킷 참조 자료</h2>
-                    <div>
-                        <div id="deviceTabs" class="flex border-b border-gray-200">
-                            <!-- 탭 버튼이 동적으로 추가됩니다 -->
-                        </div>
-                        <div id="tabContents" class="mt-4">
-                            <!-- 각 디바이스별 패킷 테이블이 여기에 추가됩니다 -->
-                        </div>
-                    </div>
-                    <p class="text-sm text-gray-600 mt-2">*FF로 표시된 값은 정수값이 들어올 수 있습니다.</p>
+        <div>
+            <div id="deviceTabs" class="flex border-b border-gray-200">
+                <!-- 탭 버튼이 동적으로 추가됩니다 -->
+            </div>
+            <div id="tabContents" class="mt-4">
+                <!-- 각 디바이스별 패킷 테이블이 여기에 추가됩니다 -->
+            </div>
+        </div>
+        <p class="text-sm text-gray-600 mt-2">*FF로 표시된 값은 정수값이 들어올 수 있습니다.</p>
                 </div>
             </div>
         </div>
     </div>
-
+    
     <script>
         // 전역 변수 선언
         let lastPackets = new Set();
@@ -187,6 +187,325 @@
                     link.classList.add('border-transparent', 'text-gray-500');
                 }
             });
+        }
+
+        // ===============================
+        // 기기 목록 관련 함수
+        // ===============================
+        function updateDeviceList() {
+            fetch('./api/devices')
+                .then(response => response.json())
+                .then(data => {
+                    const deviceListDiv = document.getElementById('deviceList');
+                    if (!deviceListDiv) return;
+
+                    let html = '';
+                    for (const [deviceName, info] of Object.entries(data)) {
+                        html += `
+                            <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                                <div class="flex justify-between items-center">
+                                    <h3 class="text-lg font-medium">${deviceName}</h3>
+                                    <span class="text-sm text-gray-500">타입: ${info.type}</span>
+                                </div>
+                                <div class="mt-2 text-sm text-gray-600">
+                                    개수: ${info.count}개
+                                </div>
+                            </div>
+                        `;
+                    }
+                    deviceListDiv.innerHTML = html || '<p class="text-gray-500">연결된 기기가 없습니다.</p>';
+                })
+                .catch(error => console.error('기기 목록 업데이트 실패:', error));
+        }
+
+        // ===============================
+        // 패킷 분석 관련 함수
+        // ===============================
+        function showAvailableHeaders() {
+            if (!packetSuggestions) return;
+            
+            const deviceTabs = document.getElementById('deviceTabs');
+            const tabContents = document.getElementById('tabContents');
+            
+            if (!deviceTabs || !tabContents) return;
+            
+            // 탭 버튼 생성
+            let tabsHtml = '';
+            let contentsHtml = '';
+            
+            Object.entries(packetSuggestions.headers).forEach(([type, headers], index) => {
+                const isActive = index === 0;
+                const typeKorean = {
+                    'command': '명령',
+                    'state': '상태',
+                    'state_request': '상태 요청',
+                    'ack': '응답'
+                }[type] || type;
+                
+                // 탭 버튼
+                tabsHtml += `
+                    <button 
+                        class="px-4 py-2 font-medium ${isActive ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}"
+                        onclick="showPacketTab('${type}')"
+                        id="tab-${type}"
+                    >
+                        ${typeKorean} 패킷
+                    </button>
+                `;
+                
+                // 탭 내용
+                contentsHtml += `
+                    <div id="content-${type}" class="${isActive ? '' : 'hidden'}">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">기기</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">헤더</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${headers.map(h => `
+                                        <tr class="hover:bg-gray-50 cursor-pointer" onclick="insertHeader('${h.header}')">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${h.device}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${h.header}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            deviceTabs.innerHTML = tabsHtml;
+            tabContents.innerHTML = contentsHtml;
+        }
+
+        function showPacketTab(type) {
+            // 모든 탭 내용 숨기기
+            document.querySelectorAll('[id^="content-"]').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // 선택된 탭 내용 보이기
+            const selectedContent = document.getElementById(`content-${type}`);
+            if (selectedContent) {
+                selectedContent.classList.remove('hidden');
+            }
+            
+            // 탭 버튼 스타일 업데이트
+            document.querySelectorAll('[id^="tab-"]').forEach(tab => {
+                tab.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                tab.classList.add('text-gray-500', 'hover:text-gray-700');
+            });
+            
+            const selectedTab = document.getElementById(`tab-${type}`);
+            if (selectedTab) {
+                selectedTab.classList.remove('text-gray-500', 'hover:text-gray-700');
+                selectedTab.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+            }
+        }
+
+        function insertHeader(header) {
+            const packetInput = document.getElementById('packetInput');
+            if (packetInput) {
+                packetInput.value = header + '0'.repeat(14);
+                analyzePacket();
+            }
+        }
+
+        function analyzePacket() {
+            const packetInput = document.getElementById('packetInput');
+            const resultDiv = document.getElementById('packetResult');
+            const sendButton = document.getElementById('sendPacketButton');
+            
+            if (!packetInput || !resultDiv || !sendButton) return;
+            
+            const packet = packetInput.value.trim().toUpperCase();
+            
+            // 패킷 형식 검증
+            if (!/^[0-9A-F]{14,16}$/.test(packet)) {
+                resultDiv.innerHTML = `
+                    <div class="text-red-500">
+                        올바른 패킷 형식이 아닙니다.<br>
+                        패킷은 14자리 또는 16자리의 16진수여야 합니다.
+                    </div>
+                `;
+                sendButton.disabled = true;
+                return;
+            }
+            
+            fetch('./api/analyze_packet', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: packet
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let html = `
+                        <div class="space-y-4">
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <h3 class="font-medium text-lg mb-2">패킷 분석 결과</h3>
+                                <div class="space-y-2">
+                                    <p><span class="font-medium">기기:</span> ${data.device}</p>
+                                    <p><span class="font-medium">체크섬:</span> ${data.checksum}</p>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <h3 class="font-medium text-lg mb-2">바이트별 분석</h3>
+                                <div class="space-y-1">
+                                    ${data.analysis.map(line => `<p class="text-sm">${line}</p>`).join('')}
+                                </div>
+                            </div>
+                    `;
+                    
+                    if (data.expected_state) {
+                        html += `
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <h3 class="font-medium text-lg mb-2">예상되는 상태 패킷</h3>
+                                <p class="text-sm font-mono">${data.expected_state}</p>
+                            </div>
+                        `;
+                    }
+                    
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                    sendButton.disabled = false;
+                    
+                    // 분석 기록 저장
+                    saveToHistory(packet);
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="text-red-500">
+                            패킷 분석 실패:<br>
+                            ${data.error}
+                        </div>
+                    `;
+                    sendButton.disabled = true;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `
+                    <div class="text-red-500">
+                        오류 발생:<br>
+                        ${error.message}
+                    </div>
+                `;
+                sendButton.disabled = true;
+            });
+        }
+
+        function saveToHistory(packet) {
+            try {
+                let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+                history = history.filter(p => p !== packet); // 중복 제거
+                history.unshift(packet); // 최신 항목을 앞에 추가
+                if (history.length > MAX_HISTORY) {
+                    history = history.slice(0, MAX_HISTORY);
+                }
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            } catch (e) {
+                console.error('분석 기록 저장 실패:', e);
+            }
+        }
+
+        function sendPacket() {
+            const packetInput = document.getElementById('packetInput');
+            if (!packetInput) return;
+            
+            const packet = packetInput.value.trim().toUpperCase();
+            
+            fetch('./api/send_packet', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    packet: packet
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    alert('패킷 전송 실패: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('패킷 전송 중 오류 발생: ' + error.message);
+            });
+        }
+
+        function updatePacketLogDisplay() {
+            const hideUnknown = document.getElementById('hideUnknown').checked;
+            const packetLogDiv = document.getElementById('packetLog');
+            
+            fetch('./api/packet_logs')
+                .then(response => response.json())
+                .then(data => {
+                    let html = '';
+                    
+                    // 수신 패킷 표시
+                    if (data.recv && data.recv.length > 0) {
+                        html += '<div class="mb-4"><h3 class="font-medium mb-2">수신 패킷</h3>';
+                        data.recv.forEach(packet => {
+                            // Unknown 패킷 필터링
+                            if (hideUnknown && packet.results.every(r => r.device === 'Unknown')) {
+                                return;
+                            }
+                            
+                            html += `
+                                <div class="bg-blue-50 p-2 rounded mb-2">
+                                    <div class="font-mono text-sm">${packet.packet}</div>
+                                    <div class="text-xs text-gray-600 mt-1">
+                                        ${packet.results.map(r => `${r.device} (${r.packet_type})`).join(', ')}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                    }
+                    
+                    // 송신 패킷 표시
+                    if (data.send && data.send.length > 0) {
+                        html += '<div><h3 class="font-medium mb-2">송신 패킷</h3>';
+                        data.send.forEach(packet => {
+                            // Unknown 패킷 필터링
+                            if (hideUnknown && packet.results.every(r => r.device === 'Unknown')) {
+                                return;
+                            }
+                            
+                            html += `
+                                <div class="bg-green-50 p-2 rounded mb-2">
+                                    <div class="font-mono text-sm">${packet.packet}</div>
+                                    <div class="text-xs text-gray-600 mt-1">
+                                        ${packet.results.map(r => `${r.device} (${r.packet_type})`).join(', ')}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                    }
+                    
+                    if (html === '') {
+                        html = '<p class="text-gray-500">패킷 로그가 없습니다.</p>';
+                    }
+                    
+                    packetLogDiv.innerHTML = html;
+                })
+                .catch(error => console.error('패킷 로그 업데이트 실패:', error));
+        }
+
+        function clearPacketLog() {
+            const packetLogDiv = document.getElementById('packetLog');
+            if (packetLogDiv) {
+                packetLogDiv.innerHTML = '<p class="text-gray-500">패킷 로그가 없습니다.</p>';
+            }
         }
 
         // ===============================
@@ -261,6 +580,43 @@
                 });
         }
 
+        // 패킷 구조 로드
+        function loadPacketStructures() {
+            fetch('./api/packet_structures')
+                .then(response => response.json())
+                .then(data => {
+                    // 패킷 구조 정보를 저장하고 표시
+                    console.log('패킷 구조 로드됨:', data);
+                })
+                .catch(error => console.error('패킷 구조 로드 실패:', error));
+        }
+
+        // 페킷 입력 필드 이벤트 처리 함수들
+        function handlePacketInput(event) {
+            const input = event.target;
+            // 입력값을 대문자로 변환하고 16진수만 허용
+            input.value = input.value.toUpperCase().replace(/[^0-9A-F]/g, '');
+            // 최대 16자리로 제한
+            if (input.value.length > 16) {
+                input.value = input.value.slice(0, 16);
+            }
+            // 패킷 분석 실행
+            analyzePacket();
+        }
+
+        function handlePacketInputKeydown(event) {
+            // Enter 키 입력 시 패킷 분석 실행
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                analyzePacket();
+            }
+        }
+
+        function handlePacketInputFocus(event) {
+            // 입력 필드에 포커스가 갈 때 전체 선택
+            event.target.select();
+        }
+
         // 페이지 로드 완료 후 초기화 실행 및 주기적 업데이트 설정
         document.addEventListener('DOMContentLoaded', function() {
             initialize();
@@ -279,8 +635,6 @@
                 packetInput.addEventListener('focus', handlePacketInputFocus);
             }
         });
-
-        // ... (기존 코드는 그대로 유지)
     </script>
 </body>
 </html> 

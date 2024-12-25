@@ -151,7 +151,7 @@ class WallpadController:
         """MQTT 클라이언트를 설정하고 반환합니다.
         
         Args:
-            client_id (Optional[str]): MQTT 클라이언트 ID. 기본값은 self.HA_TOPIC
+            client_id (Optional[str]): MQTT 클라이언트 ID. ���본값은 self.HA_TOPIC
             
         Returns:
             mqtt.Client: 설정된 MQTT 클라이언트
@@ -248,10 +248,8 @@ class WallpadController:
                         )
                     current_time = time.time_ns()
                     self.COLLECTDATA['last_recv_time'] = current_time
-                    # # 수신 간격 계산
-                    # if 'last_recv_time' in self.COLLECTDATA:
-                    #     interval = current_time - self.COLLECTDATA['last_recv_time']
-                    #     self.logger.debug(f'수신 간격: {interval} ns')
+                    # 웹서버에 메시지 추가
+                    self.web_server.add_mqtt_message(msg.topic, raw_data)
                     
                 elif topics[1] == 'send':
                     raw_data = msg.payload.hex().upper()
@@ -259,10 +257,14 @@ class WallpadController:
                     self.COLLECTDATA['send_data'].add(raw_data)
                     if len(self.COLLECTDATA['send_data']) > 100:
                         self.COLLECTDATA['send_data'] = set(list(self.COLLECTDATA['send_data'])[-100:])
+                    # 웹서버에 메시지 추가
+                    self.web_server.add_mqtt_message(msg.topic, raw_data)
                     
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
                 self.logger.mqtt(f'->> 수신: {"/".join(topics)} -> {value}')
+                # 웹서버에 메시지 추가
+                self.web_server.add_mqtt_message("/".join(topics), value)
                 
                 if self.loop and self.loop.is_running():
                     asyncio.run_coroutine_threadsafe(
@@ -528,7 +530,7 @@ class WallpadController:
             target_temp (int): 설정하고자 하는 목표 온도 값
             command_type (str): 명령어 타입
                 - 'commandOFF': 전원 끄기 명령
-                - 'commandON': 전원 켜기 명령
+                - 'commandON': 전원 켜기 명���
                 - 'commandCHANGE': 온도 변경 명령
         
         Returns:
@@ -684,7 +686,7 @@ class WallpadController:
             #     elif command_type == int(device_structure['command']['types']['setSpeed']['code'], 16):
             #         # 속도 설정 명령
             #         status_packet[int(device_structure['state']['fieldPositions']['speed'])] = command_value
-            #         # 전원은 켜진 상태로 설정
+            #         # 전���은 켜진 상태로 설정
             #         status_packet[int(device_structure['state']['fieldPositions']['power'])] = \
             #             int(device_structure['state']['structure']['1']['values']['on'], 16)
             
@@ -859,7 +861,7 @@ class WallpadController:
                             
                             break
                 else:
-                    self.logger.signal(f'체크섬 불일치: {data}')
+                    self.logger.signal(f'체크섬 ��일치: {data}')
         
         except Exception as e:
             self.logger.error(f"Elfin 데이터 처리 중 오류 발생: {str(e)}")
@@ -1145,7 +1147,7 @@ class WallpadController:
                 self.mqtt_client.loop_stop()
 
     def __del__(self):
-        """클래스 인스턴스가 삭제될 때 리소스 정리"""
+        """클래스 인스���스가 삭제될 때 리소스 정리"""
         if self.mqtt_client:
             try:
                 self.mqtt_client.loop_stop()
