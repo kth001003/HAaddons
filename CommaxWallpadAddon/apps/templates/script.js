@@ -510,7 +510,7 @@ function updateMqttStatus() {
             document.getElementById('brokerInfo').textContent = data.broker || '-';
             document.getElementById('clientId').textContent = data.client_id || '-';
             
-            // 구독 중인 토픽 표시
+            // 구독 ��인 토픽 표시
             const topicsDiv = document.getElementById('subscribedTopics');
             topicsDiv.innerHTML = data.subscribed_topics.map(topic => 
                 `<div class="text-sm bg-gray-50 p-2 rounded">${topic}</div>`
@@ -555,7 +555,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 주기적 업데이트 설정
     setInterval(updateDeviceList, 30000);  // 30초마다 기기목록 업데이트
-    setInterval(updatePacketLogDisplay, 1000);    // 1초마다 패킷 로그 업데이트
+    setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
     
