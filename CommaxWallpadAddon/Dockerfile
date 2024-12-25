@@ -14,10 +14,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 WORKDIR /share
 # Copy data for add-on
 COPY apps /apps
-COPY apps/devices_and_packets_structures.yaml /share/commax_devices_and_packets_structures.yaml
 
 # 웹서버 템플릿 디렉토리 생성
 RUN mkdir -p /apps/templates
-RUN mkdir -p /apps/static
 
 CMD ["python3", "/apps/main.py"]
