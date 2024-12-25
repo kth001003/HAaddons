@@ -18,7 +18,7 @@
     </div>
     
     <div class="flex flex-col md:flex-row gap-4">
-        <div class="bg-white p-4 rounded shadow flex-1">
+        <div class="bg-white p-4 rounded shadow flex-2">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold">감지된 패킷 목록</h2>
                 <div>
@@ -35,46 +35,35 @@
                 <!-- 패킷 로그가 여기에 동적으로 추가됩니다 -->
             </div>
             <button onclick="clearPacketLog()" class="w-full bg-red-500 hover:bg-red-700 text-white text-sm py-1 px-2 rounded">
-                모두 지우기
+                초기화
             </button>
         </div>
 
-        <div class="bg-white p-4 rounded shadow flex-2">
+        <div class="bg-white p-4 rounded shadow flex-1">
             <div class="mb-4">
                 <h2 class="text-xl font-bold mb-2">패킷 분석기</h2>
                 <p class="text-sm text-gray-600">* 패킷은 7바이트(14자리)로 입력하세요. 체크섬은 자동으로 계산됩니다.</p>
-            </div>
-            <div class="mb-4">
-                <div>
-                    <select id="packetHeaderSelect" onchange="handleHeaderSelect()" class="form-select block w-full py-2 px-3 border border-gray-300 bg-white rounded shadow focus:outline-none focus:shadow-outline">
-                        <option value="">헤더 선택...</option>
-                    </select>
-                    <div id="packetByteInputs" class="mt-2">
-                        <!-- 바이트 입력 필드가 동적으로 추가됩니다 -->
-                    </div>
-                </div>
             </div>
             <div class="flex gap-2 mb-2">
                 <div class="flex-grow">
                     <input type="text" id="packetInput" placeholder="패킷 입력 (예: F7010104000000)" class="form-input block w-full py-2 px-3 border border-gray-300 rounded shadow focus:outline-none focus:shadow-outline">
                 </div>
-                <select id="packetHistory" onchange="loadPacketFromHistory()" class="form-select block py-2 px-3 border border-gray-300 bg-white rounded shadow focus:outline-none focus:shadow-outline">
-                    <option value="">최근 입력...</option>
-                </select>
                 <button onclick="analyzePacket()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
                     분석
                 </button>
-                <button id="sendPacketButton" onclick="sendPacket()" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded hidden">
-                    전송
-                </button>
             </div>
-            <p id="sendPacketWarning" class="text-sm text-red-500 mb-2 hidden">
-                ⚠️ 명령 전송은 현재 입력된 패킷을 그대로 전송하며, 유효성 검증을 거치지 않습니다. 
-                응답 패킷이나 예상 패킷을 기다리지 않으므로 타이밍에 따라 예상된 동작이 되지 않을 수 있습니다.
-                원하는 동작이 되지 않는다면 여러 번 전송을 시도해 보세요.
-            </p>
             <div id="packetResult" class="mt-4">
                 <!-- 분석 결과가 여기에 표시됩니다 -->
+            </div>
+            <div class="mt-4 pt-4 border-t border-gray-200">
+                <button id="sendPacketButton" onclick="sendPacket()" class="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                    현재 패킷 전송
+                </button>
+                <p id="sendPacketWarning" class="text-sm text-red-500 mt-2">
+                    ⚠️ 패킷 전송은 현재 입력된 패킷을 그대로 전송하며, 유효성 검증을 거치지 않습니다.<br>
+                    알 수 없는 패킷을 전송하는 경우 예상하지 못한 동작이 있을 수 있습니다.<br>
+                    명령 패킷이 원하는 동작이 되지 않는다면 여러 번 전송을 시도해 보세요.
+                </p>
             </div>
         </div>
     </div>
@@ -117,16 +106,38 @@
             initialize(); // 초기화 함수 호출
 
             // 주기적 업데이트 설정
-            setInterval(updateDeviceList, 30000);  // 30초마다 상태 업데이트
+            setInterval(updateDeviceList, 30000);  // 30초마다 기기목록 업데이트
             setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
 
-            // 패킷 입력 필요 이벤트 리스너
+            // 패킷 입력 필드 이벤트 리스너
             const packetInput = document.getElementById('packetInput');
             if (packetInput) {
-                packetInput.addEventListener('keypress', function(e) {
+                packetInput.addEventListener('keydown', function(e) {
+                    const history = loadPacketHistory();
+                    
                     if (e.key === 'Enter') {
                         analyzePacket();
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        if (historyIndex === -1) {
+                            currentInput = this.value;  // 현재 입력값 저장
+                        }
+                        if (historyIndex < history.length - 1) {
+                            historyIndex++;
+                            this.value = history[historyIndex];
+                        }
+                    } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        if (historyIndex > -1) {
+                            historyIndex--;
+                            this.value = historyIndex === -1 ? currentInput : history[historyIndex];
+                        }
                     }
+                });
+
+                // 포커스를 잃을 때 히스토리 인덱스 초기화
+                packetInput.addEventListener('blur', function() {
+                    historyIndex = -1;
                 });
             }
         });
@@ -135,24 +146,32 @@
         // 패킷 분석 관련 함수
         // ===============================
         
-        function analyzePacket() {
+        function analyzePacket(paddedPacket) {
             const packetInput = document.getElementById('packetInput');
             const resultDiv = document.getElementById('packetResult');
             // 입력값에서 공백 제거
-            const packet = packetInput.value.replace(/[\s-]+/g, '').trim();
+            const packet = (paddedPacket || packetInput.value.replace(/[\s-]+/g, '').trim()).toUpperCase();
             
             if (!packet) {
-                resultDiv.innerHTML = '<p class="error">패킷을 입력하세요.</p>';
+                showAvailableHeaders();
                 return;
             }
             
-            if (!/^[0-9A-Fa-f]{14}$/.test(packet) && !/^[0-9A-Fa-f]{16}$/.test(packet)) {
-                resultDiv.innerHTML = '<p class="error">패킷은 7바이트(14자리) 또는 8바이트(16자리)여야 합니다.</p>';
+            if (!/^[0-9A-F]{14}$/.test(packet) && !/^[0-9A-F]{16}$/.test(packet)) {
+                if (packet.length >= 2) {
+                    // 2자리 이상 입력된 경우 나머지를 00으로 채워서 분석
+                    const paddedPacket = packet.padEnd(14, '0');
+                    if (/^[0-9A-F]+$/.test(packet)) {
+                        analyzePacket(paddedPacket);
+                    }
+                }
                 return;
             }
             
-            // 히스토리에 저장
-            savePacketHistory(packet);
+            // Enter 키로 분석한 경우에만 히스토리에 저장
+            if (!paddedPacket) {
+                savePacketHistory(packet);
+            }
             
             // 헤더로 패킷 타입 자동 감지
             const header = packet.substring(0, 2);
@@ -199,7 +218,7 @@
                     
                     if (data.checksum) {
                         const formattedChecksum = data.checksum.match(/.{2}/g).join(' ');
-                        html += `<p class="mb-2">체크섬이 포함된 패킷: <strong class="font-mono" data-packet="${formattedChecksum}">&nbsp;</strong></p>`;
+                        html += `<p class="mb-2">체크섬이 포함된 패킷: <strong class="font-mono">${formattedChecksum}</strong></p>`;
                     } else {
                         html += '<p class="text-red-500">체크섬 계산 실패</p>';
                     }
@@ -216,7 +235,7 @@
                     if (packetType === 'command' && data.expected_state) {
                         const formattedExpectedPacket = data.expected_state.expected_packet.match(/.{2}/g).join(' ');
                         html += `<h4 class="text-md font-bold mt-4 mb-2">예상되는 상태 패킷:</h4>`;
-                        html += `<p class="mb-2"><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" class="text-blue-500 hover:text-blue-700 font-mono" data-packet="${formattedExpectedPacket}">&nbsp;</a></strong></p>`;
+                        html += `<p class="mb-2"><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" class="text-blue-500 hover:text-blue-700 font-mono">${formattedExpectedPacket}</a></strong></p>`;
                         html += `<p class="mb-2">필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
                         
                         if (data.expected_state.analysis && data.expected_state.analysis.length > 0) {
@@ -230,15 +249,6 @@
                     }
                     
                     resultDiv.innerHTML = html;
-                    
-                    // 명령 패킷인 경우 전송 버튼과 주의 문구 표시
-                    if (packetType === 'command') {
-                        document.getElementById('sendPacketButton').style.display = 'inline-block';
-                        document.getElementById('sendPacketWarning').style.display = 'block';
-                    } else {
-                        document.getElementById('sendPacketButton').style.display = 'none';
-                        document.getElementById('sendPacketWarning').style.display = 'none';
-                    }
                 } else {
                     resultDiv.innerHTML = `<p class="text-red-500">오류: ${data.error}</p>`;
                 }
@@ -359,6 +369,9 @@
         // 패킷 히스토리 관련 함수
         // ===============================
         
+        let historyIndex = -1;  // 현재 히스토리 위치 (-1은 현재 입력)
+        let currentInput = '';   // 현재 입력값 저장
+
         function loadPacketHistory() {
             try {
                 return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
@@ -384,7 +397,7 @@
             }
             
             localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-            updateHistorySelect();
+            historyIndex = -1;  // 히스토리 인덱스 초기화
         }
 
         function updateHistorySelect() {
@@ -806,6 +819,109 @@
             
             packetInput.value = packet;
         }
+
+        function showAvailableHeaders() {
+            if (!packetSuggestions) return;
+
+            const resultDiv = document.getElementById('packetResult');
+            let html = '<h3 class="text-lg font-bold mb-2">사용 가능한 헤더:</h3>';
+            html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+
+            // 명령 패킷 헤더
+            html += '<div class="space-y-2">';
+            html += '<h4 class="font-bold text-sm text-gray-600">명령 패킷</h4>';
+            packetSuggestions.headers.command.forEach(header => {
+                html += `<div class="text-sm"><span class="font-mono bg-gray-100 px-1">${header.header}</span> - ${header.device}</div>`;
+            });
+            html += '</div>';
+
+            // 상태 패킷 헤더
+            html += '<div class="space-y-2">';
+            html += '<h4 class="font-bold text-sm text-gray-600">상태 패킷</h4>';
+            packetSuggestions.headers.state.forEach(header => {
+                html += `<div class="text-sm"><span class="font-mono bg-gray-100 px-1">${header.header}</span> - ${header.device}</div>`;
+            });
+            html += '</div>';
+
+            // 상태 요청 패킷 헤더
+            html += '<div class="space-y-2">';
+            html += '<h4 class="font-bold text-sm text-gray-600">상태 요청 패킷</h4>';
+            packetSuggestions.headers.state_request.forEach(header => {
+                html += `<div class="text-sm"><span class="font-mono bg-gray-100 px-1">${header.header}</span> - ${header.device}</div>`;
+            });
+            html += '</div>';
+
+            // 응답 패킷 헤더
+            html += '<div class="space-y-2">';
+            html += '<h4 class="font-bold text-sm text-gray-600">응답 패킷</h4>';
+            packetSuggestions.headers.ack.forEach(header => {
+                html += `<div class="text-sm"><span class="font-mono bg-gray-100 px-1">${header.header}</span> - ${header.device}</div>`;
+            });
+            html += '</div>';
+
+            html += '</div>';
+            resultDiv.innerHTML = html;
+        }
+
+        function handlePacketInput(e) {
+            const input = e.target;
+            const packet = input.value.replace(/[\s-]+/g, '').trim().toUpperCase();
+            
+            if (packet.length === 0) {
+                showAvailableHeaders();
+                return;
+            }
+
+            if (packet.length >= 2) {
+                // 입력된 패킷이 2자리 이상이면 나머지를 00으로 채워서 분석
+                const paddedPacket = packet.padEnd(14, '0');
+                if (/^[0-9A-F]+$/.test(packet)) {  // 유효한 16진수인 경우에만 분석
+                    analyzePacket(paddedPacket);
+                }
+            }
+        }
+
+        // 패킷 입력 필드 이벤트 리스너
+        document.addEventListener('DOMContentLoaded', function() {
+            const packetInput = document.getElementById('packetInput');
+            if (packetInput) {
+                packetInput.addEventListener('input', handlePacketInput);
+                packetInput.addEventListener('keydown', function(e) {
+                    const history = loadPacketHistory();
+                    
+                    if (e.key === 'Enter') {
+                        analyzePacket();
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        if (historyIndex === -1) {
+                            currentInput = this.value;
+                        }
+                        if (historyIndex < history.length - 1) {
+                            historyIndex++;
+                            this.value = history[historyIndex];
+                            handlePacketInput({target: this});
+                        }
+                    } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        if (historyIndex > -1) {
+                            historyIndex--;
+                            this.value = historyIndex === -1 ? currentInput : history[historyIndex];
+                            handlePacketInput({target: this});
+                        }
+                    }
+                });
+
+                // 포커스를 얻을 때 입력값이 없으면 헤더 목록 표시
+                packetInput.addEventListener('focus', function() {
+                    if (!this.value) {
+                        showAvailableHeaders();
+                    }
+                });
+
+                // 초기 헤더 목록 표시
+                showAvailableHeaders();
+            }
+        });
     </script>
 </body>
 </html> 
