@@ -1,6 +1,6 @@
 #!/usr/bin/with-contenv bashio
 
-function=$(bashio::args 1)
+function=$1
 shift
 
 case $function in
