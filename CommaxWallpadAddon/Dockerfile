@@ -1,4 +1,4 @@
-FROM ghcr.io/home-assistant/python-base:3.10-alpine
+FROM ghcr.io/home-assistant/amd64-base-python:3.13-alpine3.21
   
 ENV LANG C.UTF-8
 ENV TZ=Asia/Seoul
