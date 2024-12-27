@@ -1,7 +1,13 @@
-ARG BUILD_FROM
-FROM $BUILD_FROM
-# FROM ghcr.io/home-assistant/amd64-base-python:3.13-alpine3.21
-  
+FROM python:3.10-slim-buster
+  # bashio 설치
+RUN apt-get update && apt-get install -y jq curl && \
+curl -J -L -o /tmp/bashio.tar.gz \
+    "https://github.com/hassio-addons/bashio/archive/v0.14.3.tar.gz" && \
+mkdir /tmp/bashio && \
+tar zxvf /tmp/bashio.tar.gz --strip 1 -C /tmp/bashio && \
+mv /tmp/bashio/lib /usr/lib/bashio && \
+ln -s /usr/lib/bashio/bashio /usr/bin/bashio
+
 ENV LANG C.UTF-8
 ENV TZ=Asia/Seoul
 
