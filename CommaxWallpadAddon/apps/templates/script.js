@@ -552,10 +552,21 @@ function loadConfig() {
                 // 입력 필드 생성
                 let input;
                 if (schemaType === 'bool') {
-                    input = document.createElement('input');
-                    input.type = 'checkbox';
-                    input.checked = value;
-                    input.className = 'form-checkbox h-4 w-4 text-blue-600';
+                    input = document.createElement('select');
+                    input.className = 'form-select block w-full rounded-md border-gray-300';
+                    
+                    const trueOption = document.createElement('option');
+                    trueOption.value = 'true';
+                    trueOption.textContent = '예 (true)';
+                    trueOption.selected = value === true;
+                    
+                    const falseOption = document.createElement('option');
+                    falseOption.value = 'false';
+                    falseOption.textContent = '아니오 (false)';
+                    falseOption.selected = value === false;
+                    
+                    input.appendChild(trueOption);
+                    input.appendChild(falseOption);
                 } else if (schemaType === 'list') {
                     input = document.createElement('select');
                     input.className = 'form-select block w-full rounded-md border-gray-300';
@@ -598,20 +609,26 @@ function loadConfig() {
 
 // 설정 저장
 function saveConfig() {
+    if (!confirm('설정을 저장하면 애드온이 재시작됩니다. 계속하시겠습니까?')) {
+        return;
+    }
+
     const configData = {};
-    const inputs = document.querySelectorAll('#configDisplay input, #configDisplay select');
+    const inputs = document.querySelectorAll('#configForm input, #configForm select');
     
     inputs.forEach(input => {
-        const key = input.dataset.key;
-        let value = input.type === 'checkbox' ? input.checked : input.value;
+        const key = input.getAttribute('data-key');
+        const schemaType = input.getAttribute('data-type');
         
-        // 타입 변환
-        if (input.dataset.type === 'int') {
-            value = parseInt(value);
-        } else if (input.dataset.type === 'float') {
-            value = parseFloat(value);
-        } else if (input.dataset.type === 'bool') {
-            value = Boolean(value);
+        let value;
+        if (schemaType === 'bool') {
+            value = input.value === 'true';
+        } else if (schemaType === 'int') {
+            value = parseInt(input.value);
+        } else if (schemaType === 'float') {
+            value = parseFloat(input.value);
+        } else {
+            value = input.value;
         }
         
         // 비밀번호 필드가 마스킹된 상태면 저장하지 않음
@@ -621,6 +638,8 @@ function saveConfig() {
         
         configData[key] = value;
     });
+
+    showConfigMessage('설정을 저장하고 애드온을 재시작하는 중...', false);
 
     fetch('./api/config', {
         method: 'POST',
@@ -632,7 +651,7 @@ function saveConfig() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showConfigMessage('설정이 성공적으로 저장되었습니다.', false);
+            showConfigMessage('설정이 저장되었습니다. 애드온이 재시작됩니다...', false);
             // MQTT 상태 업데이트
             setTimeout(updateMqttStatus, 1000);
         } else {
@@ -781,45 +800,40 @@ function checkVendorSetting() {
 }
 
 function changeVendorToCustom() {
-    // 먼저 현재 설정을 가져옴
-    fetch('./api/config')
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                showPacketEditorMessage('설정을 불러오는 중 오류가 발생했습니다: ' + data.error, true);
-                return;
-            }
+    if (!confirm('vendor 설정을 변경하면 애드온이 재시작됩니다. 계속하시겠습니까?')) {
+        return;
+    }
 
-            // 현재 설정에서 vendor만 변경
-            const configData = { ...data.config, vendor: 'custom' };
+    // vendor 설정만 변경
+    const configData = { vendor: 'custom' };
 
-            // 변경된 설정을 저장
-            return fetch('./api/config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(configData)
-            });
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showPacketEditorMessage('vendor 설정이 custom으로 변경되었습니다. 이제 패킷 구조를 편집할 수 있습니다.', false);
-                document.getElementById('vendorWarning').classList.add('hidden');
-                // 설정 페이지 업데이트
-                loadConfig();
-            } else {
-                let errorMessage = 'vendor 설정 변경 실패: ' + (data.error || '알 수 없는 오류');
-                if (data.details) {
-                    errorMessage += '\n' + data.details.join('\n');
-                }
-                showPacketEditorMessage(errorMessage, true);
+    showPacketEditorMessage('vendor 설정을 변경하고 애드온을 재시작하는 중...', false);
+
+    fetch('./api/config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(configData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showPacketEditorMessage('vendor 설정이 custom으로 변경되었습니다. 애드온이 재시작됩니다...', false);
+            document.getElementById('vendorWarning').classList.add('hidden');
+            // 설정 페이지 업데이트
+            setTimeout(loadConfig, 1000);
+        } else {
+            let errorMessage = 'vendor 설정 변경 실패: ' + (data.error || '알 수 없는 오류');
+            if (data.details) {
+                errorMessage += '\n' + data.details.join('\n');
             }
-        })
-        .catch(error => {
-            showPacketEditorMessage('vendor 설정 변경 중 오류가 발생했습니다: ' + error, true);
-        });
+            showPacketEditorMessage(errorMessage, true);
+        }
+    })
+    .catch(error => {
+        showPacketEditorMessage('vendor 설정 변경 중 오류가 발생했습니다: ' + error, true);
+    });
 }
 
 function loadCustomPacketStructure() {

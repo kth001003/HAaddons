@@ -8,6 +8,7 @@ import json
 import yaml # type: ignore
 import shutil
 from datetime import datetime
+import subprocess
 
 class WebServer:
     def __init__(self, wallpad_controller):
@@ -214,23 +215,36 @@ class WebServer:
                         'details': validation_errors
                     }), 400
 
-                # 백업 생성
-                backup_path = '/data/options.backup.json'
-                shutil.copy2('/data/options.json', backup_path)
+                # 변경된 설정만 저장
+                for key, value in data.items():
+                    # 현재 값과 비교
+                    current_value = current_options.get(key)
+                    if current_value != value:
+                        # bool 타입은 true/false로 변환
+                        if isinstance(value, bool):
+                            value = "^" + str(value).lower()
+                        # int 또는 float 타입인 경우 숫자로 변환
+                        elif isinstance(value, (int, float)):
+                            value = "^" + str(value)
+                        # 다른 타입들은 문자열로 변환
+                        else:
+                            value = str(value)
+                        
+                        # bashio 명령 실행
+                        cmd = f'bashio::addon.option {key} "{value}"'
+                        result = subprocess.run(['bashio', '-c', cmd], capture_output=True, text=True)
+                        
+                        if result.returncode != 0:
+                            return jsonify({
+                                'success': False,
+                                'error': f'설정 저장 실패: {result.stderr}'
+                            }), 500
 
-                # 새 설정 저장
-                with open('/data/options.json', 'w', encoding='utf-8') as f:
-                    json.dump({**current_options, **data}, f, indent=2, ensure_ascii=False)
+                # 애드온 재시작 요청
+                restart_cmd = 'bashio::addon.restart'
+                subprocess.run(['bashio', '-c', restart_cmd], capture_output=True, text=True)
 
-                # 컨트롤러 설정 업데이트
-                self.wallpad_controller.config.update(data)
-                
-                # MQTT 관련 설정이 변경된 경우 MQTT 클라이언트 재연결
-                mqtt_fields = {'mqtt_server', 'mqtt_port', 'mqtt_id', 'mqtt_password'}
-                if any(key in mqtt_fields for key in data.keys()):
-                    self.wallpad_controller.connect_mqtt()
-
-                return jsonify({'success': True})
+                return jsonify({'success': True, 'message': '설정이 저장되었습니다. 애드온을 재시작합니다.'})
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
 
@@ -238,7 +252,7 @@ class WebServer:
         def get_recent_messages():
             """최근 MQTT 메시지 목록을 제공합니다."""
             return jsonify({
-                'messages': self.recent_messages[-50:]  # 최근 50개 메시지만 반환
+                'messages': self.recent_messages[-100:]  # 최근 100개 메시지만 반환
             })
 
         @self.app.route('/api/packet_logs')
@@ -642,7 +656,7 @@ class WebServer:
         #         packet = list('00' * 7)
         #         packet[0] = structure['header']
         #         packet[1] = '01'  # 1번 온도조절기
-        #         packet[2] = '03'  # 온도 설정
+        #         packet[2] = '03'  # 온도 설���
         #         packet[3] = '18'  # 24도
         #         examples.append({
         #             "packet": ''.join(packet),

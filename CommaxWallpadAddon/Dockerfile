@@ -1,4 +1,4 @@
-FROM python:3.10-slim-buster
+FROM ghcr.io/home-assistant/python-base:3.10-alpine
   
 ENV LANG C.UTF-8
 ENV TZ=Asia/Seoul
