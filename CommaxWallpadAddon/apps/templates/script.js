@@ -803,37 +803,43 @@ function changeVendorToCustom() {
     if (!confirm('vendor 설정을 변경하면 애드온이 재시작됩니다. 계속하시겠습니까?')) {
         return;
     }
+    fetch('./api/config')
+        .then(response => response.json())
+        .then(data => {
+            const configData = data.config || {};
+            configData.vendor = 'custom';  // vendor만 custom으로 변경
+            return configData;
+        })
+        .then(configData => {
 
-    // vendor 설정만 변경
-    const configData = { vendor: 'custom' };
+            showPacketEditorMessage('vendor 설정을 변경하고 애드온을 재시작하는 중...', false);
 
-    showPacketEditorMessage('vendor 설정을 변경하고 애드온을 재시작하는 중...', false);
-
-    fetch('./api/config', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(configData)
+            fetch('./api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(configData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showPacketEditorMessage('vendor 설정이 custom으로 변경되었습니다. 애드온이 재시작됩니다...', false);
+                    document.getElementById('vendorWarning').classList.add('hidden');
+                    // 설정 페이지 업데이트
+                    setTimeout(loadConfig, 1000);
+                } else {
+                    let errorMessage = 'vendor 설정 변경 실패: ' + (data.error || '알 수 없는 오류');
+                    if (data.details) {
+                        errorMessage += '\n' + data.details.join('\n');
+                    }
+                    showPacketEditorMessage(errorMessage, true);
+                }
+            })
+            .catch(error => {
+                showPacketEditorMessage('vendor 설정 변경 중 오류가 발생했습니다: ' + error, true);
+            });
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showPacketEditorMessage('vendor 설정이 custom으로 변경되었습니다. 애드온이 재시작됩니다...', false);
-            document.getElementById('vendorWarning').classList.add('hidden');
-            // 설정 페이지 업데이트
-            setTimeout(loadConfig, 1000);
-        } else {
-            let errorMessage = 'vendor 설정 변경 실패: ' + (data.error || '알 수 없는 오류');
-            if (data.details) {
-                errorMessage += '\n' + data.details.join('\n');
-            }
-            showPacketEditorMessage(errorMessage, true);
-        }
-    })
-    .catch(error => {
-        showPacketEditorMessage('vendor 설정 변경 중 오류가 발생했습니다: ' + error, true);
-    });
 }
 
 function loadCustomPacketStructure() {

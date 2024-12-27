@@ -8,7 +8,7 @@ import json
 import yaml # type: ignore
 import shutil
 from datetime import datetime
-import subprocess
+import requests
 
 class WebServer:
     def __init__(self, wallpad_controller):
@@ -215,34 +215,49 @@ class WebServer:
                         'details': validation_errors
                     }), 400
 
-                # 변경된 설정만 저장
-                for key, value in data.items():
-                    # 현재 값과 비교
-                    current_value = current_options.get(key)
-                    if current_value != value:
-                        # bool 타입은 true/false로 변환
-                        if isinstance(value, bool):
-                            value = "^" + str(value).lower()
-                        # int 또는 float 타입인 경우 숫자로 변환
-                        elif isinstance(value, (int, float)):
-                            value = "^" + str(value)
-                        # 다른 타입들은 문자열로 변환
-                        else:
-                            value = str(value)
-                        
-                        # bashio 명령 실행
-                        result = subprocess.run(['bash', '/apps/bashio_wrapper.sh', 'addon.option', key, value], capture_output=True, text=True)
-                        
-                        if result.returncode != 0:
-                            return jsonify({
-                                'success': False,
-                                'error': f'설정 저장 실패: {result.stderr}'
-                            }), 500
+                try:
+                    # 현재 설정과 새로운 설정을 병합
+                    updated_options = current_options.copy()
+                    updated_options.update(data)
 
-                # 애드온 재시작 요청
-                subprocess.run(['bash', '/apps/bashio_wrapper.sh', 'addon.restart'], capture_output=True, text=True)
+                    # API 호출을 위한 헤더와 데이터 준비
+                    headers = {
+                        'Authorization': f'Bearer {os.environ.get("SUPERVISOR_TOKEN", "")}',
+                        'Content-Type': 'application/json'
+                    }
+                    api_data = {
+                        'options': updated_options
+                    }
 
-                return jsonify({'success': True, 'message': '설정이 저장되었습니다. 애드온을 재시작합니다.'})
+                    # Supervisor API 호출
+                    response = requests.post(
+                        'http://supervisor/addons/self/options',
+                        headers=headers,
+                        json=api_data
+                    )
+
+                    if response.status_code != 200:
+                        return jsonify({
+                            'success': False,
+                            'error': f'설정 저장 실패: {response.text}'
+                        }), 500
+
+                    # 애드온 재시작 요청
+                    restart_response = requests.post(
+                        'http://supervisor/addons/self/restart',
+                        headers=headers
+                    )
+
+                    if restart_response.status_code != 200:
+                        return jsonify({
+                            'success': False,
+                            'error': f'애드온 재시작 실패: {restart_response.text}'
+                        }), 500
+
+                    return jsonify({'success': True, 'message': '설정이 저장되었습니다. 애드온을 재시작합니다.'})
+
+                except Exception as e:
+                    return jsonify({'error': str(e)}), 500
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
 
