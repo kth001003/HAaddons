@@ -1,5 +1,11 @@
 FROM python:3.10-slim-buster
-  # bashio 설치
+
+# S6 오버레이 설치
+ARG S6_OVERLAY_VERSION=3.1.5.0
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp
+RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz
+
+# bashio 설치
 RUN apt-get update && apt-get install -y jq curl && \
 curl -J -L -o /tmp/bashio.tar.gz \
     "https://github.com/hassio-addons/bashio/archive/v0.14.3.tar.gz" && \
