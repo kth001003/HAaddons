@@ -1,6 +1,9 @@
 #!/usr/bin/with-contenv bashio
 source /usr/lib/bashio/bashio.sh
 
+# Supervisor token 환경 변수 설정
+export SUPERVISOR_TOKEN=${SUPERVISOR_TOKEN:-$(bashio::supervisor.token)}
+
 function=$1
 shift
 
