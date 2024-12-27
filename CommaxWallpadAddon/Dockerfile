@@ -16,7 +16,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
     paho-mqtt==1.6.1 \
     PyYAML==6.0.1 \
     flask==2.3.3 \
-    telnetlib3
+    telnetlib3 \
+    requests==2.31.0 
 
 WORKDIR /share
 # Copy data for add-on
