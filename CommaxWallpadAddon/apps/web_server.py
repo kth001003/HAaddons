@@ -26,7 +26,82 @@ class WebServer:
         @self.app.route('/')
         def home():
             return render_template('index.html')
-        
+
+        @self.app.route('/api/custom_packet_structure/editable', methods=['GET'])
+        def get_editable_packet_structure():
+            """편집 가능한 패킷 구조 필드를 반환합니다."""
+            try:
+                custom_file = '/share/packet_structures_custom.yaml'
+                if os.path.exists(custom_file):
+                    with open(custom_file, 'r', encoding='utf-8') as f:
+                        data = yaml.safe_load(f)
+                else:
+                    with open('/apps/packet_structures_commax.yaml', 'r', encoding='utf-8') as f:
+                        data = yaml.safe_load(f)
+
+                editable_structure = {}
+                for device_name, device_data in data.items():
+                    editable_structure[device_name] = {
+                        'type': device_data.get('type', ''),
+                        'command': self._get_editable_fields(device_data.get('command', {})),
+                        'state': self._get_editable_fields(device_data.get('state', {})),
+                        'state_request': self._get_editable_fields(device_data.get('state_request', {})),
+                        'ack': self._get_editable_fields(device_data.get('ack', {}))
+                    }
+                return jsonify({'content': editable_structure, 'success': True})
+            except Exception as e:
+                return jsonify({'error': str(e), 'success': False})
+
+        @self.app.route('/api/custom_packet_structure/editable', methods=['POST'])
+        def save_editable_packet_structure():
+            """편집된 패킷 구조를 기존 구조와 병합하여 저장합니다."""
+            try:
+                content = request.json.get('content', {})
+                
+                # 현재 패킷 구조 로드
+                custom_file = '/share/packet_structures_custom.yaml'
+                if os.path.exists(custom_file):
+                    with open(custom_file, 'r', encoding='utf-8') as f:
+                        current_data = yaml.safe_load(f)
+                else:
+                    with open('/apps/packet_structures_commax.yaml', 'r', encoding='utf-8') as f:
+                        current_data = yaml.safe_load(f)
+
+                # 편집된 내용을 현재 구조와 병합
+                for device_name, device_data in content.items():
+                    if device_name not in current_data:
+                        current_data[device_name] = {}
+                    
+                    current_data[device_name]['type'] = device_data.get('type', current_data[device_name].get('type', ''))
+                    
+                    for packet_type in ['command', 'state', 'state_request', 'ack']:
+                        if packet_type in device_data:
+                            self._merge_packet_structure(
+                                current_data[device_name].setdefault(packet_type, {}),
+                                device_data[packet_type]
+                            )
+
+                # 백업 생성
+                backup_dir = '/share/packet_structure_backups'
+                if not os.path.exists(backup_dir):
+                    os.makedirs(backup_dir)
+                
+                if os.path.exists(custom_file):
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    backup_file = f'{backup_dir}/packet_structures_custom_{timestamp}.yaml'
+                    shutil.copy2(custom_file, backup_file)
+
+                # 새 내용 저장
+                with open(custom_file, 'w', encoding='utf-8') as f:
+                    yaml.dump(current_data, f, allow_unicode=True, sort_keys=False)
+
+                # 컨트롤러의 패킷 구조 다시 로드
+                self.wallpad_controller.load_devices_and_packets_structures()
+
+                return jsonify({'success': True})
+            except Exception as e:
+                return jsonify({'error': str(e), 'success': False})
+
         @self.app.route('/api/devices')
         def get_devices():
             return jsonify(self.wallpad_controller.device_list or {})
@@ -332,78 +407,6 @@ class WebServer:
             except Exception as e:
                 return jsonify({'error': str(e), 'success': False})
 
-        @self.app.route('/api/custom_packet_structure/editable', methods=['GET'])
-        def get_editable_packet_structure():
-            """편집 가능한 패킷 구조 필드를 반환합니다."""
-            try:
-                custom_file = '/share/packet_structures_custom.yaml'
-                if os.path.exists(custom_file):
-                    with open(custom_file, 'r', encoding='utf-8') as f:
-                        data = yaml.safe_load(f)
-                else:
-                    with open('/apps/packet_structures_commax.yaml', 'r', encoding='utf-8') as f:
-                        data = yaml.safe_load(f)
-
-                editable_structure = {}
-                for device_name, device_data in data.items():
-                    editable_structure[device_name] = {
-                        'type': device_data.get('type', ''),
-                        'command': self._get_editable_fields(device_data.get('command', {})),
-                        'state': self._get_editable_fields(device_data.get('state', {})),
-                        'state_request': self._get_editable_fields(device_data.get('state_request', {})),
-                        'ack': self._get_editable_fields(device_data.get('ack', {}))
-                    }
-                return jsonify({'content': editable_structure, 'success': True})
-            except Exception as e:
-                return jsonify({'error': str(e), 'success': False})
-
-        @self.app.route('/api/custom_packet_structure/editable', methods=['POST'])
-        def save_editable_packet_structure():
-            """편집된 패킷 구조를 기존 구조와 병합하여 저장합니다."""
-            try:
-                content = request.json.get('content', {})
-                
-                # 현재 패킷 구조 로드
-                custom_file = '/share/packet_structures_custom.yaml'
-                if os.path.exists(custom_file):
-                    with open(custom_file, 'r', encoding='utf-8') as f:
-                        current_data = yaml.safe_load(f)
-                else:
-                    with open('/apps/packet_structures_commax.yaml', 'r', encoding='utf-8') as f:
-                        current_data = yaml.safe_load(f)
-
-                # 편집된 내용을 현재 구조와 병합
-                for device_name, device_data in content.items():
-                    if device_name not in current_data:
-                        current_data[device_name] = {}
-                    
-                    current_data[device_name]['type'] = device_data.get('type', current_data[device_name].get('type', ''))
-                    
-                    for packet_type in ['command', 'state', 'state_request', 'ack']:
-                        if packet_type in device_data:
-                            self._merge_packet_structure(
-                                current_data[device_name].setdefault(packet_type, {}),
-                                device_data[packet_type]
-                            )
-
-                # 백업 생성
-                backup_dir = '/share/packet_structure_backups'
-                if not os.path.exists(backup_dir):
-                    os.makedirs(backup_dir)
-                
-                if os.path.exists(custom_file):
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    backup_file = f'{backup_dir}/packet_structures_custom_{timestamp}.yaml'
-                    shutil.copy2(custom_file, backup_file)
-
-                # 새 내용 저장
-                with open(custom_file, 'w', encoding='utf-8') as f:
-                    yaml.dump(current_data, f, allow_unicode=True, sort_keys=False)
-
-                return jsonify({'success': True})
-            except Exception as e:
-                return jsonify({'error': str(e), 'success': False})
-
     def _get_editable_fields(self, packet_data):
         """패킷 구조에서 편집 가능한 필드만 추출합니다."""
         if not packet_data:
@@ -414,16 +417,17 @@ class WebServer:
             'structure': {}
         }
         
-        for pos, field in packet_data.get('structure', {}).items():
-            result['structure'][pos] = {
-                'name': field.get('name', ''),
-                'values': field.get('values', {})
-            }
-            
+        if 'structure' in packet_data:
+            for position, field in packet_data['structure'].items():
+                result['structure'][position] = {
+                    'name': field.get('name', ''),
+                    'values': field.get('values', {})
+                }
+                
         return result
 
     def _merge_packet_structure(self, current, new):
-        """새로운 패킷 구조를 기존 구조와 병합합니다."""
+        """현재 패킷 구조와 새로운 패킷 구조를 병합합니다."""
         if 'header' in new:
             current['header'] = new['header']
             
@@ -431,14 +435,12 @@ class WebServer:
             if 'structure' not in current:
                 current['structure'] = {}
                 
-            for pos, field in new['structure'].items():
-                if pos not in current['structure']:
-                    current['structure'][pos] = {}
+            for position, field in new['structure'].items():
+                if position not in current['structure']:
+                    current['structure'][position] = {}
                     
-                if 'name' in field:
-                    current['structure'][pos]['name'] = field['name']
-                if 'values' in field:
-                    current['structure'][pos]['values'] = field['values']
+                current['structure'][position]['name'] = field.get('name', '')
+                current['structure'][position]['values'] = field.get('values', {})
 
     def run(self):
         threading.Thread(target=self._run_server, daemon=True).start()

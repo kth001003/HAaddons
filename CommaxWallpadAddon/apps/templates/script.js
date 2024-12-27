@@ -632,7 +632,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadCustomPacketStructure() {
-    fetch('/api/custom_packet_structure/editable')
+    fetch('./api/custom_packet_structure/editable')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -642,6 +642,20 @@ function loadCustomPacketStructure() {
             }
         })
         .catch(error => showPacketEditorMessage('패킷 구조를 불러오는 중 오류가 발생했습니다: ' + error, true));
+}
+
+function showPacketEditorMessage(message, isError) {
+    const messageElement = document.getElementById('packetEditorMessage');
+    if (messageElement) {
+        messageElement.textContent = message;
+        messageElement.className = `fixed bottom-4 right-4 p-4 rounded-lg shadow-lg ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
+        messageElement.classList.remove('hidden');
+        setTimeout(() => {
+            messageElement.classList.add('hidden');
+        }, 15000);
+    } else {
+        console.error('메시지 표시 요소를 찾을 수 없습니다:', message);
+    }
 }
 
 function renderPacketStructureEditor(structure) {
@@ -850,7 +864,7 @@ function saveCustomPacketStructure() {
     });
 
     // 서버에 저장
-    fetch('/api/custom_packet_structure/editable', {
+    fetch('./api/custom_packet_structure/editable', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -866,15 +880,6 @@ function saveCustomPacketStructure() {
         }
     })
     .catch(error => showPacketEditorMessage('저장 중 오류가 발생했습니다: ' + error, true));
-}
-
-function showPacketEditorMessage(message, isError) {
-    const messageElement = document.getElementById('packetEditorMessage');
-    messageElement.textContent = message;
-    messageElement.className = isError ? 'text-red-500' : 'text-green-500';
-    setTimeout(() => {
-        messageElement.textContent = '';
-    }, 5000);
 }
 
 // 페이지 로드 완료 후 초기화 실행 및 주기적 업데이트 설정
