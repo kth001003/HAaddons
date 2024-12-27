@@ -8,7 +8,7 @@ from functools import wraps
 import yaml # type: ignore #PyYAML
 import json
 import re
-import telnetlib
+import telnetlib3 # type: ignore
 import shutil
 from web_server import WebServer
 
@@ -837,13 +837,27 @@ class WallpadController:
 
     async def reboot_elfin_device(self):
         try:
-            ew11 = telnetlib.Telnet(self.config['elfin_server'])
-            ew11.read_until(b"login:")
-            ew11.write(self.config['elfin_id'].encode('utf-8') + b'\n')
-            ew11.read_until(b"password:")
-            ew11.write(self.config['elfin_password'].encode('utf-8') + b'\n')
-            ew11.write('Restart'.encode('utf-8') + b'\n')
+            # telnetlib3는 비동기 연결을 반환합니다
+            reader, writer = await telnetlib3.open_connection(self.config['elfin_server'])
+            
+            # 로그인 프롬프트 대기 및 응답
+            await reader.readuntil(b"login: ")
+            writer.write(self.config['elfin_id'] + '\n')
+            
+            # 패스워드 프롬프트 대기 및 응답
+            await reader.readuntil(b"password: ")
+            writer.write(self.config['elfin_password'] + '\n')
+            
+            # 재시작 명령 전송
+            writer.write('Restart\n')
+            
+            # 연결 종료
+            writer.close()
+            await writer.wait_closed()
+            
+            # 재시작 대기
             await asyncio.sleep(10)
+            
         except Exception as err:
             self.logger.error(f'기기 재시작 오류: {str(err)}')
 
