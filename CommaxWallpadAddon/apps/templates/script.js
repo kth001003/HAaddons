@@ -520,15 +520,147 @@ function loadConfig() {
     fetch('./api/config')
         .then(response => response.json())
         .then(data => {
+            if (data.error) {
+                showConfigMessage('설정을 불러오는 중 오류가 발생했습니다: ' + data.error, true);
+                return;
+            }
+
             const configDiv = document.getElementById('configDisplay');
-            configDiv.innerHTML = Object.entries(data).map(([key, value]) => `
-                <div class="border-b border-gray-200 pb-4">
-                    <div class="font-medium text-gray-700">${key}</div>
-                    <div class="mt-1 text-sm text-gray-500">${JSON.stringify(value)}</div>
-                </div>
-            `).join('');
+            configDiv.innerHTML = '';
+
+            // 스키마 기반으로 설정 UI 생성
+            for (const [key, value] of Object.entries(data.config)) {
+                const schema = data.schema[key] || '';
+                const fieldDiv = document.createElement('div');
+                fieldDiv.className = 'border-b border-gray-200 pb-4';
+
+                const label = document.createElement('label');
+                label.className = 'block font-medium text-gray-700 mb-2';
+                label.textContent = key;
+
+                const description = document.createElement('p');
+                description.className = 'text-sm text-gray-500 mb-2';
+                description.textContent = ''; // 스키마에 설명이 없음
+
+                fieldDiv.appendChild(label);
+                fieldDiv.appendChild(description);
+
+                // 스키마 타입 파싱
+                const schemaType = schema.split('(')[0];
+                const isOptional = schema.endsWith('?');
+
+                // 입력 필드 생성
+                let input;
+                if (schemaType === 'bool') {
+                    input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.checked = value;
+                    input.className = 'form-checkbox h-4 w-4 text-blue-600';
+                } else if (schemaType === 'list') {
+                    input = document.createElement('select');
+                    input.className = 'form-select block w-full rounded-md border-gray-300';
+                    // list(commax|custom) 형식에서 옵션 추출
+                    const options = schema.split('(')[1].rstrip('?)').split('|');
+                    options.forEach(option => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = option;
+                        optionElement.textContent = option;
+                        optionElement.selected = option === value;
+                        input.appendChild(optionElement);
+                    });
+                } else if (schemaType === 'int' || schemaType === 'float') {
+                    input = document.createElement('input');
+                    input.type = 'number';
+                    input.value = value;
+                    input.className = 'form-input block w-full rounded-md border-gray-300';
+                    if (schemaType === 'float') {
+                        input.step = '0.1';
+                    }
+                } else {
+                    input = document.createElement('input');
+                    input.type = key.includes('password') ? 'password' : 'text';
+                    input.value = value;
+                    input.className = 'form-input block w-full rounded-md border-gray-300';
+                }
+                input.id = `config-${key}`;
+                input.dataset.key = key;
+                input.dataset.type = schemaType;
+                if (!isOptional) {
+                    input.required = true;
+                    label.textContent += ' *';
+                }
+
+                fieldDiv.appendChild(input);
+                configDiv.appendChild(fieldDiv);
+            }
         });
 }
+
+// 설정 저장
+function saveConfig() {
+    const configData = {};
+    const inputs = document.querySelectorAll('#configDisplay input, #configDisplay select');
+    
+    inputs.forEach(input => {
+        const key = input.dataset.key;
+        let value = input.type === 'checkbox' ? input.checked : input.value;
+        
+        // 타입 변환
+        if (input.dataset.type === 'int') {
+            value = parseInt(value);
+        } else if (input.dataset.type === 'float') {
+            value = parseFloat(value);
+        } else if (input.dataset.type === 'bool') {
+            value = Boolean(value);
+        }
+        
+        // 비밀번호 필드가 마스킹된 상태면 저장하지 않음
+        if (input.type === 'password' && value === '********') {
+            return;
+        }
+        
+        configData[key] = value;
+    });
+
+    fetch('./api/config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(configData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showConfigMessage('설정이 성공적으로 저장되었습니다.', false);
+            // MQTT 상태 업데이트
+            setTimeout(updateMqttStatus, 1000);
+        } else {
+            let errorMessage = '설정 저장 실패: ' + (data.error || '알 수 없는 오류');
+            if (data.details) {
+                errorMessage += '\n' + data.details.join('\n');
+            }
+            showConfigMessage(errorMessage, true);
+        }
+    })
+    .catch(error => {
+        showConfigMessage('설정 저장 중 오류가 발생했습니다: ' + error, true);
+    });
+}
+
+function showConfigMessage(message, isError) {
+    const messageElement = document.getElementById('configMessage');
+    messageElement.textContent = message;
+    messageElement.className = `text-sm ${isError ? 'text-red-600' : 'text-green-600'}`;
+}
+
+// 이벤트 리스너 추가
+document.addEventListener('DOMContentLoaded', function() {
+    const saveButton = document.getElementById('saveConfig');
+    if (saveButton) {
+        saveButton.addEventListener('click', saveConfig);
+    }
+});
 
 // 최근 MQTT 메시지 업데이트
 function updateRecentMessages() {
@@ -626,10 +758,69 @@ function toggleMobileMenu() {
 document.addEventListener('DOMContentLoaded', function() {
     // 패킷 에디터 초기화
     loadCustomPacketStructure();
+    checkVendorSetting();
 
     // 저장 버튼 이벤트 핸들러
     document.getElementById('savePacketStructure').addEventListener('click', saveCustomPacketStructure);
+    
+    // vendor 변경 버튼 이벤트 핸들러
+    document.getElementById('changeVendorButton').addEventListener('click', changeVendorToCustom);
 });
+
+function checkVendorSetting() {
+    fetch('./api/config')
+        .then(response => response.json())
+        .then(data => {
+            const vendorWarning = document.getElementById('vendorWarning');
+            if (data.config && data.config.vendor === 'commax') {
+                vendorWarning.classList.remove('hidden');
+            } else {
+                vendorWarning.classList.add('hidden');
+            }
+        });
+}
+
+function changeVendorToCustom() {
+    // 먼저 현재 설정을 가져옴
+    fetch('./api/config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showPacketEditorMessage('설정을 불러오는 중 오류가 발생했습니다: ' + data.error, true);
+                return;
+            }
+
+            // 현재 설정에서 vendor만 변경
+            const configData = { ...data.config, vendor: 'custom' };
+
+            // 변경된 설정을 저장
+            return fetch('./api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(configData)
+            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showPacketEditorMessage('vendor 설정이 custom으로 변경되었습니다. 이제 패킷 구조를 편집할 수 있습니다.', false);
+                document.getElementById('vendorWarning').classList.add('hidden');
+                // 설정 페이지 업데이트
+                loadConfig();
+            } else {
+                let errorMessage = 'vendor 설정 변경 실패: ' + (data.error || '알 수 없는 오류');
+                if (data.details) {
+                    errorMessage += '\n' + data.details.join('\n');
+                }
+                showPacketEditorMessage(errorMessage, true);
+            }
+        })
+        .catch(error => {
+            showPacketEditorMessage('vendor 설정 변경 중 오류가 발생했습니다: ' + error, true);
+        });
+}
 
 function loadCustomPacketStructure() {
     fetch('./api/custom_packet_structure/editable')
@@ -736,16 +927,16 @@ function createPacketSection(deviceName, packetType, packetData) {
                         <label class="block text-xs text-gray-600">Values:</label>
                         <div class="space-y-1" id="values-${deviceName}-${packetType}-${position}">
                             ${Object.entries(field.values || {}).map(([key, value]) => `
-                                <div class="flex gap-1">
+                                <div class="grid grid-cols-9 gap-1">
                                     <input type="text" value="${key}" 
-                                        class="border rounded px-2 py-1 text-sm flex-1"
+                                        class="col-span-4 border rounded px-2 py-1 text-sm"
                                         placeholder="키"
                                         data-device="${deviceName}" 
                                         data-packet-type="${packetType}" 
                                         data-position="${position}"
                                         data-field="value-key">
                                     <input type="text" value="${value}" 
-                                        class="border rounded px-2 py-1 text-sm flex-1"
+                                        class="col-span-4 border rounded px-2 py-1 text-sm"
                                         placeholder="값"
                                         data-device="${deviceName}" 
                                         data-packet-type="${packetType}" 

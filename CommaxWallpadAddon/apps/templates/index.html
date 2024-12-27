@@ -104,6 +104,13 @@
                 <h2 class="text-lg font-semibold mb-4">애드온 설정</h2>
                 <div id="configDisplay" class="space-y-4">
                     <!-- CONFIG 객체 내용이 여기에 동적으로 추가됩니다 -->
+                </div>
+                <div class="mt-6 flex items-center gap-4">
+                    <button id="saveConfig" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                        저장
+                    </button>
+                    <span id="configMessage" class="text-sm"></span>
+                </div>
             </div>
         </div>
     </div>
@@ -208,6 +215,21 @@
         <div id="custom_packet" class="page hidden">
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="text-lg font-semibold mb-4">커스텀 패킷 구조 편집</h2>
+                <div id="vendorWarning" class="hidden mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm">현재 vendor 설정이 'commax'로 되어있어 패킷 구조 변경이 적용되지 않습니다.</p>
+                            <button id="changeVendorButton" class="mt-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-semibold py-1 px-3 rounded text-sm">
+                                vendor를 'custom'으로 변경
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <p class="text-sm text-gray-600 mb-4">월패드 패킷 구조의 header와 name, values 필드를 편집할 수 있습니다.</p>
                 
                 <div id="packetStructureEditor" class="space-y-6">

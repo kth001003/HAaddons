@@ -135,15 +135,104 @@ class WebServer:
 
         @self.app.route('/api/config')
         def get_config():
-            """CONFIG 객체의 내용을 제공합니다."""
-            # 민감한 정보 필터링
-            filtered_config = {}
-            for key, value in self.wallpad_controller.config.items():
-                if key in ['mqtt_id', 'mqtt_password', 'elfin_id', 'elfin_password']:
-                    filtered_config[key] = '********'  # 민감한 정보 마스킹
-                else:
-                    filtered_config[key] = value
-            return jsonify(filtered_config)
+            """CONFIG 객체의 내용과 스키마를 제공합니다."""
+            try:
+                # 설정 파일 읽기
+                with open('/data/options.json', 'r', encoding='utf-8') as f:
+                    options = json.load(f)
+                
+                # 민감한 정보 필터링
+                filtered_config = {}
+                for key, value in self.wallpad_controller.config.items():
+                    if key in ['mqtt_id', 'mqtt_password', 'elfin_id', 'elfin_password']:
+                        filtered_config[key] = '********'  # 민감한 정보 마스킹
+                    else:
+                        filtered_config[key] = value
+
+                return jsonify({
+                    'config': filtered_config,
+                    'schema': options.get('schema', {})  # 스키마 정보 포함
+                })
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/config', methods=['POST'])
+        def save_config():
+            """설정을 저장하고 컨트롤러에 적용합니다."""
+            try:
+                data = request.json
+                if not data:
+                    return jsonify({'error': '설정 데이터가 없습니다.'}), 400
+
+                # 현재 설정 파일 읽기
+                with open('/data/options.json', 'r', encoding='utf-8') as f:
+                    current_options = json.load(f)
+
+                schema = current_options.get('schema', {})
+                
+                # 스키마 기반 유효성 검사
+                validation_errors = []
+                for key, value in data.items():
+                    if key in schema:
+                        field_schema = schema[key]
+                        schema_type = field_schema.split('(')[0]  # list(commax|custom) -> list
+                        
+                        # 필수/선택 필드 확인
+                        is_optional = field_schema.endswith('?')
+                        if not is_optional and value is None:
+                            validation_errors.append(f"{key}: 필수 항목입니다.")
+                            continue
+                            
+                        if value is not None:  # 값이 있는 경우에만 타입 검사
+                            # 타입 검사
+                            if schema_type == 'int':
+                                try:
+                                    int(value)
+                                except (ValueError, TypeError):
+                                    validation_errors.append(f"{key}: 정수여야 합니다.")
+                            elif schema_type == 'float':
+                                try:
+                                    float(value)
+                                except (ValueError, TypeError):
+                                    validation_errors.append(f"{key}: 실수여야 합니다.")
+                            elif schema_type == 'bool':
+                                if not isinstance(value, bool):
+                                    validation_errors.append(f"{key}: 참/거짓 값이어야 합니다.")
+                            elif schema_type == 'list':
+                                # list(commax|custom) 형식에서 가능한 값들 추출
+                                allowed_values = field_schema.split('(')[1].rstrip('?)').split('|')
+                                if value not in allowed_values:
+                                    validation_errors.append(f"{key}: {', '.join(allowed_values)} 중 하나여야 합니다.")
+                            elif schema_type == 'str':
+                                if not isinstance(value, str):
+                                    validation_errors.append(f"{key}: 문자열이어야 합니다.")
+
+                if validation_errors:
+                    return jsonify({
+                        'success': False,
+                        'error': '유효성 검사 실패',
+                        'details': validation_errors
+                    }), 400
+
+                # 백업 생성
+                backup_path = '/data/options.backup.json'
+                shutil.copy2('/data/options.json', backup_path)
+
+                # 새 설정 저장
+                with open('/data/options.json', 'w', encoding='utf-8') as f:
+                    json.dump({**current_options, **data}, f, indent=2, ensure_ascii=False)
+
+                # 컨트롤러 설정 업데이트
+                self.wallpad_controller.config.update(data)
+                
+                # MQTT 관련 설정이 변경된 경우 MQTT 클라이언트 재연결
+                mqtt_fields = {'mqtt_server', 'mqtt_port', 'mqtt_id', 'mqtt_password'}
+                if any(key in mqtt_fields for key in data.keys()):
+                    self.wallpad_controller.connect_mqtt()
+
+                return jsonify({'success': True})
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
 
         @self.app.route('/api/recent_messages')
         def get_recent_messages():
