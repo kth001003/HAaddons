@@ -22,5 +22,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 WORKDIR /share
 # Copy data for add-on
 COPY apps /apps
+RUN chmod +x /apps/bashio_wrapper.sh
 
 CMD ["python3", "/apps/main.py"]
