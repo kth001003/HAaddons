@@ -231,8 +231,8 @@ class WebServer:
                             value = str(value)
                         
                         # bashio 명령 실행
-                        cmd = f'bashio::addon.option {key} "{value}"'
-                        result = subprocess.run(['bashio', '-c', cmd], capture_output=True, text=True)
+                        cmd = f'bashio::addon.option "{key}" "{value}"'
+                        result = subprocess.run(['/usr/bin/bashio', 'addon.option', key, value], capture_output=True, text=True)
                         
                         if result.returncode != 0:
                             return jsonify({
