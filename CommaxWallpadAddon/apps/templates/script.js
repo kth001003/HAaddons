@@ -373,7 +373,7 @@ function createPacketTable(deviceData) {
     const headers = ['Byte', '명령', '응답', '상태요청', '상태'];
     headers.forEach(header => {
         const th = document.createElement('th');
-        th.className = 'px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+        th.className = 'px-4 py-2 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
         th.textContent = header;
         headerRow.appendChild(th);
     });
@@ -384,14 +384,14 @@ function createPacketTable(deviceData) {
         row.className = byte % 2 === 0 ? 'bg-white' : 'bg-gray-50';
         
         const byteCell = document.createElement('td');
-        byteCell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900';
+        byteCell.className = 'px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900';
         byteCell.textContent = `Byte ${byte}`;
         row.appendChild(byteCell);
         
         const types = ['command', 'ack', 'state_request', 'state'];
         types.forEach(type => {
             const td = document.createElement('td');
-            td.className = 'px-6 py-4 text-sm text-gray-500';
+            td.className = 'px-4 py-2 text-sm text-gray-500';
             
             if (deviceData[type]) {
                 if (deviceData[type].byte_desc && deviceData[type].byte_desc[byte] !== undefined) {
@@ -610,6 +610,16 @@ function updateLivePacketLogDisplay() {
             packet.classList.remove('hidden');
         }
     });
+}
+
+// 모바일 메뉴 토글 함수
+function toggleMobileMenu() {
+    const mobileMenu = document.getElementById('mobileMenu');
+    if (mobileMenu.classList.contains('hidden')) {
+        mobileMenu.classList.remove('hidden');
+    } else {
+        mobileMenu.classList.add('hidden');
+    }
 }
 
 // 페이지 로드 완료 후 초기화 실행 및 주기적 업데이트 설정

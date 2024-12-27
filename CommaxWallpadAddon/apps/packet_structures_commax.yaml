@@ -228,8 +228,12 @@ Thermo:
           "id": "FF"
       "3":
         name: currentTemp
+        values:
+          "currentTemp": "FF"
       "4":
         name: targetTemp
+        values:
+          "targetTemp": "FF"
       "5": 
         name: empty
       "6": 

@@ -15,7 +15,4 @@ WORKDIR /share
 # Copy data for add-on
 COPY apps /apps
 
-# 웹서버 템플릿 디렉토리 생성
-RUN mkdir -p /apps/templates
-
 CMD ["python3", "/apps/main.py"]

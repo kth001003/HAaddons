@@ -504,7 +504,7 @@ class WallpadController:
                             "modes": ["off", "heat"],
                             "temperature_unit": "C",
                             "min_temp": 10,
-                            "max_temp": 30,
+                            "max_temp": 40,
                             "temp_step": 1,
                         }
                     elif device_type == 'button':  # 버튼형 기기 (가스밸브, 엘리베이터 호출)
