@@ -143,7 +143,7 @@ class WebServer:
                     options = json.load(f)
                 
                 return jsonify({
-                    'config': options.option,
+                    'config': options.get('options', {}),
                     'schema': options.get('schema', {})  # 스키마 정보 포함
                 })
             except Exception as e:
