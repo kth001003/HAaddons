@@ -9,8 +9,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
     paho-mqtt==1.6.1 \
     PyYAML==6.0.1 \
-    flask==2.3.3 \
-    telnetlib
+    flask==2.3.3
 
 WORKDIR /share
 # Copy data for add-on
