@@ -525,7 +525,7 @@ function loadConfig() {
                 return;
             }
 
-            const configDiv = document.getElementById('configDisplay');
+            const configDiv = document.getElementById('configForm');
             configDiv.innerHTML = '';
 
             // 스키마 기반으로 설정 UI 생성
