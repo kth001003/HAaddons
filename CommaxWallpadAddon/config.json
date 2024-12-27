@@ -4,7 +4,7 @@
   "slug": "commax",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "mqtt 통신을 활용한 코맥스 월패드 컨트롤러",
-  "image": "ghcr.io/home-assistant/{arch}-base-python:latest",
+  "image": "ghcr.io/home-assistant/{arch}-base-python",
   "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
   "map": [
     "share:rw"
