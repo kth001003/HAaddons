@@ -21,6 +21,7 @@
                         <a href="#" onclick="showPage('live_packets')" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">실시간 패킷</a>
                         <a href="#" onclick="showPage('playground')" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">플레이그라운드</a>
                         <a href="#" onclick="showPage('packet_reference')" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">패킷 참조자료</a>
+                        <a href="#" onclick="showPage('custom_packet')" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">패킷 구조 편집</a>
                     </div>
                 </div>
                 <!-- 모바일 메뉴 버튼 -->
@@ -42,6 +43,7 @@
                 <a href="#" onclick="showPage('live_packets'); toggleMobileMenu()" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">실시간 패킷</a>
                 <a href="#" onclick="showPage('playground'); toggleMobileMenu()" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">플레이그라운드</a>
                 <a href="#" onclick="showPage('packet_reference'); toggleMobileMenu()" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">패킷 참조자료</a>
+                <a href="#" onclick="showPage('custom_packet'); toggleMobileMenu()" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">패킷 구조 편집</a>
             </div>
         </div>
     </nav>
@@ -131,7 +133,7 @@
 
         <!-- 플레이그라운드 페이지 -->
         <div id="playground" class="page hidden">
-            <div class="grid grid-cols-12 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <!-- 패킷 로그 -->
                 <div class="col-span-4 bg-white rounded-lg shadow p-4">
                     <div class="flex justify-between items-center mb-4">
@@ -189,14 +191,35 @@
             <div class="bg-white rounded-lg shadow p-4">
                 <h2 class="text-lg font-semibold mb-4">📚 패킷 참조 자료</h2>
                 <div>
-                    <div id="deviceTabs" class="flex border-b border-gray-200">
+                    <div id="deviceTabs" class="flex border-b border-gray-200 overflow-x-auto">
                         <!-- 탭 버튼이 동적으로 추가됩니다 -->
                     </div>
-                    <div id="tabContents" class="mt-4">
-                        <!-- 각 디바이스별 패킷 테이블이 여기에 추가됩니다 -->
+                    <div class="overflow-x-auto">
+                        <div id="tabContents" class="mt-4 min-w-[640px]">
+                            <!-- 각 디바이스별 패킷 테이블이 여기에 추가됩니다 -->
+                        </div>
                     </div>
                 </div>
                 <p class="text-sm text-gray-600 mt-2">*FF로 표시된 값은 정수값이 들어올 수 있습니다.</p>
+            </div>
+        </div>
+
+        <!-- 패킷 구조 편집 페이지 -->
+        <div id="custom_packet" class="page hidden">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold mb-4">커스텀 패킷 구조 편집</h2>
+                <p class="text-sm text-gray-600 mb-4">월패드 패킷 구조의 header와 name, values 필드를 편집할 수 있습니다.</p>
+                
+                <div id="packetStructureEditor" class="space-y-6">
+                    <!-- 기기별 편집 UI가 여기에 동적으로 추가됩니다 -->
+                </div>
+
+                <div class="mt-6">
+                    <button id="savePacketStructure" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                        저장
+                    </button>
+                    <span id="packetEditorMessage" class="ml-3"></span>
+                </div>
             </div>
         </div>
     </div>

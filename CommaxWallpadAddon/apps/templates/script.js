@@ -622,6 +622,261 @@ function toggleMobileMenu() {
     }
 }
 
+// 페킷 구조 편집 관련 함수들
+document.addEventListener('DOMContentLoaded', function() {
+    // 패킷 에디터 초기화
+    loadCustomPacketStructure();
+
+    // 저장 버튼 이벤트 핸들러
+    document.getElementById('savePacketStructure').addEventListener('click', saveCustomPacketStructure);
+});
+
+function loadCustomPacketStructure() {
+    fetch('/api/custom_packet_structure/editable')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderPacketStructureEditor(data.content);
+            } else {
+                showPacketEditorMessage(data.error, true);
+            }
+        })
+        .catch(error => showPacketEditorMessage('패킷 구조를 불러오는 중 오류가 발생했습니다: ' + error, true));
+}
+
+function renderPacketStructureEditor(structure) {
+    const editorDiv = document.getElementById('packetStructureEditor');
+    editorDiv.innerHTML = '';
+
+    for (const [deviceName, deviceData] of Object.entries(structure)) {
+        const deviceSection = document.createElement('div');
+        deviceSection.className = 'border rounded-lg p-4 mb-4';
+        
+        // 기기 이름과 타입
+        deviceSection.innerHTML = `
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium">${deviceName}</h3>
+                <input type="text" value="${deviceData.type}" 
+                    class="border rounded px-2 py-1 text-sm"
+                    data-device="${deviceName}" data-field="type">
+            </div>
+        `;
+
+        // 패킷 타입별 섹션 추가
+        ['command', 'state', 'state_request', 'ack'].forEach(packetType => {
+            if (deviceData[packetType]) {
+                const packetSection = createPacketSection(deviceName, packetType, deviceData[packetType]);
+                deviceSection.appendChild(packetSection);
+            }
+        });
+
+        editorDiv.appendChild(deviceSection);
+    }
+}
+
+function createPacketSection(deviceName, packetType, packetData) {
+    const section = document.createElement('div');
+    section.className = 'mt-4';
+
+    const title = {
+        'command': '명령 패킷',
+        'state': '상태 패킷',
+        'state_request': '상태 요청 패킷',
+        'ack': '응답 패킷'
+    }[packetType];
+
+    section.innerHTML = `
+        <h4 class="font-medium mb-2">${title}</h4>
+        <div class="ml-4 space-y-2">
+            <div class="flex items-center">
+                <span class="w-20 text-sm">Header:</span>
+                <input type="text" value="${packetData.header}" 
+                    class="border rounded px-2 py-1 text-sm"
+                    data-device="${deviceName}" 
+                    data-packet-type="${packetType}" 
+                    data-field="header">
+            </div>
+        </div>
+    `;
+
+    if (packetData.structure) {
+        const structureDiv = document.createElement('div');
+        structureDiv.className = 'ml-4 mt-2';
+        
+        Object.entries(packetData.structure).forEach(([position, field]) => {
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'border-l-2 border-gray-200 pl-4 py-2 mt-2';
+            fieldDiv.innerHTML = `
+                <div class="text-sm font-medium">Position ${position}</div>
+                <div class="grid grid-cols-2 gap-2 mt-1">
+                    <div>
+                        <label class="block text-xs text-gray-600">Name:</label>
+                        <input type="text" value="${field.name}" 
+                            class="border rounded px-2 py-1 text-sm w-full"
+                            data-device="${deviceName}" 
+                            data-packet-type="${packetType}" 
+                            data-position="${position}"
+                            data-field="name">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600">Values:</label>
+                        <div class="space-y-1" id="values-${deviceName}-${packetType}-${position}">
+                            ${Object.entries(field.values || {}).map(([key, value]) => `
+                                <div class="flex gap-1">
+                                    <input type="text" value="${key}" 
+                                        class="border rounded px-2 py-1 text-sm flex-1"
+                                        placeholder="키"
+                                        data-device="${deviceName}" 
+                                        data-packet-type="${packetType}" 
+                                        data-position="${position}"
+                                        data-field="value-key">
+                                    <input type="text" value="${value}" 
+                                        class="border rounded px-2 py-1 text-sm flex-1"
+                                        placeholder="값"
+                                        data-device="${deviceName}" 
+                                        data-packet-type="${packetType}" 
+                                        data-position="${position}"
+                                        data-field="value-value">
+                                    <button class="text-red-500 hover:text-red-700" onclick="removeValue(this)">×</button>
+                                </div>
+                            `).join('')}
+                            <button class="text-sm text-blue-500 hover:text-blue-700" 
+                                onclick="addValue('${deviceName}', '${packetType}', '${position}')">
+                                + 값 추가
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            structureDiv.appendChild(fieldDiv);
+        });
+        
+        section.appendChild(structureDiv);
+    }
+
+    return section;
+}
+
+function addValue(deviceName, packetType, position) {
+    const valuesDiv = document.getElementById(`values-${deviceName}-${packetType}-${position}`);
+    const newValueDiv = document.createElement('div');
+    newValueDiv.className = 'flex gap-1';
+    newValueDiv.innerHTML = `
+        <input type="text" class="border rounded px-2 py-1 text-sm flex-1" 
+            placeholder="키"
+            data-device="${deviceName}" 
+            data-packet-type="${packetType}" 
+            data-position="${position}"
+            data-field="value-key">
+        <input type="text" class="border rounded px-2 py-1 text-sm flex-1" 
+            placeholder="값"
+            data-device="${deviceName}" 
+            data-packet-type="${packetType}" 
+            data-position="${position}"
+            data-field="value-value">
+        <button class="text-red-500 hover:text-red-700" onclick="removeValue(this)">×</button>
+    `;
+    valuesDiv.insertBefore(newValueDiv, valuesDiv.lastElementChild);
+}
+
+function removeValue(button) {
+    button.parentElement.remove();
+}
+
+function saveCustomPacketStructure() {
+    const structure = {};
+    const editorDiv = document.getElementById('packetStructureEditor');
+
+    // 각 기기별로 데이터 수집
+    editorDiv.querySelectorAll('[data-device]').forEach(element => {
+        const deviceName = element.dataset.device;
+        const packetType = element.dataset.packetType;
+        const position = element.dataset.position;
+        const field = element.dataset.field;
+
+        if (!structure[deviceName]) {
+            structure[deviceName] = { type: '' };
+        }
+
+        if (field === 'type') {
+            structure[deviceName].type = element.value;
+            return;
+        }
+
+        if (!packetType) return;
+
+        if (!structure[deviceName][packetType]) {
+            structure[deviceName][packetType] = {
+                header: '',
+                structure: {}
+            };
+        }
+
+        if (field === 'header') {
+            structure[deviceName][packetType].header = element.value;
+            return;
+        }
+
+        if (position) {
+            if (!structure[deviceName][packetType].structure[position]) {
+                structure[deviceName][packetType].structure[position] = {
+                    name: '',
+                    values: {}
+                };
+            }
+
+            if (field === 'name') {
+                structure[deviceName][packetType].structure[position].name = element.value;
+            }
+        }
+    });
+
+    // values 데이터 수집
+    editorDiv.querySelectorAll('[data-field^="value-"]').forEach(element => {
+        const deviceName = element.dataset.device;
+        const packetType = element.dataset.packetType;
+        const position = element.dataset.position;
+        
+        if (!element.value) return;
+
+        const values = structure[deviceName][packetType].structure[position].values;
+        const row = element.parentElement;
+        const keyInput = row.querySelector('[data-field="value-key"]');
+        const valueInput = row.querySelector('[data-field="value-value"]');
+        
+        if (keyInput.value && valueInput.value) {
+            values[keyInput.value] = valueInput.value;
+        }
+    });
+
+    // 서버에 저장
+    fetch('/api/custom_packet_structure/editable', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ content: structure })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showPacketEditorMessage('패킷 구조가 성공적으로 저장되었습니다.', false);
+        } else {
+            showPacketEditorMessage(data.error, true);
+        }
+    })
+    .catch(error => showPacketEditorMessage('저장 중 오류가 발생했습니다: ' + error, true));
+}
+
+function showPacketEditorMessage(message, isError) {
+    const messageElement = document.getElementById('packetEditorMessage');
+    messageElement.textContent = message;
+    messageElement.className = isError ? 'text-red-500' : 'text-green-500';
+    setTimeout(() => {
+        messageElement.textContent = '';
+    }, 5000);
+}
+
 // 페이지 로드 완료 후 초기화 실행 및 주기적 업데이트 설정
 document.addEventListener('DOMContentLoaded', function() {
     initialize();
