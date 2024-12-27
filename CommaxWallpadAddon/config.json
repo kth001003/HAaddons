@@ -1,6 +1,6 @@
 {
   "name": "COMMAX Wallpad Addon by ew11-mqtt",
-  "version": "1.5.3s",
+  "version": "1.5.3t",
   "slug": "commax",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "mqtt 통신을 활용한 코맥스 월패드 컨트롤러",
@@ -11,6 +11,8 @@
   "startup": "application",
   "boot": "auto",
   "init": false,
+  "hassio_api": true,
+  "homeassistant_api": true,
   "auth_api": true,
   "options": {
     "vendor": "commax",

@@ -4,6 +4,12 @@ FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
 ENV LANG C.UTF-8
 ENV TZ=Asia/Seoul
 
+# Install tzdata for timezone support
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
+    echo "Asia/Seoul" > /etc/timezone && \
+    apk del tzdata
+
 # Install requirements for add-on
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
