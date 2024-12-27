@@ -134,7 +134,7 @@ class WebServer:
                 ]
             })
 
-        @self.app.route('/api/config')
+        @self.app.route('/api/config', methods=['GET'])
         def get_config():
             """CONFIG 객체의 내용과 스키마를 제공합니다."""
             try:
