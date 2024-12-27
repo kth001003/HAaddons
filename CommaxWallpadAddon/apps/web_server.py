@@ -220,7 +220,7 @@ class WebServer:
                     # 현재 값과 비교
                     current_value = current_options.get(key)
                     if current_value != value:
-                        # bool 타입��� true/false로 변환
+                        # bool 타입은 true/false로 변환
                         if isinstance(value, bool):
                             value = "^" + str(value).lower()
                         # int 또는 float 타입인 경우 숫자로 변환
@@ -231,7 +231,6 @@ class WebServer:
                             value = str(value)
                         
                         # bashio 명령 실행
-                        cmd = f'bashio::addon.option "{key}" "{value}"'
                         result = subprocess.run(['bash', '/apps/bashio_wrapper.sh', 'addon.option', key, value], capture_output=True, text=True)
                         
                         if result.returncode != 0:
@@ -655,7 +654,7 @@ class WebServer:
         #         packet = list('00' * 7)
         #         packet[0] = structure['header']
         #         packet[1] = '01'  # 1번 온도조절기
-        #         packet[2] = '03'  # 온도 설정
+        #         packet[2] = '03'  # 온도 설���
         #         packet[3] = '18'  # 24도
         #         examples.append({
         #             "packet": ''.join(packet),
@@ -858,24 +857,3 @@ class WebServer:
         # 최근 100개 메시지만 유지
         if len(self.recent_messages) > 100:
             self.recent_messages = self.recent_messages[-100:] 
-            
-    def run_bashio(self, command: str, *args: str) -> str:
-        """bashio 명령을 실행합니다.
-        
-        Args:
-            command: bashio 명령 (예: 'addon.option')
-            *args: 추가 인자들 (예: 'debug', 'false')
-        
-        Returns:
-            str: 명령 실행 결과
-        """
-        try:
-            result = subprocess.run(
-                ['bash', '/apps/bashio_wrapper.sh', command] + list(args),
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            return result.stdout.strip()
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"bashio 명령 실행 실패: {e.stderr}")
