@@ -56,7 +56,7 @@ class WallpadController:
         self.ELFIN_TOPIC: str = 'ew11'
         self.HA_TOPIC: str = config['mqtt_TOPIC']
         self.STATE_TOPIC: str = self.HA_TOPIC + '/{}/{}/state'
-        self.HOMESTATE: Dict[str, str] = {}
+        # self.HOMESTATE: Dict[str, str] = {}
         self.QUEUE: List[QueueItem] = []
         self.COLLECTDATA: CollectData = {
             'send_data': set(),
@@ -503,8 +503,8 @@ class WallpadController:
                             "action_state_topic": self.STATE_TOPIC.format(device_id, "action"),
                             "modes": ["off", "heat"],
                             "temperature_unit": "C",
-                            "min_temp": 10,
-                            "max_temp": 40,
+                            "min_temp": self.config.get('climate_min_temp',5),
+                            "max_temp": self.config.get('climate_max_temp',40),
                             "temp_step": 1,
                         }
                     elif device_type == 'button':  # 버튼형 기기 (가스밸브, 엘리베이터 호출)
@@ -526,7 +526,7 @@ class WallpadController:
 
     # 명령 생성 함수들
     @require_device_structure(None)
-    def make_climate_command(self, device_id: int, current_temp: int, target_temp: int, command_type: str) -> Union[str, None]:
+    def make_climate_command(self, device_id: int, target_temp: int, command_type: str) -> Union[str, None]:
         """
         온도 조절기의 16진수 명령어를 생성하는 함수
         
@@ -545,8 +545,8 @@ class WallpadController:
                 - 실패 시: None
         
         Examples:
-            >>> make_climate_command(0, 22, 24, 'commandON')  # 온도절기 1번 켜기
-            >>> make_climate_command(1, 25, 26, 'commandCHANGE')  # 온도조절기 2번 온도 변경
+            >>> make_climate_command(0, 24, 'commandON')  # 온도절기 1번 켜기
+            >>> make_climate_command(1, 26, 'commandCHANGE')  # 온도조절기 2번 온도 변경
         """
         try:
             assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
@@ -711,6 +711,7 @@ class WallpadController:
             #         status_packet[int(device_structure['state']['fieldPositions']['power'])] = \
             #             int(device_structure['state']['structure']['1']['values']['on'], 16)
             
+
             # 상태 패킷을 16진수 문자열로 변환
             status_hex = status_packet.hex().upper()
             status_hex = self.checksum(status_hex)
@@ -738,7 +739,7 @@ class WallpadController:
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.publish_mqtt(topic, onoff)
-        self.HOMESTATE[deviceID + state] = onoff
+        # self.HOMESTATE[deviceID + state] = onoff
     
     async def update_light_breaker(self, idx: int, onoff: str) -> None:
         state = 'power'
@@ -746,7 +747,7 @@ class WallpadController:
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.publish_mqtt(topic, onoff)
-        self.HOMESTATE[deviceID + state] = onoff
+        # self.HOMESTATE[deviceID + state] = onoff
 
     async def update_temperature(self, idx: int, mode_text: str, action_text: str, curTemp: int, setTemp: int) -> None:
         """
@@ -775,7 +776,7 @@ class WallpadController:
                 val = temperature[state]
                 topic = self.STATE_TOPIC.format(deviceID, state)
                 self.publish_mqtt(topic, val)
-                self.HOMESTATE[deviceID + state] = val
+                # self.HOMESTATE[deviceID + state] = val
             
             power_topic = self.STATE_TOPIC.format(deviceID, 'power')
             action_topic = self.STATE_TOPIC.format(deviceID, 'action')
@@ -792,14 +793,14 @@ class WallpadController:
             if power_text == 'OFF':
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic,'OFF')
-                self.HOMESTATE[deviceID + 'power'] = 'OFF'
+                # self.HOMESTATE[deviceID + 'power'] = 'OFF'
             else:
                 topic = self.STATE_TOPIC.format(deviceID, 'speed')
                 self.publish_mqtt(topic, speed_text)
-                self.HOMESTATE[deviceID + 'speed'] = speed_text
+                # self.HOMESTATE[deviceID + 'speed'] = speed_text
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'ON')
-                self.HOMESTATE[deviceID + 'power'] = 'ON'
+                # self.HOMESTATE[deviceID + 'power'] = 'ON'
                 
         except Exception as e:
             self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
@@ -810,15 +811,15 @@ class WallpadController:
             if power_text == 'ON':
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'ON')
-                self.HOMESTATE[deviceID + 'power'] = 'ON'
+                # self.HOMESTATE[deviceID + 'power'] = 'ON'
                 val = '%.1f' % float(int(watt) / 10)
                 topic = self.STATE_TOPIC.format(deviceID, 'watt')
                 self.publish_mqtt(topic, val)
-                self.HOMESTATE[deviceID + 'watt'] = val
+                # self.HOMESTATE[deviceID + 'watt'] = val
             else:
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'OFF')
-                self.HOMESTATE[deviceID + 'power'] = 'OFF'
+                # self.HOMESTATE[deviceID + 'power'] = 'OFF'
         except Exception as e:
             self.logger.error(f"콘센트 상태 업데이트 중 오류 발생: {str(e)}")
 
@@ -828,10 +829,10 @@ class WallpadController:
             if power_text == 'ON':
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'ON')
-                self.HOMESTATE[deviceID + 'power'] = 'ON'
+                # self.HOMESTATE[deviceID + 'power'] = 'ON'
                 topic = self.STATE_TOPIC.format(deviceID, 'floor')
                 self.publish_mqtt(topic, floor_text)
-                self.HOMESTATE[deviceID + 'floor'] = floor_text
+                # self.HOMESTATE[deviceID + 'floor'] = floor_text
         except Exception as e:
             self.logger.error(f"엘리베이터 상태 업데이트 중 오류 발생: {str(e)}")
 
@@ -991,24 +992,18 @@ class WallpadController:
             if device == 'Light':
                 power_value = command["structure"][str(command["fieldPositions"]["power"])]["values"]["on" if value == "ON" else "off"]
                 packet[int(command["fieldPositions"]["power"])] = int(power_value, 16)
-            elif device == 'Thermo':
-                cur_temp_str = self.HOMESTATE.get(topics[1] + 'curTemp')
-                set_temp_str = self.HOMESTATE.get(topics[1] + 'setTemp')
-                if cur_temp_str is None or set_temp_str is None:
-                    self.logger.error('현재 온도 또는 설정 온도가 존재하지 않습니다.')
-                    return
-                
-                cur_temp = int(float(cur_temp_str))
-                set_temp = int(float(value)) if state == 'setTemp' else int(float(set_temp_str))
-                
+            elif device == 'Thermo':                
                 if state == 'power':
                     if value == 'heat':
-                        packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandON')
+                        packet_hex = self.make_climate_command(device_id, 0, 'commandON')
                     else:
-                        packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandOFF')
+                        packet_hex = self.make_climate_command(device_id, 0, 'commandOFF')
                 elif state == 'setTemp':
-                        packet_hex = self.make_climate_command(device_id, cur_temp, set_temp, 'commandCHANGE')
-                        self.logger.debug(f'온도조절기 설정 온도 변경 명령: {packet_hex}')
+                    set_temp = int(float(topics[3]))
+                    if set_temp > self.config.get('climate_max_temp',40) or set_temp < self.config.get('climate_min_temp',5):
+                        self.logger.error(f"잘못된 온도입니다: {set_temp}")
+                        return
+                    packet_hex = self.make_climate_command(device_id, set_temp, 'commandCHANGE')
             elif device == 'Fan':
                 packet[int(command["fieldPositions"]["commandType"])] = int(command[str(command["fieldPositions"]["commandType"])]["values"]["power"], 16)
                 
@@ -1073,6 +1068,9 @@ class WallpadController:
             assert isinstance(required_bytes, (list)), "required_bytes must be a list"
             
             # 수집된 데이터에서 예상 패킷 확인
+            received_count = 0
+            min_receive_count = self.config.get("min_receive_count", 3)  # 최소 수신 횟수, 기본값 3
+            
             for received_packet in self.COLLECTDATA['recv_data']:
                 if not isinstance(received_packet, str):
                     continue
@@ -1101,8 +1099,12 @@ class WallpadController:
                     match = False
                     
                 if match:
-                    self.logger.debug(f"예상된 응답을 수신했습니다: {received_packet}")
-                    return
+                    received_count += 1
+                    self.logger.debug(f"예상된 응답을 수신했습니다 ({received_count}/{min_receive_count}): {received_packet}")
+                    
+            if received_count >= min_receive_count:
+                self.logger.debug(f"필요한 최소 수신 횟수({min_receive_count})를 달성했습니다.")
+                return
             
             if send_data['count'] < max_send_count:
                 self.logger.debug(f"명령 재전송 예약 (시도 {send_data['count']}/{max_send_count}): {send_data['sendcmd']}")

@@ -125,7 +125,19 @@
                             <input type="checkbox" id="liveHideUnknown" onchange="updateLivePacketLogDisplay()" class="form-checkbox h-4 w-4 text-indigo-600">
                             <span class="ml-2 text-gray-700">Unknown 패킷 숨기기</span>
                         </label>
-                        <button onclick="clearLivePacketLog()" class="text-gray-500 hover:text-blue-500 transition-colors" title="패킷 목록 초기화">
+                        <button id="pauseButton" onclick="togglePause()" class="text-gray-500 hover:text-blue-500 transition-colors" title="일시정지/재생">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path id="pauseIcon" d="M5 4h3v12H5V4zm7 0h3v12h-3V4z"/>
+                                <path id="playIcon" class="hidden" d="M5 4l10 6-10 6V4z"/>
+                            </svg>
+                        </button>
+                        <button onclick="extractPackets()" class="text-gray-500 hover:text-blue-500 transition-colors" title="패킷 추출">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z"/>
+                                <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z"/>
+                            </svg>
+                        </button>
+                        <button onclick="clearLivePacketLog()" class="text-gray-500 hover:text-red-500 transition-colors" title="패킷 목록 초기화">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
                             </svg>

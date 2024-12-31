@@ -9,6 +9,7 @@ let currentInput = '';   // 현재 입력값 저장용 변수 추가
 
 // 실시간 패킷 로그 관련 함수들
 let liveLastPackets = new Set();
+let isPaused = false;  // 일시정지 상태를 저장하는 변수 추가
 
 // ===============================
 // 페이지 전환 함수
@@ -641,30 +642,6 @@ function saveConfig() {
 
     showConfigMessage('설정을 저장하고 애드온을 재시작하는 중...', false);
 
-    fetch('./api/config', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(configData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showConfigMessage('설정이 저장되었습니다. 애드온이 재시작됩니다...', false);
-            // MQTT 상태 업데이트
-            setTimeout(updateMqttStatus, 1000);
-        } else {
-            let errorMessage = '설정 저장 실패: ' + (data.error || '알 수 없는 오류');
-            if (data.details) {
-                errorMessage += '\n' + data.details.join('\n');
-            }
-            showConfigMessage(errorMessage, true);
-        }
-    })
-    .catch(error => {
-        showConfigMessage('설정 저장 중 오류가 발생했습니다: ' + error, true);
-    });
 }
 
 function showConfigMessage(message, isError) {
@@ -699,6 +676,8 @@ function updateRecentMessages() {
 
 // 실시간 패킷 로그 관련 함수들
 function updateLivePacketLog() {
+    if (isPaused) return;  // 일시정지 상태면 업데이트하지 않음
+    
     fetch('./api/packet_logs')
         .then(response => response.json())
         .then(data => {
@@ -734,13 +713,13 @@ function createLivePacketLogEntry(packet, type, timestamp) {
     const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
     
     return `
-        <div class="p-2 border-b border-gray-200 hover:bg-gray-50 cursor-pointer ${deviceInfo.device === 'Unknown' ? 'opacity-70 unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
+        <div class="packet-log-entry p-2 border-b border-gray-200 hover:bg-gray-50 cursor-pointer ${deviceInfo.device === 'Unknown' ? 'opacity-70 unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
             <div class="flex items-center justify-between">
-                <span class="text-xs text-gray-500">${timestamp}</span>
-                <span class="inline-block min-w-[50px] text-sm font-semibold ${type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${type.toUpperCase()}]</span>
+                <span class="packet-timestamp text-xs text-gray-500">${timestamp}</span>
+                <span class="packet-type inline-block min-w-[50px] text-sm font-semibold ${type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${type.toUpperCase()}]</span>
             </div>
-            <div class="font-mono">${formattedPacket}</div>
-            <div class="text-sm text-gray-600">[${deviceText}]</div>
+            <div class="packet-content font-mono">${formattedPacket}</div>
+            <div class="packet-device text-sm text-gray-600">[${deviceText}]</div>
         </div>`;
 }
 
@@ -1224,4 +1203,44 @@ function loadPacketStructures() {
                 `;
             }
         });
+}
+
+function togglePause() {
+    isPaused = !isPaused;
+    const pauseIcon = document.getElementById('pauseIcon');
+    const playIcon = document.getElementById('playIcon');
+    
+    if (isPaused) {
+        pauseIcon.classList.add('hidden');
+        playIcon.classList.remove('hidden');
+    } else {
+        pauseIcon.classList.remove('hidden');
+        playIcon.classList.add('hidden');
+    }
+}
+
+function extractPackets() {
+    const logDiv = document.getElementById('livePacketLog');
+    const packets = [];
+    
+    // 전용 클래스를 사용하여 패킷 엔트리 선택
+    logDiv.querySelectorAll('.packet-log-entry').forEach(entry => {
+        const timestamp = entry.querySelector('.packet-timestamp').textContent;
+        const type = entry.querySelector('.packet-type').textContent.replace(/[\[\]]/g, '');
+        const packet = entry.querySelector('.packet-content').textContent.trim();
+        const deviceInfo = entry.querySelector('.packet-device').textContent.replace(/[\[\]]/g, '').trim();
+        
+        packets.push(`${timestamp} [${type}] ${packet} [${deviceInfo}]`);
+    });
+    
+    // 텍스트 파일로 저장
+    const blob = new Blob([packets.join('\n')], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `packet_log_${new Date().toISOString().slice(0,19).replace(/[:-]/g, '')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
 }

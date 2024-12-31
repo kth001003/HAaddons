@@ -34,7 +34,7 @@ EW11 관리페이지의 Community Settings에서 mqtt를 추가하고 다음과 
 - Protocol: MQTT
 
 ### Socket Settings
-- Server: 192.168.0.39
+- Server: 192.168.0.39 (MQTT 브로커의 IP 주소)
 - Server Port: 1883
 - Local Port: 0
 - Buffer Size: 512
@@ -64,7 +64,6 @@ EW11 관리페이지의 Community Settings에서 mqtt를 추가하고 다음과 
 - `mqtt_id`: MQTT 브로커 로그인 아이디 (mosquitto broker 애드온의 구성에서 확인하세요.)
 - `mqtt_password`: MQTT 브로커 로그인 비밀번호 (mosquitto broker 애드온의 구성에서 확인하세요.)
 - `mqtt_TOPIC`: MQTT 토픽 이름 (기본값: "commax", 수정 필요 없음)
-- `mqtt_log`: MQTT 로그 출력 여부 (true/false)
 
 ### EW11 (Elfin) 설정 
 - `elfin_auto_reboot`: EW11 자동 재부팅 사용 여부 (true/false)
@@ -72,18 +71,21 @@ EW11 관리페이지의 Community Settings에서 mqtt를 추가하고 다음과 
 - `elfin_id`: EW11 관리자 아이디 (기본값: "admin") (ew11 재시작 기능을 위해 필요합니다. 아닌경우 기본값으로 두셔도됩니다.)
 - `elfin_password`: EW11 관리자 비밀번호 (ew11 재시작 기능을 위해 필요합니다. 아닌경우 기본값으로 두셔도됩니다.)
 - `elfin_reboot_interval`: EW11 자동 재부팅 간격, 설정된 시간만큼 ew11로부터 신호를 받지 못하면 재부팅을 시도합니다. (초 단위, 기본값: 60)
-- `elfin_log`: EW11 로그 출력 여부 (true/false)
 
 ### 성능 설정
-- `queue_interval_in_second`: 명령어 전송 간격 (초 단위, 기본값: 0.1)
-- `max_send_count`: 최대 재시도 횟수 (기본값: 15)
+- `queue_interval_in_second`: 명령패킷 전송 간격 (초 단위, 기본값: 0.1 (100ms)), 상태패킷 수신이 150ms 이상 유휴중일때만 명령패킷을 전송합니다.
+- `max_send_count`: 명령패킷 최대 재시도 횟수 (기본값: 15)
+- `min_receive_count`: 패킷 전송 성공으로 판단할 예상패킷 최소 수신 횟수 (기본값: 1)
 - `DEBUG`: 디버그 로그 출력 여부 (true/false)
+- `mqtt_log`: MQTT 로그 출력 여부 (true/false)
+- `elfin_log`: EW11 로그 출력 여부 (true/false)
 - `vendor`: 기기 패킷 구조 파일 선택 (commax/custom 선택), custom을 선택한경우 /share/packet_structures_custom.yaml을 우선적으로 적용하게됩니다. 패킷정보가 다른경우 수정해서 쓸 수 있습니다.
 
 설정 예시:
 ```yaml
 queue_interval_in_second: 0.1
 max_send_count: 15
+min_receive_count: 1
 DEBUG: false
 mqtt_log: false
 elfin_log: false
