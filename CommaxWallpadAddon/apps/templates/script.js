@@ -696,7 +696,7 @@ function updateRecentMessages() {
 function createLivePacketLogEntry(packet, type, timestamp) {
     const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
     const deviceClass = deviceInfo.device === 'Unknown' ? 'unknown-packet' : '';
-    const formattedPacket = packet.raw.match(/.{2}/g).join(' ');
+    const formattedPacket = (packet.packet || '').match(/.{2}/g)?.join(' ') || packet.packet || '';
     
     return `
         <div class="packet-log-entry ${deviceClass} flex items-center space-x-2 p-2 hover:bg-gray-50 border-b border-gray-100">
@@ -739,8 +739,18 @@ function updateLivePacketLog() {
                 logDiv.innerHTML = newContent + logDiv.innerHTML;
                 // Unknown 패킷 숨기기 상태 적용
                 updateLivePacketLogDisplay();
+                
+                // 로그가 너무 길어지면 오래된 항목 제거
+                const maxEntries = 2000;
+                const entries = logDiv.getElementsByClassName('packet-log-entry');
+                if (entries.length > maxEntries) {
+                    for (let i = maxEntries; i < entries.length; i++) {
+                        entries[i].remove();
+                    }
+                }
             }
-        });
+        })
+        .catch(error => console.error('실시간 패킷 로그 업데이트 실패:', error));
 }
 
 function clearLivePacketLog() {
