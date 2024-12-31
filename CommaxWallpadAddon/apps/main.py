@@ -1066,8 +1066,8 @@ class WallpadController:
         expected_state = send_data.get('expected_state')
         
         if (isinstance(expected_state, dict) and 
-            isinstance(expected_state.get('expected_packet'), str) and 
-            isinstance(expected_state.get('required_bytes'), list)):
+            isinstance(expected_state.get('required_bytes'), list) and 
+            isinstance(expected_state.get('possible_values'), list)):
             
             required_bytes = expected_state['required_bytes']
             possible_values = expected_state['possible_values']
