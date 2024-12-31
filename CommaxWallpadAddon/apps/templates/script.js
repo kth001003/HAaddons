@@ -1081,7 +1081,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
-    setInterval(updateLivePacketLog, 1000);    // 1초마다 실시간 패킷 로그 업데이트
+    setInterval(updateLivePacketLog, 500);    // 0.5초마다 실시간 패킷 로그 업데이트
     
     // 패킷 입력 필드 이벤트 리스너 설정
     const packetInput = document.getElementById('packetInput');
