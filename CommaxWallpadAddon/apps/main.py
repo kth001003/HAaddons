@@ -39,9 +39,10 @@ class CollectData(TypedDict):
     last_recv_time: int
 
 class ExpectedStatePacket(TypedDict):
-    expected_packet: str
+    # expected_packet: str
     required_bytes: List[int]
-
+    possible_values: List[List[int]]
+    
 class QueueItem(TypedDict):
     sendcmd: str
     count: int
@@ -620,7 +621,10 @@ class WallpadController:
                 
             # 명령 패킷을 바이트로 변환
             command_packet = bytes.fromhex(command_str)
-            
+
+            #TODO: 8바이트 이외 패킷 처리 필요시 바이트 길이 판단 필요
+            possible_values: List[List[int]] = [[] for _ in range(7)]
+
             # 헤더로 기기 타입 찾기
             device_type = None
             for name, structure in self.DEVICE_STRUCTURE.items():
@@ -640,18 +644,20 @@ class WallpadController:
             state_field_positions = state_structure['fieldPositions']
             
             # 상태 패킷 초기화 (7바이트 - 체크섬은 나중에 추가)
-            status_packet = bytearray(7)
+            # status_packet = bytearray(7)
             # 필요한 바이트 리스트
             required_bytes = [0] # 헤더는 항상 포함
+            possible_values[0] = [int(state_structure['header'], 16)]
             
             # 상태 패킷 헤더 설정
-            status_packet[0] = int(state_structure['header'], 16)
+            # status_packet[0] = int(state_structure['header'], 16)
             
             # 기기 ID 복사
             device_id_pos = state_field_positions.get('deviceId', 2)
-            status_packet[int(device_id_pos)] = command_packet[int(command_field_positions.get('deviceId', 1))]
+            # status_packet[int(device_id_pos)] = command_packet[int(command_field_positions.get('deviceId', 1))]
             # 필요한 바이트 리스트에 기기 ID 추가
             required_bytes.append(int(device_id_pos))
+            possible_values[int(device_id_pos)] = [command_packet[int(command_field_positions.get('deviceId', 1))]]
 
             if device_type == 'Thermo':
                 # 온도조절기 상태 패킷 생성
@@ -661,75 +667,87 @@ class WallpadController:
                 power_pos = state_field_positions.get('power',1)
                 if command_type == int(command_structure["structure"][command_type_pos]['values']['power'], 16): #04
                     command_value = command_packet[int(command_field_positions.get('value', 3))] #command value on:81, off:00
-                    status_packet[int(power_pos)] = command_value #81,83,00 중 81 or 00
-                    # 필요한 바이트 리스트에 전원 위치 추가
+                    #off인경우
+                    if command_value == int(command_structure["structure"][str(command_field_positions.get('value', 3))]['off'], 16):
+                        # status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['off'], 16)
+                        possible_values[int(power_pos)] = [int(state_structure['structure'][str(power_pos)]['values']['off'], 16)]
+                    #off가 아닌경우 (on)
+                    else:
+                        possible_values[int(power_pos)] = [int(state_structure['structure'][str(power_pos)]['values']['idle'], 16),
+                                                           int(state_structure['structure'][str(power_pos)]['values']['heating'], 16)]
                     required_bytes.append(int(power_pos))
+
                 elif command_type == int(command_structure["structure"][command_type_pos]['values']['change'], 16): #03
                     #Power는 idle 상태로 가정
-                    status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['idle'], 16) #81
+                    # status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['idle'], 16) #81
                     target_temp = command_packet[int(command_field_positions.get('value', 3))]
                     target_temp_pos = state_field_positions.get('targetTemp', 4)
-                    status_packet[int(target_temp_pos)] = target_temp
+                    # status_packet[int(target_temp_pos)] = target_temp
                     current_temp_pos = state_field_positions.get('currentTemp', 5)
-                    status_packet[int(current_temp_pos)] = target_temp
-                    # 필요한 바이트 리스트에 현재 온도 위치 추가
+                    # status_packet[int(current_temp_pos)] = target_temp
+
+                    # 필요한 바이트 리스트에 목표 온도 위치 추가
                     required_bytes.append(int(target_temp_pos))
+                    possible_values[int(target_temp_pos)] = [target_temp]
             
-
-            elif device_type == 'Light':
-                # 조명 상태 패킷 생성
+            #on off 타입 기기
+            elif device_type == 'Light' or device_type == 'LightBreaker':
                 power_pos = state_field_positions.get('power',1)
                 command_value = command_packet[int(command_field_positions.get('power',2))]
-                status_packet[int(power_pos)] = command_value
+                #off인 경우
+                if command_value == int(command_structure["structure"][str(power_pos)]['values']['off'], 16):
+                    # status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['off'], 16)
+                    possible_values[int(power_pos)] = [int(state_structure['structure'][str(power_pos)]['values']['off'], 16)]
+                #on인 경우
+                else:
+                    # status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['on'], 16)
+                    possible_values[int(power_pos)] = [int(state_structure['structure'][str(power_pos)]['values']['on'], 16)]
                 # 필요한 바이트 리스트에 전원 위치 추가
                 required_bytes.append(int(power_pos))
-
-            elif device_type == 'LightBreaker':
-                # 조명 상태 패킷 생성
-                power_pos = state_field_positions.get('power',1)
-                command_value = command_packet[int(command_field_positions.get('power',2))]
-                status_packet[int(power_pos)] = command_value
-                # 필요한 바이트 리스트에 전원 위치 추가
-                required_bytes.append(int(power_pos))
-
+                
             elif device_type == 'Fan':
-                # 환기장치 상태 패킷 생성
-                power_pos = state_field_positions.get('power',1)
+                # 팬 상태 패킷 생성
                 command_type_pos = command_field_positions.get('commandType', 2)
                 command_type = command_packet[int(command_type_pos)]
-                command_value = command_packet[int(command_field_positions.get('value', 3))]
-                status_packet[int(power_pos)] = command_value
-                # 필요한 바이트 리스트에 전원 위치 추가
-                required_bytes.append(int(power_pos))
+                
+                power_pos = state_field_positions.get('power',1)
+                if command_type == int(command_structure["structure"][command_type_pos]['values']['power'], 16):
+                    command_value = command_packet[int(command_field_positions.get('value', 3))]
+                    #off인경우
+                    if command_value == int(command_structure["structure"][str(command_field_positions.get('value', 3))]['off'], 16):
+                        # status_packet[int(power_pos)] = int(state_structure['structure'][str(power_pos)]['values']['off'], 16)
+                        possible_values[int(power_pos)] = [int(state_structure['structure'][str(power_pos)]['values']['off'], 16)]
+                    #off가 아닌경우 (on)
+                    else:
+                        possible_values[int(power_pos)] = [int(state_structure['structure'][str(power_pos)]['values']['on'], 16)]
+                    required_bytes.append(int(power_pos))
 
-
-            #     if command_type == int(device_structure['command']['types']['power']['code'], 16):
-            #         # 전원 명령
-            #         status_packet[int(device_structure['state']['fieldPositions']['power'])] = command_value
-            #     elif command_type == int(device_structure['command']['types']['setSpeed']['code'], 16):
-            #         # 속도 설정 명령
-            #         status_packet[int(device_structure['state']['fieldPositions']['speed'])] = command_value
-            #         # 전원은 켜진 상태로 설정
-            #         status_packet[int(device_structure['state']['fieldPositions']['power'])] = \
-            #             int(device_structure['state']['structure']['1']['values']['on'], 16)
+                elif command_type == int(command_structure["structure"][command_type_pos]['values']['setSpeed'], 16):
+                    speed = command_packet[int(command_field_positions.get('value', 3))]
+                    speed_pos = state_field_positions.get('speed', 4)
+                    # status_packet[int(speed_pos)] = int(state_structure['structure'][str(speed_pos)]['values'][str(speed)], 16) 
+                    required_bytes.append(int(speed_pos))
+                    possible_values[int(speed_pos)] = [int(state_structure['structure'][str(speed_pos)]['values'][str(speed)], 16)]
             
 
             # 상태 패킷을 16진수 문자열로 변환
-            status_hex = status_packet.hex().upper()
-            status_hex = self.checksum(status_hex)
-            if status_hex is None:
-                self.logger.error("상태 패킷 체크섬 생성 실패") 
-                return None
+            # status_hex = status_packet.hex().upper()
+            # status_hex = self.checksum(status_hex)
+            # if status_hex is None:
+            #     self.logger.error("상태 패킷 체크섬 생성 실패") 
+            #     return None
             return ExpectedStatePacket(
-                expected_packet=status_hex,
-                required_bytes=sorted(required_bytes)
+                # expected_packet=status_hex,
+                required_bytes=sorted(required_bytes),
+                possible_values=possible_values
             )
             
         except Exception as e:
             self.logger.error(f"상태 패킷 생성 중 오류 발생: {str(e)}\n"
                             f"장치 타입: {device_type}\n"
                             f"명령 패킷: {command_packet.hex().upper()}\n"
-                            f"상태 패킷: {status_packet.hex().upper() if status_packet else 'None'}\n"
+                            f'required_bytes: {required_bytes}\n'
+                            f'possible_values: {possible_values}\n'
                             f"State_structure: {state_structure}\n"
                             f"command_structure: {command_structure}")
             return None
@@ -1069,9 +1087,10 @@ class WallpadController:
             isinstance(expected_state.get('expected_packet'), str) and 
             isinstance(expected_state.get('required_bytes'), list)):
             
-            expected_packet = expected_state['expected_packet']
-            expected_bytes = bytes.fromhex(expected_packet)
+            # expected_packet = expected_state['expected_packet']
+            # expected_bytes = bytes.fromhex(expected_packet)
             required_bytes = expected_state['required_bytes']
+            possible_values = expected_state['possible_values']
             assert isinstance(required_bytes, (list)), "required_bytes must be a list"
             
             for received_packet in self.COLLECTDATA['recv_data']:
@@ -1091,11 +1110,15 @@ class WallpadController:
                             match = False
                             break
                             
-                        if (len(received_bytes) <= pos or 
-                            len(expected_bytes) <= pos or
-                            received_bytes[pos] != expected_bytes[pos]):
+                        if len(received_bytes) <= pos:
                             match = False
                             break
+                            
+                        # possible_values[pos]가 비어있지 않은 경우에만 검사
+                        if possible_values[pos]:
+                            if received_bytes[pos] not in possible_values[pos]:
+                                match = False
+                                break
                             
                 except (IndexError, TypeError) as e:
                     self.logger.error(f"패킷 비교 중 오류 발생: {str(e)}")
