@@ -719,20 +719,16 @@ function updateLivePacketLog() {
 
             // 송신 패킷 처리
             data.send.forEach(packet => {
-                if (!liveLastPackets.has('send:' + packet.packet)) {
-                    const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-                    newContent = createLivePacketLogEntry(packet, 'send', timestamp) + newContent;
-                    liveLastPackets.add('send:' + packet.packet);
-                }
+                const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+                newContent = createLivePacketLogEntry(packet, 'send', timestamp) + newContent;
+                liveLastPackets.add('send:' + packet.packet);
             });
 
             // 수신 패킷 처리
             data.recv.forEach(packet => {
-                if (!liveLastPackets.has('recv:' + packet.packet)) {
-                    const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-                    newContent = createLivePacketLogEntry(packet, 'recv', timestamp) + newContent;
-                    liveLastPackets.add('recv:' + packet.packet);
-                }
+                const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+                newContent = createLivePacketLogEntry(packet, 'recv', timestamp) + newContent;
+                liveLastPackets.add('recv:' + packet.packet);
             });
 
             if (newContent) {
@@ -910,7 +906,7 @@ function renderPacketStructureEditor(structure) {
 
 function createPacketSection(deviceName, packetType, packetData) {
     const section = document.createElement('div');
-    section.className = 'mt-4';
+    section.className = 'mt-4 w-1/4 inline-block align-top px-2';
 
     const title = {
         'command': '명령 패킷',
@@ -921,11 +917,11 @@ function createPacketSection(deviceName, packetType, packetData) {
 
     section.innerHTML = `
         <h4 class="font-medium mb-2">${title}</h4>
-        <div class="ml-4 space-y-2">
+        <div class="space-y-2">
             <div class="flex items-center">
                 <span class="w-20 text-sm">Header:</span>
                 <input type="text" value="${packetData.header}" 
-                    class="border rounded px-2 py-1 text-sm"
+                    class="border rounded px-2 py-1 text-sm flex-1"
                     data-device="${deviceName}" 
                     data-packet-type="${packetType}" 
                     data-field="header">
@@ -935,14 +931,14 @@ function createPacketSection(deviceName, packetType, packetData) {
 
     if (packetData.structure) {
         const structureDiv = document.createElement('div');
-        structureDiv.className = 'ml-4 mt-2';
+        structureDiv.className = 'mt-2';
         
         Object.entries(packetData.structure).forEach(([position, field]) => {
             const fieldDiv = document.createElement('div');
-            fieldDiv.className = 'border-l-2 border-gray-200 pl-4 py-2 mt-2';
+            fieldDiv.className = 'border-l-2 border-gray-200 pl-2 py-2 mt-2';
             fieldDiv.innerHTML = `
                 <div class="text-sm font-medium">Position ${position}</div>
-                <div class="grid grid-cols-2 gap-2 mt-1">
+                <div class="space-y-1 mt-1">
                     <div>
                         <label class="block text-xs text-gray-600">Name:</label>
                         <input type="text" value="${field.name}" 
