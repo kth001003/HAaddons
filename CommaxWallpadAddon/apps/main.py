@@ -850,8 +850,8 @@ class WallpadController:
                                 power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
                                 # 온도값을 10진수로 직접 해석
-                                current_temp = int(decimal_to_hex_str(byte_data[int(field_positions.get('currentTemp', 3))]))
-                                target_temp = int(decimal_to_hex_str(byte_data[int(field_positions.get('targetTemp', 4))]))
+                                current_temp = int(format(byte_data[int(field_positions.get('currentTemp', 3))], '02x'))
+                                target_temp = int(format(byte_data[int(field_positions.get('targetTemp', 4))], '02x'))
                                 power_hex = byte_to_hex_str(power)
                                 power_values = state_structure['structure'][power_pos]['values']
                                 power_off_hex = power_values.get('off', '').upper()
