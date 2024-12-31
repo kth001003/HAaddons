@@ -497,21 +497,6 @@ function openDeviceTab(evt, deviceName) {
 // 초기화 및 상태 업데이트 함수들
 // ===============================
 
-// 초기화 함수
-function initialize() {
-    fetch('./api/packet_suggestions')
-        .then(response => response.json())
-        .then(data => {
-            packetSuggestions = data;
-            showAvailableHeaders();
-        });
-    updateDeviceList();
-    updatePacketLogDisplay();
-    loadPacketStructures();
-    updateMqttStatus();
-    loadConfig();
-}
-
 // MQTT 상태 업데이트
 function updateMqttStatus() {
     fetch('./api/mqtt_status')
@@ -779,18 +764,6 @@ function toggleMobileMenu() {
 }
 
 // 페킷 구조 편집 관련 함수들
-document.addEventListener('DOMContentLoaded', function() {
-    // 패킷 에디터 초기화
-    loadCustomPacketStructure();
-    checkVendorSetting();
-
-    // 저장 버튼 이벤트 핸들러
-    document.getElementById('savePacketStructure').addEventListener('click', saveCustomPacketStructure);
-    
-    // vendor 변경 버튼 이벤트 핸들러
-    document.getElementById('changeVendorButton').addEventListener('click', changeVendorToCustom);
-});
-
 function checkVendorSetting() {
     fetch('./api/config')
         .then(response => response.json())
@@ -906,7 +879,7 @@ function renderPacketStructureEditor(structure) {
 
 function createPacketSection(deviceName, packetType, packetData) {
     const section = document.createElement('div');
-    section.className = 'mt-4 w-1/4 inline-block align-top px-2';
+    section.className = 'mt-4 w-full sm:w-1/2 lg:w-1/4 inline-block align-top px-2';
 
     const title = {
         'command': '명령 패킷',
@@ -916,18 +889,19 @@ function createPacketSection(deviceName, packetType, packetData) {
     }[packetType];
 
     section.innerHTML = `
-        <h4 class="font-medium mb-2">${title}</h4>
-        <div class="space-y-2">
-            <div class="flex items-center">
-                <span class="w-20 text-sm">Header:</span>
-                <input type="text" value="${packetData.header}" 
-                    class="border rounded px-2 py-1 text-sm flex-1"
-                    data-device="${deviceName}" 
-                    data-packet-type="${packetType}" 
-                    data-field="header">
+        <div class="bg-gray-50 p-3 rounded-lg">
+            <h4 class="font-medium mb-2">${title}</h4>
+            <div class="space-y-2">
+                <div class="flex items-center">
+                    <span class="w-20 text-sm">Header:</span>
+                    <input type="text" value="${packetData.header}" 
+                        class="border rounded px-2 py-1 text-sm flex-1"
+                        data-device="${deviceName}" 
+                        data-packet-type="${packetType}" 
+                        data-field="header">
+                </div>
             </div>
-        </div>
-    `;
+        `;
 
     if (packetData.structure) {
         const structureDiv = document.createElement('div');
@@ -1100,15 +1074,32 @@ function saveCustomPacketStructure() {
 
 // 페이지 로드 완료 후 초기화 실행 및 주기적 업데이트 설정
 document.addEventListener('DOMContentLoaded', function() {
-    initialize();
+    fetch('./api/packet_suggestions')
+        .then(response => response.json())
+        .then(data => {
+            packetSuggestions = data;
+            showAvailableHeaders();
+        });
+    updateDeviceList();
+    updatePacketLogDisplay();
+    loadPacketStructures();
+    updateMqttStatus();
+    loadConfig();
+
+    // 패킷 에디터 초기화
+    loadCustomPacketStructure();
+    checkVendorSetting();
+
+    // 저장 버튼 이벤트 핸들러
+    document.getElementById('savePacketStructure').addEventListener('click', saveCustomPacketStructure);
     
-    // 주기적 업데이트 설정
-    setInterval(updateDeviceList, 30000);  // 30초마다 기기목록 업데이트
-    setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
-    setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
-    setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
-    setInterval(updateLivePacketLog, 500);    // 0.5초마다 실시간 패킷 로그 업데이트
+    // vendor 변경 버튼 이벤트 핸들러
+    document.getElementById('changeVendorButton').addEventListener('click', changeVendorToCustom);
     
+    const saveButton = document.getElementById('saveConfig');
+    if (saveButton) {
+        saveButton.addEventListener('click', saveConfig);
+    }
     // 패킷 입력 필드 이벤트 리스너 설정
     const packetInput = document.getElementById('packetInput');
     if (packetInput) {
@@ -1144,6 +1135,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    // 주기적 업데이트 설정
+    setInterval(updateDeviceList, 30000);  // 30초마다 기기목록 업데이트
+    setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
+    setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
+    setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
+    setInterval(updateLivePacketLog, 500);    // 0.5초마다 실시간 패킷 로그 업데이트
+    
 });
 
 function loadPacketStructures() {
@@ -1175,43 +1173,6 @@ function loadPacketStructures() {
                 
                 const table = createPacketTable(info);
                 tabContent.appendChild(table);
-                
-                // 예시 패킷 섹션 추가
-                if (info.command?.examples?.length > 0 || 
-                    info.state?.examples?.length > 0 || 
-                    info.state_request?.examples?.length > 0 || 
-                    info.ack?.examples?.length > 0) {
-                    
-                    const examplesDiv = document.createElement('div');
-                    examplesDiv.className = 'mt-4 bg-gray-50 p-4 rounded';
-                    
-                    ['command', 'state', 'state_request', 'ack'].forEach(type => {
-                        if (info[type]?.examples?.length > 0) {
-                            const typeHeader = document.createElement('h4');
-                            typeHeader.className = 'font-medium mb-2';
-                            typeHeader.textContent = {
-                                'command': '명령 패킷',
-                                'state': '상태 패킷',
-                                'state_request': '상태 요청 패킷',
-                                'ack': '응답 패킷'
-                            }[type];
-                            examplesDiv.appendChild(typeHeader);
-                            
-                            info[type].examples.forEach(example => {
-                                const exampleDiv = document.createElement('div');
-                                exampleDiv.className = 'mb-2 pl-4';
-                                const formattedPacket = example.packet.match(/.{2}/g).join(' ');
-                                exampleDiv.innerHTML = `
-                                    <code class="font-mono text-sm bg-gray-100 px-2 py-1 rounded">${formattedPacket}</code>
-                                    <span class="text-sm text-gray-600 ml-2">${example.desc || ''}</span>
-                                `;
-                                examplesDiv.appendChild(exampleDiv);
-                            });
-                        }
-                    });
-                    
-                    tabContent.appendChild(examplesDiv);
-                }
                 
                 tabContents.appendChild(tabContent);
                 isFirst = false;
