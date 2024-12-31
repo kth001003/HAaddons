@@ -999,7 +999,11 @@ class WallpadController:
                     else:
                         packet_hex = self.make_climate_command(device_id, 0, 'commandOFF')
                 elif state == 'setTemp':
-                    set_temp = int(float(topics[3]))
+                    try:
+                        set_temp = int(float(value))
+                    except Exception as e:
+                        self.logger.error(f"잘못된 온도입니다: {e}")
+                        return
                     if set_temp > self.config.get('climate_max_temp',40) or set_temp < self.config.get('climate_min_temp',5):
                         self.logger.error(f"잘못된 온도입니다: {set_temp}")
                         return
