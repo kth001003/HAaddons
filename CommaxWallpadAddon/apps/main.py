@@ -1098,8 +1098,8 @@ class WallpadController:
                             
                         # possible_values[pos]가 비어있지 않은 경우에만 검사
                         if possible_values[pos]:
-                            self.logger.debug(f'{pos}번째 패킷 비교중. required: {possible_values[pos]}, received: {received_bytes[pos]}')
-                            if received_bytes[pos] not in possible_values[pos]:
+                            self.logger.debug(f'{pos}번째 패킷 비교중. required: {possible_values[pos]}, received: {self.byte_to_hex(received_bytes[pos])}')
+                            if self.byte_to_hex(received_bytes[pos]) not in possible_values[pos]:
                                 match = False
                                 break
                             
