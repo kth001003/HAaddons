@@ -84,7 +84,7 @@ class WallpadController:
         Returns:
             int: 16진수 값 (예: 0x82)
         """
-        return int(hex_str, 16)
+        return int(hex_str, 10)
 
     @staticmethod
     def checksum(input_hex: str) -> Optional[str]:
@@ -283,7 +283,7 @@ class WallpadController:
                     
             elif topics[0] == self.HA_TOPIC:
                 value = msg.payload.decode()
-                self.logger.mqtt(f'->> 수신: {"/".join(topics)} -> {value}')
+                self.logger.debug(f'->> 수신: {"/".join(topics)} -> {value}')
                 # 웹서버에 메시지 추가
                 self.web_server.add_mqtt_message("/".join(topics), value)
                 
@@ -750,7 +750,6 @@ class WallpadController:
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.publish_mqtt(topic, onoff)
-        # self.HOMESTATE[deviceID + state] = onoff
     
     async def update_light_breaker(self, idx: int, onoff: str) -> None:
         state = 'power'
@@ -758,7 +757,6 @@ class WallpadController:
 
         topic = self.STATE_TOPIC.format(deviceID, state)
         self.publish_mqtt(topic, onoff)
-        # self.HOMESTATE[deviceID + state] = onoff
 
     async def update_temperature(self, idx: int, mode_text: str, action_text: str, curTemp: int, setTemp: int) -> None:
         """
@@ -794,7 +792,6 @@ class WallpadController:
             self.publish_mqtt(power_topic, mode_text)
             self.publish_mqtt(action_topic, action_text)
             
-            self.logger.mqtt(f'->> HA : {deviceID} 온도={curTemp}°C, 설정={setTemp}°C, 상태={mode_text} {action_text}')
         except Exception as e:
             self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
  
@@ -804,14 +801,11 @@ class WallpadController:
             if power_text == 'OFF':
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic,'OFF')
-                # self.HOMESTATE[deviceID + 'power'] = 'OFF'
             else:
                 topic = self.STATE_TOPIC.format(deviceID, 'speed')
                 self.publish_mqtt(topic, speed_text)
-                # self.HOMESTATE[deviceID + 'speed'] = speed_text
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'ON')
-                # self.HOMESTATE[deviceID + 'power'] = 'ON'
                 
         except Exception as e:
             self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
@@ -822,15 +816,12 @@ class WallpadController:
             if power_text == 'ON':
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'ON')
-                # self.HOMESTATE[deviceID + 'power'] = 'ON'
                 val = '%.1f' % float(int(watt) / 10)
                 topic = self.STATE_TOPIC.format(deviceID, 'watt')
                 self.publish_mqtt(topic, val)
-                # self.HOMESTATE[deviceID + 'watt'] = val
             else:
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'OFF')
-                # self.HOMESTATE[deviceID + 'power'] = 'OFF'
         except Exception as e:
             self.logger.error(f"콘센트 상태 업데이트 중 오류 발생: {str(e)}")
 
@@ -840,10 +831,8 @@ class WallpadController:
             if power_text == 'ON':
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'ON')
-                # self.HOMESTATE[deviceID + 'power'] = 'ON'
                 topic = self.STATE_TOPIC.format(deviceID, 'floor')
                 self.publish_mqtt(topic, floor_text)
-                # self.HOMESTATE[deviceID + 'floor'] = floor_text
         except Exception as e:
             self.logger.error(f"엘리베이터 상태 업데이트 중 오류 발생: {str(e)}")
 
@@ -1003,6 +992,7 @@ class WallpadController:
             if device == 'Light':
                 power_value = command["structure"][str(command["fieldPositions"]["power"])]["values"]["on" if value == "ON" else "off"]
                 packet[int(command["fieldPositions"]["power"])] = int(power_value, 16)
+                self.logger.debug(f'조명 {device_id} {state} {value} 명령 생성 {packet.hex().upper()}')
             elif device == 'Thermo':                
                 if state == 'power':
                     if value == 'heat':
@@ -1019,6 +1009,7 @@ class WallpadController:
                         self.logger.error(f"잘못된 온도입니다: {set_temp}")
                         return
                     packet_hex = self.make_climate_command(device_id, set_temp, 'commandCHANGE')
+                self.logger.debug(f'온도조절기 {device_id} {state} {value} 명령 생성 {packet_hex}')
             elif device == 'Fan':
                 packet[int(command["fieldPositions"]["commandType"])] = int(command[str(command["fieldPositions"]["commandType"])]["values"]["power"], 16)
                 
@@ -1033,7 +1024,7 @@ class WallpadController:
                     packet[int(command["fieldPositions"]["commandType"])] = int(command[str(command["fieldPositions"]["commandType"])]["values"]["setSpeed"], 16)
                     packet[int(command["fieldPositions"]["value"])] = int(command[str(command["fieldPositions"]["value"])]["values"][value], 16)
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
-            
+                self.logger.debug(f'환기장치 {device_id} {state} {value} 명령 생성 {packet.hex().upper()}')
             if packet_hex is None:
                 packet_hex = packet.hex().upper()
                 packet_hex = self.checksum(packet_hex)
@@ -1056,7 +1047,7 @@ class WallpadController:
     async def process_queue(self) -> None:
         """큐에 있는 모든 명령을 처리하고 예상되는 응답을 확인합니다."""
         max_send_count = self.config.get("max_send_count", 20)
-        default_send_count = 5
+
         
         if not self.QUEUE:
             return
@@ -1078,8 +1069,6 @@ class WallpadController:
             isinstance(expected_state.get('expected_packet'), str) and 
             isinstance(expected_state.get('required_bytes'), list)):
             
-            # expected_packet = expected_state['expected_packet']
-            # expected_bytes = bytes.fromhex(expected_packet)
             required_bytes = expected_state['required_bytes']
             possible_values = expected_state['possible_values']
             assert isinstance(required_bytes, (list)), "required_bytes must be a list"
@@ -1131,8 +1120,8 @@ class WallpadController:
                     
         # 예상 상태 정보가 없거나 잘못된 경우 재전송 시도만 함.
         else:
-            if send_data['count'] < default_send_count:
-                self.logger.debug(f"명령 전송 (횟수 {send_data['count']}/{default_send_count}): {send_data['sendcmd']}")
+            if send_data['count'] < max_send_count:
+                self.logger.debug(f"명령 전송 (횟수 {send_data['count']}/{max_send_count}): {send_data['sendcmd']}")
                 self.QUEUE.append(send_data)
         
         await asyncio.sleep(0.05)
