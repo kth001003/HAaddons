@@ -75,7 +75,7 @@ class WallpadController:
 
     # 유틸리티 함수들
     @staticmethod
-    def hex_to_byte(hex_str: str) -> int:
+    def hex_to_byte(hex_str: Union[str, int]) -> int:
         """16진수 문자열을 바이트로 변환하는 유틸리티 함수
         
         Args:
@@ -84,6 +84,7 @@ class WallpadController:
         Returns:
             int: 16진수 값 (예: 0x82)
         """
+        hex_str = str(hex_str)
         return int(hex_str, 10)
 
     @staticmethod
@@ -1099,7 +1100,7 @@ class WallpadController:
                         # possible_values[pos]가 비어있지 않은 경우에만 검사
                         if possible_values[pos]:
                             self.logger.debug(f'{pos}번째 패킷 비교중. required: {possible_values[pos]}, received: {received_bytes[pos]}')
-                            if received_bytes[pos] not in possible_values[pos]:
+                            if self.hex_to_byte(received_bytes[pos]) not in possible_values[pos]:
                                 match = False
                                 break
                             
