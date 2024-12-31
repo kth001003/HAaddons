@@ -552,7 +552,7 @@ class WallpadController:
                 packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["on"], 16)
             elif command_type == 'commandCHANGE':
                 packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["change"], 16)
-                packet[int(value_pos)] = bytes.fromhex(str(target_temp))[0]
+                packet[int(value_pos)] = int(decimal_to_hex_str(target_temp), 16)
             else:
                 self.logger.error(f'잘못된 명령 타입: {command_type}')
                 return None
