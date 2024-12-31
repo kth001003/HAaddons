@@ -82,9 +82,9 @@ class WallpadController:
             hex_str (str): 16진수 문자열 (예: "82")
             
         Returns:
-            int: 변환된 바이트 값
+            int: 16진수 값 (예: 0x82)
         """
-        return bytes.fromhex(hex_str)[0]
+        return int(hex_str, 16)
 
     @staticmethod
     def checksum(input_hex: str) -> Optional[str]:
