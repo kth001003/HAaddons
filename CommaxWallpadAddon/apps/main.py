@@ -41,7 +41,7 @@ class CollectData(TypedDict):
 class ExpectedStatePacket(TypedDict):
     # expected_packet: str
     required_bytes: List[int]
-    possible_values: List[List[int]]
+    possible_values: List[List[str]]
     
 class QueueItem(TypedDict):
     sendcmd: str
@@ -75,17 +75,16 @@ class WallpadController:
 
     # 유틸리티 함수들
     @staticmethod
-    def hex_to_byte(hex_str: Union[str, int]) -> int:
-        """16진수 문자열을 바이트로 변환하는 유틸리티 함수
+    def byte_to_hex(byte_val: int) -> str:
+        """바이트를 16진수 문자열로 변환하는 유틸리티 함수
         
         Args:
-            hex_str (str): 16진수 문자열 (예: "82")
+            byte_val (int): 바이트 값 (예: 0x82)
             
         Returns:
-            int: 16진수 값 (예: 0x82)
+            str: 16진수 문자열 (예: "82")
         """
-        hex_str = str(hex_str)
-        return int(hex_str, 10)
+        return format(byte_val, '02X')
 
     @staticmethod
     def checksum(input_hex: str) -> Optional[str]:
@@ -636,12 +635,12 @@ class WallpadController:
             command_packet = bytes.fromhex(command_str)
 
             #TODO: 8바이트 이외 패킷 처리 필요시 바이트 길이 판단 필요
-            possible_values: List[List[int]] = [[] for _ in range(7)]
+            possible_values: List[List[str]] = [[] for _ in range(7)]
 
             # 헤더로 기기 타입 찾기
             device_type = None
             for name, structure in self.DEVICE_STRUCTURE.items():
-                if command_packet[0] == self.hex_to_byte(structure['command']['header']):
+                if command_packet[0] == int(structure['command']['header'], 16):
                     device_type = name
                     break
                     
@@ -659,12 +658,12 @@ class WallpadController:
             # 필요한 바이트 리스트
             required_bytes = [0] # 헤더는 항상 포함
             # 헤더 값을 바이트로 변환
-            possible_values[0] = [self.hex_to_byte(device_structure['state']['header'])]
+            possible_values[0] = [device_structure['state']['header']]
             
             # 기기 ID
             device_id_pos = state_field_positions.get('deviceId', 2)
             required_bytes.append(int(device_id_pos))
-            possible_values[int(device_id_pos)] = [command_packet[int(command_field_positions.get('deviceId', 1))]]
+            possible_values[int(device_id_pos)] = [self.byte_to_hex(command_packet[int(command_field_positions.get('deviceId', 1))])]
 
             if device_type == 'Thermo':
                 # 온도조절기 상태 패킷 생성
@@ -673,37 +672,37 @@ class WallpadController:
                 value_pos = command_field_positions.get('value',3)
                 
                 power_pos = state_field_positions.get('power',1)
-                if command_type == self.hex_to_byte(command_structure[str(command_type_pos)]['values']['power']): #04
+                if command_type == int(command_structure[str(command_type_pos)]['values']['power'], 16): #04
                     command_value = command_packet[int(value_pos)] #command value on:81, off:00
                     #off인경우
-                    if command_value == self.hex_to_byte(command_structure[str(value_pos)]['values']['off']):
-                        possible_values[int(power_pos)] = [self.hex_to_byte(state_structure[str(power_pos)]['values']['off'])]
+                    if command_value == int(command_structure[str(value_pos)]['values']['off'], 16):
+                        possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['off']]
                     #off가 아닌경우 (on)
                     else:
                         possible_values[int(power_pos)] = [
-                            self.hex_to_byte(state_structure[str(power_pos)]['values']['idle']),
-                            self.hex_to_byte(state_structure[str(power_pos)]['values']['heating'])
+                            state_structure[str(power_pos)]['values']['idle'],
+                            state_structure[str(power_pos)]['values']['heating']
                         ]
                     required_bytes.append(int(power_pos))
 
-                elif command_type == self.hex_to_byte(command_structure[str(command_type_pos)]['values']['change']): #03
+                elif command_type == int(command_structure[str(command_type_pos)]['values']['change'], 16): #03
                     target_temp = command_packet[int(value_pos)]
                     target_temp_pos = state_field_positions.get('targetTemp', 4)
 
                     # 필요한 바이트 리스트에 목표 온도 위치 추가
                     required_bytes.append(int(target_temp_pos))
-                    possible_values[int(target_temp_pos)] = [target_temp]
+                    possible_values[int(target_temp_pos)] = [str(target_temp)]
             
             #on off 타입 기기
             elif device_type == 'Light' or device_type == 'LightBreaker':
                 power_pos = state_field_positions.get('power',1)
                 command_value = command_packet[int(command_field_positions.get('power',2))]
                 #off인 경우
-                if command_value == self.hex_to_byte(command_structure[str(power_pos)]['values']['off']):
-                    possible_values[int(power_pos)] = [self.hex_to_byte(state_structure[str(power_pos)]['values']['off'])]
+                if command_value == int(command_structure[str(power_pos)]['values']['off'], 16):
+                    possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['off']]
                 #on인 경우
                 else:
-                    possible_values[int(power_pos)] = [self.hex_to_byte(state_structure[str(power_pos)]['values']['on'])]
+                    possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['on']]
                 # 필요한 바이트 리스트에 전원 위치 추가
                 required_bytes.append(int(power_pos))
                 
@@ -713,21 +712,21 @@ class WallpadController:
                 command_type = command_packet[int(command_type_pos)]
                 
                 power_pos = state_field_positions.get('power',1)
-                if command_type == self.hex_to_byte(command_structure[command_type_pos]['values']['power']):
+                if command_type == int(command_structure[command_type_pos]['values']['power'], 16):
                     command_value = command_packet[int(command_field_positions.get('value', 3))]
                     #off인경우
-                    if command_value == self.hex_to_byte(command_structure[str(command_field_positions.get('value', 3))]['values']['off']):
-                        possible_values[int(power_pos)] = [self.hex_to_byte(state_structure[str(power_pos)]['values']['off'])]
+                    if command_value == int(command_structure[str(command_field_positions.get('value', 3))]['values']['off'], 16):
+                        possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['off']]
                     #off가 아닌경우 (on)
                     else:
-                        possible_values[int(power_pos)] = [self.hex_to_byte(state_structure[str(power_pos)]['values']['on'])]
+                        possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['on']]
                     required_bytes.append(int(power_pos))
 
-                elif command_type == self.hex_to_byte(command_structure[command_type_pos]['values']['setSpeed']):
+                elif command_type == int(command_structure[command_type_pos]['values']['setSpeed'], 16):
                     speed = command_packet[int(command_field_positions.get('value', 3))]
                     speed_pos = state_field_positions.get('speed', 4)
                     required_bytes.append(int(speed_pos))
-                    possible_values[int(speed_pos)] = [self.hex_to_byte(state_structure[str(speed_pos)]['values'][str(speed)])]
+                    possible_values[int(speed_pos)] = [state_structure[str(speed_pos)]['values'][str(speed)]]
             
             return ExpectedStatePacket(
                 required_bytes=sorted(required_bytes),
@@ -988,12 +987,12 @@ class WallpadController:
             command = device_structure["command"]
             field_positions = command["fieldPositions"]
             
-            packet[0] = self.hex_to_byte(device_structure["command"]["header"])
+            packet[0] = int(device_structure["command"]["header"], 16)
             packet[int(field_positions["deviceId"])] = device_id
 
             if device == 'Light':
                 power_value = command["structure"][str(field_positions["power"])]["values"]["on" if value == "ON" else "off"]
-                packet[int(field_positions["power"])] = self.hex_to_byte(power_value)
+                packet[int(field_positions["power"])] = int(power_value, 16)
                 self.logger.debug(f'조명 {device_id} {state} {value} 명령 생성 {packet.hex().upper()}')
             elif device == 'Thermo':                
                 if state == 'power':
@@ -1016,18 +1015,18 @@ class WallpadController:
                     packet_hex = self.make_climate_command(device_id, set_temp, 'commandCHANGE')
                 self.logger.debug(f'온도조절기 {device_id} {state} {value} 명령 생성 {packet_hex}')
             elif device == 'Fan':
-                packet[int(field_positions["commandType"])] = self.hex_to_byte(command[str(field_positions["commandType"])]["values"]["power"])
+                packet[int(field_positions["commandType"])] = int(command[str(field_positions["commandType"])]["values"]["power"], 16)
                 
                 if state == 'power':
-                    packet[int(field_positions["commandType"])] = self.hex_to_byte(command[str(field_positions["commandType"])]["values"]["power"])
-                    packet[int(field_positions["value"])] = self.hex_to_byte(command[str(field_positions["value"])]["on" if value == "ON" else "off"])
+                    packet[int(field_positions["commandType"])] = int(command[str(field_positions["commandType"])]["values"]["power"], 16)
+                    packet[int(field_positions["value"])] = int(command[str(field_positions["value"])]["on" if value == "ON" else "off"], 16)
                     self.logger.debug(f'환기장치 {value} 명령 생성')
                 elif state == 'speed':
                     if value not in ["low", "medium", "high"]:
                         self.logger.error(f"잘못된 팬 속도입니다: {value}")
                         return
-                    packet[int(field_positions["commandType"])] = self.hex_to_byte(command[str(field_positions["commandType"])]["values"]["setSpeed"])
-                    packet[int(field_positions["value"])] = self.hex_to_byte(command[str(field_positions["value"])]["values"][value])
+                    packet[int(field_positions["commandType"])] = int(command[str(field_positions["commandType"])]["values"]["setSpeed"], 16)
+                    packet[int(field_positions["value"])] = int(command[str(field_positions["value"])]["values"][value], 16)
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
                 self.logger.debug(f'환기장치 {device_id} {state} {value} 명령 생성 {packet.hex().upper()}')
             if packet_hex is None:
@@ -1100,7 +1099,7 @@ class WallpadController:
                         # possible_values[pos]가 비어있지 않은 경우에만 검사
                         if possible_values[pos]:
                             self.logger.debug(f'{pos}번째 패킷 비교중. required: {possible_values[pos]}, received: {received_bytes[pos]}')
-                            if self.hex_to_byte(received_bytes[pos]) not in possible_values[pos]:
+                            if received_bytes[pos] not in possible_values[pos]:
                                 match = False
                                 break
                             
