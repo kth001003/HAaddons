@@ -359,7 +359,10 @@ class WebServer:
                 if packet_type == 'command' and checksum_result:
                     expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
                     if expected_state:
-                        response["expected_state"] = expected_state
+                        response["expected_state"] = {
+                            "required_bytes": expected_state["required_bytes"],
+                            "possible_values": expected_state["possible_values"]
+                        }
 
                 return jsonify(response)
 

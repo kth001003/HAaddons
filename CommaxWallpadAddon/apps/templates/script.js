@@ -154,19 +154,16 @@ function analyzePacket(paddedPacket) {
             }
             
             if (packetType === 'command' && data.expected_state) {
-                const formattedExpectedPacket = data.expected_state.expected_packet.match(/.{2}/g).join(' ');
                 html += `<h4 class="text-md font-bold mt-4 mb-2">예상되는 상태 패킷:</h4>`;
-                html += `<p class="mb-2"><strong><a href="#" onclick="analyzeExpectedState('${data.expected_state.expected_packet}')" class="text-blue-500 hover:text-blue-700 font-mono">${formattedExpectedPacket}</a></strong></p>`;
                 html += `<p class="mb-2">필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
-                
-                if (data.expected_state.analysis && data.expected_state.analysis.length > 0) {
-                    html += '<h4 class="text-md font-bold mt-4 mb-2">예상 패킷 바이트별 분석:</h4>';
-                    html += '<div class="font-mono space-y-1">';
-                    data.expected_state.analysis.forEach(desc => {
-                        html += `<div>${desc}</div>`;
-                    });
-                    html += '</div>';
-                }
+                html += `<p class="mb-2">예상 값:</p>`;
+                html += '<div class="font-mono space-y-1">';
+                data.expected_state.possible_values.forEach((values, index) => {
+                    if (values && values.length > 0) {
+                        html += `<div>Byte ${index}: ${values.join(', ')}</div>`;
+                    }
+                });
+                html += '</div>';
             }
             
             resultDiv.innerHTML = html;
@@ -215,87 +212,42 @@ function updatePacketLog() {
             
             // 송신 패킷 처리
             data.send.forEach(packet => {
-                const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
-                packets.push({
-                    type: 'send',
-                    device: deviceInfo.device,
-                    packet_type: deviceInfo.packet_type,
-                    raw: packet.packet,
-                    isNew: !lastPackets.has('send:' + packet.packet)
-                });
-                lastPackets.add('send:' + packet.packet);
+                if (!lastPackets.has('send:' + packet.packet)) {
+                    packets.push({
+                        type: 'send',
+                        raw: packet.packet,
+                        packet: packet,
+                        isNew: true
+                    });
+                    lastPackets.add('send:' + packet.packet);
+                }
             });
             
             // 수신 패킷 처리
             data.recv.forEach(packet => {
-                const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
-                packets.push({
-                    type: 'recv',
-                    device: deviceInfo.device,
-                    packet_type: deviceInfo.packet_type,
-                    raw: packet.packet,
-                    isNew: !lastPackets.has('recv:' + packet.packet)
-                });
-                lastPackets.add('recv:' + packet.packet);
+                if (!lastPackets.has('recv:' + packet.packet)) {
+                    packets.push({
+                        type: 'recv',
+                        raw: packet.packet,
+                        packet: packet,
+                        isNew: true
+                    });
+                    lastPackets.add('recv:' + packet.packet);
+                }
             });
 
-            // 패킷 정렬
-            packets.sort((a, b) => {
-                // 먼저 기기 타입으로 정렬
-                if (a.device !== b.device) {
-                    if (a.device === 'Unknown') return 1;
-                    if (b.device === 'Unknown') return -1;
-                    return a.device.localeCompare(b.device);
-                }
-                // 같은 기기면 패킷 타입으로 정렬
-                if (a.packet_type !== b.packet_type) {
-                    return a.packet_type.localeCompare(b.packet_type);
-                }
-                // 마지막으로 송수신 타입으로 정렬
-                return a.type.localeCompare(b.type);
-            });
+            // 패킷 값 기준으로 정렬
+            packets.sort((a, b) => a.raw.localeCompare(b.raw));
 
-            // 정렬된 패킷을 그룹화하여 표시
-            let currentDevice = '';
-            let currentPacketType = '';
+            // 정렬된 패킷을 표시
             let newContent = '';
-
             packets.forEach(packet => {
                 if (packet.isNew) {
-                    // 새로운 기기 그룹 시작
-                    if (currentDevice !== packet.device) {
-                        if (currentDevice !== '') {
-                            newContent += '</div>';  // 이전 그룹 닫기
-                        }
-                        currentDevice = packet.device;
-                        currentPacketType = '';
-                        newContent += `
-                            <div class="device-group mb-4">
-                            <div class="text-sm font-semibold bg-gray-100 p-2 rounded-t">${packet.device}</div>
-                        `;
-                    }
-                    
-                    // 새로운 패킷 타입 그룹 시작
-                    if (currentPacketType !== packet.packet_type) {
-                        currentPacketType = packet.packet_type;
-                        newContent += `
-                            <div class="text-xs text-gray-600 pl-4 py-1 bg-gray-50">${packet.packet_type}</div>
-                        `;
-                    }
-
-                    // 패킷 내용 추가
-                    const formattedPacket = packet.raw.match(/.{2}/g).join(' ');
-                    newContent += `
-                        <div class="packet-entry p-2 border-b border-gray-100 hover:bg-gray-50 cursor-pointer pl-6" onclick="handlePacketClick('${packet.raw}')">
-                            <span class="inline-block min-w-[50px] mr-2 text-sm font-semibold ${packet.type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${packet.type.toUpperCase()}]</span>
-                            <span class="font-mono">${formattedPacket}</span>
-                        </div>
-                    `;
+                    newContent = createPacketLogEntry(packet.packet, packet.type) + newContent;
                 }
             });
 
             if (newContent) {
-                newContent += '</div>';  // 마지막 그룹 닫기
                 logDiv.innerHTML = newContent + logDiv.innerHTML;
                 // Unknown 패킷 숨기기 상태 적용
                 updatePacketLogDisplay();
@@ -741,52 +693,54 @@ function updateRecentMessages() {
 }
 
 // 실시간 패킷 로그 관련 함수들
-function updateLivePacketLog() {
-    if (isPaused) return;  // 일시정지 상태면 업데이트하지 않음
+function createLivePacketLogEntry(packet, type, timestamp) {
+    const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
+    const deviceClass = deviceInfo.device === 'Unknown' ? 'unknown-packet' : '';
+    const formattedPacket = packet.raw.match(/.{2}/g).join(' ');
     
+    return `
+        <div class="packet-log-entry ${deviceClass} flex items-center space-x-2 p-2 hover:bg-gray-50 border-b border-gray-100">
+            <span class="packet-timestamp text-gray-500 text-sm">${timestamp}</span>
+            <span class="packet-type ${type === 'send' ? 'text-green-600' : 'text-blue-600'} font-semibold">[${type.toUpperCase()}]</span>
+            <span class="packet-content font-mono">${formattedPacket}</span>
+            <span class="packet-device text-gray-600">[${deviceInfo.device} - ${deviceInfo.packet_type}]</span>
+        </div>
+    `;
+}
+
+function updateLivePacketLog() {
+    if (isPaused) return;
+
     fetch('./api/packet_logs')
         .then(response => response.json())
         .then(data => {
             const logDiv = document.getElementById('livePacketLog');
             let newContent = '';
-            
+
             // 송신 패킷 처리
             data.send.forEach(packet => {
-                const timestamp = new Date().toLocaleTimeString();
-                newContent += createLivePacketLogEntry(packet, 'send', timestamp);
+                if (!liveLastPackets.has('send:' + packet.packet)) {
+                    const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+                    newContent = createLivePacketLogEntry(packet, 'send', timestamp) + newContent;
+                    liveLastPackets.add('send:' + packet.packet);
+                }
             });
-            
+
             // 수신 패킷 처리
             data.recv.forEach(packet => {
-                const timestamp = new Date().toLocaleTimeString();
-                newContent += createLivePacketLogEntry(packet, 'recv', timestamp);
+                if (!liveLastPackets.has('recv:' + packet.packet)) {
+                    const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+                    newContent = createLivePacketLogEntry(packet, 'recv', timestamp) + newContent;
+                    liveLastPackets.add('recv:' + packet.packet);
+                }
             });
-            
+
             if (newContent) {
                 logDiv.innerHTML = newContent + logDiv.innerHTML;
                 // Unknown 패킷 숨기기 상태 적용
                 updateLivePacketLogDisplay();
             }
         });
-}
-
-function createLivePacketLogEntry(packet, type, timestamp) {
-    const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
-    const deviceText = deviceInfo.device !== "Unknown" ? 
-        `${deviceInfo.device} ${deviceInfo.packet_type}` : 
-        "Unknown";
-    
-    const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
-    
-    return `
-        <div class="packet-log-entry p-2 border-b border-gray-200 hover:bg-gray-50 cursor-pointer ${deviceInfo.device === 'Unknown' ? 'opacity-70 unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
-            <div class="flex items-center justify-between">
-                <span class="packet-timestamp text-xs text-gray-500">${timestamp}</span>
-                <span class="packet-type inline-block min-w-[50px] text-sm font-semibold ${type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${type.toUpperCase()}]</span>
-            </div>
-            <div class="packet-content font-mono">${formattedPacket}</div>
-            <div class="packet-device text-sm text-gray-600">[${deviceText}]</div>
-        </div>`;
 }
 
 function clearLivePacketLog() {
