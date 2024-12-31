@@ -211,25 +211,91 @@ function updatePacketLog() {
         .then(response => response.json())
         .then(data => {
             const logDiv = document.getElementById('packetLog');
-            let newContent = '';
+            let packets = [];
             
             // 송신 패킷 처리
-            const newSendPackets = data.send.filter(packet => !lastPackets.has('send:' + packet.packet));
-            newSendPackets.forEach(packet => {
-                const timestamp = new Date().toLocaleTimeString();
-                newContent += createPacketLogEntry(packet, 'send');
+            data.send.forEach(packet => {
+                const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
+                packets.push({
+                    type: 'send',
+                    device: deviceInfo.device,
+                    packet_type: deviceInfo.packet_type,
+                    raw: packet.packet,
+                    isNew: !lastPackets.has('send:' + packet.packet)
+                });
                 lastPackets.add('send:' + packet.packet);
             });
             
             // 수신 패킷 처리
-            const newRecvPackets = data.recv.filter(packet => !lastPackets.has('recv:' + packet.packet));
-            newRecvPackets.forEach(packet => {
-                const timestamp = new Date().toLocaleTimeString();
-                newContent += createPacketLogEntry(packet, 'recv');
+            data.recv.forEach(packet => {
+                const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
+                packets.push({
+                    type: 'recv',
+                    device: deviceInfo.device,
+                    packet_type: deviceInfo.packet_type,
+                    raw: packet.packet,
+                    isNew: !lastPackets.has('recv:' + packet.packet)
+                });
                 lastPackets.add('recv:' + packet.packet);
             });
-            
+
+            // 패킷 정렬
+            packets.sort((a, b) => {
+                // 먼저 기기 타입으로 정렬
+                if (a.device !== b.device) {
+                    if (a.device === 'Unknown') return 1;
+                    if (b.device === 'Unknown') return -1;
+                    return a.device.localeCompare(b.device);
+                }
+                // 같은 기기면 패킷 타입으로 정렬
+                if (a.packet_type !== b.packet_type) {
+                    return a.packet_type.localeCompare(b.packet_type);
+                }
+                // 마지막으로 송수신 타입으로 정렬
+                return a.type.localeCompare(b.type);
+            });
+
+            // 정렬된 패킷을 그룹화하여 표시
+            let currentDevice = '';
+            let currentPacketType = '';
+            let newContent = '';
+
+            packets.forEach(packet => {
+                if (packet.isNew) {
+                    // 새로운 기기 그룹 시작
+                    if (currentDevice !== packet.device) {
+                        if (currentDevice !== '') {
+                            newContent += '</div>';  // 이전 그룹 닫기
+                        }
+                        currentDevice = packet.device;
+                        currentPacketType = '';
+                        newContent += `
+                            <div class="device-group mb-4">
+                            <div class="text-sm font-semibold bg-gray-100 p-2 rounded-t">${packet.device}</div>
+                        `;
+                    }
+                    
+                    // 새로운 패킷 타입 그룹 시작
+                    if (currentPacketType !== packet.packet_type) {
+                        currentPacketType = packet.packet_type;
+                        newContent += `
+                            <div class="text-xs text-gray-600 pl-4 py-1 bg-gray-50">${packet.packet_type}</div>
+                        `;
+                    }
+
+                    // 패킷 내용 추가
+                    const formattedPacket = packet.raw.match(/.{2}/g).join(' ');
+                    newContent += `
+                        <div class="packet-entry p-2 border-b border-gray-100 hover:bg-gray-50 cursor-pointer pl-6" onclick="handlePacketClick('${packet.raw}')">
+                            <span class="inline-block min-w-[50px] mr-2 text-sm font-semibold ${packet.type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${packet.type.toUpperCase()}]</span>
+                            <span class="font-mono">${formattedPacket}</span>
+                        </div>
+                    `;
+                }
+            });
+
             if (newContent) {
+                newContent += '</div>';  // 마지막 그룹 닫기
                 logDiv.innerHTML = newContent + logDiv.innerHTML;
                 // Unknown 패킷 숨기기 상태 적용
                 updatePacketLogDisplay();

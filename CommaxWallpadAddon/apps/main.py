@@ -46,6 +46,7 @@ class QueueItem(TypedDict):
     sendcmd: str
     count: int
     expected_state: Optional[ExpectedStatePacket]
+    received_count: int  # 예상 패킷 수신 횟수를 추적하기 위한 필드
 
     
 class WallpadController:
@@ -58,6 +59,7 @@ class WallpadController:
         self.STATE_TOPIC: str = self.HA_TOPIC + '/{}/{}/state'
         # self.HOMESTATE: Dict[str, str] = {}
         self.QUEUE: List[QueueItem] = []
+        self.min_receive_count: int = self.config.get("min_receive_count", 3)  # 최소 수신 횟수, 기본값 3
         self.COLLECTDATA: CollectData = {
             'send_data': set(),
             'recv_data': set(),
@@ -1034,7 +1036,8 @@ class WallpadController:
                     self.QUEUE.append({
                         'sendcmd': packet_hex, 
                         'count': 0, 
-                        'expected_state': expected_state
+                        'expected_state': expected_state,
+                        'received_count': 0
                     })
                 else:
                     self.logger.error('예상 상태 패킷 생성 실패')
@@ -1071,10 +1074,6 @@ class WallpadController:
             required_bytes = expected_state['required_bytes']
             assert isinstance(required_bytes, (list)), "required_bytes must be a list"
             
-            # 수집된 데이터에서 예상 패킷 확인
-            received_count = 0
-            min_receive_count = self.config.get("min_receive_count", 3)  # 최소 수신 횟수, 기본값 3
-            
             for received_packet in self.COLLECTDATA['recv_data']:
                 if not isinstance(received_packet, str):
                     continue
@@ -1103,11 +1102,11 @@ class WallpadController:
                     match = False
                     
                 if match:
-                    received_count += 1
-                    self.logger.debug(f"예상된 응답을 수신했습니다 ({received_count}/{min_receive_count}): {received_packet}")
+                    send_data['received_count'] += 1
+                    self.logger.debug(f"예상된 응답을 수신했습니다 ({send_data['received_count']}/{self.min_receive_count}): {received_packet}")
                     
-            if received_count >= min_receive_count:
-                self.logger.debug(f"필요한 최소 수신 횟수({min_receive_count})를 달성했습니다.")
+            if send_data['received_count'] >= self.min_receive_count:
+                self.logger.debug(f"필요한 최소 수신 횟수({self.min_receive_count})를 달성했습니다.")
                 return
             
             if send_data['count'] < max_send_count:
@@ -1116,7 +1115,7 @@ class WallpadController:
             else:
                 self.logger.warning(f"최대 전송 횟수 초과. 응답을 받지 못했습니다: {send_data['sendcmd']}")
                     
-        # 예상 상태 정보가 없거나 잘못된 경우
+        # 예상 상태 정보가 없거나 잘못된 경우 재전송 시도만 함.
         else:
             if send_data['count'] < default_send_count:
                 self.logger.debug(f"명령 전송 (횟수 {send_data['count']}/{default_send_count}): {send_data['sendcmd']}")
