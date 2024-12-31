@@ -653,7 +653,7 @@ class WallpadController:
 
                     # 필요한 바이트 리스트에 목표 온도 위치 추가
                     required_bytes.append(int(target_temp_pos))
-                    possible_values[int(target_temp_pos)] = [decimal_to_hex_str(target_temp)]
+                    possible_values[int(target_temp_pos)] = [byte_to_hex_str(target_temp)]
             
             #on off 타입 기기
             elif device_type == 'Light' or device_type == 'LightBreaker':
@@ -850,9 +850,9 @@ class WallpadController:
                                 power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
                                 # 온도값을 10진수로 직접 해석
-                                current_temp = int(format(byte_data[int(field_positions.get('currentTemp', 3))], '02x'))
-                                target_temp = int(format(byte_data[int(field_positions.get('targetTemp', 4))], '02x'))
-                                power_hex = format(power, '02x').upper()
+                                current_temp = int(decimal_to_hex_str(byte_data[int(field_positions.get('currentTemp', 3))]))
+                                target_temp = int(decimal_to_hex_str(byte_data[int(field_positions.get('targetTemp', 4))]))
+                                power_hex = byte_to_hex_str(power)
                                 power_values = state_structure['structure'][power_pos]['values']
                                 power_off_hex = power_values.get('off', '').upper()
                                 power_heating_hex = power_values.get('heating', '').upper()
@@ -865,7 +865,7 @@ class WallpadController:
                                 power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
                                 power_values = state_structure['structure'][power_pos]['values']
-                                power_hex = format(power, '02x').upper()
+                                power_hex = byte_to_hex_str(power)
                                 state = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
@@ -875,7 +875,7 @@ class WallpadController:
                                 power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
                                 power_values = state_structure['structure'][power_pos]['values']
-                                power_hex = format(power, '02x').upper()
+                                power_hex = byte_to_hex_str(power)
                                 state = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 조명차단기 ### {device_id}번, 상태: {state}')
@@ -885,7 +885,7 @@ class WallpadController:
                                 power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
                                 power_values = state_structure['structure'][power_pos]['values']
-                                power_hex = format(power, '02x').upper()
+                                power_hex = byte_to_hex_str(power)
                                 power_text = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
                                 #TODO 전력량 지원.. 
                                 watt_pos = field_positions.get('watt', 5)
@@ -897,12 +897,12 @@ class WallpadController:
                                 power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
                                 power_values = state_structure['structure'][power_pos]['values']
-                                power_hex = format(power, '02x').upper()
+                                power_hex = byte_to_hex_str(power)
                                 power_text = "OFF" if power_hex == power_values.get('off', '').upper() else "ON"
                                 speed_pos = field_positions.get('speed', 3)  
                                 speed = byte_data[int(speed_pos)]
                                 speed_values = state_structure['structure'][speed_pos]['values']
-                                speed_hex = format(speed, '02x').upper()
+                                speed_hex = byte_to_hex_str(speed)
                                 speed_text = speed_values.get(speed_hex, 'low')
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 환기장치 ### {device_id}번, 상태: {power_text}, 속도: {speed_text}')
@@ -912,12 +912,12 @@ class WallpadController:
                                 power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
                                 power_values = state_structure['structure'][power_pos]['values']
-                                power_hex = format(power, '02x').upper()
+                                power_hex = byte_to_hex_str(power)
                                 power_text = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
                                 floor_pos = field_positions.get('floor', 3)
                                 floor = byte_data[int(floor_pos)]
                                 floor_values = state_structure['structure'][floor_pos]['values']
-                                floor_hex = format(floor, '02x').upper()
+                                floor_hex = byte_to_hex_str(floor)
                                 floor_text = floor_values.get(floor_hex, 'B')
                                 self.logger.signal(f'{byte_data.hex()}: 엘리베이터 ### {device_id}번, 상태: {power_text}, 층: {floor_text}')
                                 await self.update_ev(device_id, power_text, floor_text)

@@ -9,7 +9,7 @@ def byte_to_hex_str(byte_val: int) -> str:
     Returns:
         str: 16진수 문자열 (예: "82")
     """
-    return format(byte_val, '02X')
+    return format(byte_val, '02X').upper()
 
 def decimal_to_hex_str(decimal_val: int) -> str:
     """16진수를 10진수로 읽고 문자열로 변환하는 유틸리티 함수
