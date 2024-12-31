@@ -518,8 +518,8 @@ class WallpadController:
                             "action_state_topic": self.STATE_TOPIC.format(device_id, "action"),
                             "modes": ["off", "heat"],
                             "temperature_unit": "C",
-                            "min_temp": self.config.get('climate_min_temp',5),
-                            "max_temp": self.config.get('climate_max_temp',40),
+                            "min_temp": int(self.config.get('climate_min_temp',5)),
+                            "max_temp": int(self.config.get('climate_max_temp',40)),
                             "temp_step": 1,
                         }
                     elif device_type == 'button':  # 버튼형 기기 (가스밸브, 엘리베이터 호출)
@@ -1003,11 +1003,14 @@ class WallpadController:
                 elif state == 'setTemp':
                     try:
                         set_temp = int(float(value))
-                    except Exception as e:
-                        self.logger.error(f"잘못된 온도입니다: {e}")
-                        return
-                    if set_temp > self.config.get('climate_max_temp',40) or set_temp < self.config.get('climate_min_temp',5):
-                        self.logger.error(f"잘못된 온도입니다: {set_temp}")
+                        min_temp = int(self.config.get('climate_min_temp', 5))
+                        max_temp = int(self.config.get('climate_max_temp', 40))
+                        
+                        if not min_temp <= set_temp <= max_temp:
+                            self.logger.error(f"설정 온도가 허용 범위를 벗어났습니다: {set_temp}°C (허용범위: {min_temp}~{max_temp}°C)")
+                            return
+                    except ValueError as e:
+                        self.logger.error(f"온도 값이 올바르지 않습니다: {value}")
                         return
                     packet_hex = self.make_climate_command(device_id, set_temp, 'commandCHANGE')
                 self.logger.debug(f'온도조절기 {device_id} {state} {value} 명령 생성 {packet_hex}')
@@ -1081,7 +1084,7 @@ class WallpadController:
                     received_bytes = bytes.fromhex(received_packet)
                 except ValueError:
                     continue
-                    
+                self.logger.debug(f'비교중인 수신 패킷: {received_bytes}')
                 # 필수 바이트 위치의 값들이 모두 일치하는지 확인
                 match = True
                 try:
@@ -1089,13 +1092,13 @@ class WallpadController:
                         if not isinstance(pos, int):
                             match = False
                             break
-                            
                         if len(received_bytes) <= pos:
                             match = False
                             break
                             
                         # possible_values[pos]가 비어있지 않은 경우에만 검사
                         if possible_values[pos]:
+                            self.logger.debug(f'{pos}번째 패킷 비교중. required: {possible_values[pos]}, received: {received_bytes[pos]}')
                             if received_bytes[pos] not in possible_values[pos]:
                                 match = False
                                 break
