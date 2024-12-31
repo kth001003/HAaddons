@@ -24,7 +24,7 @@ def decimal_to_hex_str(decimal_val: int) -> str:
     hex_str = format(decimal_val, '02x')
     if any(c in hex_str.upper() for c in ['A','B','C','D','E','F']):
         raise ValueError(f'16진수 값에 A~F가 포함되어 있습니다: {hex_str}')
-    result = format(decimal_val, '02x')
+    result = format(bytes.fromhex(str(decimal_val))[0], '02x')
     return str(result)
 
 def checksum(input_hex: str) -> str | None:
