@@ -11,6 +11,7 @@ import re
 import telnetlib3 # type: ignore
 import shutil
 from web_server import WebServer
+from utils import byte_to_hex_str, decimal_to_hex_str, checksum, pad
 
 T = TypeVar('T')
 
@@ -72,46 +73,6 @@ class WallpadController:
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.load_devices_and_packets_structures() # 기기 정보와 패킷 정보를 로드 to self.DEVICE_STRUCTURE
         self.web_server = WebServer(self)
-
-    # 유틸리티 함수들
-    @staticmethod
-    def byte_to_hex(byte_val: int) -> str:
-        """바이트를 16진수 문자열로 변환하는 유틸리티 함수
-        
-        Args:
-            byte_val (int): 바이트 값 (예: 0x82)
-            
-        Returns:
-            str: 16진수 문자열 (예: "82")
-        """
-        return format(byte_val, '02X')
-
-    @staticmethod
-    def checksum(input_hex: str) -> Optional[str]:
-        """
-        input_hex에 checksum을 붙여주는 함수
-        
-        Args:
-            input_hex (str): 기본 16진수 명령어 문자열
-        
-        Returns:
-            str: 체크섬이 포함된 수정된 16진수 명령어. 실패시 None 반환
-        """
-        try:
-            input_hex = input_hex[:14]
-            s1 = sum([int(input_hex[val], 16) for val in range(0, 14, 2)])
-            s2 = sum([int(input_hex[val + 1], 16) for val in range(0, 14, 2)])
-            s1 = s1 + int(s2 // 16)
-            s1 = s1 % 16
-            s2 = s2 % 16
-            return input_hex + format(s1, 'X') + format(s2, 'X')
-        except:
-            return None
-
-    @staticmethod
-    def pad(value: Union[int, str]) -> str:
-        value = int(value)
-        return '0' + str(value) if value < 10 else str(value)
 
     def load_devices_and_packets_structures(self) -> None:
         """
@@ -346,7 +307,7 @@ class WallpadController:
                 raw_data = msg.payload.hex().upper()
                 for k in range(0, len(raw_data), 16):
                     data = raw_data[k:k + 16]
-                    if data == self.checksum(data) and data[:2] in state_prefixes:
+                    if data == checksum(data) and data[:2] in state_prefixes:
                         name = state_prefixes[data[:2]]
                         device_structure = self.DEVICE_STRUCTURE[name]
                         device_id_position = int(device_structure["state"]["structure"]["2"]["name"] == "deviceId" 
@@ -575,7 +536,7 @@ class WallpadController:
             # 헤더 설정
             packet[0] = int(command["header"], 16)
             
-            # 기기 번호 설정 - 10진수로 직접 설정
+            # 기기 번호 설정 
             device_id_pos = command["fieldPositions"]["deviceId"]
             packet[int(device_id_pos)] = device_id
             
@@ -591,7 +552,7 @@ class WallpadController:
                 packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["on"], 16)
             elif command_type == 'commandCHANGE':
                 packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["change"], 16)
-                packet[int(value_pos)] = int(str(target_temp),16)
+                packet[int(value_pos)] = int(decimal_to_hex_str(target_temp), 16)
             else:
                 self.logger.error(f'잘못된 명령 타입: {command_type}')
                 return None
@@ -600,7 +561,7 @@ class WallpadController:
             packet_hex = packet.hex().upper()
             
             # 체크섬 추가하여 return
-            return self.checksum(packet_hex)
+            return checksum(packet_hex)
         
         except KeyError as e:
             # DEVICE_STRUCTURE에 필요한 키가 없는 경우
@@ -663,7 +624,7 @@ class WallpadController:
             # 기기 ID
             device_id_pos = state_field_positions.get('deviceId', 2)
             required_bytes.append(int(device_id_pos))
-            possible_values[int(device_id_pos)] = [self.byte_to_hex(command_packet[int(command_field_positions.get('deviceId', 1))])]
+            possible_values[int(device_id_pos)] = [byte_to_hex_str(command_packet[int(command_field_positions.get('deviceId', 1))])]
 
             if device_type == 'Thermo':
                 # 온도조절기 상태 패킷 생성
@@ -687,11 +648,12 @@ class WallpadController:
 
                 elif command_type == int(command_structure[str(command_type_pos)]['values']['change'], 16): #03
                     target_temp = command_packet[int(value_pos)]
+
                     target_temp_pos = state_field_positions.get('targetTemp', 4)
 
                     # 필요한 바이트 리스트에 목표 온도 위치 추가
                     required_bytes.append(int(target_temp_pos))
-                    possible_values[int(target_temp_pos)] = [str(target_temp)]
+                    possible_values[int(target_temp_pos)] = [decimal_to_hex_str(target_temp)]
             
             #on off 타입 기기
             elif device_type == 'Light' or device_type == 'LightBreaker':
@@ -777,8 +739,8 @@ class WallpadController:
             
             # 온도 상태 업데이트
             temperature = {
-                'curTemp': self.pad(curTemp),
-                'setTemp': self.pad(setTemp)
+                'curTemp': pad(curTemp),
+                'setTemp': pad(setTemp)
             }
             for state in temperature:
                 # key = deviceID + state
@@ -871,7 +833,7 @@ class WallpadController:
             
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
-                if data == self.checksum(data):
+                if data == checksum(data):
                     self.COLLECTDATA['recv_data'].add(data)
                     if len(self.COLLECTDATA['recv_data']) > 100:
                         self.COLLECTDATA['recv_data'] = set(list(self.COLLECTDATA['recv_data'])[-100:])
@@ -1031,7 +993,7 @@ class WallpadController:
                 self.logger.debug(f'환기장치 {device_id} {state} {value} 명령 생성 {packet.hex().upper()}')
             if packet_hex is None:
                 packet_hex = packet.hex().upper()
-                packet_hex = self.checksum(packet_hex)
+                packet_hex = checksum(packet_hex)
 
             if packet_hex:
                 expected_state = self.generate_expected_state_packet(packet_hex)
@@ -1084,7 +1046,6 @@ class WallpadController:
                     received_bytes = bytes.fromhex(received_packet)
                 except ValueError:
                     continue
-                self.logger.debug(f'비교중인 수신 패킷: {received_bytes}')
                 # 필수 바이트 위치의 값들이 모두 일치하는지 확인
                 match = True
                 try:
@@ -1098,8 +1059,7 @@ class WallpadController:
                             
                         # possible_values[pos]가 비어있지 않은 경우에만 검사
                         if possible_values[pos]:
-                            self.logger.debug(f'{pos}번째 패킷 비교중. required: {possible_values[pos]}, received: {self.byte_to_hex(received_bytes[pos])}')
-                            if self.byte_to_hex(received_bytes[pos]) not in possible_values[pos]:
+                            if byte_to_hex_str(received_bytes[pos]) not in possible_values[pos]:
                                 match = False
                                 break
                             
@@ -1112,7 +1072,6 @@ class WallpadController:
                     self.logger.debug(f"예상된 응답을 수신했습니다 ({send_data['received_count']}/{self.min_receive_count}): {received_packet}")
                     
             if send_data['received_count'] >= self.min_receive_count:
-                self.logger.debug(f"필요한 최소 수신 횟수({self.min_receive_count})를 달성했습니다.")
                 return
             
             if send_data['count'] < max_send_count:

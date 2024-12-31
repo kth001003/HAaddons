@@ -9,6 +9,7 @@ import yaml # type: ignore
 import shutil
 from datetime import datetime
 import requests
+from utils import checksum
 
 class WebServer:
     def __init__(self, wallpad_controller):
@@ -339,7 +340,7 @@ class WebServer:
                 packet_type = data.get('type', 'command')  # 'command' 또는 'state'
 
                 # 체크섬 계산
-                checksum_result = self.wallpad_controller.checksum(command)
+                checksum_result = checksum(command)
 
                 # 패킷 구조 분석
                 analysis_result = self._analyze_packet_structure(command, packet_type)
@@ -456,7 +457,7 @@ class WebServer:
                     return jsonify({"success": False, "error": "패킷이 비어있습니다."}), 400
                 
                 # 패킷 체크섬 검증
-                if packet != self.wallpad_controller.checksum(packet):
+                if packet != checksum(packet):
                     return jsonify({"success": False, "error": "잘못된 패킷입니다."}), 400
                 
                 # 패킷을 bytes로 변환하여 MQTT로 발행
