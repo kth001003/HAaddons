@@ -551,7 +551,6 @@ function loadConfig() {
             // 스키마 기반으로 설정 UI 생성
             for (const [key, value] of Object.entries(data.config)) {
                 const schema = data.schema[key] || '';
-                console.log(schema);
                 const fieldDiv = document.createElement('div');
                 fieldDiv.className = 'border-b border-gray-200 pb-4';
 
@@ -592,7 +591,7 @@ function loadConfig() {
                     input = document.createElement('select');
                     input.className = 'form-select block w-full rounded-md border-gray-300';
                     // list(commax|custom) 형식에서 옵션 추출
-                    const options = schema.split('(')[1].rstrip('?)').split('|');
+                    const options = schema.split('(')[1].replace('?)', '').replace(')', '').split('|');
                     options.forEach(option => {
                         const optionElement = document.createElement('option');
                         optionElement.value = option;
@@ -605,15 +604,96 @@ function loadConfig() {
                     input.type = 'number';
                     input.value = value;
                     input.className = 'form-input block w-full rounded-md border-gray-300';
+                    
+                    // 최소/최대값 추출 및 적용
+                    if (schema.includes('(')) {
+                        const rangeMatch = schema.match(/\(([^)]+)\)/);
+                        if (rangeMatch) {
+                            const [min, max] = rangeMatch[1].split(',').map(v => v.trim());
+                            if (min) input.min = min;
+                            if (max) input.max = max;
+                            
+                            // 툴팁에 허용 범위 표시
+                            input.title = `허용 범위: ${min || '제한없음'} ~ ${max || '제한없음'}`;
+                            
+                            // 실시간 유효성 검사를 위한 이벤트 리스너
+                            input.addEventListener('input', function() {
+                                const val = schemaType === 'int' ? parseInt(this.value) : parseFloat(this.value);
+                                if (min && val < parseFloat(min)) {
+                                    this.setCustomValidity(`최소값은 ${min}입니다.`);
+                                } else if (max && val > parseFloat(max)) {
+                                    this.setCustomValidity(`최대값은 ${max}입니다.`);
+                                } else {
+                                    this.setCustomValidity('');
+                                }
+                            });
+                        }
+                    }
+                    
                     if (schemaType === 'float') {
                         input.step = '0.01';
+                    } else {
+                        input.step = '1';
                     }
+                } else if (schema === 'match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)') {
+                    input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = value;
+                    input.className = 'form-input block w-full rounded-md border-gray-300';
+                    input.pattern = '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$';
+                    input.title = 'IP 주소 형식 (예: 192.168.0.1)';
+                    
+                    // IP 주소 유효성 검사
+                    input.addEventListener('input', function() {
+                        const regex = new RegExp(this.pattern);
+                        if (!regex.test(this.value)) {
+                            this.setCustomValidity('올바른 IP 주소 형식이 아닙니다.');
+                        } else {
+                            this.setCustomValidity('');
+                        }
+                    });
+                } else if (schemaType === 'match') {
+                    input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = value;
+                    input.className = 'form-input block w-full rounded-md border-gray-300';
+                    
+                    // match(정규식) 형식에서 정규식 추출
+                    const pattern = schema.split('(')[1].replace('?)', '').replace(')', '');
+                    input.pattern = pattern;
+                    
+                    // IP 주소인 경우 특별한 툴팁 제공
+                    if (pattern === '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$') {
+                        input.title = 'IP 주소 형식 (예: 192.168.0.1)';
+                    } else {
+                        input.title = `형식: ${pattern}`;
+                    }
+                    
+                    // 실시간 유효성 검사
+                    input.addEventListener('input', function() {
+                        const regex = new RegExp(this.pattern);
+                        if (!regex.test(this.value)) {
+                            if (pattern === '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$') {
+                                this.setCustomValidity('올바른 IP 주소 형식이 아닙니다.');
+                            } else {
+                                this.setCustomValidity('올바른 형식이 아닙니다.');
+                            }
+                        } else {
+                            this.setCustomValidity('');
+                        }
+                    });
+                } else if (schemaType === 'str') {
+                    input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = value;
+                    input.className = 'form-input block w-full rounded-md border-gray-300';
                 } else {
                     input = document.createElement('input');
                     input.type = 'text';
                     input.value = value;
                     input.className = 'form-input block w-full rounded-md border-gray-300';
                 }
+
                 input.id = `config-${key}`;
                 input.dataset.key = key;
                 input.dataset.type = schemaType;
@@ -669,18 +749,39 @@ function saveConfig() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(configData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        // 유효성 검사 실패 등의 즉각적인 오류 처리
+        if (!data.success) {
+            if (data.error === '유효성 검사 실패' && data.details) {
+                const errorMessage = ['유효성 검사 실패:'].concat(data.details).join('\n');
+                showConfigMessage(errorMessage, true);
+                throw new Error('validation_failed');
+            } else {
+                showConfigMessage(data.error || '설정 저장 실패', true);
+                throw new Error('save_failed');
+            }
+        }
+    })
+    .catch(error => {
+        // 유효성 검사 실패나 명시적인 저장 실패가 아닌 경우는 재시작으로 인한 연결 끊김으로 간주
+        if (error.message !== 'validation_failed' && error.message !== 'save_failed') {
+            console.log('애드온이 재시작되는 중입니다...');
+            // 10초 후에 페이지 새로고침
+            setTimeout(() => {
+                window.location.reload();
+            }, 10000);
+        } else {
+            console.error('설정 저장 실패:', error);
+        }
     });
-
-    // 응답을 기다리지 않고 타이머 시작
-    setTimeout(() => {
-        window.location.reload();
-    }, 5000);
 }
 
 function showConfigMessage(message, isError) {
     const messageElement = document.getElementById('configMessage');
-    messageElement.textContent = message;
-    messageElement.className = `text-sm ${isError ? 'text-red-600' : 'text-green-600'}`;
+    messageElement.innerHTML = message.replace(/\n/g, '<br>');
+    messageElement.className = `text-sm ${isError ? 'text-red-600' : 'text-green-600'} whitespace-pre-line`;
 }
 
 // 이벤트 리스너 추가

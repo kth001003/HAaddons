@@ -138,18 +138,32 @@ class WebServer:
         @self.app.route('/api/config', methods=['GET'])
         def get_config():
             """CONFIG 객체의 내용과 스키마를 제공합니다."""
-            try:
-                # 설정 파일 읽기
-                with open('/data/options.json', 'r', encoding='utf-8') as f:
-                    options = json.load(f)
-                
-                return jsonify({
-                    'config': self.wallpad_controller.config,
-                    'schema': options.get('schema', {})  # 스키마 정보 포함
-                })
-            except Exception as e:
-                return jsonify({'error': str(e)}), 500
-
+            # 하드코딩된 schema 정보 from config.json
+            schema = {
+                "DEBUG": "bool",
+                "mqtt_log": "bool",
+                "elfin_log": "bool",
+                "vendor": "list(commax|custom)",
+                "queue_interval_in_second": "float(0.01,1.0)",
+                "max_send_count": "int(1,99)",
+                "min_receive_count": "int(1,9)",
+                "climate_min_temp": "int(0,19)",
+                "climate_max_temp": "int(20,99)",
+                "mqtt_server": "match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)",
+                "mqtt_id": "str",
+                "mqtt_password": "str",
+                "mqtt_TOPIC": "str",
+                "elfin_auto_reboot": "bool",
+                "elfin_server": "match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)?",
+                "elfin_id": "str?",
+                "elfin_password": "str?",
+                "elfin_reboot_interval": "int"
+            }
+            return jsonify({
+                'config': self.wallpad_controller.config,
+                'schema': schema
+            })
+        
         @self.app.route('/api/config', methods=['POST'])
         def save_config():
             """설정을 저장하고 컨트롤러에 적용합니다."""
@@ -181,12 +195,26 @@ class WebServer:
                             # 타입 검사
                             if schema_type == 'int':
                                 try:
-                                    int(value)
+                                    val = int(value)
+                                    # int(min,max) 형식에서 범위 추출
+                                    if '(' in field_schema:
+                                        range_str = field_schema.split('(')[1].rstrip('?)')
+                                        if ',' in range_str:
+                                            min_val, max_val = map(int, range_str.split(','))
+                                            if val < min_val or val > max_val:
+                                                validation_errors.append(f"{key}: {min_val}에서 {max_val} 사이의 값이어야 합니다.")
                                 except (ValueError, TypeError):
                                     validation_errors.append(f"{key}: 정수여야 합니다.")
                             elif schema_type == 'float':
                                 try:
-                                    float(value)
+                                    val = float(value)
+                                    # float(min,max) 형식에서 범위 추출
+                                    if '(' in field_schema:
+                                        range_str = field_schema.split('(')[1].rstrip('?)')
+                                        if ',' in range_str:
+                                            min_val, max_val = map(float, range_str.split(','))
+                                            if val < min_val or val > max_val:
+                                                validation_errors.append(f"{key}: {min_val}에서 {max_val} 사이의 값이어야 합니다.")
                                 except (ValueError, TypeError):
                                     validation_errors.append(f"{key}: 실수여야 합니다.")
                             elif schema_type == 'bool':
@@ -200,6 +228,16 @@ class WebServer:
                             elif schema_type == 'str':
                                 if not isinstance(value, str):
                                     validation_errors.append(f"{key}: 문자열이어야 합니다.")
+                            elif schema_type == 'match':
+                                if not isinstance(value, str):
+                                    validation_errors.append(f"{key}: 문자열이어야 합니다.")
+                                else:
+                                    # match(정규식) 형식에서 정규식 추출
+                                    pattern = field_schema.split('(')[1].rstrip('?)').rstrip(')')
+                                    import re
+                                    if not re.match(pattern, value):
+                                        validation_errors.append(f"{key}: 올바른 형식이 아닙니다. (형식: {pattern})")
+                                    
 
                 if validation_errors:
                     return jsonify({
@@ -246,7 +284,7 @@ class WebServer:
                             'success': False,
                             'error': f'애드온 재시작 실패: {restart_response.text}'
                         }), 500
-
+                    #전달되지 못할 response..
                     return jsonify({'success': True, 'message': '설정이 저장되었습니다. 애드온을 재시작합니다.'})
 
                 except Exception as e:
