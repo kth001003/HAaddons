@@ -329,9 +329,36 @@ class WebServer:
 
         @self.app.route('/api/find_devices', methods=['POST'])
         def find_devices():
-            self.wallpad_controller.device_list = self.wallpad_controller.find_device()
-            return jsonify({"success": True})
-            
+            try:
+                # 기존 기기 목록 파일 삭제
+                if os.path.exists('/share/commax_found_device.json'):
+                    os.remove('/share/commax_found_device.json')
+                
+                # Supervisor API를 통해 애드온 재시작
+                headers = {
+                    'Authorization': f'Bearer {os.environ.get("SUPERVISOR_TOKEN", "")}',
+                    'Content-Type': 'application/json'
+                }
+                
+                response = requests.post(
+                    'http://supervisor/addons/self/restart',
+                    headers=headers
+                )
+
+                if response.status_code != 200:
+                    return jsonify({
+                        'success': False,
+                        'error': f'애드온 재시작 실패: {response.text}'
+                    }), 500
+                # 전달되지 못할 response..
+                return jsonify({'success': True})
+
+            except Exception as e:
+                return jsonify({
+                    'success': False,
+                    'error': str(e)
+                }), 500
+
         @self.app.route('/api/analyze_packet', methods=['POST'])
         def analyze_packet():
             try:
@@ -665,7 +692,7 @@ class WebServer:
         #         packet = list('00' * 7)
         #         packet[0] = structure['header']
         #         packet[1] = '01'  # 1번 온도조절기
-        #         packet[2] = '03'  # 온도 설���
+        #         packet[2] = '03'  # 온도 설정
         #         packet[3] = '18'  # 24도
         #         examples.append({
         #             "packet": ''.join(packet),

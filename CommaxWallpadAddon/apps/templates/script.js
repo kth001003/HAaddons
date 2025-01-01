@@ -38,6 +38,22 @@ function showPage(pageId) {
 // ===============================
 // 기기 목록 관련 함수
 // ===============================
+function refreshDevices() {
+    if (!confirm('기기를 다시 검색하기 위해 애드온을 재시작합니다. 이 작업은 30초정도 걸립니다. 계속하시겠습니까?')) {
+        return;
+    }
+
+    fetch('./api/find_devices', {
+        method: 'POST'
+    });
+
+    // 응답을 기다리지 않고 바로 알림 표시 및 타이머 시작
+    alert('애드온이 재시작됩니다. 30초 후 페이지를 새로고침해주세요.');
+    setTimeout(() => {
+        window.location.reload();
+    }, 29000);
+}
+
 function updateDeviceList() {
     fetch('./api/devices')
         .then(response => response.json())
@@ -535,6 +551,7 @@ function loadConfig() {
             // 스키마 기반으로 설정 UI 생성
             for (const [key, value] of Object.entries(data.config)) {
                 const schema = data.schema[key] || '';
+                console.log(schema);
                 const fieldDiv = document.createElement('div');
                 fieldDiv.className = 'border-b border-gray-200 pb-4';
 
@@ -589,11 +606,11 @@ function loadConfig() {
                     input.value = value;
                     input.className = 'form-input block w-full rounded-md border-gray-300';
                     if (schemaType === 'float') {
-                        input.step = '0.1';
+                        input.step = '0.01';
                     }
                 } else {
                     input = document.createElement('input');
-                    input.type = key.includes('password') ? 'password' : 'text';
+                    input.type = 'text';
                     input.value = value;
                     input.className = 'form-input block w-full rounded-md border-gray-300';
                 }
@@ -645,6 +662,19 @@ function saveConfig() {
 
     showConfigMessage('설정을 저장하고 애드온을 재시작하는 중...', false);
 
+    // 설정 저장 API 호출
+    fetch('./api/config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(configData)
+    });
+
+    // 응답을 기다리지 않고 타이머 시작
+    setTimeout(() => {
+        window.location.reload();
+    }, 5000);
 }
 
 function showConfigMessage(message, isError) {
@@ -799,24 +829,9 @@ function changeVendorToCustom() {
                 },
                 body: JSON.stringify(configData)
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showPacketEditorMessage('vendor 설정이 custom으로 변경되었습니다. 애드온이 재시작됩니다...', false);
-                    document.getElementById('vendorWarning').classList.add('hidden');
-                    // 설정 페이지 업데이트
-                    setTimeout(loadConfig, 1000);
-                } else {
-                    let errorMessage = 'vendor 설정 변경 실패: ' + (data.error || '알 수 없는 오류');
-                    if (data.details) {
-                        errorMessage += '\n' + data.details.join('\n');
-                    }
-                    showPacketEditorMessage(errorMessage, true);
-                }
-            })
-            .catch(error => {
-                showPacketEditorMessage('vendor 설정 변경 중 오류가 발생했습니다: ' + error, true);
-            });
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
     })
 }
 
