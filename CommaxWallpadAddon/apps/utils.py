@@ -11,22 +11,6 @@ def byte_to_hex_str(byte_val: int) -> str:
     """
     return format(byte_val, '02X').upper()
 
-def decimal_to_hex_str(decimal_val: int) -> str:
-    """16진수를 10진수로 읽고 문자열로 변환하는 유틸리티 함수
-    
-    Args:
-        decimal_val (int): 16진수 포맷으로 이루어진 10진수 값 (예: 0x82)
-        
-    Returns:
-        str: 16진수 문자열 (예: "82")
-    """
-    # A~F가 포함된 16진수 값이 들어오면 에러 발생
-    hex_str = format(decimal_val, '02x')
-    if any(c in hex_str.upper() for c in ['A','B','C','D','E','F']):
-        raise ValueError(f'16진수 값에 A~F가 포함되어 있습니다: {hex_str}')
-    result = format(bytes.fromhex(str(decimal_val))[0], '02x')
-    return str(result)
-
 def checksum(input_hex: str) -> str | None:
     """
     input_hex에 checksum을 붙여주는 함수

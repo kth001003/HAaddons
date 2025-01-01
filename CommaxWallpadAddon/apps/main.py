@@ -11,7 +11,7 @@ import re
 import telnetlib3 # type: ignore
 import shutil
 from web_server import WebServer
-from utils import byte_to_hex_str, decimal_to_hex_str, checksum, pad
+from utils import byte_to_hex_str, checksum, pad
 
 T = TypeVar('T')
 
@@ -59,7 +59,6 @@ class WallpadController:
         self.ELFIN_TOPIC: str = 'ew11'
         self.HA_TOPIC: str = config['mqtt_TOPIC']
         self.STATE_TOPIC: str = self.HA_TOPIC + '/{}/{}/state'
-        # self.HOMESTATE: Dict[str, str] = {}
         self.QUEUE: List[QueueItem] = []
         self.min_receive_count: int = self.config.get("min_receive_count", 3)  # 최소 수신 횟수, 기본값 3
         self.COLLECTDATA: CollectData = {
@@ -552,7 +551,7 @@ class WallpadController:
                 packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["on"], 16)
             elif command_type == 'commandCHANGE':
                 packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["change"], 16)
-                packet[int(value_pos)] = int(decimal_to_hex_str(target_temp), 16)
+                packet[int(value_pos)] = int(str(target_temp), 16)
             else:
                 self.logger.error(f'잘못된 명령 타입: {command_type}')
                 return None
@@ -747,7 +746,6 @@ class WallpadController:
                 val = temperature[state]
                 topic = self.STATE_TOPIC.format(deviceID, state)
                 self.publish_mqtt(topic, val)
-                # self.HOMESTATE[deviceID + state] = val
             
             power_topic = self.STATE_TOPIC.format(deviceID, 'power')
             action_topic = self.STATE_TOPIC.format(deviceID, 'action')
@@ -1013,15 +1011,12 @@ class WallpadController:
     async def process_queue(self) -> None:
         """큐에 있는 모든 명령을 처리하고 예상되는 응답을 확인합니다."""
         max_send_count = self.config.get("max_send_count", 20)
-
-        
         if not self.QUEUE:
             return
         
         send_data = self.QUEUE.pop(0)
         
         try:
-            # 먼저 명령 전송
             cmd_bytes = bytes.fromhex(send_data['sendcmd'])
             self.publish_mqtt(f'{self.ELFIN_TOPIC}/send', cmd_bytes)
             send_data['count'] += 1
@@ -1030,7 +1025,6 @@ class WallpadController:
             return
             
         expected_state = send_data.get('expected_state')
-        
         if (isinstance(expected_state, dict) and 
             isinstance(expected_state.get('required_bytes'), list) and 
             isinstance(expected_state.get('possible_values'), list)):
@@ -1041,23 +1035,23 @@ class WallpadController:
             for received_packet in self.COLLECTDATA['recv_data']:
                 if not isinstance(received_packet, str):
                     continue
-                    
+
                 try:
                     received_bytes = bytes.fromhex(received_packet)
                 except ValueError:
                     continue
-                # 필수 바이트 위치의 값들이 모두 일치하는지 확인
                 match = True
                 try:
                     for pos in required_bytes:
                         if not isinstance(pos, int):
+                            self.logger.error(f"패킷 비교 중 오류 발생: {pos}는 정수가 아닙니다.")
                             match = False
                             break
                         if len(received_bytes) <= pos:
+                            self.logger.error(f"패킷 비교 중 오류 발생: {pos}는 바이트 배열의 길이보다 큽니다.")
                             match = False
                             break
                             
-                        # possible_values[pos]가 비어있지 않은 경우에만 검사
                         if possible_values[pos]:
                             if byte_to_hex_str(received_bytes[pos]) not in possible_values[pos]:
                                 match = False
@@ -1076,7 +1070,7 @@ class WallpadController:
             
             if send_data['count'] < max_send_count:
                 self.logger.debug(f"명령 재전송 예약 (시도 {send_data['count']}/{max_send_count}): {send_data['sendcmd']}")
-                self.QUEUE.append(send_data)
+                self.QUEUE.insert(0, send_data)
             else:
                 self.logger.warning(f"최대 전송 횟수 초과. 응답을 받지 못했습니다: {send_data['sendcmd']}")
                     
@@ -1084,7 +1078,7 @@ class WallpadController:
         else:
             if send_data['count'] < max_send_count:
                 self.logger.debug(f"명령 전송 (횟수 {send_data['count']}/{max_send_count}): {send_data['sendcmd']}")
-                self.QUEUE.append(send_data)
+                self.QUEUE.insert(0, send_data)
         
         await asyncio.sleep(0.05)
 
@@ -1093,7 +1087,7 @@ class WallpadController:
         메시지 큐를 주기적으로 처리하고 기기 상태를 모니터링하는 함수입니다.
 
         1ms 간격으로 다음 작업들을 수행합니다:
-        1. 큐에 있는 메시지 처리 (100ms 이상 통신이 없을 때)
+        1. 큐에 있는 메시지 처리 (130ms 이상 통신이 없을 때)
         2. ew11 기기 상태 모니터링 및 필요시 재시작
 
         Args:
@@ -1102,6 +1096,7 @@ class WallpadController:
         Raises:
             Exception: 큐 처리 또는 기기 재시작 중 오류 발생시 예외를 발생시킵니다.
         """
+        queue_interval = self.config.get("queue_interval_in_second",0.01)
         while True:
             try:
                 current_time = time.time_ns()
@@ -1114,14 +1109,14 @@ class WallpadController:
                     if (self.config.get("elfin_auto_reboot",True)):
                         self.logger.warning('EW11 재시작을 시도합니다.')
                         await self.reboot_elfin_device()
-                if signal_interval > 150: #150ms이상 여유있을 때 큐 실행
+                if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
                     await self.process_queue()
                 
             except Exception as err:
                 self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
                 return True
             
-            await asyncio.sleep(self.config.get("queue_interval_in_second",0.01)) #10ms
+            await asyncio.sleep(queue_interval) #10ms
 
     # 메인 실행 함수
     def run(self) -> None:
