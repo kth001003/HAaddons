@@ -73,13 +73,13 @@ EW11 관리페이지의 Community Settings에서 mqtt를 추가하고 다음과 
 - `elfin_reboot_interval`: EW11 자동 재부팅 간격, 설정된 시간만큼 ew11로부터 신호를 받지 못하면 재부팅을 시도합니다. (초 단위, 기본값: 60)
 
 ### 기타 설정
-- `queue_interval_in_second`: 명령패킷 전송 간격 (초 단위, 기본값: 0.1 (100ms)), 상태패킷 수신이 150ms 이상 유휴중일때만 명령패킷을 전송합니다.
-- `max_send_count`: 명령패킷 최대 재시도 횟수 (기본값: 15)
-- `min_receive_count`: 패킷 전송 성공으로 판단할 예상패킷 최소 수신 횟수 (기본값: 1)
+- `queue_interval_in_second`: 명령패킷 전송 간격 (초 단위, 기본값: 0.1 (100ms)), 너무 작은 값을 설정하면 명령패킷 전송이 너무 빠르게 이루어져 명령이 제대로 처리되지 않을 수 있습니다. 이 설정값과 관계없이 상태패킷 수신이 130ms 이상 유휴중일때만 명령패킷을 전송합니다.
+- `max_send_count`: 명령패킷 최대 재시도 횟수 (기본값: 15, 범위 1-99) 값을 높일 수록 연속된 명령을 보낼 때 딜레이가 커질 수 있습니다.
+- `min_receive_count`: 패킷 전송 성공으로 판단할 예상패킷 최소 수신 횟수 (기본값: 1, 범위 1-9) 값을 높일 수록 연속된 명령을 보낼 때 딜레이가 커질 수 있습니다.
 - `DEBUG`: 디버그 로그 출력 여부 (true/false)
 - `mqtt_log`: MQTT 로그 출력 여부 (true/false)
 - `elfin_log`: EW11 로그 출력 여부 (true/false)
-- `vendor`: 기기 패킷 구조 파일 선택 (commax/custom 선택), custom을 선택한경우 /share/packet_structures_custom.yaml을 우선적으로 적용하게됩니다. 패킷정보가 다른경우 수정해서 쓸 수 있습니다.
+- `vendor`: 기기 패킷 구조 파일 선택 (commax/custom 선택), custom을 선택한경우 /share/packet_structures_custom.yaml을 우선적으로 적용하게됩니다. 패킷정보가 다른경우 수정해서 쓸 수 있습니다. 기기구조 파일은 웹UI에서도 수정할 수 있습니다.
 - `climate_min_temp`: 온도조절기 최저 온도 제한 (기본값: 5°C)
 - `climate_max_temp`: 온도조절기 최고 온도 제한 (기본값: 40°C)
 
