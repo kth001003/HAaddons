@@ -551,161 +551,200 @@ function loadConfig() {
             // 스키마 기반으로 설정 UI 생성
             for (const [key, value] of Object.entries(data.config)) {
                 const schema = data.schema[key] || '';
-                const fieldDiv = document.createElement('div');
-                fieldDiv.className = 'border-b border-gray-200 pb-4';
-
-                const label = document.createElement('label');
-                label.className = 'block font-medium text-gray-700 mb-2';
-                label.textContent = key;
-
-                const description = document.createElement('p');
-                description.className = 'text-sm text-gray-500 mb-2';
-                description.textContent = ''; // 스키마에 설명이 없음
-
-                fieldDiv.appendChild(label);
-                fieldDiv.appendChild(description);
-
-                // 스키마 타입 파싱
-                const schemaType = schema.split('(')[0];
-                const isOptional = schema.endsWith('?');
-
-                // 입력 필드 생성
-                let input;
-                if (schemaType === 'bool') {
-                    input = document.createElement('select');
-                    input.className = 'form-select block w-full rounded-md border-gray-300';
-                    
-                    const trueOption = document.createElement('option');
-                    trueOption.value = 'true';
-                    trueOption.textContent = '예 (true)';
-                    trueOption.selected = value === true;
-                    
-                    const falseOption = document.createElement('option');
-                    falseOption.value = 'false';
-                    falseOption.textContent = '아니오 (false)';
-                    falseOption.selected = value === false;
-                    
-                    input.appendChild(trueOption);
-                    input.appendChild(falseOption);
-                } else if (schemaType === 'list') {
-                    input = document.createElement('select');
-                    input.className = 'form-select block w-full rounded-md border-gray-300';
-                    // list(commax|custom) 형식에서 옵션 추출
-                    const options = schema.split('(')[1].replace('?)', '').replace(')', '').split('|');
-                    options.forEach(option => {
-                        const optionElement = document.createElement('option');
-                        optionElement.value = option;
-                        optionElement.textContent = option;
-                        optionElement.selected = option === value;
-                        input.appendChild(optionElement);
-                    });
-                } else if (schemaType === 'int' || schemaType === 'float') {
-                    input = document.createElement('input');
-                    input.type = 'number';
-                    input.value = value;
-                    input.className = 'form-input block w-full rounded-md border-gray-300';
-                    
-                    // 최소/최대값 추출 및 적용
-                    if (schema.includes('(')) {
-                        const rangeMatch = schema.match(/\(([^)]+)\)/);
-                        if (rangeMatch) {
-                            const [min, max] = rangeMatch[1].split(',').map(v => v.trim());
-                            if (min) input.min = min;
-                            if (max) input.max = max;
-                            
-                            // 툴팁에 허용 범위 표시
-                            input.title = `허용 범위: ${min || '제한없음'} ~ ${max || '제한없음'}`;
-                            
-                            // 실시간 유효성 검사를 위한 이벤트 리스너
-                            input.addEventListener('input', function() {
-                                const val = schemaType === 'int' ? parseInt(this.value) : parseFloat(this.value);
-                                if (min && val < parseFloat(min)) {
-                                    this.setCustomValidity(`최소값은 ${min}입니다.`);
-                                } else if (max && val > parseFloat(max)) {
-                                    this.setCustomValidity(`최대값은 ${max}입니다.`);
-                                } else {
-                                    this.setCustomValidity('');
-                                }
-                            });
-                        }
-                    }
-                    
-                    if (schemaType === 'float') {
-                        input.step = '0.01';
-                    } else {
-                        input.step = '1';
-                    }
-                } else if (schema === 'match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)') {
-                    input = document.createElement('input');
-                    input.type = 'text';
-                    input.value = value;
-                    input.className = 'form-input block w-full rounded-md border-gray-300';
-                    input.pattern = '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$';
-                    input.title = 'IP 주소 형식 (예: 192.168.0.1)';
-                    
-                    // IP 주소 유효성 검사
-                    input.addEventListener('input', function() {
-                        const regex = new RegExp(this.pattern);
-                        if (!regex.test(this.value)) {
-                            this.setCustomValidity('올바른 IP 주소 형식이 아닙니다.');
-                        } else {
-                            this.setCustomValidity('');
-                        }
-                    });
-                } else if (schemaType === 'match') {
-                    input = document.createElement('input');
-                    input.type = 'text';
-                    input.value = value;
-                    input.className = 'form-input block w-full rounded-md border-gray-300';
-                    
-                    // match(정규식) 형식에서 정규식 추출
-                    const pattern = schema.split('(')[1].replace('?)', '').replace(')', '');
-                    input.pattern = pattern;
-                    
-                    // IP 주소인 경우 특별한 툴팁 제공
-                    if (pattern === '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$') {
-                        input.title = 'IP 주소 형식 (예: 192.168.0.1)';
-                    } else {
-                        input.title = `형식: ${pattern}`;
-                    }
-                    
-                    // 실시간 유효성 검사
-                    input.addEventListener('input', function() {
-                        const regex = new RegExp(this.pattern);
-                        if (!regex.test(this.value)) {
-                            if (pattern === '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$') {
-                                this.setCustomValidity('올바른 IP 주소 형식이 아닙니다.');
-                            } else {
-                                this.setCustomValidity('올바른 형식이 아닙니다.');
-                            }
-                        } else {
-                            this.setCustomValidity('');
-                        }
-                    });
-                } else if (schemaType === 'str') {
-                    input = document.createElement('input');
-                    input.type = 'text';
-                    input.value = value;
-                    input.className = 'form-input block w-full rounded-md border-gray-300';
-                } else {
-                    input = document.createElement('input');
-                    input.type = 'text';
-                    input.value = value;
-                    input.className = 'form-input block w-full rounded-md border-gray-300';
-                }
-
-                input.id = `config-${key}`;
-                input.dataset.key = key;
-                input.dataset.type = schemaType;
-                if (!isOptional) {
-                    input.required = true;
-                    label.textContent += ' *';
-                }
-
-                fieldDiv.appendChild(input);
-                configDiv.appendChild(fieldDiv);
+                configDiv.appendChild(createConfigField(key, value, schema));
             }
         });
+}
+
+function createConfigField(key, value, schema) {
+    const fieldDiv = document.createElement('div');
+    fieldDiv.className = 'border-b border-gray-200 py-2';
+
+    // 라벨 컨테이너 생성
+    const labelContainer = createLabelContainer(key, schema);
+    fieldDiv.appendChild(labelContainer);
+
+    // 설명 추가
+    const description = document.createElement('p');
+    description.className = 'text-xs text-gray-500 mb-1';
+    description.textContent = ''; // 스키마에 설명이 없음
+    fieldDiv.appendChild(description);
+
+    // 입력 필드 생성
+    const input = createInputField(key, value, schema);
+    fieldDiv.appendChild(input);
+
+    return fieldDiv;
+}
+
+function createLabelContainer(key, schema) {
+    const labelContainer = document.createElement('div');
+    labelContainer.className = 'flex items-center gap-1 mb-1';
+
+    const label = document.createElement('label');
+    label.className = 'text-sm font-medium text-gray-700';
+    label.textContent = key;
+
+    const isOptional = schema.endsWith('?');
+    if (!isOptional) {
+        label.textContent += ' *';
+    }
+
+    labelContainer.appendChild(label);
+
+    // 스키마 타입에 따른 툴팁 추가
+    if (schema.includes('(')) {
+        const tooltip = createTooltip(schema);
+        if (tooltip) {
+            labelContainer.appendChild(tooltip);
+        }
+    }
+
+    return labelContainer;
+}
+
+function createTooltip(schema) {
+    const schemaType = schema.split('(')[0];
+    const tooltip = document.createElement('span');
+    tooltip.className = 'text-xs text-gray-500';
+
+    if (schemaType === 'int' || schemaType === 'float') {
+        const rangeMatch = schema.match(/\(([^)]+)\)/);
+        if (rangeMatch) {
+            const [min, max] = rangeMatch[1].split(',').map(v => v.trim());
+            tooltip.textContent = `(${min || '제한없음'} ~ ${max || '제한없음'})`;
+            return tooltip;
+        }
+    } else if (schemaType === 'list') {
+        const options = schema.split('(')[1].replace('?)', '').replace(')', '');
+        tooltip.textContent = `(${options})`;
+        return tooltip;
+    } else if (schema === 'match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)') {
+        tooltip.textContent = '(예: 192.168.0.2)';
+        return tooltip;
+    }
+
+    return null;
+}
+
+function createInputField(key, value, schema) {
+    const schemaType = schema.split('(')[0];
+    const isOptional = schema.endsWith('?');
+    schema = schema.replace('?', '');
+
+    let input;
+    const baseClassName = 'form-input block w-full rounded-md border-gray-300 text-sm py-1';
+
+    switch (schemaType) {
+        case 'bool':
+            input = createSelectInput(['true', 'false'], value === true, baseClassName);
+            break;
+        case 'list':
+            const options = schema.split('(')[1].replace('?)', '').replace(')', '').split('|');
+            input = createSelectInput(options, value, baseClassName);
+            break;
+        case 'int':
+        case 'float':
+            input = createNumberInput(schema, value, schemaType, baseClassName);
+            break;
+        case 'match':
+            input = createMatchInput(schema, value, baseClassName);
+            break;
+        default:
+            input = createTextInput(value, baseClassName);
+    }
+
+    input.id = `config-${key}`;
+    input.dataset.key = key;
+    input.dataset.type = schemaType;
+    if (!isOptional) {
+        input.required = true;
+    }
+
+    return input;
+}
+
+function createSelectInput(options, selectedValue, className) {
+    const select = document.createElement('select');
+    select.className = className;
+
+    options.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option;
+        optionElement.textContent = option === 'true' ? '예 (true)' : 
+                                  option === 'false' ? '아니오 (false)' : 
+                                  option;
+        optionElement.selected = option === String(selectedValue);
+        select.appendChild(optionElement);
+    });
+
+    return select;
+}
+
+function createNumberInput(schema, value, type, className) {
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = value;
+    input.className = className;
+    input.step = type === 'float' ? '0.01' : '1';
+
+    if (schema.includes('(')) {
+        const rangeMatch = schema.match(/\(([^)]+)\)/);
+        if (rangeMatch) {
+            const [min, max] = rangeMatch[1].split(',').map(v => v.trim());
+            if (min) input.min = min;
+            if (max) input.max = max;
+            addRangeValidation(input, min, max, type);
+        }
+    }
+
+    return input;
+}
+
+function createMatchInput(schema, value, className) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = value;
+    input.className = className;
+
+    const pattern = schema.split('(')[1].replace('?)', '').replace(')', '');
+    input.pattern = pattern;
+    addPatternValidation(input, pattern);
+
+    return input;
+}
+
+function createTextInput(value, className) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = value;
+    input.className = className;
+    return input;
+}
+
+function addRangeValidation(input, min, max, type) {
+    input.addEventListener('input', function() {
+        const val = type === 'int' ? parseInt(this.value) : parseFloat(this.value);
+        if (min && val < parseFloat(min)) {
+            this.setCustomValidity(`최소값은 ${min}입니다.`);
+        } else if (max && val > parseFloat(max)) {
+            this.setCustomValidity(`최대값은 ${max}입니다.`);
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+}
+
+function addPatternValidation(input, pattern) {
+    input.addEventListener('input', function() {
+        const regex = new RegExp(pattern);
+        if (!regex.test(this.value)) {
+            const isIpPattern = pattern === '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$';
+            this.setCustomValidity(isIpPattern ? '올바른 IP 주소 형식이 아닙니다.' : '올바른 형식이 아닙니다.');
+        } else {
+            this.setCustomValidity('');
+        }
+    });
 }
 
 // 설정 저장
