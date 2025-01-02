@@ -1235,46 +1235,78 @@ function saveCustomPacketStructure() {
 // 웹소켓 관련 함수들
 function initWebSocket() {
     if (packetWebSocket) {
+        console.log('기존 WebSocket 연결 종료');
         packetWebSocket.close();
     }
 
     // Home Assistant ingress를 통한 웹소켓 연결
     const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${window.location.pathname}ws`.replace(/\/+/g, '/');
-    console.log('Connecting to WebSocket:', wsUrl);
+    console.log('WebSocket 연결 시도:', wsUrl);
     
-    packetWebSocket = new WebSocket(wsUrl);
-    
-    packetWebSocket.onopen = function() {
-        console.log('WebSocket 연결됨');
-        isWebSocketConnected = true;
-        updateWebSocketStatus();
-    };
-    
-    packetWebSocket.onclose = function(event) {
-        console.log('WebSocket 연결 끊김:', event.code, event.reason);
-        isWebSocketConnected = false;
-        updateWebSocketStatus();
-        // 3초 후 재연결 시도
-        setTimeout(initWebSocket, 3000);
-    };
-    
-    packetWebSocket.onerror = function(error) {
-        console.error('WebSocket 오류:', error);
-        isWebSocketConnected = false;
-        updateWebSocketStatus();
-    };
-    
-    packetWebSocket.onmessage = function(event) {
-        if (isPaused) return;  // 일시정지 상태면 업데이트 하지 않음
+    try {
+        packetWebSocket = new WebSocket(wsUrl);
         
-        try {
-            const data = JSON.parse(event.data);
-            console.log('WebSocket 메시지 수신:', data);
-            updateLivePacketLogFromWebSocket(data);
-        } catch (error) {
-            console.error('WebSocket 메시지 처리 오류:', error);
-        }
-    };
+        packetWebSocket.onopen = function(event) {
+            console.log('WebSocket 연결 성공:', event);
+            isWebSocketConnected = true;
+            updateWebSocketStatus();
+        };
+        
+        packetWebSocket.onclose = function(event) {
+            console.log('WebSocket 연결 종료 - 코드:', event.code, '이유:', event.reason, '정상 종료:', event.wasClean);
+            isWebSocketConnected = false;
+            updateWebSocketStatus();
+            
+            // 비정상 종료인 경우에만 재연결 시도
+            if (!event.wasClean) {
+                console.log('3초 후 재연결 시도...');
+                setTimeout(initWebSocket, 3000);
+            }
+        };
+        
+        packetWebSocket.onerror = function(error) {
+            console.error('WebSocket 오류 발생:', error);
+            isWebSocketConnected = false;
+            updateWebSocketStatus();
+        };
+        
+        packetWebSocket.onmessage = function(event) {
+            if (isPaused) return;
+            
+            try {
+                const data = JSON.parse(event.data);
+                console.log('WebSocket 메시지 수신:', data);
+
+                switch (data.type) {
+                    case 'connection_established':
+                        console.log('연결 확인됨, 초기 데이터 수신:', data);
+                        if (data.send_data) updateLivePacketLogFromWebSocket(data);
+                        break;
+                        
+                    case 'ping':
+                        // ping에 대한 응답으로 pong 전송
+                        packetWebSocket.send(JSON.stringify({
+                            type: 'pong',
+                            timestamp: new Date().toISOString()
+                        }));
+                        break;
+                        
+                    case 'packet_data':
+                updateLivePacketLogFromWebSocket(data);
+                        break;
+                        
+                    default:
+                        console.log('알 수 없는 메시지 타입:', data.type);
+                }
+            } catch (error) {
+                console.error('WebSocket 메시지 처리 오류:', error, '원본 데이터:', event.data);
+            }
+        };
+    } catch (error) {
+        console.error('WebSocket 초기화 오류:', error);
+        isWebSocketConnected = false;
+        updateWebSocketStatus();
+    }
 }
 
 function updateWebSocketStatus() {

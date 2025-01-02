@@ -58,7 +58,9 @@ class WebServer:
                 try:
                     ws.send(json.dumps({
                         'type': 'connection_established',
-                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+                        'send_data': list(self.wallpad_controller.COLLECTDATA['send_data']),
+                        'recv_data': list(self.wallpad_controller.COLLECTDATA['recv_data'])
                     }))
                     self.logger.info("초기 연결 확인 메시지 전송됨")
                 except Exception as e:
@@ -71,7 +73,10 @@ class WebServer:
                         current_time = time.time()
                         if current_time - last_ping_time > 30:
                             try:
-                                ws.send_frame('', websocket.OPCODE_PING)
+                                ws.send(json.dumps({
+                                    'type': 'ping',
+                                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                                }))
                                 last_ping_time = current_time
                                 self.logger.debug("Ping 전송됨")
                             except Exception as ping_error:
@@ -105,13 +110,20 @@ class WebServer:
                                 self.logger.info("클라이언트가 연결을 종료함")
                                 break
                             elif msg:  # 메시지가 있는 경우
-                                self.logger.debug(f"클라이언트로부터 메시지 수신: {msg}")
+                                try:
+                                    data = json.loads(msg)
+                                    if data.get('type') == 'pong':
+                                        self.logger.debug("Pong 수신됨")
+                                    else:
+                                        self.logger.debug(f"클라이언트로부터 메시지 수신: {msg}")
+                                except json.JSONDecodeError:
+                                    self.logger.error(f"잘못된 JSON 형식: {msg}")
                         except Exception as recv_error:
                             if not ws.closed:
                                 self.logger.error(f"메시지 수신 오류: {recv_error}")
                                 break
-                        
-                        gevent.sleep(0.5)  # 500ms 마다 업데이트
+
+                        gevent.sleep(0.1)  # 100ms 마다 업데이트
                         
                     except Exception as loop_error:
                         self.logger.error(f"웹소켓 루프 오류: {loop_error}")
