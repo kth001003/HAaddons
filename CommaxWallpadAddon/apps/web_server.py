@@ -725,7 +725,7 @@ class WebServer:
             try:
                 addon_info = get_addon_info()
                 # self.logger.info(f"addon_info: {addon_info}")
-                ingress_url = addon_info.get('hostname')
+                ingress_url = addon_info.get('ip_address')
                 if ingress_url:
                     return jsonify({
                         'success': True,
