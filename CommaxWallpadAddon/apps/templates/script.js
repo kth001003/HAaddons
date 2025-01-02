@@ -1259,7 +1259,7 @@ function initWebSocket() {
 
             // WebSocket URL 구성
             const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            const wsUrl = `${wsProtocol}${data.ingress_url}/ws`;
+            const wsUrl = `${wsProtocol}${window.location.host}${data.ingress_url}/ws`;
             console.log('WebSocket 연결 시도:', wsUrl);
             
             try {

@@ -724,7 +724,7 @@ class WebServer:
             """Get the ingress URL for WebSocket connection"""
             try:
                 addon_info = get_addon_info()
-                self.logger.info(f"addon_info: {addon_info}")
+                # self.logger.info(f"addon_info: {addon_info}")
                 ingress_url = addon_info.get('ingress_url')
                 if ingress_url:
                     return jsonify({
