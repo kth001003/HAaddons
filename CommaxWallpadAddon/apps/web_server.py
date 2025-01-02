@@ -12,6 +12,7 @@ import requests # type: ignore
 from utils import checksum
 from geventwebsocket.handler import WebSocketHandler # type: ignore
 from gevent.pywsgi import WSGIServer # type: ignore
+import gevent # type: ignore
 
 class WebServer:
     def __init__(self, wallpad_controller):
@@ -36,16 +37,31 @@ class WebServer:
             if request.environ.get('wsgi.websocket'):
                 ws = request.environ['wsgi.websocket']
                 try:
+                    last_send_data = set()
+                    last_recv_data = set()
+                    
                     while True:
-                        data = {
-                            'send_data': list(self.wallpad_controller.COLLECTDATA['send_data']),
-                            'recv_data': list(self.wallpad_controller.COLLECTDATA['recv_data']),
-                            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                        }
-                        ws.send(json.dumps(data))
-                        time.sleep(0.1)
+                        current_send_data = set(self.wallpad_controller.COLLECTDATA['send_data'])
+                        current_recv_data = set(self.wallpad_controller.COLLECTDATA['recv_data'])
+                        
+                        # 변경된 데이터가 있는 경우에만 전송
+                        if current_send_data != last_send_data or current_recv_data != last_recv_data:
+                            data = {
+                                'send_data': list(current_send_data),
+                                'recv_data': list(current_recv_data),
+                                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                            }
+                            ws.send(json.dumps(data))
+                            
+                            last_send_data = current_send_data
+                            last_recv_data = current_recv_data
+                        
+                        gevent.sleep(0.1)  # 100ms 마다 업데이트
                 except Exception as e:
                     print(f"WebSocket error: {e}")
+                finally:
+                    if not ws.closed:
+                        ws.close()
                 return ''
             return 'WebSocket connection failed'
 
