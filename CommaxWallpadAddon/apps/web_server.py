@@ -16,7 +16,7 @@ import gevent # type: ignore
 
 SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN')
 
-def get_ingress_url():
+def get_addon_info():
     """Get the ingress URL from Supervisor API"""
     if not SUPERVISOR_TOKEN:
         return None
@@ -33,7 +33,7 @@ def get_ingress_url():
         )
         response.raise_for_status()
         addon_info = response.json()['data']
-        return addon_info.get('ingress_url')
+        return addon_info
     except Exception as e:
         print(f"Error getting ingress URL: {e}")
         return None
@@ -723,7 +723,9 @@ class WebServer:
         def ingress_url():
             """Get the ingress URL for WebSocket connection"""
             try:
-                ingress_url = get_ingress_url()
+                addon_info = get_addon_info()
+                self.logger.info(f"addon_info: {addon_info}")
+                ingress_url = addon_info.get('ingress_url')
                 if ingress_url:
                     return jsonify({
                         'success': True,
