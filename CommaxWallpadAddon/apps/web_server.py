@@ -21,7 +21,7 @@ class WebServer:
         self.recent_messages = []  # 최근 메시지를 저장할 리스트
         self.server = None  # WSGIServer 인스턴스를 저장할 변수
         self.logger = wallpad_controller.logger  # wallpad_controller의 logger 사용
-        
+        self.logger.info("웹서버 초기화 완료")
         # 로깅 비활성화
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
