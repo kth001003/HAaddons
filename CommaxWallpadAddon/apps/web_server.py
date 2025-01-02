@@ -10,7 +10,6 @@ import shutil
 from datetime import datetime
 import requests # type: ignore
 from utils import checksum
-from gevent import monkey; monkey.patch_all()  # type: ignore
 from gevent.pywsgi import WSGIServer # type: ignore
 from geventwebsocket.handler import WebSocketHandler # type: ignore
 import gevent # type: ignore
@@ -36,13 +35,16 @@ class WebServer:
 
         @self.app.route('/ws')
         def websocket():
-            if request.environ.get('wsgi.websocket'):
-                ws = request.environ['wsgi.websocket']
-                try:
-                    last_send_data = set()
-                    last_recv_data = set()
-                    
-                    while not ws.closed:
+            ws = request.environ.get('wsgi.websocket')
+            if not ws:
+                return 'WebSocket connection failed'
+
+            try:
+                last_send_data = set()
+                last_recv_data = set()
+                
+                while not ws.closed:
+                    try:
                         current_send_data = set(self.wallpad_controller.COLLECTDATA['send_data'])
                         current_recv_data = set(self.wallpad_controller.COLLECTDATA['recv_data'])
                         
@@ -58,14 +60,22 @@ class WebServer:
                             last_send_data = current_send_data
                             last_recv_data = current_recv_data
                         
+                        # ping/pong으로 연결 상태 확인
+                        ws.send_frame('', websocket.OPCODE_PING)
                         gevent.sleep(0.1)  # 100ms 마다 업데이트
-                except Exception as e:
-                    print(f"WebSocket error: {e}")
-                finally:
-                    if not ws.closed:
+                    except Exception as e:
+                        if not ws.closed:
+                            print(f"WebSocket send error: {e}")
+                            break
+            except Exception as e:
+                print(f"WebSocket error: {e}")
+            finally:
+                if not ws.closed:
+                    try:
                         ws.close()
-                return ''
-            return 'WebSocket connection failed'
+                    except:
+                        pass
+            return ''
 
         @self.app.route('/api/custom_packet_structure/editable', methods=['GET'])
         def get_editable_packet_structure():

@@ -1,3 +1,5 @@
+from gevent import monkey; monkey.patch_all()  # type: ignore
+
 import paho.mqtt.client as mqtt # type: ignore
 import time
 import asyncio
