@@ -14,6 +14,30 @@ from gevent.pywsgi import WSGIServer # type: ignore
 from geventwebsocket.handler import WebSocketHandler # type: ignore
 import gevent # type: ignore
 
+SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN')
+
+def get_ingress_url():
+    """Get the ingress URL from Supervisor API"""
+    if not SUPERVISOR_TOKEN:
+        return None
+        
+    headers = {
+        'Authorization': f'Bearer {SUPERVISOR_TOKEN}',
+        'Content-Type': 'application/json'
+    }
+    
+    try:
+        response = requests.get(
+            'http://supervisor/addons/self/info',
+            headers=headers
+        )
+        response.raise_for_status()
+        addon_info = response.json()['data']
+        return addon_info.get('ingress_url')
+    except Exception as e:
+        print(f"Error getting ingress URL: {e}")
+        return None
+
 class WebServer:
     def __init__(self, wallpad_controller):
         self.app = Flask(__name__, template_folder='templates')
@@ -694,6 +718,26 @@ class WebServer:
                 return jsonify({'success': True})
             except Exception as e:
                 return jsonify({'error': str(e), 'success': False})
+
+        @self.app.route('/api/ingress_url')
+        def ingress_url():
+            """Get the ingress URL for WebSocket connection"""
+            try:
+                ingress_url = get_ingress_url()
+                if ingress_url:
+                    return jsonify({
+                        'success': True,
+                        'ingress_url': ingress_url
+                    })
+                return jsonify({
+                    'success': False,
+                    'error': 'Ingress URL not found'
+                })
+            except Exception as e:
+                return jsonify({
+                    'success': False,
+                    'error': str(e)
+                })
 
     def _get_editable_fields(self, packet_data):
         """패킷 구조에서 편집 가능한 필드만 추출합니다."""

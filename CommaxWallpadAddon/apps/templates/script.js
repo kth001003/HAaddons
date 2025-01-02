@@ -1248,75 +1248,93 @@ function initWebSocket() {
         console.log('기존 WebSocket 연결 종료');
         packetWebSocket.close();
     }
-    console.log('WebSocket 연결 시도:');
-    
-    try {
-        packetWebSocket = new WebSocket('./ws');
-        
-        packetWebSocket.onopen = function(event) {
-            console.log('WebSocket 연결 성공:', event);
-            isWebSocketConnected = true;
-            updateWebSocketStatus();
-        };
-        
-        packetWebSocket.onclose = function(event) {
-            console.log('WebSocket 연결 종료 - 코드:', event.code, '이유:', event.reason, '정상 종료:', event.wasClean);
-            isWebSocketConnected = false;
-            updateWebSocketStatus();
-            
-            // 비정상 종료인 경우에만 재연결 시도
-            if (!event.wasClean) {
-                console.log('3초 후 재연결 시도...');
-                setTimeout(() => {
-                    console.log('재연결 시도 중...');
-                    initWebSocket();
-                }, 3000);
+
+    // 먼저 ingress URL 얻기
+    fetch('./api/ingress_url')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to get ingress URL');
             }
-        };
-        
-        packetWebSocket.onerror = function(error) {
-            console.error('WebSocket 오류 발생:', error);
-            isWebSocketConnected = false;
-            updateWebSocketStatus();
-        };
-        
-        packetWebSocket.onmessage = function(event) {
-            if (isPaused) return;
+
+            // WebSocket URL 구성
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = `${wsProtocol}${data.ingress_url}/ws`;
+            console.log('WebSocket 연결 시도:', wsUrl);
             
             try {
-                const data = JSON.parse(event.data);
-                console.log('WebSocket 메시지 수신:', data);
+                packetWebSocket = new WebSocket(wsUrl);
+                
+                packetWebSocket.onopen = function(event) {
+                    console.log('WebSocket 연결 성공:', event);
+                    isWebSocketConnected = true;
+                    updateWebSocketStatus();
+                };
+                
+                packetWebSocket.onclose = function(event) {
+                    console.log('WebSocket 연결 종료 - 코드:', event.code, '이유:', event.reason, '정상 종료:', event.wasClean);
+                    isWebSocketConnected = false;
+                    updateWebSocketStatus();
+                    
+                    // 비정상 종료인 경우에만 재연결 시도
+                    if (!event.wasClean) {
+                        console.log('3초 후 재연결 시도...');
+                        setTimeout(() => {
+                            console.log('재연결 시도 중...');
+                            initWebSocket();
+                        }, 3000);
+                    }
+                };
+                
+                packetWebSocket.onerror = function(error) {
+                    console.error('WebSocket 오류 발생:', error);
+                    isWebSocketConnected = false;
+                    updateWebSocketStatus();
+                };
+                
+                packetWebSocket.onmessage = function(event) {
+                    if (isPaused) return;
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('WebSocket 메시지 수신:', data);
 
-                switch (data.type) {
-                    case 'connection_established':
-                        console.log('연결 확인됨, 초기 데이터 수신:', data);
-                        if (data.send_data) updateLivePacketLogFromWebSocket(data);
-                        break;
-                        
-                    case 'ping':
-                        // ping에 대한 응답으로 pong 전송
-                        packetWebSocket.send(JSON.stringify({
-                            type: 'pong',
-                            timestamp: new Date().toISOString()
-                        }));
-                        break;
-                        
-                    case 'packet_data':
-                updateLivePacketLogFromWebSocket(data);
-                        break;
-                        
-                    default:
-                        console.log('알 수 없는 메시지 타입:', data.type);
-                }
+                        switch (data.type) {
+                            case 'connection_established':
+                                console.log('연결 확인됨, 초기 데이터 수신:', data);
+                                if (data.send_data) updateLivePacketLogFromWebSocket(data);
+                                break;
+                                
+                            case 'ping':
+                                // ping에 대한 응답으로 pong 전송
+                                packetWebSocket.send(JSON.stringify({
+                                    type: 'pong',
+                                    timestamp: new Date().toISOString()
+                                }));
+                                break;
+                                
+                            case 'packet_data':
+                                updateLivePacketLogFromWebSocket(data);
+                                break;
+                                
+                            default:
+                                console.log('알 수 없는 메시지 타입:', data.type);
+                        }
+                    } catch (error) {
+                        console.error('WebSocket 메시지 처리 오류:', error, '원본 데이터:', event.data);
+                    }
+                };
             } catch (error) {
-                console.error('WebSocket 메시지 처리 오류:', error, '원본 데이터:', event.data);
+                console.error('WebSocket 초기화 오류:', error);
+                isWebSocketConnected = false;
+                updateWebSocketStatus();
             }
-        };
-    } catch (error) {
-        console.error('WebSocket 초기화 오류:', error);
-        isWebSocketConnected = false;
-        updateWebSocketStatus();
-    }
+        })
+        .catch(error => {
+            console.error('ingress URL 로드 실패:', error);
+            isWebSocketConnected = false;
+            updateWebSocketStatus();
+        });
 }
 
 function updateWebSocketStatus() {
