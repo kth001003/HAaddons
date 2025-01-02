@@ -1100,7 +1100,7 @@ class WebServer:
         
     def _run_server(self):
         try:
-            self.logger.info("웹서버 시작: %s", self.server)
+            self.logger.info(f"웹서버 시작: {self.server}")
             self.server.serve_forever()
         except Exception as e:
             self.logger.error(f"Server error: {e}")
