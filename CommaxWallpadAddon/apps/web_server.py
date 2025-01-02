@@ -10,8 +10,9 @@ import shutil
 from datetime import datetime
 import requests # type: ignore
 from utils import checksum
-from geventwebsocket.handler import WebSocketHandler # type: ignore
+from gevent import monkey; monkey.patch_all()  # type: ignore
 from gevent.pywsgi import WSGIServer # type: ignore
+from geventwebsocket.handler import WebSocketHandler # type: ignore
 import gevent # type: ignore
 
 class WebServer:
@@ -19,6 +20,7 @@ class WebServer:
         self.app = Flask(__name__, template_folder='templates')
         self.wallpad_controller = wallpad_controller
         self.recent_messages = []  # 최근 메시지를 저장할 리스트
+        self.server = None  # WSGIServer 인스턴스를 저장할 변수
         
         # 로깅 비활성화
         log = logging.getLogger('werkzeug')
@@ -40,7 +42,7 @@ class WebServer:
                     last_send_data = set()
                     last_recv_data = set()
                     
-                    while True:
+                    while not ws.closed:
                         current_send_data = set(self.wallpad_controller.COLLECTDATA['send_data'])
                         current_recv_data = set(self.wallpad_controller.COLLECTDATA['recv_data'])
                         
@@ -655,12 +657,6 @@ class WebServer:
                 current['structure'][position]['name'] = field.get('name', '')
                 current['structure'][position]['values'] = field.get('values', {})
 
-    def run(self):
-        # Flask 서버 실행 (with WebSocket support)
-        http_server = WSGIServer(('0.0.0.0', 8099), self.app,
-                               handler_class=WebSocketHandler)
-        http_server.serve_forever()
-
     def _analyze_packet_structure(self, command: str, packet_type: str) -> Dict[str, Any]:
         """패킷 구조를 분석하고 관련 정보를 반환합니다."""
         # 헤더 기기 찾기
@@ -964,3 +960,22 @@ class WebServer:
         # 최근 100개 메시지만 유지
         if len(self.recent_messages) > 100:
             self.recent_messages = self.recent_messages[-100:] 
+
+    def run(self):
+        # Flask 서버 실행 (with WebSocket support)
+        self.server = WSGIServer(('0.0.0.0', 8099), self.app,
+                               handler_class=WebSocketHandler)
+
+        # 별도의 스레드에서 서버 실행
+        threading.Thread(target=self._run_server, daemon=True).start()
+        
+    def _run_server(self):
+        try:
+            self.server.serve_forever()
+        except Exception as e:
+            print(f"Server error: {e}")
+
+    def stop(self):
+        if self.server:
+            self.server.stop()
+            self.server = None 
