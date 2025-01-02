@@ -11,9 +11,9 @@ let currentInput = '';   // 현재 입력값 저장용 변수 추가
 let liveLastPackets = new Set();
 let isPaused = false;  // 일시정지 상태를 저장하는 변수 추가
 
-// 웹소켓 관련 변수
-let packetWebSocket = null;
-let isWebSocketConnected = false;
+// 폴링 관련 변수
+let isPolling = false;
+let pollingInterval;
 
 // ===============================
 // 페이지 전환 함수
@@ -38,14 +38,11 @@ function showPage(pageId) {
         }
     });
 
-    // 실시간 패킷 페이지인 경우 웹소켓 초기화
+    // 실시간 패킷 페이지인 경우 폴링 시작
     if (pageId === 'live_packets') {
-        initWebSocket();
-    } else if (packetWebSocket) {
-        // 다른 페이지로 이동할 때 웹소켓 연결 종료
-        console.log('페이지 전환: WebSocket 연결 종료');
-        packetWebSocket.close();
-        packetWebSocket = null;
+        startPolling();
+    } else {
+        stopPolling();
     }
 }
 
@@ -1578,4 +1575,68 @@ function extractPackets() {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+}
+
+// 실시간 패킷 데이터 폴링 시작
+function startPolling() {
+    if (isPolling) return;
+    
+    isPolling = true;
+    console.log('실시간 패킷 데이터 폴링 시작');
+    
+    // 500ms마다 데이터 요청
+    pollingInterval = setInterval(fetchPacketData, 500);
+}
+
+// 실시간 패킷 데이터 폴링 중지
+function stopPolling() {
+    if (!isPolling) return;
+    
+    isPolling = false;
+    console.log('실시간 패킷 데이터 폴링 중지');
+    
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+    }
+}
+
+// 실시간 패킷 데이터 요청
+async function fetchPacketData() {
+    if (isPaused) return;
+    
+    try {
+        const response = await fetch('./api/live_packets');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        // 패킷 데이터 업데이트
+        updateLivePacketDisplay(data);
+    } catch (error) {
+        console.error('패킷 데이터 요청 실패:', error);
+    }
+}
+
+// 패킷 데이터 화면 업데이트
+function updateLivePacketDisplay(data) {
+    const sendDataElement = document.getElementById('send-data');
+    const recvDataElement = document.getElementById('recv-data');
+    
+    if (sendDataElement && data.send_data) {
+        sendDataElement.textContent = data.send_data.join('\n');
+    }
+    if (recvDataElement && data.recv_data) {
+        recvDataElement.textContent = data.recv_data.join('\n');
+    }
+}
+
+// 일시정지 토글 함수
+function togglePause() {
+    isPaused = !isPaused;
+    const pauseButton = document.getElementById('pauseButton');
+    if (pauseButton) {
+        pauseButton.textContent = isPaused ? '재개' : '일시정지';
+    }
 }

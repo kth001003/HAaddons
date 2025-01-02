@@ -125,40 +125,25 @@
     
         <!-- 실시간 패킷 페이지 -->
         <div id="live_packets" class="page hidden">
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex justify-between items-center mb-4">
-                    <div class="flex items-center gap-4">
-                        <h2 class="text-lg font-semibold">실시간 패킷 로그</h2>
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm text-gray-600">웹소켓:</span>
-                            <span id="wsStatus" class="px-2 py-1 rounded text-sm">연결 중...</span>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <label class="inline-flex items-center">
-                            <input type="checkbox" id="liveHideUnknown" onchange="updateLivePacketLogDisplay()" class="form-checkbox h-4 w-4 text-indigo-600">
-                            <span class="ml-2 text-gray-700">Unknown 패킷 숨기기</span>
-                        </label>
-                        <button id="pauseButton" onclick="togglePause()" class="text-gray-500 hover:text-blue-500 transition-colors" title="일시정지/재생">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path id="pauseIcon" d="M5 4h3v12H5V4zm7 0h3v12h-3V4z"/>
-                                <path id="playIcon" class="hidden" d="M5 4l10 6-10 6V4z"/>
-                            </svg>
-                        </button>
-                        <button onclick="extractPackets()" class="text-gray-500 hover:text-blue-500 transition-colors" title="현재 실시간 패킷로그 다운로드">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                            </svg>
-                        </button>
-                        <button onclick="clearLivePacketLog()" class="text-gray-500 hover:text-red-500 transition-colors" title="패킷 목록 초기화">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
-                            </svg>
-                        </button>
-                    </div>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">실시간 패킷</h2>
+                <div class="flex gap-2">
+                    <button id="pauseButton" onclick="togglePause()" class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        일시정지
+                    </button>
+                    <button onclick="clearLivePacketLog()" class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">
+                        초기화
+                    </button>
                 </div>
-                <div id="livePacketLog" class="h-[calc(100vh-12rem)] overflow-y-auto space-y-1">
-                    <!-- 실시간 패킷 로그가 여기에 동적으로 추가됩니다 -->
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">송신 패킷</h3>
+                    <pre id="send-data" class="bg-gray-50 p-4 rounded-lg h-[calc(100vh-200px)] overflow-auto font-mono text-sm"></pre>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">수신 패킷</h3>
+                    <pre id="recv-data" class="bg-gray-50 p-4 rounded-lg h-[calc(100vh-200px)] overflow-auto font-mono text-sm"></pre>
                 </div>
             </div>
         </div>
