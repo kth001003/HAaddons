@@ -20,6 +20,7 @@ class WebServer:
         self.wallpad_controller = wallpad_controller
         self.recent_messages = []  # 최근 메시지를 저장할 리스트
         self.server = None  # WSGIServer 인스턴스를 저장할 변수
+        self.logger = wallpad_controller.logger  # wallpad_controller의 logger 사용
         
         # 로깅 비활성화
         log = logging.getLogger('werkzeug')
@@ -35,9 +36,12 @@ class WebServer:
 
         @self.app.route('/ws')
         def websocket():
-            ws = request.environ.get('wsgi.websocket')
-            if not ws:
+            if not request.environ.get('wsgi.websocket'):
+                self.logger.error("WebSocket connection failed - not a websocket request")
                 return 'WebSocket connection failed'
+
+            ws = request.environ['wsgi.websocket']
+            self.logger.info("New WebSocket connection established")
 
             try:
                 last_send_data = set()
@@ -49,8 +53,12 @@ class WebServer:
                         # 30초마다 ping 전송
                         current_time = time.time()
                         if current_time - last_ping_time > 30:
-                            ws.send_frame('', websocket.OPCODE_PING)
-                            last_ping_time = current_time
+                            try:
+                                ws.send_frame('', websocket.OPCODE_PING)
+                                last_ping_time = current_time
+                            except Exception as ping_error:
+                                self.logger.error(f"Ping error: {ping_error}")
+                                break
                         
                         current_send_data = set(self.wallpad_controller.COLLECTDATA['send_data'])
                         current_recv_data = set(self.wallpad_controller.COLLECTDATA['recv_data'])
@@ -62,25 +70,40 @@ class WebServer:
                                 'recv_data': list(current_recv_data),
                                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
                             }
-                            ws.send(json.dumps(data))
-                            
-                            last_send_data = current_send_data
-                            last_recv_data = current_recv_data
+                            try:
+                                ws.send(json.dumps(data))
+                                last_send_data = current_send_data
+                                last_recv_data = current_recv_data
+                            except Exception as send_error:
+                                self.logger.error(f"Send error: {send_error}")
+                                break
+                        
+                        # 메시지 수신 대기 (non-blocking)
+                        try:
+                            msg = ws.receive()
+                            if msg is None:  # 연결이 종료됨
+                                self.logger.info("WebSocket connection closed by client")
+                                break
+                        except Exception as recv_error:
+                            if not ws.closed:
+                                self.logger.error(f"Receive error: {recv_error}")
+                                break
                         
                         gevent.sleep(0.5)  # 500ms 마다 업데이트
                         
-                    except Exception as e:
-                        if not ws.closed:
-                            print(f"WebSocket send error: {e}")
-                            break
+                    except Exception as loop_error:
+                        self.logger.error(f"WebSocket loop error: {loop_error}")
+                        break
+                        
             except Exception as e:
-                print(f"WebSocket error: {e}")
+                self.logger.error(f"WebSocket error: {e}")
             finally:
                 if not ws.closed:
                     try:
                         ws.close()
                     except:
                         pass
+                self.logger.info("WebSocket connection closed")
             return ''
 
         @self.app.route('/api/custom_packet_structure/editable', methods=['GET'])
