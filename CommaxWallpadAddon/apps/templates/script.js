@@ -1248,13 +1248,10 @@ function initWebSocket() {
         console.log('기존 WebSocket 연결 종료');
         packetWebSocket.close();
     }
-
-    // Home Assistant ingress를 통한 웹소켓 연결
-    const wsUrl = window.location.href.replace('http', 'ws') + 'ws';
-    console.log('WebSocket 연결 시도:', wsUrl);
+    console.log('WebSocket 연결 시도:');
     
     try {
-        packetWebSocket = new WebSocket(wsUrl);
+        packetWebSocket = new WebSocket('./ws');
         
         packetWebSocket.onopen = function(event) {
             console.log('WebSocket 연결 성공:', event);
