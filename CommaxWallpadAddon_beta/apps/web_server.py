@@ -35,13 +35,14 @@ def get_addon_info():
         addon_info = response.json()['data']
         return addon_info
     except Exception as e:
-        print(f"Error getting ingress URL: {e}")
+        print(f"Error getting ingress info: {e}")
         return None
 
 class WebServer:
     def __init__(self, wallpad_controller):
         self.app = Flask(__name__, template_folder='templates')
         self.wallpad_controller = wallpad_controller
+        self.addon_info = get_addon_info()
         self.recent_messages = []  # 최근 메시지를 저장할 리스트
         self.server = None  # WSGIServer 인스턴스를 저장할 변수
         self.logger = wallpad_controller.logger  # wallpad_controller의 logger 사용
@@ -719,27 +720,25 @@ class WebServer:
             except Exception as e:
                 return jsonify({'error': str(e), 'success': False})
 
-        @self.app.route('/api/ingress_url')
-        def ingress_url():
-            """Get the ingress URL for WebSocket connection"""
-            try:
-                addon_info = get_addon_info()
-                # self.logger.info(f"addon_info: {addon_info}")
-                ingress_url = addon_info.get('ip_address')
-                if ingress_url:
-                    return jsonify({
-                        'success': True,
-                        'ingress_url': ingress_url
-                    })
-                return jsonify({
-                    'success': False,
-                    'error': 'Ingress URL not found'
-                })
-            except Exception as e:
-                return jsonify({
-                    'success': False,
-                    'error': str(e)
-                })
+        # @self.app.route('/api/ingress_url')
+        # def ingress_url():
+        #     """Get the ingress URL for WebSocket connection"""
+        #     try:
+        #         ingress_url = self.addon_info.get('ingress_url')
+        #         if ingress_url:
+        #             return jsonify({
+        #                 'success': True,
+        #                 'ingress_url': ingress_url
+        #             })
+        #         return jsonify({
+        #             'success': False,
+        #             'error': 'Ingress URL not found'
+        #         })
+        #     except Exception as e:
+        #         return jsonify({
+        #             'success': False,
+        #             'error': str(e)
+        #         })
 
     def _get_editable_fields(self, packet_data):
         """패킷 구조에서 편집 가능한 필드만 추출합니다."""
