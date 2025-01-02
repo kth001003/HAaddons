@@ -72,11 +72,18 @@ class WebServer:
         @self.app.route('/ws')
         @self.app.route('/ws/')
         def websocket():
-            self.logger.info(f"웹소켓 요청 수신 - Headers: {dict(request.headers)}")
+            self.logger.info("웹소켓 요청 수신")
+            self.logger.info(f"- Headers: {dict(request.headers)}")
+            self.logger.info(f"- Path: {request.path}")
+            self.logger.info(f"- Base URL: {request.base_url}")
+            self.logger.info(f"- URL: {request.url}")
+            self.logger.info(f"- Environment: {request.environ}")
             
-            if not request.environ.get('wsgi.websocket'):
-                self.logger.error("웹소켓 연결 실패 - wsgi.websocket이 없음")
-                return ''  # 빈 응답 반환
+            # WebSocket 연결 처리
+            wsgi_websocket = request.environ.get('wsgi.websocket')
+            if not wsgi_websocket:
+                self.logger.error("wsgi.websocket이 없음")
+                return '', 400
 
             ws = request.environ['wsgi.websocket']
             self.logger.info("새로운 웹소켓 연결 수립됨")
@@ -1093,14 +1100,21 @@ class WebServer:
         # Flask 서버 실행 (with WebSocket support)
         self.server = WSGIServer(('0.0.0.0', 8099), self.app,
                                handler_class=WebSocketHandler,
-                               environ={'SERVER_NAME': 'localhost'})
+                               environ={
+                                   'SERVER_NAME': 'localhost',
+                                   'wsgi.url_scheme': 'https',
+                                   'HTTP_X_INGRESS_PATH': '/api/hassio_ingress'
+                               })
 
         # 별도의 스레드에서 서버 실행
         threading.Thread(target=self._run_server, daemon=True).start()
         
     def _run_server(self):
         try:
-            self.logger.info(f"웹서버 시작: {self.server}")
+            self.logger.info("웹서버 시작 - 설정:")
+            self.logger.info(f"- 주소: 0.0.0.0:8099")
+            self.logger.info(f"- 핸들러: {WebSocketHandler}")
+            self.logger.info(f"- 환경변수: {self.server.environ}")
             self.server.serve_forever()
         except Exception as e:
             self.logger.error(f"Server error: {e}")

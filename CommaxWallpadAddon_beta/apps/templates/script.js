@@ -1254,7 +1254,12 @@ function initWebSocket() {
         const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${window.location.pathname}ws`;
         console.log('WebSocket 연결 시도:', wsUrl);
         
-        packetWebSocket = new WebSocket(wsUrl);
+        // WebSocket 프로토콜 지정
+        const protocols = ['websocket'];
+        packetWebSocket = new WebSocket(wsUrl, protocols);
+        
+        // 추가 디버깅을 위한 readyState 로깅
+        console.log('Initial WebSocket readyState:', packetWebSocket.readyState);
         
         packetWebSocket.onopen = function(event) {
             console.log('WebSocket 연결 성공:', event);
