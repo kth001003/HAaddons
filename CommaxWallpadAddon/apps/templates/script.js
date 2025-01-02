@@ -37,6 +37,16 @@ function showPage(pageId) {
             link.classList.add('border-transparent', 'text-gray-500');
         }
     });
+
+    // 실시간 패킷 페이지인 경우 웹소켓 초기화
+    if (pageId === 'livePacketPage') {
+        initWebSocket();
+    } else if (packetWebSocket) {
+        // 다른 페이지로 이동할 때 웹소켓 연결 종료
+        console.log('페이지 전환: WebSocket 연결 종료');
+        packetWebSocket.close();
+        packetWebSocket = null;
+    }
 }
 
 // ===============================
@@ -1240,9 +1250,7 @@ function initWebSocket() {
     }
 
     // Home Assistant ingress를 통한 웹소켓 연결
-    // const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    // const wsUrl = `${wsProtocol}${window.location.host}${window.location.pathname}/ws`;
-    const wsUrl = `${window.location.href.replace('http', 'ws')}ws`;
+    const wsUrl = window.location.href.replace('http', 'ws') + 'ws';
     console.log('WebSocket 연결 시도:', wsUrl);
     
     try {
@@ -1262,7 +1270,10 @@ function initWebSocket() {
             // 비정상 종료인 경우에만 재연결 시도
             if (!event.wasClean) {
                 console.log('3초 후 재연결 시도...');
-                setTimeout(initWebSocket, 3000);
+                setTimeout(() => {
+                    console.log('재연결 시도 중...');
+                    initWebSocket();
+                }, 3000);
             }
         };
         
@@ -1473,9 +1484,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
-    
-    // WebSocket 연결 초기화
-    initWebSocket();
 });
 
 function loadPacketStructures() {
