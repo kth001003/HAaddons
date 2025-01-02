@@ -42,9 +42,16 @@ class WebServer:
             try:
                 last_send_data = set()
                 last_recv_data = set()
+                last_ping_time = time.time()
                 
                 while not ws.closed:
                     try:
+                        # 30초마다 ping 전송
+                        current_time = time.time()
+                        if current_time - last_ping_time > 30:
+                            ws.send_frame('', websocket.OPCODE_PING)
+                            last_ping_time = current_time
+                        
                         current_send_data = set(self.wallpad_controller.COLLECTDATA['send_data'])
                         current_recv_data = set(self.wallpad_controller.COLLECTDATA['recv_data'])
                         
@@ -60,9 +67,8 @@ class WebServer:
                             last_send_data = current_send_data
                             last_recv_data = current_recv_data
                         
-                        # ping/pong으로 연결 상태 확인
-                        ws.send_frame('', websocket.OPCODE_PING)
-                        gevent.sleep(0.1)  # 100ms 마다 업데이트
+                        gevent.sleep(0.5)  # 500ms 마다 업데이트
+                        
                     except Exception as e:
                         if not ws.closed:
                             print(f"WebSocket send error: {e}")
