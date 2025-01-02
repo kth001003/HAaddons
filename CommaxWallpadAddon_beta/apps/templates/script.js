@@ -15,6 +15,8 @@ let isPaused = false;  // 일시정지 상태를 저장하는 변수 추가
 let isPolling = false;
 let pollingInterval;
 
+let packetLogInterval;
+
 // ===============================
 // 페이지 전환 함수
 // ===============================
@@ -43,6 +45,11 @@ function showPage(pageId) {
         startPolling();
     } else {
         stopPolling();
+    }
+    if (pageId === 'playground') {
+        startPacketLogUpdate();
+    } else {
+        stopPacketLogUpdate();
     }
 }
 
@@ -1484,7 +1491,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // 주기적 업데이트 설정
     setInterval(updateDeviceList, 30000);  // 30초마다 기기목록 업데이트
-    setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
 });
@@ -1638,5 +1644,16 @@ function togglePause() {
     const pauseButton = document.getElementById('pauseButton');
     if (pauseButton) {
         pauseButton.textContent = isPaused ? '재개' : '일시정지';
+    }
+}
+
+function startPacketLogUpdate() {
+    packetLogInterval = setInterval(updatePacketLog, 1000);
+}
+
+function stopPacketLogUpdate() {
+    if (packetLogInterval) {
+        clearInterval(packetLogInterval);
+        packetLogInterval = null;
     }
 }
