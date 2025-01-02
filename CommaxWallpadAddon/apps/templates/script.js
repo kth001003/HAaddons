@@ -1260,7 +1260,7 @@ function initWebSocket() {
             // WebSocket URL 구성
             const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
             // const wsUrl = `${wsProtocol}${window.location.host}/hassio/ingress/${data.ingress_url}/ws`;
-            const wsUrl = `ws://${data.ingress_url}:8099/ws`;
+            const wsUrl = `wss://${data.ingress_url}:8099/ws`;
             console.log('WebSocket 연결 시도:', wsUrl);
             
             try {
