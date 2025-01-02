@@ -8,57 +8,16 @@ import json
 import yaml # type: ignore
 import shutil
 from datetime import datetime
-import requests
+import requests # type: ignore
 from utils import checksum
-from simple_websocket_server import WebSocketServer, WebSocket
-import json
-
-class PacketWebSocket(WebSocket):
-    clients = set()
-    wallpad_controller = None
-
-    def handle(self):
-        # 클라이언트로부터 메시지 수신 시 처리
-        pass
-
-    def connected(self):
-        # 클라이언트 연결 시 clients 세트에 추가
-        self.clients.add(self)
-        print(f"New client connected. Total clients: {len(self.clients)}")
-
-    def handle_close(self):
-        # 클라이언트 연결 종료 시 clients 세트에서 제거
-        self.clients.remove(self)
-        print(f"Client disconnected. Total clients: {len(self.clients)}")
-
-    @classmethod
-    def broadcast_packet_data(cls):
-        # 모든 연결된 클라이언트에게 패킷 데이터 전송
-        if not cls.wallpad_controller:
-            return
-
-        data = {
-            'send_data': list(cls.wallpad_controller.COLLECTDATA['send_data']),
-            'recv_data': list(cls.wallpad_controller.COLLECTDATA['recv_data']),
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        }
-        
-        message = json.dumps(data)
-        for client in cls.clients:
-            try:
-                client.send_message(message)
-            except:
-                pass
+from geventwebsocket.handler import WebSocketHandler # type: ignore
+from gevent.pywsgi import WSGIServer # type: ignore
 
 class WebServer:
     def __init__(self, wallpad_controller):
         self.app = Flask(__name__, template_folder='templates')
         self.wallpad_controller = wallpad_controller
         self.recent_messages = []  # 최근 메시지를 저장할 리스트
-        
-        # 웹소켓 서버 설정
-        PacketWebSocket.wallpad_controller = wallpad_controller
-        self.websocket_server = WebSocketServer('0.0.0.0', 8100, PacketWebSocket)
         
         # 로깅 비활성화
         log = logging.getLogger('werkzeug')
@@ -71,6 +30,24 @@ class WebServer:
         @self.app.route('/')
         def home():
             return render_template('index.html')
+
+        @self.app.route('/ws')
+        def websocket():
+            if request.environ.get('wsgi.websocket'):
+                ws = request.environ['wsgi.websocket']
+                try:
+                    while True:
+                        data = {
+                            'send_data': list(self.wallpad_controller.COLLECTDATA['send_data']),
+                            'recv_data': list(self.wallpad_controller.COLLECTDATA['recv_data']),
+                            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                        }
+                        ws.send(json.dumps(data))
+                        time.sleep(0.1)
+                except Exception as e:
+                    print(f"WebSocket error: {e}")
+                return ''
+            return 'WebSocket connection failed'
 
         @self.app.route('/api/custom_packet_structure/editable', methods=['GET'])
         def get_editable_packet_structure():
@@ -663,28 +640,10 @@ class WebServer:
                 current['structure'][position]['values'] = field.get('values', {})
 
     def run(self):
-        # Flask 서버 실행
-        threading.Thread(target=self._run_server, daemon=True).start()
-        # 웹소켓 서버 실행
-        threading.Thread(target=self._run_websocket_server, daemon=True).start()
-        # 패킷 데이터 브로드캐스트 스레드 실행
-        threading.Thread(target=self._broadcast_packet_data, daemon=True).start()
-        
-    def _run_server(self):
-        self.app.run(
-            host='0.0.0.0',
-            port=8099,
-            use_reloader=False,
-            threaded=True
-        )
-
-    def _run_websocket_server(self):
-        self.websocket_server.serve_forever()
-
-    def _broadcast_packet_data(self):
-        while True:
-            PacketWebSocket.broadcast_packet_data()
-            time.sleep(0.1)  # 0.1초마다 업데이트
+        # Flask 서버 실행 (with WebSocket support)
+        http_server = WSGIServer(('0.0.0.0', 8099), self.app,
+                               handler_class=WebSocketHandler)
+        http_server.serve_forever()
 
     def _analyze_packet_structure(self, command: str, packet_type: str) -> Dict[str, Any]:
         """패킷 구조를 분석하고 관련 정보를 반환합니다."""

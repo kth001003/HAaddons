@@ -1238,8 +1238,8 @@ function initWebSocket() {
         packetWebSocket.close();
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:8100`;
+    // Home Assistant ingress를 통한 웹소켓 연결
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${window.location.pathname}ws`;
     
     packetWebSocket = new WebSocket(wsUrl);
     

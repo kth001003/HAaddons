@@ -18,7 +18,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
     flask==2.3.3 \
     telnetlib3 \
     requests==2.31.0 \
-    simple-websocket-server
+    gevent \
+    gevent-websocket
 
 WORKDIR /share
 # Copy data for add-on
