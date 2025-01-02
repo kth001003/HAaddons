@@ -60,8 +60,8 @@ class WebServer:
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             return jsonify({
                 'timestamp': current_time,
-                'send_data': list(self.wallpad_controller.COLLECTDATA['send_data']),
-                'recv_data': list(self.wallpad_controller.COLLECTDATA['recv_data'])
+                'send_data': self.wallpad_controller.COLLECTDATA['send_data'],
+                'recv_data': self.wallpad_controller.COLLECTDATA['recv_data']
             })
         @self.app.route('/api/custom_packet_structure/editable', methods=['GET'])
         def get_editable_packet_structure():
@@ -344,7 +344,8 @@ class WebServer:
                 packet_types = ['command', 'state_request', 'state', 'ack']
 
                 # 송신 패킷 처리
-                for packet in self.wallpad_controller.COLLECTDATA['send_data']:
+                send_data_set = set(self.wallpad_controller.COLLECTDATA['send_data'])
+                for packet in send_data_set:
                     packet_info = {
                         'packet': packet,
                         'results': []
@@ -367,7 +368,8 @@ class WebServer:
                     send_packets.append(packet_info)
 
                 # 수신 패킷 처리 (송신 패킷 처리와 동일한 로직 적용)
-                for packet in self.wallpad_controller.COLLECTDATA['recv_data']:
+                recv_data_set = set(self.wallpad_controller.COLLECTDATA['recv_data'])
+                for packet in recv_data_set:
                     packet_info = {
                         'packet': packet,
                         'results': []
