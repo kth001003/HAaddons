@@ -1241,7 +1241,7 @@ function initWebSocket() {
 
     // Home Assistant ingress를 통한 웹소켓 연결
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const wsUrl = `${wsProtocol}${window.location.host}/api/hassio_ingress/${window.location.pathname.split('/')[3]}/ws`;
+    const wsUrl = `${wsProtocol}${window.location.host}${window.location.pathname}/ws`;
     console.log('WebSocket 연결 시도:', wsUrl);
     
     try {
