@@ -36,17 +36,34 @@ class WebServer:
 
         @self.app.route('/ws')
         def websocket():
-            if not request.environ.get('wsgi.websocket'):
-                self.logger.error("WebSocket connection failed - not a websocket request")
+            self.logger.info("웹소켓 요청 수신")
+            wsgi_websocket = request.environ.get('wsgi.websocket')
+            
+            if not wsgi_websocket:
+                self.logger.error("웹소켓 연결 실패 - wsgi.websocket이 없음")
                 return 'WebSocket connection failed'
 
+            self.logger.info(f"웹소켓 환경 정보: {request.environ.get('HTTP_UPGRADE', '정보없음')}")
+            self.logger.info(f"웹소켓 프로토콜: {request.environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL', '정보없음')}")
+            
             ws = request.environ['wsgi.websocket']
-            self.logger.info("New WebSocket connection established")
+            self.logger.info("새로운 웹소켓 연결 수립됨")
 
             try:
                 last_send_data = set()
                 last_recv_data = set()
                 last_ping_time = time.time()
+                
+                # 초기 연결 확인 메시지 전송
+                try:
+                    ws.send(json.dumps({
+                        'type': 'connection_established',
+                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                    }))
+                    self.logger.info("초기 연결 확인 메시지 전송됨")
+                except Exception as e:
+                    self.logger.error(f"초기 메시지 전송 실패: {e}")
+                    return ''
                 
                 while not ws.closed:
                     try:
@@ -56,8 +73,9 @@ class WebServer:
                             try:
                                 ws.send_frame('', websocket.OPCODE_PING)
                                 last_ping_time = current_time
+                                self.logger.debug("Ping 전송됨")
                             except Exception as ping_error:
-                                self.logger.error(f"Ping error: {ping_error}")
+                                self.logger.error(f"Ping 전송 오류: {ping_error}")
                                 break
                         
                         current_send_data = set(self.wallpad_controller.COLLECTDATA['send_data'])
@@ -66,6 +84,7 @@ class WebServer:
                         # 변경된 데이터가 있는 경우에만 전송
                         if current_send_data != last_send_data or current_recv_data != last_recv_data:
                             data = {
+                                'type': 'packet_data',
                                 'send_data': list(current_send_data),
                                 'recv_data': list(current_recv_data),
                                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
@@ -74,36 +93,39 @@ class WebServer:
                                 ws.send(json.dumps(data))
                                 last_send_data = current_send_data
                                 last_recv_data = current_recv_data
+                                self.logger.debug("패킷 데이터 전송됨")
                             except Exception as send_error:
-                                self.logger.error(f"Send error: {send_error}")
+                                self.logger.error(f"데이터 전송 오류: {send_error}")
                                 break
                         
                         # 메시지 수신 대기 (non-blocking)
                         try:
                             msg = ws.receive()
                             if msg is None:  # 연결이 종료됨
-                                self.logger.info("WebSocket connection closed by client")
+                                self.logger.info("클라이언트가 연결을 종료함")
                                 break
+                            elif msg:  # 메시지가 있는 경우
+                                self.logger.debug(f"클라이언트로부터 메시지 수신: {msg}")
                         except Exception as recv_error:
                             if not ws.closed:
-                                self.logger.error(f"Receive error: {recv_error}")
+                                self.logger.error(f"메시지 수신 오류: {recv_error}")
                                 break
                         
                         gevent.sleep(0.5)  # 500ms 마다 업데이트
                         
                     except Exception as loop_error:
-                        self.logger.error(f"WebSocket loop error: {loop_error}")
+                        self.logger.error(f"웹소켓 루프 오류: {loop_error}")
                         break
                         
             except Exception as e:
-                self.logger.error(f"WebSocket error: {e}")
+                self.logger.error(f"웹소켓 처리 중 오류 발생: {e}")
             finally:
                 if not ws.closed:
                     try:
                         ws.close()
-                    except:
-                        pass
-                self.logger.info("WebSocket connection closed")
+                    except Exception as close_error:
+                        self.logger.error(f"웹소켓 종료 중 오류: {close_error}")
+                self.logger.info("웹소켓 연결 종료됨")
             return ''
 
         @self.app.route('/api/custom_packet_structure/editable', methods=['GET'])
