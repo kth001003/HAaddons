@@ -47,12 +47,10 @@ class WebServer:
         self.server = None  # WSGIServer 인스턴스를 저장할 변수
         self.logger = wallpad_controller.logger  # wallpad_controller의 logger 사용
         self.logger.info("웹서버 초기화 완료")
-        # 로깅 비활성화
+
+        # Flask 로깅 비활성화
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
-        
-        # Home Assistant Ingress 베이스 URL 설정
-        self.base_url = os.environ.get('SUPERVISOR_TOKEN', '')
         
         # 라우트 설정
         @self.app.route('/')

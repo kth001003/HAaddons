@@ -1249,12 +1249,12 @@ function initWebSocket() {
         packetWebSocket.close();
     }
     // WebSocket URL 구성
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const wsUrl = `${wsProtocol}${window.location.host}${window.location.pathname}/ws`;
-    console.log('WebSocket 연결 시도:', wsUrl);
+    // const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    // const wsUrl = `${wsProtocol}${window.location.host}${window.location.pathname}ws`;
+    // console.log('WebSocket 연결 시도:', wsUrl);
     
     try {
-        packetWebSocket = new WebSocket(wsUrl);
+        packetWebSocket = new WebSocket("./ws");
         
         packetWebSocket.onopen = function(event) {
             console.log('WebSocket 연결 성공:', event);
