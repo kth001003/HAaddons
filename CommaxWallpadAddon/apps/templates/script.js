@@ -39,7 +39,7 @@ function showPage(pageId) {
     });
 
     // 실시간 패킷 페이지인 경우 웹소켓 초기화
-    if (pageId === 'livePacketPage') {
+    if (pageId === 'live_packets') {
         initWebSocket();
     } else if (packetWebSocket) {
         // 다른 페이지로 이동할 때 웹소켓 연결 종료
