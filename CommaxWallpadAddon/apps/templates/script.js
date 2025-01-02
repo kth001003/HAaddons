@@ -1239,7 +1239,8 @@ function initWebSocket() {
     }
 
     // Home Assistant ingress를 통한 웹소켓 연결
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${window.location.pathname}ws`;
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${window.location.pathname}ws`.replace(/\/+/g, '/');
+    console.log('Connecting to WebSocket:', wsUrl);
     
     packetWebSocket = new WebSocket(wsUrl);
     
@@ -1249,8 +1250,8 @@ function initWebSocket() {
         updateWebSocketStatus();
     };
     
-    packetWebSocket.onclose = function() {
-        console.log('WebSocket 연결 끊김');
+    packetWebSocket.onclose = function(event) {
+        console.log('WebSocket 연결 끊김:', event.code, event.reason);
         isWebSocketConnected = false;
         updateWebSocketStatus();
         // 3초 후 재연결 시도
@@ -1266,8 +1267,13 @@ function initWebSocket() {
     packetWebSocket.onmessage = function(event) {
         if (isPaused) return;  // 일시정지 상태면 업데이트 하지 않음
         
-        const data = JSON.parse(event.data);
-        updateLivePacketLogFromWebSocket(data);
+        try {
+            const data = JSON.parse(event.data);
+            console.log('WebSocket 메시지 수신:', data);
+            updateLivePacketLogFromWebSocket(data);
+        } catch (error) {
+            console.error('WebSocket 메시지 처리 오류:', error);
+        }
     };
 }
 
