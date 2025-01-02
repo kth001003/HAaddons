@@ -11,6 +11,10 @@ let currentInput = '';   // 현재 입력값 저장용 변수 추가
 let liveLastPackets = new Set();
 let isPaused = false;  // 일시정지 상태를 저장하는 변수 추가
 
+// 웹소켓 관련 변수
+let packetWebSocket = null;
+let isWebSocketConnected = false;
+
 // ===============================
 // 페이지 전환 함수
 // ===============================
@@ -589,6 +593,7 @@ function createLabelContainer(key, schema) {
     if (!isOptional) {
         label.textContent += ' *';
     }
+    schema = schema.replace('?', '');
 
     labelContainer.appendChild(label);
 
@@ -1227,6 +1232,139 @@ function saveCustomPacketStructure() {
     .catch(error => showPacketEditorMessage('저장 중 오류가 발생했습니다: ' + error, true));
 }
 
+// 웹소켓 관련 함수들
+function initWebSocket() {
+    if (packetWebSocket) {
+        packetWebSocket.close();
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.hostname}:8100`;
+    
+    packetWebSocket = new WebSocket(wsUrl);
+    
+    packetWebSocket.onopen = function() {
+        console.log('WebSocket 연결됨');
+        isWebSocketConnected = true;
+        updateWebSocketStatus();
+    };
+    
+    packetWebSocket.onclose = function() {
+        console.log('WebSocket 연결 끊김');
+        isWebSocketConnected = false;
+        updateWebSocketStatus();
+        // 3초 후 재연결 시도
+        setTimeout(initWebSocket, 3000);
+    };
+    
+    packetWebSocket.onerror = function(error) {
+        console.error('WebSocket 오류:', error);
+        isWebSocketConnected = false;
+        updateWebSocketStatus();
+    };
+    
+    packetWebSocket.onmessage = function(event) {
+        if (isPaused) return;  // 일시정지 상태면 업데이트 하지 않음
+        
+        const data = JSON.parse(event.data);
+        updateLivePacketLogFromWebSocket(data);
+    };
+}
+
+function updateWebSocketStatus() {
+    const statusElement = document.getElementById('wsStatus');
+    if (statusElement) {
+        statusElement.textContent = isWebSocketConnected ? '연결됨' : '연결 끊김';
+        statusElement.className = isWebSocketConnected ? 
+            'px-2 py-1 rounded text-sm bg-green-100 text-green-800' : 
+            'px-2 py-1 rounded text-sm bg-red-100 text-red-800';
+    }
+}
+
+function updateLivePacketLogFromWebSocket(data) {
+    const logDiv = document.getElementById('livePacketLog');
+    if (!logDiv) return;
+
+    let newContent = '';
+    const timestamp = data.timestamp;
+
+    // 송신 패킷 처리
+    data.send_data.forEach(packet => {
+        if (!liveLastPackets.has('send:' + packet)) {
+            const packetInfo = analyzePacketInfo(packet);
+            newContent = createLivePacketLogEntry({
+                packet: packet,
+                type: 'send',
+                timestamp: timestamp,
+                deviceInfo: packetInfo
+            }) + newContent;
+            liveLastPackets.add('send:' + packet);
+        }
+    });
+
+    // 수신 패킷 처리
+    data.recv_data.forEach(packet => {
+        if (!liveLastPackets.has('recv:' + packet)) {
+            const packetInfo = analyzePacketInfo(packet);
+            newContent = createLivePacketLogEntry({
+                packet: packet,
+                type: 'recv',
+                timestamp: timestamp,
+                deviceInfo: packetInfo
+            }) + newContent;
+            liveLastPackets.add('recv:' + packet);
+        }
+    });
+
+    if (newContent) {
+        logDiv.innerHTML = newContent + logDiv.innerHTML;
+        updateLivePacketLogDisplay();
+        
+        // 로그가 너무 길어지면 오래된 항목 제거
+        const maxEntries = 2000;
+        const entries = logDiv.getElementsByClassName('packet-log-entry');
+        if (entries.length > maxEntries) {
+            for (let i = maxEntries; i < entries.length; i++) {
+                entries[i].remove();
+            }
+        }
+    }
+}
+
+function analyzePacketInfo(packet) {
+    // 패킷 헤더로 기기 정보 분석
+    const header = packet.substring(0, 2);
+    let deviceInfo = { device: 'Unknown', packet_type: 'Unknown' };
+    
+    if (packetSuggestions && packetSuggestions.headers) {
+        // 명령 패킷 확인
+        const commandDevice = packetSuggestions.headers.command.find(h => h.header === header);
+        if (commandDevice) {
+            return { device: commandDevice.device, packet_type: 'Command' };
+        }
+        
+        // 상태 패킷 확인
+        const stateDevice = packetSuggestions.headers.state.find(h => h.header === header);
+        if (stateDevice) {
+            return { device: stateDevice.device, packet_type: 'State' };
+        }
+        
+        // 상태 요청 패킷 확인
+        const requestDevice = packetSuggestions.headers.state_request.find(h => h.header === header);
+        if (requestDevice) {
+            return { device: requestDevice.device, packet_type: 'Request' };
+        }
+        
+        // 응답 패킷 확인
+        const ackDevice = packetSuggestions.headers.ack.find(h => h.header === header);
+        if (ackDevice) {
+            return { device: ackDevice.device, packet_type: 'Ack' };
+        }
+    }
+    
+    return deviceInfo;
+}
+
 // 페이지 로드 완료 후 초기화 실행 및 주기적 업데이트 설정
 document.addEventListener('DOMContentLoaded', function() {
     fetch('./api/packet_suggestions')
@@ -1295,8 +1433,9 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
-    setInterval(updateLivePacketLog, 500);    // 0.5초마다 실시간 패킷 로그 업데이트
     
+    // WebSocket 연결 초기화
+    initWebSocket();
 });
 
 function loadPacketStructures() {
