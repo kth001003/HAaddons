@@ -1248,13 +1248,13 @@ function initWebSocket() {
         console.log('기존 WebSocket 연결 종료');
         packetWebSocket.close();
     }
-    // WebSocket URL 구성
-    // const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    // const wsUrl = `${wsProtocol}${window.location.host}${window.location.pathname}ws`;
-    // console.log('WebSocket 연결 시도:', wsUrl);
-    
+
     try {
-        packetWebSocket = new WebSocket("./ws");
+        // 현재 페이지의 경로를 기반으로 WebSocket URL 구성
+        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${window.location.pathname}ws`;
+        console.log('WebSocket 연결 시도:', wsUrl);
+        
+        packetWebSocket = new WebSocket(wsUrl);
         
         packetWebSocket.onopen = function(event) {
             console.log('WebSocket 연결 성공:', event);

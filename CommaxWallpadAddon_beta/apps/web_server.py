@@ -41,11 +41,23 @@ def get_addon_info():
 class WebServer:
     def __init__(self, wallpad_controller):
         self.app = Flask(__name__, template_folder='templates')
+        self.app.config['SECRET_KEY'] = 'secret!'
+        self.app.config['PROPAGATE_EXCEPTIONS'] = True
+        
+        # CORS 설정 추가
+        @self.app.after_request
+        def after_request(response):
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            return response
+            
         self.wallpad_controller = wallpad_controller
         self.addon_info = get_addon_info()
-        self.recent_messages = []  # 최근 메시지를 저장할 리스트
-        self.server = None  # WSGIServer 인스턴스를 저장할 변수
-        self.logger = wallpad_controller.logger  # wallpad_controller의 logger 사용
+        self.recent_messages = []
+        self.server = None
+        self.logger = wallpad_controller.logger
         self.logger.info("웹서버 초기화 완료")
 
         # Flask 로깅 비활성화
@@ -58,20 +70,20 @@ class WebServer:
             return render_template('index.html')
 
         @self.app.route('/ws')
+        @self.app.route('/ws/')
         def websocket():
-            self.logger.info("웹소켓 요청 수신")
-            wsgi_websocket = request.environ.get('wsgi.websocket')
+            self.logger.info(f"웹소켓 요청 수신 - Headers: {dict(request.headers)}")
             
-            if not wsgi_websocket:
+            if not request.environ.get('wsgi.websocket'):
                 self.logger.error("웹소켓 연결 실패 - wsgi.websocket이 없음")
-                return 'WebSocket connection failed'
+                return ''  # 빈 응답 반환
+
+            ws = request.environ['wsgi.websocket']
+            self.logger.info("새로운 웹소켓 연결 수립됨")
 
             self.logger.info(f"웹소켓 환경 정보: {request.environ.get('HTTP_UPGRADE', '정보없음')}")
             self.logger.info(f"웹소켓 프로토콜: {request.environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL', '정보없음')}")
             
-            ws = request.environ['wsgi.websocket']
-            self.logger.info("새로운 웹소켓 연결 수립됨")
-
             try:
                 last_send_data = set()
                 last_recv_data = set()
@@ -1080,18 +1092,21 @@ class WebServer:
     def run(self):
         # Flask 서버 실행 (with WebSocket support)
         self.server = WSGIServer(('0.0.0.0', 8099), self.app,
-                               handler_class=WebSocketHandler)
+                               handler_class=WebSocketHandler,
+                               environ={'SERVER_NAME': 'localhost'})
 
         # 별도의 스레드에서 서버 실행
         threading.Thread(target=self._run_server, daemon=True).start()
         
     def _run_server(self):
         try:
+            self.logger.info("웹서버 시작: %s", self.server)
             self.server.serve_forever()
         except Exception as e:
-            print(f"Server error: {e}")
-
+            self.logger.error(f"Server error: {e}")
+            
     def stop(self):
         if self.server:
+            self.logger.info("웹서버 종료")
             self.server.stop()
             self.server = None 
