@@ -303,7 +303,7 @@ Outlet:
         name: commandType
         values: 
           "power": "01"
-        memo: 추정입니다
+        memo: ecomode 관련 명령 있을것으로 추정됨.
       "3":
         name: power
         values:
@@ -325,10 +325,10 @@ Outlet:
         values:
           "id": "FF"
       "2":
-        name: unknown
+        name: requrestType
         values: 
-          "unknown1": "01"
-          "unknown2": "02"
+          "wattage": "01"
+          "ecomode": "02"
       "3": 
         name: empty
       "4": 
@@ -346,34 +346,34 @@ Outlet:
         name: power
         values:
           "on": "01"
-          "off": "11"
-        memo: 반대일수도있음.
+          "off": "00"
       "2":
         name: deviceId
         values:
           "id": "FF"
       "3":
-        name: unknown1
+        name: stateType
         values: 
-          "unknown1": "11"
-          "unknown2": "21"
-        memo: 상태조회 byte2가 01일때 11로 응답, 02일때 21로 응답
+          "wattage": "11"
+          "ecomode": "21"
+        memo: ecomode는 대기전력차단모드 상태로 추정됨
       "4":
-        name: unknown2
+        name: data1
         values: 
-          "unknown1": "00"
-          "unknown2": "10"
-        memo: wattage 관련으로 보임
+          "wattage": "FF"
+          "ecomode": "FF"
+        memo: wattage의 경우 data1~3까지 그대로 읽어서 x 0.1W
       "5": 
-        name: unknown3
+        name: data2
         values: 
-          "unknown": "12"
-        memo: wattage 관련으로 보임
+          "wattage": "FF"
+          "ecomode": "FF"
+        memo: ecomode?는 000100 000060이 목격됨
       "6": 
-        name: unknown4
+        name: data3
         values: 
-          "unknown": "49"
-        memo: wattage 관련으로 보임
+          "wattage": "FF"
+          "ecomode": "FF"
       "7":
         name: checksum
 
