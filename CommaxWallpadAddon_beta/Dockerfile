@@ -19,7 +19,7 @@ RUN pip3 install \
     flask==2.3.3 \
     telnetlib3 \
     requests==2.31.0 \
-    gevent \
+    gevent
 
 WORKDIR /share
 # Copy data for add-on
