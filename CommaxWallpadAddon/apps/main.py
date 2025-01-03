@@ -201,8 +201,6 @@ class WallpadController:
                     (f'{self.ELFIN_TOPIC}/send', 0)
                 ]
                 client.subscribe(topics)
-                # MQTT Discovery 메시지 발행
-                await self.publish_discovery_message()
             except Exception as e:
                 self.logger.error(f"MQTT 토픽 구독 중 오류 발생: {str(e)}")
         else:
@@ -272,7 +270,7 @@ class WallpadController:
     # 기기 검색 및 상태 관리 함수들
     @require_device_structure({})
     def find_device(self) -> Dict[str, Any]:
-        """MQTT에 발행되는 RS485신호에서 기기를 찾는 함수입니다."""
+        """COLLECTDATA의 recv_data에서 기기를 찾는 함수입니다."""
         try:
             if not os.path.exists(self.share_dir):
                 os.makedirs(self.share_dir)
@@ -284,60 +282,38 @@ class WallpadController:
             assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
             
             # 헤더로 기기 타입 매핑
-            state_prefixes = {
+            state_headers = {
                 self.DEVICE_STRUCTURE[name]["state"]["header"]: name 
                 for name in self.DEVICE_STRUCTURE 
                 if "state" in self.DEVICE_STRUCTURE[name]
             }
+            self.logger.info(f'검색 대상 기기 headers: {state_headers}')
             
             # 기기별 최대 인덱스 저장
-            device_count = {name: 0 for name in state_prefixes.values()}
+            device_count = {name: 0 for name in state_headers.values()}
             
-            target_time = time.time() + 20
-            
-            def on_connect(client, userdata, flags, rc):
-                if rc == 0:
-                    self.logger.info("MQTT broker 접속 완료")
-                    self.logger.info("20초동안 기기를 검색합니다.")
-                    client.subscribe(f'{self.ELFIN_TOPIC}/#', 0)
-                else:
-                    self.logger.error(f"Connection failed with code {rc}")
-            
-            def on_message(client, userdata, msg):
-                assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
-                raw_data = msg.payload.hex().upper()
-                for k in range(0, len(raw_data), 16):
-                    data = raw_data[k:k + 16]
-                    if data == checksum(data) and data[:2] in state_prefixes:
-                        name = state_prefixes[data[:2]]
-                        device_structure = self.DEVICE_STRUCTURE[name]
-                        device_id_position = int(device_structure["state"]["structure"]["2"]["name"] == "deviceId" 
-                                              and "2" or next(
-                                                  pos for pos, field in device_structure["state"]["structure"].items()
-                                                  if field["name"] == "deviceId"
-                                              ))
+            # COLLECTDATA의 recv_data 분석
+            collect_data_set = set(self.COLLECTDATA['recv_data'])
+            for data in collect_data_set:
+                data_bytes = bytes.fromhex(data)
+                header = byte_to_hex_str(data_bytes[0])
+                if data == checksum(data) and header in state_headers:
+                    name = state_headers[header]
+                    self.logger.debug(f'감지된 기기: {data} {name} ')
+                    try:
+                        device_id_pos = self.DEVICE_STRUCTURE[name]["state"]["fieldPositions"]["deviceId"]
                         device_count[name] = max(
-                            device_count[name], 
-                            int(data[device_id_position*2:device_id_position*2+2], 16)
+                            device_count[name],
+                            int(str(data_bytes[int(device_id_pos)]), 16)  # 바이트를 문자열로 변환 후 16진수로 변환
                         )
-            
-            # 임시 MQTT 클라이언트 설정
-            temp_client = self.setup_mqtt('commax_finder')
-            temp_client.on_connect = on_connect
-            temp_client.on_message = on_message
-            
-            # MQTT 연결 및 검색 시작
-            temp_client.connect(self.config['mqtt_server'])
-            temp_client.loop_start()
-            
-            while time.time() < target_time:
-                pass
-            
-            temp_client.loop_stop()
-            temp_client.disconnect()
+                        self.logger.debug(f'기기 갯수 업데이트: {device_count[name]}')
+                    except Exception as e:
+                        #header가 존재하지만 deviceId가 없는 경우 1개로 처리
+                        self.logger.debug(f'deviceId가 없는 기기: {name} {e}')
+                        device_count[name] = 1
             
             # 검색 결과 처리
-            self.logger.info('다음의 기기들을 찾았습니다...')
+            self.logger.info('기기 검색 종료. 다음의 기기들을 찾았습니다...')
             self.logger.info('======================================')
             
             device_list = {}
@@ -349,9 +325,7 @@ class WallpadController:
                         "type": self.DEVICE_STRUCTURE[name]["type"],
                         "count": count
                     }
-                    self.logger.info(f'DEVICE: {name}')
-                    self.logger.info(f'Count: {count}')
-                    self.logger.info('-------------------')
+                    self.logger.info(f'DEVICE: {name} COUNT: {count}')
             
             self.logger.info('======================================')
             
@@ -364,16 +338,11 @@ class WallpadController:
                 self.logger.error(f'기기리스트 저장 실패: {str(e)}')
             
             return device_list
-            # device_list 내용 예시:
-            # {"light":
-            #   "type":"light",
-            #   "count":0
-            # }
             
         except Exception as e:
             self.logger.error(f'기기 검색 중 오류 발생: {str(e)}')
             return {}
-        
+
     async def publish_discovery_message(self):
         """홈어시스턴트 MQTT Discovery 메시지 발행"""
         try:
@@ -848,7 +817,16 @@ class WallpadController:
                                 device_id_pos = field_positions['deviceId']
                                 device_id = byte_data[int(device_id_pos)]
                             except KeyError:
-                                self.logger.error(f"{device_name}의 deviceId 필드를 찾을 수 없습니다.")
+                                # Gas같은 deviceId가 없는 기기 처리 여기에..
+                                if device_name == 'Gas':
+                                    power_pos = field_positions.get('power', 1)
+                                    power = byte_data[int(power_pos)]
+                                    power_hex = byte_to_hex_str(power)
+                                    power_values = state_structure['structure'][power_pos]['values']
+                                    power_text = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
+                                    self.logger.signal(f'{byte_data.hex()}: 가스차단기 ### 상태: {power_text}')
+                                    # TODO: 가스차단기 상태 업데이트 추가
+                                    # await self.update_gas(power_text)
                                 break
                             except IndexError:
                                 self.logger.error(f"{device_name}의 deviceId 위치({device_id_pos})가 패킷 범위를 벗어났습니다.")
@@ -1092,42 +1070,38 @@ class WallpadController:
         
         await asyncio.sleep(0.05)
 
-    async def process_queue_and_monitor(self, elfin_reboot_interval: float) -> bool:
+    async def process_queue_and_monitor(self) -> bool:
         """
-        메시지 큐를 주기적으로 처리하고 기기 상태를 모니터링하는 함수입니다.
+        메시지 큐를 처리하고 기기 상태를 모니터링하는 함수입니다.
 
-        1ms 간격으로 다음 작업들을 수행합니다:
         1. 큐에 있는 메시지 처리 (130ms 이상 통신이 없을 때)
         2. ew11 기기 상태 모니터링 및 필요시 재시작
 
         Args:
-            elfin_reboot_interval (float): ew11 기기 재시작 판단을 위한 통신 제한 시간 (초)
+            elfin_reboot_interval (int): ew11 기기 재시작 판단을 위한 통신 제한 시간 (초)
 
         Raises:
             Exception: 큐 처리 또는 기기 재시작 중 오류 발생시 예외를 발생시킵니다.
         """
-        queue_interval = self.config.get("queue_interval_in_second",0.01)
-        while True:
-            try:
-                current_time = time.time_ns()
-                last_recv = self.COLLECTDATA['last_recv_time']
-                signal_interval = (current_time - last_recv)/1_000_000 #ns to ms
-                
-                if signal_interval > elfin_reboot_interval * 1_000:  # seconds
-                    self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
-                    self.COLLECTDATA['last_recv_time'] = time.time_ns()
-                    if (self.config.get("elfin_auto_reboot",True)):
-                        self.logger.warning('EW11 재시작을 시도합니다.')
-                        await self.reboot_elfin_device()
-                if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
-                    await self.process_queue()
-                
-            except Exception as err:
-                self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
-                return True
+        try:
+            elfin_reboot_interval = self.config.get('elfin_reboot_interval', 10)
+            current_time = time.time_ns()
+            last_recv = self.COLLECTDATA['last_recv_time']
+            signal_interval = (current_time - last_recv)/1_000_000 #ns to ms
             
-            await asyncio.sleep(queue_interval) #10ms
-
+            if signal_interval > elfin_reboot_interval * 1_000:  # seconds
+                self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
+                self.COLLECTDATA['last_recv_time'] = time.time_ns()
+                if (self.config.get("elfin_auto_reboot",True)):
+                    self.logger.warning('EW11 재시작을 시도합니다.')
+                    await self.reboot_elfin_device()
+            if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
+                await self.process_queue()
+            
+        except Exception as err:
+            self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
+            return True
+        
     # 메인 실행 함수
     def run(self) -> None:
         self.logger.info("저장된 기기정보가 있는지 확인합니다. (/share/commax_found_device.json)")
@@ -1135,13 +1109,12 @@ class WallpadController:
             with open(self.share_dir + '/commax_found_device.json') as file:
                 self.device_list = json.load(file)
             if not self.device_list:
-                self.logger.info('기기 목록이 비어있습니다. 기기 찾기를 시도합니다.')
-                self.device_list = self.find_device()
+                self.logger.info('기기 목록이 비어있습니다. 메인 루프 시작 후 기기 찾기를 시도합니다.')
             else:
                 self.logger.info(f'기기정보를 찾았습니다. \n{json.dumps(self.device_list, ensure_ascii=False, indent=4)}')
         except IOError:
-            self.logger.info('저장된 기기 정보가 없습니다. mqtt에 접속하여 기기 찾기를 시도합니다.')
-            self.device_list = self.find_device()
+            self.logger.info('저장된 기기 정보가 없습니다. 메인 루프 시작 후 기기 찾기를 시도합니다.')
+            self.device_list = {}
 
         try:
             # 웹서버 시작
@@ -1152,11 +1125,16 @@ class WallpadController:
             
             # MQTT 연결 완료 이벤트를 위한 Event 객체 생성
             mqtt_connected = asyncio.Event()
+            device_search_done = asyncio.Event()
+            discovery_done = asyncio.Event()
             
+            # 저장된 기기 정보가 있는 경우 device_search_done 설정
+            if self.device_list:
+                device_search_done.set()
+                            
             # MQTT 콜백 설정
             def on_connect_callback(client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
                 if rc == 0:  # 연결 성공
-                    
                     if self.loop and self.loop.is_running():
                         asyncio.run_coroutine_threadsafe(
                             self.on_mqtt_connect(client, userdata, flags, rc), 
@@ -1166,7 +1144,6 @@ class WallpadController:
                     else:
                         self.logger.error("메인 루프가 실행되지 않았습니다.")
                         self.reconnect_mqtt()
-
                 else:
                     # 재연결 시도
                     self.logger.error(f"MQTT 연결 실패 (코드: {rc})")
@@ -1193,14 +1170,34 @@ class WallpadController:
 
             # MQTT 연결 완료를 기다림
             async def wait_for_mqtt():
+                queue_interval = self.config.get('queue_interval_in_second',0.01)
                 while True:  # 무한 루프로 변경
                     try:
                         await mqtt_connected.wait()
                         self.logger.info("MQTT 연결이 완료되었습니다. 메인 루프를 시작합니다.")
                         
                         while mqtt_connected.is_set():
-                            await self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10))
-                            await asyncio.sleep(0.1)
+                            if not discovery_done.is_set() and device_search_done.is_set():
+                                await self.publish_discovery_message()
+                                discovery_done.set()
+                            # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
+                            recv_data_len = len(self.COLLECTDATA['recv_data'])
+                            if recv_data_len >= 80 and not device_search_done.is_set():
+                                self.logger.debug(f"기기 검색 조건 상태 - device_list 비어있음: {not self.device_list}, 검색 미완료: {not device_search_done.is_set()}, recv_data 길이: {recv_data_len}")
+                                if not self.device_list:
+                                    self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
+                                    self.device_list = self.find_device()
+                                    if self.device_list:
+                                        self.logger.info(f"기기 검색 완료: {json.dumps(self.device_list, ensure_ascii=False, indent=2)}")
+                                        await self.publish_discovery_message()
+                                        discovery_done.set()
+                                    else:
+                                        self.logger.warning("기기를 찾지 못했습니다.")
+                                    device_search_done.set()
+                                    self.logger.info("기기 검색 완료 표시를 설정했습니다.")
+                            
+                            await self.process_queue_and_monitor()
+                            await asyncio.sleep(queue_interval)
                             
                     except Exception as e:
                         self.logger.error(f"메인 루프 실행 중 오류 발생: {str(e)}")
@@ -1238,7 +1235,10 @@ if __name__ == '__main__':
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
     logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
-    logger.info("########################################################")
-    logger.info("'Commax Wallpad Addon by ew11-mqtt'을 시작합니다.")
+    logger.info("╔══════════════════════════════════════════════════════════════╗")
+    logger.info("║                                                              ║")
+    logger.info("║         Commax Wallpad Addon by ew11-mqtt 시작               ║") 
+    logger.info("║                                                              ║")
+    logger.info("╚══════════════════════════════════════════════════════════════╝")
     controller = WallpadController(CONFIG, logger)
     controller.run()

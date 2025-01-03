@@ -57,19 +57,13 @@ function showPage(pageId) {
 // 기기 목록 관련 함수
 // ===============================
 function refreshDevices() {
-    if (!confirm('기기를 다시 검색하기 위해 애드온을 재시작합니다. 이 작업은 30초정도 걸립니다. 계속하시겠습니까?')) {
+    if (!confirm('기기를 다시 검색하기 위해 애드온을 재시작합니다. 재시작 후 30초정도 후에 기기가 검색됩니다. 계속하시겠습니까?')) {
         return;
     }
 
     fetch('./api/find_devices', {
         method: 'POST'
     });
-
-    // 응답을 기다리지 않고 바로 알림 표시 및 타이머 시작
-    alert('애드온이 재시작됩니다. 30초 후 페이지를 새로고침해주세요.');
-    setTimeout(() => {
-        window.location.reload();
-    }, 29000);
 }
 
 function updateDeviceList() {
@@ -1490,7 +1484,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     // 주기적 업데이트 설정
-    setInterval(updateDeviceList, 30000);  // 30초마다 기기목록 업데이트
+    setInterval(updateDeviceList, 10000);  // 10초마다 기기목록 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
 });

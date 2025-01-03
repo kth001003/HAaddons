@@ -11,6 +11,7 @@ from datetime import datetime
 import requests # type: ignore
 from utils import checksum
 from gevent.pywsgi import WSGIServer # type: ignore
+import sys
 
 SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN')
 
@@ -38,17 +39,19 @@ def get_addon_info():
 
 class WebServer:
     def __init__(self, wallpad_controller):
+        # Flask 로깅 완전 비활성화
+        logging.getLogger('werkzeug').disabled = True
+        cli = sys.modules['flask.cli']
+        cli.show_server_banner = lambda *x: None
+        
         self.app = Flask(__name__, template_folder='templates')
+        self.app.logger.disabled = True
         self.wallpad_controller = wallpad_controller
         self.addon_info = get_addon_info()
         self.recent_messages = []
         self.server = None
         self.logger = wallpad_controller.logger
 
-        # Flask 로깅 비활성화
-        log = logging.getLogger('werkzeug')
-        log.setLevel(logging.ERROR)
-        
         # 라우트 설정
         @self.app.route('/')
         def home():
@@ -981,7 +984,7 @@ class WebServer:
 
     def run(self):
         # Flask 서버 실행
-        self.server = WSGIServer(('0.0.0.0', 8099), self.app)
+        self.server = WSGIServer(('0.0.0.0', 8099), self.app, log=None)
         # 별도의 스레드에서 서버 실행
         threading.Thread(target=self._run_server, daemon=True).start()
         
