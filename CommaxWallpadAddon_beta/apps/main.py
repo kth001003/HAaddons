@@ -293,7 +293,8 @@ class WallpadController:
             device_count = {name: 0 for name in state_headers.values()}
             
             # COLLECTDATA의 recv_data 분석
-            for data in self.COLLECTDATA['recv_data']:
+            collect_data_set = set(self.COLLECTDATA['recv_data'])
+            for data in collect_data_set:
                 data_bytes = bytes.fromhex(data)
                 header = byte_to_hex_str(data_bytes[0])
                 if data == checksum(data) and header in state_headers:
@@ -309,6 +310,7 @@ class WallpadController:
                         self.logger.debug(f'기기 갯수 업데이트: {device_count[name]}')
                     except:
                         #header가 존재하지만 deviceId가 없는 경우 1개로 처리
+                        self.logger.debug(f'deviceId가 없는 기기: {name}')
                         device_count[name] = 1
             
             # 검색 결과 처리
