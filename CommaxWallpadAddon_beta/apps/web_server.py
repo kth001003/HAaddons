@@ -592,6 +592,17 @@ class WebServer:
             except Exception as e:
                 return jsonify({'error': str(e), 'success': False})
 
+        @self.app.route('/api/custom_packet_structure', methods=['DELETE'])
+        def delete_custom_packet_structure():
+            """커스텀 패킷 구조 파일을 삭제하고 기본값으로 초기화합니다."""
+            try:
+                custom_file = '/share/packet_structures_custom.yaml'
+                if os.path.exists(custom_file):
+                    os.remove(custom_file)
+                return jsonify({'success': True})
+            except Exception as e:
+                return jsonify({'error': str(e), 'success': False})
+
         @self.app.route('/api/custom_packet_structure', methods=['POST'])
         def save_custom_packet_structure():
             """커스텀 패킷 구조 파일을 저장합니다."""

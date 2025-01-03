@@ -1,4 +1,3 @@
-
 // 전역 변수 선언
 let lastPackets = new Set();
 let packetSuggestions = null;
@@ -1240,7 +1239,36 @@ function saveCustomPacketStructure() {
     .catch(error => showPacketEditorMessage('저장 중 오류가 발생했습니다: ' + error, true));
 }
 
-// 페이지 로드 완료 후 초기화 실행 및 주기적 업데이트 설정
+function resetPacketStructure() {
+    if (!confirm('패킷 구조를 초기화하면 모든 커스텀 설정이 삭제되고 commax기본값으로 돌아갑니다. 계속하시겠습니까?')) {
+        return;
+    }
+
+    fetch('./api/custom_packet_structure', {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showPacketEditorMessage('패킷 구조가 초기화되었습니다. 애드온을 재시작합니다...', false);
+            // 애드온 재시작
+            fetch('./api/find_devices', {
+                method: 'POST'
+            });
+            // 3초 후 페이지 새로고침
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            showPacketEditorMessage(data.error || '초기화 중 오류가 발생했습니다.', true);
+        }
+    })
+    .catch(error => {
+        showPacketEditorMessage('초기화 중 오류가 발생했습니다: ' + error, true);
+    });
+}
+
+// 이벤트 리스너 추가를 DOMContentLoaded 이벤트 핸들러 내부에 추가
 document.addEventListener('DOMContentLoaded', function() {
     fetch('./api/packet_suggestions')
         .then(response => response.json())
@@ -1307,6 +1335,12 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateDeviceList, 10000);  // 10초마다 기기목록 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
+    
+    // 패킷 구조 초기화 버튼 이벤트 리스너
+    const resetButton = document.getElementById('resetPacketStructure');
+    if (resetButton) {
+        resetButton.addEventListener('click', resetPacketStructure);
+    }
 });
 
 function loadPacketStructures() {
@@ -1355,20 +1389,6 @@ function loadPacketStructures() {
                 `;
             }
         });
-}
-
-function togglePause() {
-    isPaused = !isPaused;
-    const pauseIcon = document.getElementById('pauseIcon');
-    const playIcon = document.getElementById('playIcon');
-    
-    if (isPaused) {
-        pauseIcon.classList.add('hidden');
-        playIcon.classList.remove('hidden');
-    } else {
-        pauseIcon.classList.remove('hidden');
-        playIcon.classList.add('hidden');
-    }
 }
 
 function extractPackets() {

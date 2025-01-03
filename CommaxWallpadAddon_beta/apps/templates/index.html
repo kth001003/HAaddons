@@ -246,10 +246,15 @@
                     <!-- 기기별 편집 UI가 여기에 동적으로 추가됩니다 -->
                 </div>
 
-                <div class="mt-6">
-                    <button id="savePacketStructure" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                        저장
-                    </button>
+                <div class="mt-6 flex justify-between items-center">
+                    <div class="space-x-2">
+                        <button id="savePacketStructure" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                            저장
+                        </button>
+                        <button id="resetPacketStructure" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                            초기화
+                        </button>
+                    </div>
                     <span id="packetEditorMessage" class="ml-3"></span>
                 </div>
             </div>
