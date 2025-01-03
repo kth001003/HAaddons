@@ -1174,12 +1174,19 @@ class WallpadController:
                         
                         while mqtt_connected.is_set():
                             # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
-                            if not self.device_list and not device_search_done.is_set() and len(self.COLLECTDATA['recv_data']) >= 90:
-                                self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
-                                self.device_list = self.find_device()
-                                if self.device_list:
-                                    await self.publish_discovery_message()
-                                device_search_done.set()
+                            recv_data_len = len(self.COLLECTDATA['recv_data'])
+                            if recv_data_len >= 90 and not device_search_done.is_set():
+                                self.logger.debug(f"기기 검색 조건 상태 - device_list 비어있음: {not self.device_list}, 검색 미완료: {not device_search_done.is_set()}, recv_data 길이: {recv_data_len}")
+                                if not self.device_list:
+                                    self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
+                                    self.device_list = self.find_device()
+                                    if self.device_list:
+                                        self.logger.info(f"기기 검색 완료: {json.dumps(self.device_list, ensure_ascii=False, indent=2)}")
+                                        await self.publish_discovery_message()
+                                    else:
+                                        self.logger.warning("기기를 찾지 못했습니다.")
+                                    device_search_done.set()
+                                    self.logger.info("기기 검색 완료 표시를 설정했습니다.")
                             
                             await self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10))
                             await asyncio.sleep(0.1)
