@@ -93,7 +93,17 @@ class WallpadController:
                         self.DEVICE_STRUCTURE = yaml.safe_load(file)
                     self.logger.info(f'{vendor} 패킷 구조를 로드했습니다.')
                 except FileNotFoundError:
-                    self.logger.error(f'{custom_file_path} 파일을 찾을 수 없습니다.')
+                    self.logger.info(f'{custom_file_path} 파일이 없습니다. 기본 파일을 복사합니다.')
+                    try:
+                        # share 디렉토리가 없으면 생성
+                        os.makedirs(os.path.dirname(custom_file_path), exist_ok=True)
+                        # default 파일을 custom 경로로 복사
+                        shutil.copy(default_file_path, custom_file_path)
+                        with open(custom_file_path) as file:
+                            self.DEVICE_STRUCTURE = yaml.safe_load(file)
+                        self.logger.info(f'기본 패킷 구조를 {custom_file_path}로 복사하고 로드했습니다.')
+                    except Exception as e:
+                        self.logger.error(f'기본 파일 복사 중 오류 발생: {str(e)}')
             else:
                 try:
                     with open(default_file_path) as file:
