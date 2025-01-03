@@ -272,7 +272,7 @@ class WallpadController:
     # 기기 검색 및 상태 관리 함수들
     @require_device_structure({})
     def find_device(self) -> Dict[str, Any]:
-        """MQTT에 발행되는 RS485신호에서 기기를 찾는 함수입니다."""
+        """COLLECTDATA의 recv_data에서 기기를 찾는 함수입니다."""
         try:
             if not os.path.exists(self.share_dir):
                 os.makedirs(self.share_dir)
@@ -294,51 +294,23 @@ class WallpadController:
             # 기기별 최대 인덱스 저장
             device_count = {name: 0 for name in state_headers.values()}
             
-            target_time = time.time() + 20
-            
-            def on_connect(client, userdata, flags, rc):
-                if rc == 0:
-                    self.logger.info("MQTT broker 접속 완료")
-                    self.logger.info("20초동안 기기를 검색합니다.")
-                    client.subscribe(f'{self.ELFIN_TOPIC}/#', 0)
-                else:
-                    self.logger.error(f"Connection failed with code {rc}")
-            
-            def on_message(client, userdata, msg):
-                assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
-                raw_data = msg.payload.hex().upper()
-                for k in range(0, len(raw_data), 16):
-                    data = raw_data[k:k + 16]
-                    data_bytes = bytes.fromhex(data)
-                    self.logger.debug(f'감지된 패킷: {data_bytes.hex()}')
-                    if data == checksum(data) and data_bytes[0] in state_headers:
-                        name = state_headers[data_bytes[0]]
-                        self.logger.debug(f'감지된 기기: {name}')
-                        device_structure = self.DEVICE_STRUCTURE[name]
-                        try:
-                            device_id_pos = device_structure["state"]["fieldPositions"]["deviceId"]
-                            device_count[name] = max(
-                                device_count[name], 
-                                int(data_bytes[device_id_pos], 16)
-                            )
-                            self.logger.debug(f'기기 갯수 업데이트: {device_count[name]}')
-                        except:
-                            #header가 존재하지만 deviceId가 없는 경우 1개로 처리
-                            device_count[name] = 1
-            # 임시 MQTT 클라이언트 설정
-            temp_client = self.setup_mqtt('commax_finder')
-            temp_client.on_connect = on_connect
-            temp_client.on_message = on_message
-            
-            # MQTT 연결 및 검색 시작
-            temp_client.connect(self.config['mqtt_server'])
-            temp_client.loop_start()
-            
-            while time.time() < target_time:
-                pass
-            
-            temp_client.loop_stop()
-            temp_client.disconnect()
+            # COLLECTDATA의 recv_data 분석
+            for data in self.COLLECTDATA['recv_data']:
+                data_bytes = bytes.fromhex(data)
+                if data == checksum(data) and data_bytes[0] in state_headers:
+                    name = state_headers[data_bytes[0]]
+                    self.logger.debug(f'감지된 기기: {name}')
+                    device_structure = self.DEVICE_STRUCTURE[name]
+                    try:
+                        device_id_pos = device_structure["state"]["fieldPositions"]["deviceId"]
+                        device_count[name] = max(
+                            device_count[name], 
+                            int(data_bytes[device_id_pos], 16)
+                        )
+                        self.logger.debug(f'기기 갯수 업데이트: {device_count[name]}')
+                    except:
+                        #header가 존재하지만 deviceId가 없는 경우 1개로 처리
+                        device_count[name] = 1
             
             # 검색 결과 처리
             self.logger.info('기기 검색 종료. 다음의 기기들을 찾았습니다...')
@@ -368,16 +340,11 @@ class WallpadController:
                 self.logger.error(f'기기리스트 저장 실패: {str(e)}')
             
             return device_list
-            # device_list 내용 예시:
-            # {"light":
-            #   "type":"light",
-            #   "count":0
-            # }
             
         except Exception as e:
             self.logger.error(f'기기 검색 중 오류 발생: {str(e)}')
             return {}
-        
+
     async def publish_discovery_message(self):
         """홈어시스턴트 MQTT Discovery 메시지 발행"""
         try:
@@ -1148,13 +1115,10 @@ class WallpadController:
             with open(self.share_dir + '/commax_found_device.json') as file:
                 self.device_list = json.load(file)
             if not self.device_list:
-                self.logger.info('기기 목록이 비어있습니다. 기기 찾기를 시도합니다.')
-                self.device_list = self.find_device()
-            else:
-                self.logger.info(f'기기정보를 찾았습니다. \n{json.dumps(self.device_list, ensure_ascii=False, indent=4)}')
+                self.logger.info('기기 목록이 비어있습니다. 메인 루프 시작 후 기기 찾기를 시도합니다.')
         except IOError:
-            self.logger.info('저장된 기기 정보가 없습니다. mqtt에 접속하여 기기 찾기를 시도합니다.')
-            self.device_list = self.find_device()
+            self.logger.info('저장된 기기 정보가 없습니다. 메인 루프 시작 후 기기 찾기를 시도합니다.')
+            self.device_list = {}
 
         try:
             # 웹서버 시작
@@ -1165,11 +1129,11 @@ class WallpadController:
             
             # MQTT 연결 완료 이벤트를 위한 Event 객체 생성
             mqtt_connected = asyncio.Event()
+            device_search_done = asyncio.Event()
             
             # MQTT 콜백 설정
             def on_connect_callback(client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
                 if rc == 0:  # 연결 성공
-                    
                     if self.loop and self.loop.is_running():
                         asyncio.run_coroutine_threadsafe(
                             self.on_mqtt_connect(client, userdata, flags, rc), 
@@ -1179,7 +1143,6 @@ class WallpadController:
                     else:
                         self.logger.error("메인 루프가 실행되지 않았습니다.")
                         self.reconnect_mqtt()
-
                 else:
                     # 재연결 시도
                     self.logger.error(f"MQTT 연결 실패 (코드: {rc})")
@@ -1212,6 +1175,14 @@ class WallpadController:
                         self.logger.info("MQTT 연결이 완료되었습니다. 메인 루프를 시작합니다.")
                         
                         while mqtt_connected.is_set():
+                            # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
+                            if not self.device_list and not device_search_done.is_set() and len(self.COLLECTDATA['recv_data']) >= 100:
+                                self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
+                                self.device_list = self.find_device()
+                                if self.device_list:
+                                    await self.publish_discovery_message()
+                                device_search_done.set()
+                            
                             await self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10))
                             await asyncio.sleep(0.1)
                             
@@ -1251,7 +1222,10 @@ if __name__ == '__main__':
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
     logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
-    logger.info("########################################################")
-    logger.info("'Commax Wallpad Addon by ew11-mqtt'을 시작합니다.")
+    logger.info("╔══════════════════════════════════════════════════════════════╗")
+    logger.info("║                                                              ║")
+    logger.info("║         Commax Wallpad Addon by ew11-mqtt 시작              ║") 
+    logger.info("║                                                              ║")
+    logger.info("╚══════════════════════════════════════════════════════════════╝")
     controller = WallpadController(CONFIG, logger)
     controller.run()
