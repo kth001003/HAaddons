@@ -300,12 +300,11 @@ class WallpadController:
                 if data == checksum(data) and header in state_headers:
                     name = state_headers[header]
                     self.logger.debug(f'감지된 기기: {name}')
-                    device_structure = self.DEVICE_STRUCTURE[name]
                     try:
-                        device_id_pos = device_structure["state"]["fieldPositions"]["deviceId"]
+                        device_id_pos = self.DEVICE_STRUCTURE[name]["state"]["fieldPositions"]["deviceId"]
                         device_count[name] = max(
                             device_count[name], 
-                            int(data_bytes[device_id_pos], 16)
+                            int(data_bytes[int(device_id_pos)], 16)
                         )
                         self.logger.debug(f'기기 갯수 업데이트: {device_count[name]}')
                     except:
