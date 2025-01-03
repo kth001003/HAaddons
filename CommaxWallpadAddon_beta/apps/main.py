@@ -1114,6 +1114,8 @@ class WallpadController:
                 self.device_list = json.load(file)
             if not self.device_list:
                 self.logger.info('기기 목록이 비어있습니다. 메인 루프 시작 후 기기 찾기를 시도합니다.')
+            else:
+                self.logger.info(f'기기정보를 찾았습니다. \n{json.dumps(self.device_list, ensure_ascii=False, indent=4)}')
         except IOError:
             self.logger.info('저장된 기기 정보가 없습니다. 메인 루프 시작 후 기기 찾기를 시도합니다.')
             self.device_list = {}
@@ -1129,6 +1131,10 @@ class WallpadController:
             mqtt_connected = asyncio.Event()
             device_search_done = asyncio.Event()
             
+            # 저장된 기기 정보가 있는 경우 device_search_done 설정
+            if self.device_list:
+                device_search_done.set()
+                            
             # MQTT 콜백 설정
             def on_connect_callback(client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
                 if rc == 0:  # 연결 성공
@@ -1175,8 +1181,8 @@ class WallpadController:
                         while mqtt_connected.is_set():
                             # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
                             recv_data_len = len(self.COLLECTDATA['recv_data'])
+                            self.logger.debug(f"기기 검색 조건 상태 - device_list 비어있음: {not self.device_list}, 검색 미완료: {not device_search_done.is_set()}, recv_data 길이: {recv_data_len}")
                             if recv_data_len >= 90 and not device_search_done.is_set():
-                                self.logger.debug(f"기기 검색 조건 상태 - device_list 비어있음: {not self.device_list}, 검색 미완료: {not device_search_done.is_set()}, recv_data 길이: {recv_data_len}")
                                 if not self.device_list:
                                     self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
                                     self.device_list = self.find_device()
