@@ -11,8 +11,6 @@ from datetime import datetime
 import requests # type: ignore
 from utils import checksum
 from gevent.pywsgi import WSGIServer # type: ignore
-from geventwebsocket.handler import WebSocketHandler # type: ignore
-import gevent # type: ignore
 
 SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN')
 
@@ -35,135 +33,36 @@ def get_addon_info():
         addon_info = response.json()['data']
         return addon_info
     except Exception as e:
-        print(f"Error getting ingress URL: {e}")
+        print(f"Error getting ingress info: {e}")
         return None
 
 class WebServer:
     def __init__(self, wallpad_controller):
         self.app = Flask(__name__, template_folder='templates')
         self.wallpad_controller = wallpad_controller
-        self.recent_messages = []  # 최근 메시지를 저장할 리스트
-        self.server = None  # WSGIServer 인스턴스를 저장할 변수
-        self.logger = wallpad_controller.logger  # wallpad_controller의 logger 사용
-        self.logger.info("웹서버 초기화 완료")
-        # 로깅 비활성화
+        self.addon_info = get_addon_info()
+        self.recent_messages = []
+        self.server = None
+        self.logger = wallpad_controller.logger
+
+        # Flask 로깅 비활성화
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
-        
-        # Home Assistant Ingress 베이스 URL 설정
-        self.base_url = os.environ.get('SUPERVISOR_TOKEN', '')
         
         # 라우트 설정
         @self.app.route('/')
         def home():
             return render_template('index.html')
 
-        @self.app.route('/ws')
-        def websocket():
-            self.logger.info("웹소켓 요청 수신")
-            wsgi_websocket = request.environ.get('wsgi.websocket')
-            
-            if not wsgi_websocket:
-                self.logger.error("웹소켓 연결 실패 - wsgi.websocket이 없음")
-                return 'WebSocket connection failed'
-
-            self.logger.info(f"웹소켓 환경 정보: {request.environ.get('HTTP_UPGRADE', '정보없음')}")
-            self.logger.info(f"웹소켓 프로토콜: {request.environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL', '정보없음')}")
-            
-            ws = request.environ['wsgi.websocket']
-            self.logger.info("새로운 웹소켓 연결 수립됨")
-
-            try:
-                last_send_data = set()
-                last_recv_data = set()
-                last_ping_time = time.time()
-                
-                # 초기 연결 확인 메시지 전송
-                try:
-                    ws.send(json.dumps({
-                        'type': 'connection_established',
-                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
-                        'send_data': list(self.wallpad_controller.COLLECTDATA['send_data']),
-                        'recv_data': list(self.wallpad_controller.COLLECTDATA['recv_data'])
-                    }))
-                    self.logger.info("초기 연결 확인 메시지 전송됨")
-                except Exception as e:
-                    self.logger.error(f"초기 메시지 전송 실패: {e}")
-                    return ''
-                
-                while not ws.closed:
-                    try:
-                        # 30초마다 ping 전송
-                        current_time = time.time()
-                        if current_time - last_ping_time > 30:
-                            try:
-                                ws.send(json.dumps({
-                                    'type': 'ping',
-                                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                                }))
-                                last_ping_time = current_time
-                                self.logger.debug("Ping 전송됨")
-                            except Exception as ping_error:
-                                self.logger.error(f"Ping 전송 오류: {ping_error}")
-                                break
-                        
-                        current_send_data = set(self.wallpad_controller.COLLECTDATA['send_data'])
-                        current_recv_data = set(self.wallpad_controller.COLLECTDATA['recv_data'])
-                        
-                        # 변경된 데이터가 있는 경우에만 전송
-                        if current_send_data != last_send_data or current_recv_data != last_recv_data:
-                            data = {
-                                'type': 'packet_data',
-                                'send_data': list(current_send_data),
-                                'recv_data': list(current_recv_data),
-                                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                            }
-                            try:
-                                ws.send(json.dumps(data))
-                                last_send_data = current_send_data
-                                last_recv_data = current_recv_data
-                                self.logger.debug("패킷 데이터 전송됨")
-                            except Exception as send_error:
-                                self.logger.error(f"데이터 전송 오류: {send_error}")
-                                break
-                        
-                        # 메시지 수신 대기 (non-blocking)
-                        try:
-                            msg = ws.receive()
-                            if msg is None:  # 연결이 종료됨
-                                self.logger.info("클라이언트가 연결을 종료함")
-                                break
-                            elif msg:  # 메시지가 있는 경우
-                                try:
-                                    data = json.loads(msg)
-                                    if data.get('type') == 'pong':
-                                        self.logger.debug("Pong 수신됨")
-                                    else:
-                                        self.logger.debug(f"클라이언트로부터 메시지 수신: {msg}")
-                                except json.JSONDecodeError:
-                                    self.logger.error(f"잘못된 JSON 형식: {msg}")
-                        except Exception as recv_error:
-                            if not ws.closed:
-                                self.logger.error(f"메시지 수신 오류: {recv_error}")
-                                break
-
-                        gevent.sleep(0.1)  # 100ms 마다 업데이트
-                        
-                    except Exception as loop_error:
-                        self.logger.error(f"웹소켓 루프 오류: {loop_error}")
-                        break
-                        
-            except Exception as e:
-                self.logger.error(f"웹소켓 처리 중 오류 발생: {e}")
-            finally:
-                if not ws.closed:
-                    try:
-                        ws.close()
-                    except Exception as close_error:
-                        self.logger.error(f"웹소켓 종료 중 오류: {close_error}")
-                self.logger.info("웹소켓 연결 종료됨")
-            return ''
-
+        @self.app.route('/api/live_packets')
+        def live_packets():
+            """실시간 패킷 데이터를 반환하는 API"""
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            return jsonify({
+                'timestamp': current_time,
+                'send_data': self.wallpad_controller.COLLECTDATA['send_data'],
+                'recv_data': self.wallpad_controller.COLLECTDATA['recv_data']
+            })
         @self.app.route('/api/custom_packet_structure/editable', methods=['GET'])
         def get_editable_packet_structure():
             """편집 가능한 패킷 구조 필드를 반환합니다."""
@@ -445,7 +344,8 @@ class WebServer:
                 packet_types = ['command', 'state_request', 'state', 'ack']
 
                 # 송신 패킷 처리
-                for packet in self.wallpad_controller.COLLECTDATA['send_data']:
+                send_data_set = set(self.wallpad_controller.COLLECTDATA['send_data'])
+                for packet in send_data_set:
                     packet_info = {
                         'packet': packet,
                         'results': []
@@ -468,7 +368,8 @@ class WebServer:
                     send_packets.append(packet_info)
 
                 # 수신 패킷 처리 (송신 패킷 처리와 동일한 로직 적용)
-                for packet in self.wallpad_controller.COLLECTDATA['recv_data']:
+                recv_data_set = set(self.wallpad_controller.COLLECTDATA['recv_data'])
+                for packet in recv_data_set:
                     packet_info = {
                         'packet': packet,
                         'results': []
@@ -719,27 +620,25 @@ class WebServer:
             except Exception as e:
                 return jsonify({'error': str(e), 'success': False})
 
-        @self.app.route('/api/ingress_url')
-        def ingress_url():
-            """Get the ingress URL for WebSocket connection"""
-            try:
-                addon_info = get_addon_info()
-                # self.logger.info(f"addon_info: {addon_info}")
-                ingress_url = addon_info.get('ip_address')
-                if ingress_url:
-                    return jsonify({
-                        'success': True,
-                        'ingress_url': ingress_url
-                    })
-                return jsonify({
-                    'success': False,
-                    'error': 'Ingress URL not found'
-                })
-            except Exception as e:
-                return jsonify({
-                    'success': False,
-                    'error': str(e)
-                })
+        # @self.app.route('/api/ingress_url')
+        # def ingress_url():
+        #     """Get the ingress URL for WebSocket connection"""
+        #     try:
+        #         ingress_url = self.addon_info.get('ingress_url')
+        #         if ingress_url:
+        #             return jsonify({
+        #                 'success': True,
+        #                 'ingress_url': ingress_url
+        #             })
+        #         return jsonify({
+        #             'success': False,
+        #             'error': 'Ingress URL not found'
+        #         })
+        #     except Exception as e:
+        #         return jsonify({
+        #             'success': False,
+        #             'error': str(e)
+        #         })
 
     def _get_editable_fields(self, packet_data):
         """패킷 구조에서 편집 가능한 필드만 추출합니다."""
@@ -1081,20 +980,20 @@ class WebServer:
             self.recent_messages = self.recent_messages[-100:] 
 
     def run(self):
-        # Flask 서버 실행 (with WebSocket support)
-        self.server = WSGIServer(('0.0.0.0', 8099), self.app,
-                               handler_class=WebSocketHandler)
-
+        # Flask 서버 실행
+        self.server = WSGIServer(('0.0.0.0', 8099), self.app)
         # 별도의 스레드에서 서버 실행
         threading.Thread(target=self._run_server, daemon=True).start()
         
     def _run_server(self):
         try:
+            self.logger.info("웹서버 시작")
             self.server.serve_forever()
         except Exception as e:
-            print(f"Server error: {e}")
-
+            self.logger.error(f"Server error: {e}")
+            
     def stop(self):
         if self.server:
+            self.logger.info("웹서버 종료")
             self.server.stop()
             self.server = None 

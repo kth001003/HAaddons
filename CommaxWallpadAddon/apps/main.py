@@ -37,8 +37,8 @@ def require_device_structure(default_return: Any = None) -> Callable:
     return decorator
 
 class CollectData(TypedDict):
-    send_data: Set[str]
-    recv_data: Set[str]
+    send_data: List[str]
+    recv_data: List[str]
     last_recv_time: int
 
 class ExpectedStatePacket(TypedDict):
@@ -64,8 +64,8 @@ class WallpadController:
         self.QUEUE: List[QueueItem] = []
         self.min_receive_count: int = self.config.get("min_receive_count", 3)  # 최소 수신 횟수, 기본값 3
         self.COLLECTDATA: CollectData = {
-            'send_data': set(),
-            'recv_data': set(),
+            'send_data': [],
+            'recv_data': [],
             'last_recv_time': time.time_ns()
         }
         self.mqtt_client: Optional[mqtt.Client] = None
@@ -237,9 +237,9 @@ class WallpadController:
                 elif topics[1] == 'send':
                     raw_data = msg.payload.hex().upper()
                     self.logger.signal(f'<<- 송신: {raw_data}')
-                    self.COLLECTDATA['send_data'].add(raw_data)
+                    self.COLLECTDATA['send_data'].append(raw_data)
                     if len(self.COLLECTDATA['send_data']) > 100:
-                        self.COLLECTDATA['send_data'] = set(list(self.COLLECTDATA['send_data'])[-100:])
+                        self.COLLECTDATA['send_data'] = list(self.COLLECTDATA['send_data'])[-100:]
                     # 웹서버에 메시지 추가
                     self.web_server.add_mqtt_message(msg.topic, raw_data)
                     
@@ -834,9 +834,9 @@ class WallpadController:
             for k in range(0, len(raw_data), 16):
                 data = raw_data[k:k + 16]
                 if data == checksum(data):
-                    self.COLLECTDATA['recv_data'].add(data)
+                    self.COLLECTDATA['recv_data'].append(data)
                     if len(self.COLLECTDATA['recv_data']) > 100:
-                        self.COLLECTDATA['recv_data'] = set(list(self.COLLECTDATA['recv_data'])[-100:])
+                        self.COLLECTDATA['recv_data'] = self.COLLECTDATA['recv_data'][-100:]
                     
                     byte_data = bytearray.fromhex(data)
                     
@@ -844,8 +844,15 @@ class WallpadController:
                         state_structure = structure['state']
                         field_positions = state_structure['fieldPositions']
                         if byte_data[0] == int(state_structure['header'], 16):
-                            device_id_pos = field_positions['deviceId']
-                            device_id = byte_data[int(device_id_pos)]
+                            try:
+                                device_id_pos = field_positions['deviceId']
+                                device_id = byte_data[int(device_id_pos)]
+                            except KeyError:
+                                self.logger.error(f"{device_name}의 deviceId 필드를 찾을 수 없습니다.")
+                                break
+                            except IndexError:
+                                self.logger.error(f"{device_name}의 deviceId 위치({device_id_pos})가 패킷 범위를 벗어났습니다.")
+                                break
                             if device_name == 'Thermo':
                                 power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]
@@ -1034,7 +1041,8 @@ class WallpadController:
             required_bytes = expected_state['required_bytes']
             possible_values = expected_state['possible_values']
             
-            for received_packet in self.COLLECTDATA['recv_data']:
+            recv_data_set = set(self.COLLECTDATA['recv_data'])
+            for received_packet in recv_data_set:
                 if not isinstance(received_packet, str):
                     continue
 

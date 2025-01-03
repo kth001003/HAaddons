@@ -11,9 +11,11 @@ let currentInput = '';   // 현재 입력값 저장용 변수 추가
 let liveLastPackets = new Set();
 let isPaused = false;  // 일시정지 상태를 저장하는 변수 추가
 
-// 웹소켓 관련 변수
-let packetWebSocket = null;
-let isWebSocketConnected = false;
+// 폴링 관련 변수
+let isPolling = false;
+let pollingInterval;
+
+let packetLogInterval;
 
 // ===============================
 // 페이지 전환 함수
@@ -38,14 +40,16 @@ function showPage(pageId) {
         }
     });
 
-    // 실시간 패킷 페이지인 경우 웹소켓 초기화
+    // 실시간 패킷 페이지인 경우 폴링 시작
     if (pageId === 'live_packets') {
-        initWebSocket();
-    } else if (packetWebSocket) {
-        // 다른 페이지로 이동할 때 웹소켓 연결 종료
-        console.log('페이지 전환: WebSocket 연결 종료');
-        packetWebSocket.close();
-        packetWebSocket = null;
+        startPolling();
+    } else {
+        stopPolling();
+    }
+    if (pageId === 'playground') {
+        startPacketLogUpdate();
+    } else {
+        stopPacketLogUpdate();
     }
 }
 
@@ -1249,93 +1253,83 @@ function initWebSocket() {
         packetWebSocket.close();
     }
 
-    // 먼저 ingress URL 얻기
-    fetch('./api/ingress_url')
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to get ingress URL');
-            }
-
-            // WebSocket URL 구성
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            // const wsUrl = `${wsProtocol}${window.location.host}/hassio/ingress/${data.ingress_url}/ws`;
-            const wsUrl = `wss://${data.ingress_url}:8099/ws`;
-            console.log('WebSocket 연결 시도:', wsUrl);
-            
-            try {
-                packetWebSocket = new WebSocket(wsUrl);
-                
-                packetWebSocket.onopen = function(event) {
-                    console.log('WebSocket 연결 성공:', event);
-                    isWebSocketConnected = true;
-                    updateWebSocketStatus();
-                };
-                
-                packetWebSocket.onclose = function(event) {
-                    console.log('WebSocket 연결 종료 - 코드:', event.code, '이유:', event.reason, '정상 종료:', event.wasClean);
-                    isWebSocketConnected = false;
-                    updateWebSocketStatus();
-                    
-                    // 비정상 종료인 경우에만 재연결 시도
-                    if (!event.wasClean) {
-                        console.log('3초 후 재연결 시도...');
-                        setTimeout(() => {
-                            console.log('재연결 시도 중...');
-                            initWebSocket();
-                        }, 3000);
-                    }
-                };
-                
-                packetWebSocket.onerror = function(error) {
-                    console.error('WebSocket 오류 발생:', error);
-                    isWebSocketConnected = false;
-                    updateWebSocketStatus();
-                };
-                
-                packetWebSocket.onmessage = function(event) {
-                    if (isPaused) return;
-                    
-                    try {
-                        const data = JSON.parse(event.data);
-                        console.log('WebSocket 메시지 수신:', data);
-
-                        switch (data.type) {
-                            case 'connection_established':
-                                console.log('연결 확인됨, 초기 데이터 수신:', data);
-                                if (data.send_data) updateLivePacketLogFromWebSocket(data);
-                                break;
-                                
-                            case 'ping':
-                                // ping에 대한 응답으로 pong 전송
-                                packetWebSocket.send(JSON.stringify({
-                                    type: 'pong',
-                                    timestamp: new Date().toISOString()
-                                }));
-                                break;
-                                
-                            case 'packet_data':
-                                updateLivePacketLogFromWebSocket(data);
-                                break;
-                                
-                            default:
-                                console.log('알 수 없는 메시지 타입:', data.type);
-                        }
-                    } catch (error) {
-                        console.error('WebSocket 메시지 처리 오류:', error, '원본 데이터:', event.data);
-                    }
-                };
-            } catch (error) {
-                console.error('WebSocket 초기화 오류:', error);
-                isWebSocketConnected = false;
-                updateWebSocketStatus();
-            }
-        })
-        .catch(error => {
-            console.error('ingress URL 로드 실패:', error);
+    try {
+        // 현재 페이지의 경로를 기반으로 WebSocket URL 구성
+        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${window.location.pathname}ws`;
+        console.log('WebSocket 연결 시도:', wsUrl);
+        
+        // WebSocket 프로토콜 지정
+        const protocols = ['websocket'];
+        packetWebSocket = new WebSocket(wsUrl, protocols);
+        
+        // 추가 디버깅을 위한 readyState 로깅
+        console.log('Initial WebSocket readyState:', packetWebSocket.readyState);
+        
+        packetWebSocket.onopen = function(event) {
+            console.log('WebSocket 연결 성공:', event);
+            isWebSocketConnected = true;
+            updateWebSocketStatus();
+        };
+        
+        packetWebSocket.onclose = function(event) {
+            console.log('WebSocket 연결 종료 - 코드:', event.code, '이유:', event.reason, '정상 종료:', event.wasClean);
             isWebSocketConnected = false;
             updateWebSocketStatus();
-        });
+            
+            // 비정상 종료인 경우에만 재연결 시도
+            if (!event.wasClean) {
+                console.log('3초 후 재연결 시도...');
+                setTimeout(() => {
+                    console.log('재연결 시도 중...');
+                    initWebSocket();
+                }, 3000);
+            }
+        };
+        
+        packetWebSocket.onerror = function(error) {
+            console.error('WebSocket 오류 발생:', error);
+            isWebSocketConnected = false;
+            updateWebSocketStatus();
+        };
+        
+        packetWebSocket.onmessage = function(event) {
+            if (isPaused) return;
+            
+            try {
+                const data = JSON.parse(event.data);
+                console.log('WebSocket 메시지 수신:', data);
+
+                switch (data.type) {
+                    case 'connection_established':
+                        console.log('연결 확인됨, 초기 데이터 수신:', data);
+                        if (data.send_data) updateLivePacketLogFromWebSocket(data);
+                        break;
+                        
+                    case 'ping':
+                        // ping에 대한 응답으로 pong 전송
+                        packetWebSocket.send(JSON.stringify({
+                            type: 'pong',
+                            timestamp: new Date().toISOString()
+                        }));
+                        break;
+                        
+                    case 'packet_data':
+                        updateLivePacketLogFromWebSocket(data);
+                        break;
+                        
+                    default:
+                        console.log('알 수 없는 메시지 타입:', data.type);
+                }
+            } catch (error) {
+                console.error('WebSocket 메시지 처리 오류:', error, '원본 데이터:', event.data);
+            }
+        };
+    } catch (error) {
+        console.error('WebSocket 초기화 오류:', error);
+        isWebSocketConnected = false;
+        updateWebSocketStatus();
+    }
+
 }
 
 function updateWebSocketStatus() {
@@ -1497,7 +1491,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // 주기적 업데이트 설정
     setInterval(updateDeviceList, 30000);  // 30초마다 기기목록 업데이트
-    setInterval(updatePacketLog, 1000);    // 1초마다 패킷 로그 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
 });
@@ -1588,4 +1581,79 @@ function extractPackets() {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+}
+
+// 실시간 패킷 데이터 폴링 시작
+function startPolling() {
+    if (isPolling) return;
+    
+    isPolling = true;
+    console.log('실시간 패킷 데이터 폴링 시작');
+    
+    // 500ms마다 데이터 요청
+    pollingInterval = setInterval(fetchPacketData, 500);
+}
+
+// 실시간 패킷 데이터 폴링 중지
+function stopPolling() {
+    if (!isPolling) return;
+    
+    isPolling = false;
+    console.log('실시간 패킷 데이터 폴링 중지');
+    
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+    }
+}
+
+// 실시간 패킷 데이터 요청
+async function fetchPacketData() {
+    if (isPaused) return;
+    
+    try {
+        const response = await fetch('./api/live_packets');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        // 패킷 데이터 업데이트
+        updateLivePacketDisplay(data);
+    } catch (error) {
+        console.error('패킷 데이터 요청 실패:', error);
+    }
+}
+
+// 패킷 데이터 화면 업데이트
+function updateLivePacketDisplay(data) {
+    const sendDataElement = document.getElementById('send-data');
+    const recvDataElement = document.getElementById('recv-data');
+    
+    if (sendDataElement && data.send_data) {
+        sendDataElement.textContent = data.send_data.join('\n');
+    }
+    if (recvDataElement && data.recv_data) {
+        recvDataElement.textContent = data.recv_data.join('\n');
+    }
+}
+
+// 일시정지 토글 함수
+function togglePause() {
+    isPaused = !isPaused;
+    const pauseButton = document.getElementById('pauseButton');
+    if (pauseButton) {
+        pauseButton.textContent = isPaused ? '재개' : '일시정지';
+    }
+}
+
+function startPacketLogUpdate() {
+    packetLogInterval = setInterval(updatePacketLog, 1000);
+}
+
+function stopPacketLogUpdate() {
+    if (packetLogInterval) {
+        clearInterval(packetLogInterval);
+        packetLogInterval = null;
+    }
 }
