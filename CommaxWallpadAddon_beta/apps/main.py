@@ -201,8 +201,6 @@ class WallpadController:
                     (f'{self.ELFIN_TOPIC}/send', 0)
                 ]
                 client.subscribe(topics)
-                # MQTT Discovery 메시지 발행
-                await self.publish_discovery_message()
             except Exception as e:
                 self.logger.error(f"MQTT 토픽 구독 중 오류 발생: {str(e)}")
         else:
@@ -1176,7 +1174,7 @@ class WallpadController:
                         
                         while mqtt_connected.is_set():
                             # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
-                            if not self.device_list and not device_search_done.is_set() and len(self.COLLECTDATA['recv_data']) >= 100:
+                            if not self.device_list and not device_search_done.is_set() and len(self.COLLECTDATA['recv_data']) >= 90:
                                 self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
                                 self.device_list = self.find_device()
                                 if self.device_list:
@@ -1224,7 +1222,7 @@ if __name__ == '__main__':
     logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
     logger.info("╔══════════════════════════════════════════════════════════════╗")
     logger.info("║                                                              ║")
-    logger.info("║         Commax Wallpad Addon by ew11-mqtt 시작              ║") 
+    logger.info("║         Commax Wallpad Addon by ew11-mqtt 시작               ║") 
     logger.info("║                                                              ║")
     logger.info("╚══════════════════════════════════════════════════════════════╝")
     controller = WallpadController(CONFIG, logger)
