@@ -1070,42 +1070,38 @@ class WallpadController:
         
         await asyncio.sleep(0.05)
 
-    async def process_queue_and_monitor(self, elfin_reboot_interval: float) -> bool:
+    async def process_queue_and_monitor(self) -> bool:
         """
-        메시지 큐를 주기적으로 처리하고 기기 상태를 모니터링하는 함수입니다.
+        메시지 큐를 처리하고 기기 상태를 모니터링하는 함수입니다.
 
-        1ms 간격으로 다음 작업들을 수행합니다:
         1. 큐에 있는 메시지 처리 (130ms 이상 통신이 없을 때)
         2. ew11 기기 상태 모니터링 및 필요시 재시작
 
         Args:
-            elfin_reboot_interval (float): ew11 기기 재시작 판단을 위한 통신 제한 시간 (초)
+            elfin_reboot_interval (int): ew11 기기 재시작 판단을 위한 통신 제한 시간 (초)
 
         Raises:
             Exception: 큐 처리 또는 기기 재시작 중 오류 발생시 예외를 발생시킵니다.
         """
-        queue_interval = self.config.get("queue_interval_in_second",0.01)
-        while True:
-            try:
-                current_time = time.time_ns()
-                last_recv = self.COLLECTDATA['last_recv_time']
-                signal_interval = (current_time - last_recv)/1_000_000 #ns to ms
-                
-                if signal_interval > elfin_reboot_interval * 1_000:  # seconds
-                    self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
-                    self.COLLECTDATA['last_recv_time'] = time.time_ns()
-                    if (self.config.get("elfin_auto_reboot",True)):
-                        self.logger.warning('EW11 재시작을 시도합니다.')
-                        await self.reboot_elfin_device()
-                if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
-                    await self.process_queue()
-                
-            except Exception as err:
-                self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
-                return True
+        try:
+            elfin_reboot_interval = self.config.get('elfin_reboot_interval', 10)
+            current_time = time.time_ns()
+            last_recv = self.COLLECTDATA['last_recv_time']
+            signal_interval = (current_time - last_recv)/1_000_000 #ns to ms
             
-            await asyncio.sleep(queue_interval) #10ms
-
+            if signal_interval > elfin_reboot_interval * 1_000:  # seconds
+                self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
+                self.COLLECTDATA['last_recv_time'] = time.time_ns()
+                if (self.config.get("elfin_auto_reboot",True)):
+                    self.logger.warning('EW11 재시작을 시도합니다.')
+                    await self.reboot_elfin_device()
+            if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
+                await self.process_queue()
+            
+        except Exception as err:
+            self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
+            return True
+        
     # 메인 실행 함수
     def run(self) -> None:
         self.logger.info("저장된 기기정보가 있는지 확인합니다. (/share/commax_found_device.json)")
@@ -1173,6 +1169,7 @@ class WallpadController:
 
             # MQTT 연결 완료를 기다림
             async def wait_for_mqtt():
+                queue_interval = self.config.get('queue_interval_in_second',0.01)
                 while True:  # 무한 루프로 변경
                     try:
                         await mqtt_connected.wait()
@@ -1194,8 +1191,8 @@ class WallpadController:
                                     device_search_done.set()
                                     self.logger.info("기기 검색 완료 표시를 설정했습니다.")
                             
-                            await self.process_queue_and_monitor(self.config.get('elfin_reboot_interval', 10))
-                            await asyncio.sleep(0.1)
+                            await self.process_queue_and_monitor()
+                            await asyncio.sleep(queue_interval)
                             
                     except Exception as e:
                         self.logger.error(f"메인 루프 실행 중 오류 발생: {str(e)}")
