@@ -308,19 +308,19 @@ class WallpadController:
                 raw_data = msg.payload.hex().upper()
                 for k in range(0, len(raw_data), 16):
                     data = raw_data[k:k + 16]
-                    if data == checksum(data) and data[:2] in state_prefixes:
-                        name = state_prefixes[data[:2]]
+                    data_bytes = bytes.fromhex(data)
+                    if data == checksum(data) and data_bytes[0] in state_prefixes:
+                        name = state_prefixes[data_bytes[0]]
                         device_structure = self.DEVICE_STRUCTURE[name]
-                        device_id_position = int(device_structure["state"]["structure"]["2"]["name"] == "deviceId" 
-                                              and "2" or next(
-                                                  pos for pos, field in device_structure["state"]["structure"].items()
-                                                  if field["name"] == "deviceId"
-                                              ))
-                        device_count[name] = max(
-                            device_count[name], 
-                            int(data[device_id_position*2:device_id_position*2+2], 16)
-                        )
-            
+                        try:
+                            device_id_pos = device_structure["state"]["fieldPositions"]["deviceId"]
+                            device_count[name] = max(
+                                device_count[name], 
+                                int(data_bytes[device_id_pos], 16)
+                            )
+                        except:
+                            #header가 존재하지만 deviceId가 없는 경우 1개로 처리
+                            device_count[name] = 1
             # 임시 MQTT 클라이언트 설정
             temp_client = self.setup_mqtt('commax_finder')
             temp_client.on_connect = on_connect
@@ -844,8 +844,24 @@ class WallpadController:
                         state_structure = structure['state']
                         field_positions = state_structure['fieldPositions']
                         if byte_data[0] == int(state_structure['header'], 16):
-                            device_id_pos = field_positions['deviceId']
-                            device_id = byte_data[int(device_id_pos)]
+                            try:
+                                device_id_pos = field_positions['deviceId']
+                                device_id = byte_data[int(device_id_pos)]
+                            except KeyError:
+                                # Gas같은 deviceId가 없는 기기 처리 여기에..
+                                if device_name == 'Gas':
+                                    power_pos = field_positions.get('power', 1)
+                                    power = byte_data[int(power_pos)]
+                                    power_hex = byte_to_hex_str(power)
+                                    power_values = state_structure['structure'][power_pos]['values']
+                                    power_text = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
+                                    self.logger.signal(f'{byte_data.hex()}: 가스차단기 ### 상태: {power_text}')
+                                    # TODO: 가스차단기 상태 업데이트 추가
+                                    # await self.update_gas(power_text)
+                                break
+                            except IndexError:
+                                self.logger.error(f"{device_name}의 deviceId 위치({device_id_pos})가 패킷 범위를 벗어났습니다.")
+                                break
                             if device_name == 'Thermo':
                                 power_pos = field_positions.get('power', 1)
                                 power = byte_data[int(power_pos)]

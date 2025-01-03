@@ -272,8 +272,13 @@ Gas:
         values:
           "on": "80"
           "off": "48"
+          "unknown": "50"
       "2":
         name: powerRepeat
+        values:
+          "on": "80"
+          "off": "48"
+          "unknown": "50"
       "3": 
         name: empty
       "4": 
@@ -452,8 +457,8 @@ Fan:
 EV:
   type: button
   command:
-    header: "A0"
-    # 일괄조명차단기 상태헤더와 중복임
+    header: "AA"
+    # 사실 A0이지만 일괄조명차단기 상태헤더와 중복이라 일단 지원안하는걸로
     structure:
       "1":
         name: deviceId
