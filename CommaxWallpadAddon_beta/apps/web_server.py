@@ -984,7 +984,7 @@ class WebServer:
 
     def run(self):
         # Flask 서버 실행
-        self.server = WSGIServer(('0.0.0.0', 8099), self.app)
+        self.server = WSGIServer(('0.0.0.0', 8099), self.app, log=None)
         # 별도의 스레드에서 서버 실행
         threading.Thread(target=self._run_server, daemon=True).start()
         

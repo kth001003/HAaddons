@@ -284,14 +284,15 @@ class WallpadController:
             assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
             
             # 헤더로 기기 타입 매핑
-            state_prefixes = {
+            state_headers = {
                 self.DEVICE_STRUCTURE[name]["state"]["header"]: name 
                 for name in self.DEVICE_STRUCTURE 
                 if "state" in self.DEVICE_STRUCTURE[name]
             }
+            self.logger.info(f'검색 대상 기기 headers: {state_headers}')
             
             # 기기별 최대 인덱스 저장
-            device_count = {name: 0 for name in state_prefixes.values()}
+            device_count = {name: 0 for name in state_headers.values()}
             
             target_time = time.time() + 20
             
@@ -309,8 +310,10 @@ class WallpadController:
                 for k in range(0, len(raw_data), 16):
                     data = raw_data[k:k + 16]
                     data_bytes = bytes.fromhex(data)
-                    if data == checksum(data) and data_bytes[0] in state_prefixes:
-                        name = state_prefixes[data_bytes[0]]
+                    self.logger.debug(f'감지된 패킷: {data_bytes.hex()}')
+                    if data == checksum(data) and data_bytes[0] in state_headers:
+                        name = state_headers[data_bytes[0]]
+                        self.logger.debug(f'감지된 기기: {name}')
                         device_structure = self.DEVICE_STRUCTURE[name]
                         try:
                             device_id_pos = device_structure["state"]["fieldPositions"]["deviceId"]
@@ -318,6 +321,7 @@ class WallpadController:
                                 device_count[name], 
                                 int(data_bytes[device_id_pos], 16)
                             )
+                            self.logger.debug(f'기기 갯수 업데이트: {device_count[name]}')
                         except:
                             #header가 존재하지만 deviceId가 없는 경우 1개로 처리
                             device_count[name] = 1
@@ -337,7 +341,7 @@ class WallpadController:
             temp_client.disconnect()
             
             # 검색 결과 처리
-            self.logger.info('다음의 기기들을 찾았습니다...')
+            self.logger.info('기기 검색 종료. 다음의 기기들을 찾았습니다...')
             self.logger.info('======================================')
             
             device_list = {}
