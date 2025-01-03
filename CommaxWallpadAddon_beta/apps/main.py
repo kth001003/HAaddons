@@ -295,8 +295,9 @@ class WallpadController:
             # COLLECTDATA의 recv_data 분석
             for data in self.COLLECTDATA['recv_data']:
                 data_bytes = bytes.fromhex(data)
-                if data == checksum(data) and data_bytes[0] in state_headers:
-                    name = state_headers[data_bytes[0]]
+                header = byte_to_hex_str(data_bytes[0])
+                if data == checksum(data) and header in state_headers:
+                    name = state_headers[header]
                     self.logger.debug(f'감지된 기기: {name}')
                     device_structure = self.DEVICE_STRUCTURE[name]
                     try:
@@ -1178,8 +1179,8 @@ class WallpadController:
                         while mqtt_connected.is_set():
                             # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
                             recv_data_len = len(self.COLLECTDATA['recv_data'])
-                            self.logger.debug(f"기기 검색 조건 상태 - device_list 비어있음: {not self.device_list}, 검색 미완료: {not device_search_done.is_set()}, recv_data 길이: {recv_data_len}")
                             if recv_data_len >= 90 and not device_search_done.is_set():
+                                self.logger.debug(f"기기 검색 조건 상태 - device_list 비어있음: {not self.device_list}, 검색 미완료: {not device_search_done.is_set()}, recv_data 길이: {recv_data_len}")
                                 if not self.device_list:
                                     self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
                                     self.device_list = self.find_device()
