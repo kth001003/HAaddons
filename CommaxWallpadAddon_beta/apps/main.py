@@ -627,38 +627,39 @@ class WallpadController:
             
             #on off 타입 기기
             elif device_type == 'Light' or device_type == 'LightBreaker':
-                power_pos = state_field_positions.get('power',1)
-                command_value = command_packet[int(command_field_positions.get('power',2))]
+                state_power_pos = state_field_positions.get('power',1)
+                command_power_pos = command_field_positions.get('power',2)
+                command_power_value = command_packet[int(command_power_pos)]
                 #off인 경우
-                if command_value == int(command_structure[str(power_pos)]['values']['off'], 16):
-                    possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['off']]
+                if command_power_value == int(command_structure[str(command_power_pos)]['values']['off'], 16):
+                    possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['off']]
                 #on인 경우
                 else:
-                    possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['on']]
+                    possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on']]
                 # 필요한 바이트 리스트에 전원 위치 추가
-                required_bytes.append(int(power_pos))
+                required_bytes.append(int(state_power_pos))
                 
             elif device_type == 'Fan':
                 # 팬 상태 패킷 생성
                 command_type_pos = command_field_positions.get('commandType', 2)
                 command_type = command_packet[int(command_type_pos)]
                 
-                power_pos = state_field_positions.get('power',1)
+                state_power_pos = state_field_positions.get('power',1)
                 if command_type == int(command_structure[command_type_pos]['values']['power'], 16):
                     command_value = command_packet[int(command_field_positions.get('value', 3))]
                     #off인경우
                     if command_value == int(command_structure[str(command_field_positions.get('value', 3))]['values']['off'], 16):
-                        possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['off']]
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['off']]
                     #off가 아닌경우 (on)
                     else:
-                        possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['on']]
-                    required_bytes.append(int(power_pos))
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on']]
+                    required_bytes.append(int(state_power_pos))
 
                 elif command_type == int(command_structure[command_type_pos]['values']['setSpeed'], 16):
                     speed = command_packet[int(command_field_positions.get('value', 3))]
-                    speed_pos = state_field_positions.get('speed', 4)
-                    required_bytes.append(int(speed_pos))
-                    possible_values[int(speed_pos)] = [state_structure[str(speed_pos)]['values'][str(speed)]]
+                    state_speed_pos = state_field_positions.get('speed', 4)
+                    required_bytes.append(int(state_speed_pos))
+                    possible_values[int(state_speed_pos)] = [state_structure[str(state_speed_pos)]['values'][str(speed)]]
             
             return ExpectedStatePacket(
                 required_bytes=sorted(required_bytes),
@@ -992,6 +993,12 @@ class WallpadController:
                     })
                 else:
                     self.logger.error('예상 상태 패킷 생성 실패')
+                    self.QUEUE.append({
+                        'sendcmd': packet_hex, 
+                        'count': 0, 
+                        'expected_state': None,
+                        'received_count': 0
+                    })
         except Exception as e:
             self.logger.error(f"HA 명령 처리 중 오류 발생: {str(e)}")
 
