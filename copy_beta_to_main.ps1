@@ -1,23 +1,30 @@
+# Encoding settings
+$PSDefaultParameterValues['*:Encoding'] = 'utf8'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 $sourceDir = "CommaxWallpadAddon_beta"
 $destDir = "CommaxWallpadAddon"
 
-Write-Host "베타 폴더의 파일들을 메인 폴더로 복사하는 중..."
+Write-Host "Copying files from beta folder to main folder..."
 
-# 모든 파일을 재귀적으로 가져와서 config.json과 CHANGELOG.md를 제외하고 복사
+# Copy all files recursively except config.json and CHANGELOG.md
 Get-ChildItem -Path $sourceDir -Recurse -File | 
-    Where-Object { ($_.FullName -notlike "*config.json") -and ($_.Name -ne "CHANGELOG.md") } | 
+    Where-Object { ($_.Name -ne "config.json") -and ($_.Name -ne "CHANGELOG.md") } | 
     ForEach-Object {
         $destPath = $_.FullName.Replace($sourceDir, $destDir)
         $destFolder = Split-Path -Path $destPath -Parent
 
-        # 대상 폴더가 없으면 생성
+        # Create destination folder if it doesn't exist
         if (!(Test-Path -Path $destFolder)) {
             New-Item -ItemType Directory -Path $destFolder -Force | Out-Null
         }
 
-        # 파일 복사
+        # Copy file
         Copy-Item -Path $_.FullName -Destination $destPath -Force
-        Write-Host "복사됨: $($_.FullName)"
+        # Display relative path instead of full path
+        $relativePath = $_.FullName.Substring($_.FullName.IndexOf($sourceDir))
+        Write-Host "Copied: $relativePath"
     }
 
-Write-Host "복사가 완료되었습니다." 
+Write-Host "Copy completed." 

@@ -11,15 +11,15 @@ ENV TZ=Asia/Seoul
 #     rm -rf /var/lib/apt/lists/*
 
 # Install requirements for add-on
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
+# RUN pip install --no-cache-dir --upgrade pip && \
+#     pip install --no-cache-dir \
+RUN pip3 install \
     paho-mqtt==1.6.1 \
     PyYAML==6.0.1 \
     flask==2.3.3 \
     telnetlib3 \
     requests==2.31.0 \
     gevent \
-    gevent-websocket
 
 WORKDIR /share
 # Copy data for add-on
