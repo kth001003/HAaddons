@@ -303,8 +303,8 @@ class WallpadController:
                     try:
                         device_id_pos = self.DEVICE_STRUCTURE[name]["state"]["fieldPositions"]["deviceId"]
                         device_count[name] = max(
-                            device_count[name], 
-                            int(data_bytes[int(device_id_pos)], 16)
+                            device_count[name],
+                            int(str(data_bytes[int(device_id_pos)]), 16)  # 바이트를 문자열로 변환 후 16진수로 변환
                         )
                         self.logger.debug(f'기기 갯수 업데이트: {device_count[name]}')
                     except Exception as e:
@@ -325,9 +325,7 @@ class WallpadController:
                         "type": self.DEVICE_STRUCTURE[name]["type"],
                         "count": count
                     }
-                    self.logger.info(f'DEVICE: {name}')
-                    self.logger.info(f'Count: {count}')
-                    self.logger.info('-------------------')
+                    self.logger.info(f'DEVICE: {name} COUNT: {count}')
             
             self.logger.info('======================================')
             
@@ -1128,6 +1126,7 @@ class WallpadController:
             # MQTT 연결 완료 이벤트를 위한 Event 객체 생성
             mqtt_connected = asyncio.Event()
             device_search_done = asyncio.Event()
+            discovery_done = asyncio.Event()
             
             # 저장된 기기 정보가 있는 경우 device_search_done 설정
             if self.device_list:
@@ -1178,9 +1177,12 @@ class WallpadController:
                         self.logger.info("MQTT 연결이 완료되었습니다. 메인 루프를 시작합니다.")
                         
                         while mqtt_connected.is_set():
+                            if not discovery_done.is_set() and device_search_done.is_set():
+                                await self.publish_discovery_message()
+                                discovery_done.set()
                             # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
                             recv_data_len = len(self.COLLECTDATA['recv_data'])
-                            if recv_data_len >= 90 and not device_search_done.is_set():
+                            if recv_data_len >= 80 and not device_search_done.is_set():
                                 self.logger.debug(f"기기 검색 조건 상태 - device_list 비어있음: {not self.device_list}, 검색 미완료: {not device_search_done.is_set()}, recv_data 길이: {recv_data_len}")
                                 if not self.device_list:
                                     self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
@@ -1188,6 +1190,7 @@ class WallpadController:
                                     if self.device_list:
                                         self.logger.info(f"기기 검색 완료: {json.dumps(self.device_list, ensure_ascii=False, indent=2)}")
                                         await self.publish_discovery_message()
+                                        discovery_done.set()
                                     else:
                                         self.logger.warning("기기를 찾지 못했습니다.")
                                     device_search_done.set()
