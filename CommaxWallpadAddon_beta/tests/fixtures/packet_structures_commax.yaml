@@ -457,14 +457,14 @@ Fan:
 EV:
   type: button
   command:
-    header: "AA"
-    # 사실 A0이지만 일괄조명차단기 상태헤더와 중복이라 일단 지원안하는걸로
+    header: "FF"
+    # 사실 A0이지만 일괄조명차단기 상태헤더와 중복이라 main.py에 하드코딩되어있음.
     structure:
       "1":
         name: deviceId
         values:
           "id": "FF"
-        memo: 기기 번호로 추정됨..
+        memo: 기기 번호로 추정됨..  EV의 헤더는 A0이지만 일괄조명차단기 상태헤더와 중복이라 main.py에 하드코딩되어있음.
       "2":
         name: power
         values:
