@@ -8,9 +8,14 @@ $destDir = "CommaxWallpadAddon"
 
 Write-Host "Copying files from beta folder to main folder..."
 
-# Copy all files recursively except config.json and CHANGELOG.md
+# Copy all files recursively except config.json, CHANGELOG.md, and tests/docs folders
 Get-ChildItem -Path $sourceDir -Recurse -File | 
-    Where-Object { ($_.Name -ne "config.json") -and ($_.Name -ne "CHANGELOG.md") } | 
+    Where-Object { 
+        ($_.Name -ne "config.json") -and 
+        ($_.Name -ne "CHANGELOG.md") -and 
+        ($_.FullName -notlike "*\tests\*") -and 
+        ($_.FullName -notlike "*\docs\*")
+    } | 
     ForEach-Object {
         $destPath = $_.FullName.Replace($sourceDir, $destDir)
         $destFolder = Split-Path -Path $destPath -Parent

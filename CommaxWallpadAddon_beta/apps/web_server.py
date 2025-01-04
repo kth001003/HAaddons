@@ -9,7 +9,7 @@ import yaml # type: ignore
 import shutil
 from datetime import datetime
 import requests # type: ignore
-from utils import checksum
+from .utils import checksum
 from gevent.pywsgi import WSGIServer # type: ignore
 import sys
 

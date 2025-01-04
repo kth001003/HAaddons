@@ -4,7 +4,7 @@ import paho.mqtt.client as mqtt # type: ignore
 import time
 import asyncio
 import os
-from logger import Logger
+from .logger import Logger
 from typing import Any, Dict, Union, List, Optional, Set, TypedDict, Callable, TypeVar, Callable
 from functools import wraps
 import yaml # type: ignore #PyYAML
@@ -12,8 +12,8 @@ import json
 import re
 import telnetlib3 # type: ignore
 import shutil
-from web_server import WebServer
-from utils import byte_to_hex_str, checksum, pad
+from .web_server import WebServer
+from .utils import byte_to_hex_str, checksum, pad
 
 T = TypeVar('T')
 
@@ -84,12 +84,18 @@ class WallpadController:
         """
         try:
             vendor = self.config.get('vendor', 'commax').lower()
-            default_file_path = f'/apps/packet_structures_{vendor}.yaml'
+            
+            # 기본 파일 경로 설정 (config에서 지정된 경로가 있으면 그것을 사용 for test)
+            if 'packet_file' in self.config:
+                default_file_path = self.config['packet_file']
+            else:
+                default_file_path = f'/apps/packet_structures_{vendor}.yaml'
+                
             custom_file_path = f'/share/packet_structures_custom.yaml'
 
             if vendor == 'custom':
                 try:
-                    with open(custom_file_path) as file:
+                    with open(custom_file_path, 'r', encoding='utf-8') as file:
                         self.DEVICE_STRUCTURE = yaml.safe_load(file)
                     self.logger.info(f'{vendor} 패킷 구조를 로드했습니다.')
                 except FileNotFoundError:
@@ -99,14 +105,14 @@ class WallpadController:
                         os.makedirs(os.path.dirname(custom_file_path), exist_ok=True)
                         # default 파일을 custom 경로로 복사
                         shutil.copy(default_file_path, custom_file_path)
-                        with open(custom_file_path) as file:
+                        with open(custom_file_path, 'r', encoding='utf-8') as file:
                             self.DEVICE_STRUCTURE = yaml.safe_load(file)
                         self.logger.info(f'기본 패킷 구조를 {custom_file_path}로 복사하고 로드했습니다.')
                     except Exception as e:
                         self.logger.error(f'기본 파일 복사 중 오류 발생: {str(e)}')
             else:
                 try:
-                    with open(default_file_path) as file:
+                    with open(default_file_path, 'r', encoding='utf-8') as file:
                         self.DEVICE_STRUCTURE = yaml.safe_load(file)
                     self.logger.info(f'{vendor} 패킷 구조를 로드했습니다.')
                 except FileNotFoundError:
@@ -963,7 +969,7 @@ class WallpadController:
         try:
             device = ''.join(re.findall('[a-zA-Z]', topics[1]))
             device_id = int(''.join(re.findall('[0-9]', topics[1])))
-            state = topics[2]
+            action = topics[2]
 
             assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
 
@@ -981,16 +987,37 @@ class WallpadController:
             packet[int(field_positions["deviceId"])] = device_id
 
             if device == 'Light':
+                if action == 'power':
+                    power_value = command["structure"][str(field_positions["power"])]["values"]["on" if value == "ON" else "off"]
+                    packet[int(field_positions["power"])] = int(power_value, 16)
+                    self.logger.debug(f'조명 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
+                #TODO: dimmer 추가
+            elif device == 'LightBreaker':
+                command_type_value = command["structure"][str(field_positions["commandType"])]["values"]["power"]
+                packet[int(field_positions["commandType"])] = int(command_type_value, 16)
                 power_value = command["structure"][str(field_positions["power"])]["values"]["on" if value == "ON" else "off"]
                 packet[int(field_positions["power"])] = int(power_value, 16)
-                self.logger.debug(f'조명 {device_id} {state} {value} 명령 생성 {packet.hex().upper()}')
+                self.logger.debug(f'조명차단기 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
+            elif device == 'Outlet':
+                if action == 'power':
+                    command_type_value = command["structure"][str(field_positions["commandType"])]["values"]["power"]
+                    packet[int(field_positions["commandType"])] = int(command_type_value, 16)
+                    power_value = command["structure"][str(field_positions["power"])]["values"]["on" if value == "ON" else "off"]
+                    packet[int(field_positions["power"])] = int(power_value, 16)
+                    self.logger.debug(f'콘센트 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
+                #TODO: 절전모드 (대기전력차단모드) 추가
+            elif device == 'Gas':
+                # off만 가능함.
+                power_value = command["structure"][str(field_positions["power"])]["values"]["off"]
+                packet[int(field_positions["power"])] = int(power_value, 16)
+                self.logger.debug(f'가스차단기 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
             elif device == 'Thermo':                
-                if state == 'power':
+                if action == 'power':
                     if value == 'heat':
                         packet_hex = self.make_climate_command(device_id, 0, 'commandON')
                     else:
                         packet_hex = self.make_climate_command(device_id, 0, 'commandOFF')
-                elif state == 'setTemp':
+                elif action == 'setTemp':
                     try:
                         set_temp = int(float(value))
                         min_temp = int(self.config.get('climate_min_temp', 5))
@@ -1003,22 +1030,34 @@ class WallpadController:
                         self.logger.error(f"온도 값이 올바르지 않습니다: {value}")
                         return
                     packet_hex = self.make_climate_command(device_id, set_temp, 'commandCHANGE')
-                self.logger.debug(f'온도조절기 {device_id} {state} {value} 명령 생성 {packet_hex}')
+                self.logger.debug(f'온도조절기 {device_id} {action} {value} 명령 생성 {packet_hex}')
             elif device == 'Fan':
-                packet[int(field_positions["commandType"])] = int(command[str(field_positions["commandType"])]["values"]["power"], 16)
-                
-                if state == 'power':
-                    packet[int(field_positions["commandType"])] = int(command[str(field_positions["commandType"])]["values"]["power"], 16)
-                    packet[int(field_positions["value"])] = int(command[str(field_positions["value"])]["on" if value == "ON" else "off"], 16)
+                if action == 'power':
+                    command_type_value = command["structure"][str(field_positions["commandType"])]["values"]["power"]
+                    packet[int(field_positions["commandType"])] = int(command_type_value, 16)
+                    power_value = command["structure"][str(field_positions["value"])]["values"]["on" if value == "ON" else "off"]
+                    packet[int(field_positions["value"])] = int(power_value, 16)
                     self.logger.debug(f'환기장치 {value} 명령 생성')
-                elif state == 'speed':
+                elif action == 'speed':
                     if value not in ["low", "medium", "high"]:
                         self.logger.error(f"잘못된 팬 속도입니다: {value}")
                         return
-                    packet[int(field_positions["commandType"])] = int(command[str(field_positions["commandType"])]["values"]["setSpeed"], 16)
-                    packet[int(field_positions["value"])] = int(command[str(field_positions["value"])]["values"][value], 16)
+                    command_type_value = command["structure"][str(field_positions["commandType"])]["values"]["setSpeed"]
+                    packet[int(field_positions["commandType"])] = int(command_type_value, 16)
+                    value_value = command["structure"][str(field_positions["value"])]["values"][value]
+                    packet[int(field_positions["value"])] = int(value_value, 16)
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
-                self.logger.debug(f'환기장치 {device_id} {state} {value} 명령 생성 {packet.hex().upper()}')
+                self.logger.debug(f'환기장치 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
+            elif device == 'EV':
+                #EV 헤더 A0가 중복이라 따로 처리함..
+                packet[0] = int("A0", 16)
+                #호출(power on)만 가능함.
+                packet[int(field_positions["power"])] = int(command["structure"][str(field_positions["power"])]["values"]["on"], 16)
+                packet[int(field_positions["unknown1"])] = int(command["structure"][str(field_positions["unknown1"])]["values"]["fixed"], 16)
+                packet[int(field_positions["unknown2"])] = int(command["structure"][str(field_positions["unknown2"])]["values"]["fixed"], 16)
+                packet[int(field_positions["unknown3"])] = int(command["structure"][str(field_positions["unknown3"])]["values"]["fixed"], 16)
+                self.logger.debug(f'엘리베이터 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
+
             if packet_hex is None:
                 packet_hex = packet.hex().upper()
                 packet_hex = checksum(packet_hex)
