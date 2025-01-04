@@ -34,7 +34,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- 모바일 메뉴 드롭다운 -->
         <div id="mobileMenu" class="hidden sm:hidden">
             <div class="px-2 pt-2 pb-3 space-y-1">
@@ -64,9 +64,13 @@
                             다시검색
                         </button>
                     </div>
-            <div id="deviceList">
+            <div id="deviceList" class="min-h-[100px]">
                 <!-- 기기 목록이 여기에 동적으로 추가됩니다 -->
-                    </div>
+                <div id="noDeviceMessage" class="text-center py-8 text-gray-500">
+                    <p>기기를 검색중입니다...</p>
+                    <p class="text-sm mt-2">1분 이상 기기가 검색되지 않는 경우 애드온 로그를 확인해주세요.</p>
+                </div>
+            </div>
                 </div>
 
                 <!-- MQTT 상태 -->
@@ -122,7 +126,7 @@
             </div>
         </div>
     </div>
-    
+
         <!-- 실시간 패킷 페이지 -->
         <div id="live_packets" class="page hidden">
             <div class="flex justify-between items-center mb-4">
@@ -241,15 +245,20 @@
                     </div>
                 </div>
                 <p class="text-sm text-gray-600 mb-4">월패드 패킷 구조의 header와 name, values 필드를 편집할 수 있습니다.</p>
-                
+
                 <div id="packetStructureEditor" class="space-y-6">
                     <!-- 기기별 편집 UI가 여기에 동적으로 추가됩니다 -->
                 </div>
 
-                <div class="mt-6">
-                    <button id="savePacketStructure" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                        저장
-                    </button>
+                <div class="mt-6 flex justify-between items-center">
+                    <div class="space-x-2">
+                        <button id="savePacketStructure" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                            저장
+                        </button>
+                        <button id="resetPacketStructure" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                            초기화
+                        </button>
+                    </div>
                     <span id="packetEditorMessage" class="ml-3"></span>
                 </div>
             </div>
@@ -257,7 +266,7 @@
         </div>
     </div>
     <script>
-        {% include 'script.js' %} 
+        {% include 'script.js' %}
     </script>
 </body>
-</html> 
+</html>

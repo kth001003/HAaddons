@@ -93,7 +93,17 @@ class WallpadController:
                         self.DEVICE_STRUCTURE = yaml.safe_load(file)
                     self.logger.info(f'{vendor} 패킷 구조를 로드했습니다.')
                 except FileNotFoundError:
-                    self.logger.error(f'{custom_file_path} 파일을 찾을 수 없습니다.')
+                    self.logger.info(f'{custom_file_path} 파일이 없습니다. 기본 파일을 복사합니다.')
+                    try:
+                        # share 디렉토리가 없으면 생성
+                        os.makedirs(os.path.dirname(custom_file_path), exist_ok=True)
+                        # default 파일을 custom 경로로 복사
+                        shutil.copy(default_file_path, custom_file_path)
+                        with open(custom_file_path) as file:
+                            self.DEVICE_STRUCTURE = yaml.safe_load(file)
+                        self.logger.info(f'기본 패킷 구조를 {custom_file_path}로 복사하고 로드했습니다.')
+                    except Exception as e:
+                        self.logger.error(f'기본 파일 복사 중 오류 발생: {str(e)}')
             else:
                 try:
                     with open(default_file_path) as file:
@@ -387,6 +397,18 @@ class WallpadController:
                                 "device_class": "outlet",
                                 "device": device_base_info
                             }
+                            # # 절전모드 설정
+                            # config_topic = f"{discovery_prefix}/switch/{device_id}_ecomode/config"
+                            # payload = {
+                            #     "name": f"{device_name} {idx} Eco Mode",
+                            #     "unique_id": f"commax_{device_id}_ecomode",
+                            #     "state_topic": self.STATE_TOPIC.format(device_id, "ecomode"),
+                            #     "command_topic": f"{self.HA_TOPIC}/{device_id}/ecomode/command",
+                            #     "payload_on": "ON",
+                            #     "payload_off": "OFF",
+                            #     "device_class": "switch",
+                            #     "device": device_base_info
+                            # }
                             # 전력 센서 설정
                             config_topic = f"{discovery_prefix}/sensor/{device_id}_watt/config"
                             payload = {
@@ -742,15 +764,19 @@ class WallpadController:
         except Exception as e:
             self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
 
-    async def update_outlet(self, idx: int, power_text: str, watt: int) -> None:
+    async def update_outlet(self, idx: int, power_text: str, watt: Union[int,None], ecomode_text: Union[str,None]) -> None:
         try:
             deviceID = 'Outlet' + str(idx + 1)
             if power_text == 'ON':
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'ON')
-                val = '%.1f' % float(int(watt) / 10)
-                topic = self.STATE_TOPIC.format(deviceID, 'watt')
-                self.publish_mqtt(topic, val)
+                if watt is not None:
+                    val = '%.1f' % float(int(watt) / 10)
+                    topic = self.STATE_TOPIC.format(deviceID, 'watt')
+                    self.publish_mqtt(topic, val)
+                if ecomode_text is not None:
+                    topic = self.STATE_TOPIC.format(deviceID, 'ecomode')
+                    self.publish_mqtt(topic, ecomode_text)
             else:
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'OFF')
@@ -873,11 +899,27 @@ class WallpadController:
                                 power_values = state_structure['structure'][power_pos]['values']
                                 power_hex = byte_to_hex_str(power)
                                 power_text = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
-                                #TODO 전력량 지원.. 
-                                watt_pos = field_positions.get('watt', 5)
-                                watt = byte_data[int(watt_pos)]
-                                self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}')
-                                await self.update_outlet(device_id, power_text, watt)
+                                
+                                state_type_pos = field_positions.get('stateType', 3)
+                                state_type = byte_data[int(state_type_pos)]
+                                state_type_values = state_structure['structure'][state_type_pos]['values']
+                                state_type_hex = byte_to_hex_str(state_type)
+                                state_type_text = state_type_values.get(state_type_hex, 'wattage')
+                                if state_type_text == 'wattage':
+                                    consecutive_bytes = byte_data[4:7]
+                                    try:
+                                        watt = int(consecutive_bytes.hex())
+                                    except ValueError:
+                                        self.logger.error(f"콘센트 {device_id} 전력값 변환 중 오류 발생: {consecutive_bytes.hex()}")
+                                        watt = 0
+                                    self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 전력: {watt * 0.1}W')
+                                    await self.update_outlet(device_id, power_text, watt, None)
+                                #TODO: 절전모드 (대기전력차단모드) 로직을 알 수 없음..
+                                # elif state_type_text == 'ecomode':
+                                #     consecutive_bytes = byte_data[4:7]
+                                #     ecomode = consecutive_bytes.hex()
+                                #     self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 절전모드: {ecomode}')
+                                #     await self.update_outlet(device_id, power_text, None, ecomode)
 
                             elif device_name == 'Fan':
                                 power_pos = field_positions.get('power', 1)

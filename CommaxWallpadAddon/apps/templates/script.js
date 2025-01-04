@@ -1,4 +1,3 @@
-// @ts-nocheck
 // 전역 변수 선언
 let lastPackets = new Set();
 let packetSuggestions = null;
@@ -1240,187 +1239,36 @@ function saveCustomPacketStructure() {
     .catch(error => showPacketEditorMessage('저장 중 오류가 발생했습니다: ' + error, true));
 }
 
-// 웹소켓 관련 함수들
-function initWebSocket() {
-    if (packetWebSocket) {
-        console.log('기존 WebSocket 연결 종료');
-        packetWebSocket.close();
+function resetPacketStructure() {
+    if (!confirm('패킷 구조를 초기화하면 모든 커스텀 설정이 삭제되고 commax기본값으로 돌아갑니다. 계속하시겠습니까?')) {
+        return;
     }
 
-    try {
-        // 현재 페이지의 경로를 기반으로 WebSocket URL 구성
-        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${window.location.pathname}ws`;
-        console.log('WebSocket 연결 시도:', wsUrl);
-        
-        // WebSocket 프로토콜 지정
-        const protocols = ['websocket'];
-        packetWebSocket = new WebSocket(wsUrl, protocols);
-        
-        // 추가 디버깅을 위한 readyState 로깅
-        console.log('Initial WebSocket readyState:', packetWebSocket.readyState);
-        
-        packetWebSocket.onopen = function(event) {
-            console.log('WebSocket 연결 성공:', event);
-            isWebSocketConnected = true;
-            updateWebSocketStatus();
-        };
-        
-        packetWebSocket.onclose = function(event) {
-            console.log('WebSocket 연결 종료 - 코드:', event.code, '이유:', event.reason, '정상 종료:', event.wasClean);
-            isWebSocketConnected = false;
-            updateWebSocketStatus();
-            
-            // 비정상 종료인 경우에만 재연결 시도
-            if (!event.wasClean) {
-                console.log('3초 후 재연결 시도...');
-                setTimeout(() => {
-                    console.log('재연결 시도 중...');
-                    initWebSocket();
-                }, 3000);
-            }
-        };
-        
-        packetWebSocket.onerror = function(error) {
-            console.error('WebSocket 오류 발생:', error);
-            isWebSocketConnected = false;
-            updateWebSocketStatus();
-        };
-        
-        packetWebSocket.onmessage = function(event) {
-            if (isPaused) return;
-            
-            try {
-                const data = JSON.parse(event.data);
-                console.log('WebSocket 메시지 수신:', data);
-
-                switch (data.type) {
-                    case 'connection_established':
-                        console.log('연결 확인됨, 초기 데이터 수신:', data);
-                        if (data.send_data) updateLivePacketLogFromWebSocket(data);
-                        break;
-                        
-                    case 'ping':
-                        // ping에 대한 응답으로 pong 전송
-                        packetWebSocket.send(JSON.stringify({
-                            type: 'pong',
-                            timestamp: new Date().toISOString()
-                        }));
-                        break;
-                        
-                    case 'packet_data':
-                        updateLivePacketLogFromWebSocket(data);
-                        break;
-                        
-                    default:
-                        console.log('알 수 없는 메시지 타입:', data.type);
-                }
-            } catch (error) {
-                console.error('WebSocket 메시지 처리 오류:', error, '원본 데이터:', event.data);
-            }
-        };
-    } catch (error) {
-        console.error('WebSocket 초기화 오류:', error);
-        isWebSocketConnected = false;
-        updateWebSocketStatus();
-    }
-
-}
-
-function updateWebSocketStatus() {
-    const statusElement = document.getElementById('wsStatus');
-    if (statusElement) {
-        statusElement.textContent = isWebSocketConnected ? '연결됨' : '연결 끊김';
-        statusElement.className = isWebSocketConnected ? 
-            'px-2 py-1 rounded text-sm bg-green-100 text-green-800' : 
-            'px-2 py-1 rounded text-sm bg-red-100 text-red-800';
-    }
-}
-
-function updateLivePacketLogFromWebSocket(data) {
-    const logDiv = document.getElementById('livePacketLog');
-    if (!logDiv) return;
-
-    let newContent = '';
-    const timestamp = data.timestamp;
-
-    // 송신 패킷 처리
-    data.send_data.forEach(packet => {
-        if (!liveLastPackets.has('send:' + packet)) {
-            const packetInfo = analyzePacketInfo(packet);
-            newContent = createLivePacketLogEntry({
-                packet: packet,
-                type: 'send',
-                timestamp: timestamp,
-                deviceInfo: packetInfo
-            }) + newContent;
-            liveLastPackets.add('send:' + packet);
+    fetch('./api/custom_packet_structure', {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showPacketEditorMessage('패킷 구조가 초기화되었습니다. 애드온을 재시작합니다...', false);
+            // 애드온 재시작
+            fetch('./api/find_devices', {
+                method: 'POST'
+            });
+            // 3초 후 페이지 새로고침
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            showPacketEditorMessage(data.error || '초기화 중 오류가 발생했습니다.', true);
         }
+    })
+    .catch(error => {
+        showPacketEditorMessage('초기화 중 오류가 발생했습니다: ' + error, true);
     });
-
-    // 수신 패킷 처리
-    data.recv_data.forEach(packet => {
-        if (!liveLastPackets.has('recv:' + packet)) {
-            const packetInfo = analyzePacketInfo(packet);
-            newContent = createLivePacketLogEntry({
-                packet: packet,
-                type: 'recv',
-                timestamp: timestamp,
-                deviceInfo: packetInfo
-            }) + newContent;
-            liveLastPackets.add('recv:' + packet);
-        }
-    });
-
-    if (newContent) {
-        logDiv.innerHTML = newContent + logDiv.innerHTML;
-        updateLivePacketLogDisplay();
-        
-        // 로그가 너무 길어지면 오래된 항목 제거
-        const maxEntries = 2000;
-        const entries = logDiv.getElementsByClassName('packet-log-entry');
-        if (entries.length > maxEntries) {
-            for (let i = maxEntries; i < entries.length; i++) {
-                entries[i].remove();
-            }
-        }
-    }
 }
 
-function analyzePacketInfo(packet) {
-    // 패킷 헤더로 기기 정보 분석
-    const header = packet.substring(0, 2);
-    let deviceInfo = { device: 'Unknown', packet_type: 'Unknown' };
-    
-    if (packetSuggestions && packetSuggestions.headers) {
-        // 명령 패킷 확인
-        const commandDevice = packetSuggestions.headers.command.find(h => h.header === header);
-        if (commandDevice) {
-            return { device: commandDevice.device, packet_type: 'Command' };
-        }
-        
-        // 상태 패킷 확인
-        const stateDevice = packetSuggestions.headers.state.find(h => h.header === header);
-        if (stateDevice) {
-            return { device: stateDevice.device, packet_type: 'State' };
-        }
-        
-        // 상태 요청 패킷 확인
-        const requestDevice = packetSuggestions.headers.state_request.find(h => h.header === header);
-        if (requestDevice) {
-            return { device: requestDevice.device, packet_type: 'Request' };
-        }
-        
-        // 응답 패킷 확인
-        const ackDevice = packetSuggestions.headers.ack.find(h => h.header === header);
-        if (ackDevice) {
-            return { device: ackDevice.device, packet_type: 'Ack' };
-        }
-    }
-    
-    return deviceInfo;
-}
-
-// 페이지 로드 완료 후 초기화 실행 및 주기적 업데이트 설정
+// 이벤트 리스너 추가를 DOMContentLoaded 이벤트 핸들러 내부에 추가
 document.addEventListener('DOMContentLoaded', function() {
     fetch('./api/packet_suggestions')
         .then(response => response.json())
@@ -1487,6 +1335,12 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateDeviceList, 10000);  // 10초마다 기기목록 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
+    
+    // 패킷 구조 초기화 버튼 이벤트 리스너
+    const resetButton = document.getElementById('resetPacketStructure');
+    if (resetButton) {
+        resetButton.addEventListener('click', resetPacketStructure);
+    }
 });
 
 function loadPacketStructures() {
@@ -1535,20 +1389,6 @@ function loadPacketStructures() {
                 `;
             }
         });
-}
-
-function togglePause() {
-    isPaused = !isPaused;
-    const pauseIcon = document.getElementById('pauseIcon');
-    const playIcon = document.getElementById('playIcon');
-    
-    if (isPaused) {
-        pauseIcon.classList.add('hidden');
-        playIcon.classList.remove('hidden');
-    } else {
-        pauseIcon.classList.remove('hidden');
-        playIcon.classList.add('hidden');
-    }
 }
 
 function extractPackets() {
