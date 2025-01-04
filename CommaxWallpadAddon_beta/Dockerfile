@@ -25,4 +25,4 @@ WORKDIR /share
 # Copy data for add-on
 COPY apps /apps
 
-CMD ["python3", "/apps/main.py"]
+CMD ["python3","-m" "apps.main"]
