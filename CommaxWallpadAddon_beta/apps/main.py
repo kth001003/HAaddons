@@ -186,6 +186,8 @@ class WallpadController:
             return
         except Exception as e:
             self.logger.error(f"MQTT 연결 실패: {str(e)}")
+            self.logger.debug(f"MQTT User: {self.MQTT_USER}")
+            self.logger.debug(f"MQTT Password: {self.MQTT_PASSWORD}")
             return
 
     def reconnect_mqtt(self) -> None:
@@ -200,7 +202,6 @@ class WallpadController:
                     mqtt_host = self.config['mqtt'].get('mqtt_server') or self.MQTT_HOST
                     self.logger.debug(f"MQTT 호스트: {mqtt_host}")
                     self.mqtt_client.connect(mqtt_host)
-                    return
                 else:
                     raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
             except Exception as e:
@@ -210,7 +211,7 @@ class WallpadController:
                 else:
                     self.logger.error(f"MQTT 재연결 실패: {str(e)}. 최대 재시도 횟수 초과.")
                     raise
-
+        return
     async def on_mqtt_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], rc: int) -> None:
         """MQTT 연결 성공/실패 시 호출되는 콜백"""
         if rc == 0:
