@@ -1,6 +1,6 @@
 {
   "name": "[BETA]COMMAX Wallpad Addon by ew11-mqtt",
-  "version": "1.6.0b-4",
+  "version": "1.6.1b-1",
   "slug": "commax-beta",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "개발용입니다. 절대 메인으로 사용하지 마세요.",
@@ -57,5 +57,8 @@
   "ingress_port": 8099,
   "ports": {
     "8099/tcp": null
-  }
+  },
+  "services": [
+    "mqtt:require"
+  ]
 }
