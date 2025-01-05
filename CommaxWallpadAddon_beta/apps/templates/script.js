@@ -282,17 +282,26 @@ function updatePacketLog(isLive = false) {
             ['send', 'recv'].forEach(type => {
                 data[type].forEach(packet => {
                     const packetKey = `${type}:${packet.packet}`;
-                    if (!isLive || !packetSet.has(packetKey)) {
-                        newContent = createPacketLogEntry(packet, type) + newContent;
-                        if (isLive) packetSet.add(packetKey);
+                    
+                    if (isLive) {
+                        // 실시간 모드: 새로운 패킷이면 추가
+                        if (!packetSet.has(packetKey)) {
+                            newContent = createPacketLogEntry(packet, type) + newContent;
+                            packetSet.add(packetKey);
+                        }
+                    } else {
+                        // 일반 모드: Set에 없는 패킷만 추가하고 표시
+                        if (!packetSet.has(packetKey)) {
+                            newContent = createPacketLogEntry(packet, type) + newContent;
+                            packetSet.add(packetKey);
+                        }
                     }
                 });
             });
 
             if (newContent) {
-                logDiv.innerHTML = newContent + logDiv.innerHTML;
-                // Unknown 패킷 숨기기 상태 적용
                 if (isLive) {
+                    logDiv.innerHTML = newContent + logDiv.innerHTML;
                     updateLivePacketLogDisplay();
                     // 로그 길이 제한
                     const maxEntries = 2000;
@@ -303,6 +312,7 @@ function updatePacketLog(isLive = false) {
                         }
                     }
                 } else {
+                    logDiv.innerHTML = newContent;
                     updatePacketLogDisplay();
                 }
             }
@@ -320,19 +330,6 @@ function clearPacketLog() {
     logDiv.innerHTML = '';
     lastPackets.clear();
 }
-
-// function updatePacketLogDisplay() {
-//     const hideUnknown = document.getElementById('hideUnknown').checked;
-//     const unknownPackets = document.querySelectorAll('.unknown-packet');
-    
-//     unknownPackets.forEach(packet => {
-//         if (hideUnknown) {
-//             packet.classList.add('hidden');
-//         } else {
-//             packet.classList.remove('hidden');
-//         }
-//     });
-// }
 
 // 패킷 히스토리 관련 함수들
 function loadPacketHistory() {
@@ -899,81 +896,13 @@ function updateRecentMessages() {
         });
 }
 
-// // 실시간 패킷 로그 관련 함수들
-// function createLivePacketLogEntry(packet, type, timestamp) {
-//     const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
-//     const deviceClass = deviceInfo.device === 'Unknown' ? 'unknown-packet' : '';
-//     const formattedPacket = (packet.packet || '').match(/.{2}/g)?.join(' ') || packet.packet || '';
-    
-//     return `
-//         <div class="packet-log-entry ${deviceClass} flex items-center space-x-2 p-2 hover:bg-gray-50 border-b border-gray-100">
-//             <span class="packet-timestamp text-gray-500 text-sm">${timestamp}</span>
-//             <span class="packet-type ${type === 'send' ? 'text-green-600' : 'text-blue-600'} font-semibold">[${type.toUpperCase()}]</span>
-//             <span class="packet-content font-mono">${formattedPacket}</span>
-//             <span class="packet-device text-gray-600">[${deviceInfo.device} - ${deviceInfo.packet_type}]</span>
-//         </div>
-//     `;
-// }
-
-// function updateLivePacketLog() {
-//     if (isPaused) return;
-
-//     fetch('./api/packet_logs')
-//         .then(response => response.json())
-//         .then(data => {
-//             const logDiv = document.getElementById('livePacketLog');
-//             let newContent = '';
-
-//             // 송신 패킷 처리
-//             data.send.forEach(packet => {
-//                 const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-//                 newContent = createLivePacketLogEntry(packet, 'send', timestamp) + newContent;
-//                 liveLastPackets.add('send:' + packet.packet);
-//             });
-
-//             // 수신 패킷 처리
-//             data.recv.forEach(packet => {
-//                 const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-//                 newContent = createLivePacketLogEntry(packet, 'recv', timestamp) + newContent;
-//                 liveLastPackets.add('recv:' + packet.packet);
-//             });
-
-//             if (newContent) {
-//                 logDiv.innerHTML = newContent + logDiv.innerHTML;
-//                 // Unknown 패킷 숨기기 상태 적용
-//                 updateLivePacketLogDisplay();
-                
-//                 // 로그가 너무 길어지면 오래된 항목 제거
-//                 const maxEntries = 2000;
-//                 const entries = logDiv.getElementsByClassName('packet-log-entry');
-//                 if (entries.length > maxEntries) {
-//                     for (let i = maxEntries; i < entries.length; i++) {
-//                         entries[i].remove();
-//                     }
-//                 }
-//             }
-//         })
-//         .catch(error => console.error('실시간 패킷 로그 업데이트 실패:', error));
-// }
-
 function clearLivePacketLog() {
-    const logDiv = document.getElementById('livePacketLog');
-    logDiv.innerHTML = '';
+    const sendLogDiv = document.getElementById('send-data');
+    const recvLogDiv = document.getElementById('recv-data');
+    sendLogDiv.innerHTML = '';
+    recvLogDiv.innerHTML = '';
     liveLastPackets.clear();
 }
-
-// function updateLivePacketLogDisplay() {
-//     const hideUnknown = document.getElementById('liveHideUnknown').checked;
-//     const unknownPackets = document.querySelectorAll('#livePacketLog .unknown-packet');
-    
-//     unknownPackets.forEach(packet => {
-//         if (hideUnknown) {
-//             packet.classList.add('hidden');
-//         } else {
-//             packet.classList.remove('hidden');
-//         }
-//     });
-// }
 
 // 모바일 메뉴 토글 함수
 function toggleMobileMenu() {
