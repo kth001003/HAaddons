@@ -321,18 +321,18 @@ function clearPacketLog() {
     lastPackets.clear();
 }
 
-function updatePacketLogDisplay() {
-    const hideUnknown = document.getElementById('hideUnknown').checked;
-    const unknownPackets = document.querySelectorAll('.unknown-packet');
+// function updatePacketLogDisplay() {
+//     const hideUnknown = document.getElementById('hideUnknown').checked;
+//     const unknownPackets = document.querySelectorAll('.unknown-packet');
     
-    unknownPackets.forEach(packet => {
-        if (hideUnknown) {
-            packet.classList.add('hidden');
-        } else {
-            packet.classList.remove('hidden');
-        }
-    });
-}
+//     unknownPackets.forEach(packet => {
+//         if (hideUnknown) {
+//             packet.classList.add('hidden');
+//         } else {
+//             packet.classList.remove('hidden');
+//         }
+//     });
+// }
 
 // 패킷 히스토리 관련 함수들
 function loadPacketHistory() {
@@ -962,18 +962,18 @@ function clearLivePacketLog() {
     liveLastPackets.clear();
 }
 
-function updateLivePacketLogDisplay() {
-    const hideUnknown = document.getElementById('liveHideUnknown').checked;
-    const unknownPackets = document.querySelectorAll('#livePacketLog .unknown-packet');
+// function updateLivePacketLogDisplay() {
+//     const hideUnknown = document.getElementById('liveHideUnknown').checked;
+//     const unknownPackets = document.querySelectorAll('#livePacketLog .unknown-packet');
     
-    unknownPackets.forEach(packet => {
-        if (hideUnknown) {
-            packet.classList.add('hidden');
-        } else {
-            packet.classList.remove('hidden');
-        }
-    });
-}
+//     unknownPackets.forEach(packet => {
+//         if (hideUnknown) {
+//             packet.classList.add('hidden');
+//         } else {
+//             packet.classList.remove('hidden');
+//         }
+//     });
+// }
 
 // 모바일 메뉴 토글 함수
 function toggleMobileMenu() {
