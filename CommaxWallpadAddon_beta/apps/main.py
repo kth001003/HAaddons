@@ -186,32 +186,27 @@ class WallpadController:
             return
         except Exception as e:
             self.logger.error(f"MQTT 연결 실패: {str(e)}")
-            self.logger.debug(f"MQTT User: {self.MQTT_USER}")
-            self.logger.debug(f"MQTT Password: {self.MQTT_PASSWORD}")
             return
 
     def reconnect_mqtt(self) -> None:
         """MQTT 브로커 연결이 끊어진 경우 재연결을 시도합니다."""
-        max_retries = 5
         retry_interval = 5  # 초
 
-        for attempt in range(max_retries):
-            try:
-                self.logger.info(f"MQTT 브로커 재연결 시도 중... (시도 {attempt + 1}/{max_retries})")
-                if self.mqtt_client:
-                    mqtt_host = self.config['mqtt'].get('mqtt_server') or self.MQTT_HOST
-                    self.logger.debug(f"MQTT 호스트: {mqtt_host}")
-                    self.mqtt_client.connect(mqtt_host)
-                else:
-                    raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    self.logger.warning(f"MQTT 재연결 실패: {str(e)}. {retry_interval}초 후 재시도...")
-                    time.sleep(retry_interval)
-                else:
-                    self.logger.error(f"MQTT 재연결 실패: {str(e)}. 최대 재시도 횟수 초과.")
-                    raise
-        return
+        try:
+            self.logger.info(f"MQTT 브로커 재연결 시도 중...")
+            if self.mqtt_client:
+                mqtt_host = self.config['mqtt'].get('mqtt_server') or self.MQTT_HOST
+                self.logger.debug(f"MQTT 호스트: {mqtt_host}")
+                self.logger.debug(f"MQTT User: {self.MQTT_USER}")
+                self.logger.debug(f"MQTT Password: {self.MQTT_PASSWORD}")
+                self.mqtt_client.connect(mqtt_host)
+            else:
+                raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
+            return
+        except Exception as e:
+            self.logger.warning(f"MQTT 재연결 실패: {str(e)}. {retry_interval}초 후 재시도...")
+            time.sleep(retry_interval)
+        
     async def on_mqtt_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], rc: int) -> None:
         """MQTT 연결 성공/실패 시 호출되는 콜백"""
         if rc == 0:
