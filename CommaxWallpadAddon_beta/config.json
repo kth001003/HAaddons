@@ -60,5 +60,6 @@
   },
   "services": [
     "mqtt:need"
+    "mqtt:need"
   ]
 }
