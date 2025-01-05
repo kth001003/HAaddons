@@ -1,6 +1,6 @@
 {
   "name": "[BETA]COMMAX Wallpad Addon by ew11-mqtt",
-  "version": "1.6.1b-9",
+  "version": "1.6.1b-10",
   "slug": "commax-beta",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "개발용입니다. 절대 메인으로 사용하지 마세요.",
@@ -46,13 +46,13 @@
     "climate_min_temp": "int(0,19)",
     "climate_max_temp": "int(20,99)",
     "mqtt":{
-      "mqtt_server": "match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)?",
+      "mqtt_server": "str?",
       "mqtt_id": "str?",
       "mqtt_password": "str?"
     },
     "mqtt_TOPIC": "str",
     "elfin_auto_reboot": "bool",
-    "elfin_server": "match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)?",
+    "elfin_server": "str?",
     "elfin_id": "str?",
     "elfin_password": "str?",
     "elfin_reboot_interval": "int"
