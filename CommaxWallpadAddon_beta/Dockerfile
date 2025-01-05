@@ -1,7 +1,5 @@
 ARG BUILD_ARCH
 FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
-ARG BUILD_ARCH
-FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
 
 ENV LANG C.UTF-8
 ENV TZ=Asia/Seoul
@@ -27,5 +25,4 @@ WORKDIR /share
 COPY apps /apps
 
 ENV PYTHONPATH=/
-CMD ["/run.sh"]
-CMD ["/run.sh"]
+CMD ["/apps/run.sh"]
