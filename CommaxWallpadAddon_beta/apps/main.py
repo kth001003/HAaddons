@@ -62,10 +62,11 @@ class WallpadController:
         self.HA_TOPIC: str = config['mqtt_TOPIC']
         self.STATE_TOPIC: str = self.HA_TOPIC + '/{}/{}/state'
         self.MQTT_HOST: str = self.config['mqtt'].get('mqtt_server') or os.getenv('MQTT_HOST')
+        self.MQTT_PORT: int = self.config['mqtt'].get('mqtt_port') or os.getenv('MQTT_PORT')
         self.MQTT_USER: str = os.getenv('MQTT_USER')
         self.MQTT_PASSWORD: str = os.getenv('MQTT_PASSWORD')
         self.QUEUE: List[QueueItem] = []
-        self.min_receive_count: int = self.config.get("min_receive_count", 3)  # 최소 수신 횟수, 기본값 3
+        self.min_receive_count: int = self.config['command_settings'].get('min_receive_count', 3)  # 최소 수신 횟수, 기본값 3
         self.COLLECTDATA: CollectData = {
             'send_data': [],
             'recv_data': [],
@@ -184,7 +185,7 @@ class WallpadController:
             self.logger.info("MQTT 브로커 연결 시도 중...")
             if self.mqtt_client:
                 self.logger.debug(f"MQTT 호스트: {self.MQTT_HOST}")
-                self.mqtt_client.connect(self.MQTT_HOST)
+                self.mqtt_client.connect(self.MQTT_HOST, self.MQTT_PORT)
             else:
                 self.logger.error("MQTT 클라이언트가 초기화되지 않았습니다.")
             return
@@ -199,7 +200,7 @@ class WallpadController:
         try:
             self.logger.info(f"MQTT 브로커 재연결 시도 중...")
             if self.mqtt_client:
-                self.mqtt_client.connect(self.MQTT_HOST)
+                self.mqtt_client.connect(self.MQTT_HOST, self.MQTT_PORT)
             else:
                 raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
             return
@@ -479,8 +480,8 @@ class WallpadController:
                             "action_state_topic": self.STATE_TOPIC.format(device_id, "action"),
                             "modes": ["off", "heat"],
                             "temperature_unit": "C",
-                            "min_temp": int(self.config.get('climate_min_temp',5)),
-                            "max_temp": int(self.config.get('climate_max_temp',40)),
+                            "min_temp": int(self.config['climate_settings'].get('min_temp',5)),
+                            "max_temp": int(self.config['climate_settings'].get('max_temp',40)),
                             "temp_step": 1,
                         }
                     elif device_type == 'button':  # 버튼형 기기 (가스밸브, 엘리베이터 호출)
@@ -805,15 +806,15 @@ class WallpadController:
     async def reboot_elfin_device(self):
         try:
             # telnetlib3는 비동기 연결을 반환합니다
-            reader, writer = await telnetlib3.open_connection(self.config['elfin_server'])
+            reader, writer = await telnetlib3.open_connection(self.config['elfin'].get('elfin_server'))
             
             # 로그인 프롬프트 대기 및 응답
             await reader.readuntil(b"login: ")
-            writer.write(self.config['elfin_id'] + '\n')
+            writer.write(self.config['elfin'].get('elfin_id') + '\n')
             
             # 패스워드 프롬프트 대기 및 응답
             await reader.readuntil(b"password: ")
-            writer.write(self.config['elfin_password'] + '\n')
+            writer.write(self.config['elfin'].get('elfin_password') + '\n')
             
             # 재시작 명령 전송
             writer.write('Restart\n')
@@ -1022,8 +1023,8 @@ class WallpadController:
                 elif action == 'setTemp':
                     try:
                         set_temp = int(float(value))
-                        min_temp = int(self.config.get('climate_min_temp', 5))
-                        max_temp = int(self.config.get('climate_max_temp', 40))
+                        min_temp = int(self.config['climate_settings'].get('min_temp', 5))
+                        max_temp = int(self.config['climate_settings'].get('max_temp', 40))
                         
                         if not min_temp <= set_temp <= max_temp:
                             self.logger.error(f"설정 온도가 허용 범위를 벗어났습니다: {set_temp}°C (허용범위: {min_temp}~{max_temp}°C)")
@@ -1087,7 +1088,7 @@ class WallpadController:
 
     async def process_queue(self) -> None:
         """큐에 있는 모든 명령을 처리하고 예상되는 응답을 확인합니다."""
-        max_send_count = self.config.get("max_send_count", 20)
+        max_send_count = self.config['command_settings'].get('max_send_count', 20)
         if not self.QUEUE:
             return
         
@@ -1174,7 +1175,7 @@ class WallpadController:
             Exception: 큐 처리 또는 기기 재시작 중 오류 발생시 예외를 발생시킵니다.
         """
         try:
-            elfin_reboot_interval = self.config.get('elfin_reboot_interval', 10)
+            elfin_reboot_interval = self.config['elfin'].get('elfin_reboot_interval', 10)
             current_time = time.time_ns()
             last_recv = self.COLLECTDATA['last_recv_time']
             signal_interval = (current_time - last_recv)/1_000_000 #ns to ms
@@ -1182,7 +1183,7 @@ class WallpadController:
             if signal_interval > elfin_reboot_interval * 1_000:  # seconds
                 self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
                 self.COLLECTDATA['last_recv_time'] = time.time_ns()
-                if (self.config.get("elfin_auto_reboot",True)):
+                if (self.config['elfin'].get("use_auto_reboot",True)):
                     self.logger.warning('EW11 재시작을 시도합니다.')
                     await self.reboot_elfin_device()
             if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
@@ -1260,7 +1261,7 @@ class WallpadController:
 
             # MQTT 연결 완료를 기다림
             async def wait_for_mqtt():
-                queue_interval = self.config.get('queue_interval_in_second',0.01)
+                queue_interval = self.config['command_settings'].get('queue_interval_in_second',0.01)
                 while True:  # 무한 루프로 변경
                     try:
                         await mqtt_connected.wait()
@@ -1324,11 +1325,11 @@ class WallpadController:
 if __name__ == '__main__':
     with open('/data/options.json') as file:
         CONFIG = json.load(file)
-    logger = Logger(debug=CONFIG['DEBUG'], elfin_log=CONFIG['elfin_log'], mqtt_log=CONFIG['mqtt_log'])
-    logger.info("╔══════════════════════════════════════════════════════════════╗")
-    logger.info("║                                                              ║")
-    logger.info("║         Commax Wallpad Addon by ew11-mqtt 시작               ║") 
-    logger.info("║                                                              ║")
-    logger.info("╚══════════════════════════════════════════════════════════════╝")
+    logger = Logger(debug=CONFIG['log']['DEBUG'], elfin_log=CONFIG['log']['elfin_log'], mqtt_log=CONFIG['log']['mqtt_log'])
+    logger.info("╔══════════════════════════════════════════╗")
+    logger.info("║                                          ║")
+    logger.info("║  Commax Wallpad Addon by ew11-mqtt 시작  ║") 
+    logger.info("║                                          ║")
+    logger.info("╚══════════════════════════════════════════╝")
     controller = WallpadController(CONFIG, logger)
     controller.run()

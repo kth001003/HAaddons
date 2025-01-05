@@ -13,29 +13,7 @@ from .utils import checksum
 from gevent.pywsgi import WSGIServer # type: ignore
 import sys
 
-SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN')
 
-def get_addon_info():
-    """Get the ingress URL from Supervisor API"""
-    if not SUPERVISOR_TOKEN:
-        return None
-        
-    headers = {
-        'Authorization': f'Bearer {SUPERVISOR_TOKEN}',
-        'Content-Type': 'application/json'
-    }
-    
-    try:
-        response = requests.get(
-            'http://supervisor/addons/self/info',
-            headers=headers
-        )
-        response.raise_for_status()
-        addon_info = response.json()['data']
-        return addon_info
-    except Exception as e:
-        print(f"Error getting ingress info: {e}")
-        return None
 
 class WebServer:
     def __init__(self, wallpad_controller):
@@ -43,15 +21,20 @@ class WebServer:
         logging.getLogger('werkzeug').disabled = True
         cli = sys.modules['flask.cli']
         cli.show_server_banner = lambda *x: None
-        
         self.app = Flask(__name__, template_folder='templates')
         self.app.logger.disabled = True
         self.wallpad_controller = wallpad_controller
-        self.addon_info = get_addon_info()
+        self.SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN')
+        self.addon_info = self._get_addon_info()
         self.recent_messages = []
         self.server = None
         self.logger = wallpad_controller.logger
 
+        self.supervisor_headers = {
+            'Authorization': f'Bearer {self.SUPERVISOR_TOKEN}',
+            'Content-Type': 'application/json'
+        }
+        
         # 라우트 설정
         @self.app.route('/')
         def home():
@@ -171,27 +154,9 @@ class WebServer:
         @self.app.route('/api/config', methods=['GET'])
         def get_config():
             """CONFIG 객체의 내용과 스키마를 제공합니다."""
-            # 하드코딩된 schema 정보 from config.json
-            schema = {
-                "DEBUG": "bool",
-                "mqtt_log": "bool",
-                "elfin_log": "bool",
-                "vendor": "list(commax|custom)",
-                "queue_interval_in_second": "float(0.01,1.0)",
-                "max_send_count": "int(1,99)",
-                "min_receive_count": "int(1,9)",
-                "climate_min_temp": "int(0,19)",
-                "climate_max_temp": "int(20,99)",
-                "mqtt_server": "match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)",
-                "mqtt_id": "str",
-                "mqtt_password": "str",
-                "mqtt_TOPIC": "str",
-                "elfin_auto_reboot": "bool",
-                "elfin_server": "match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)?",
-                "elfin_id": "str?",
-                "elfin_password": "str?",
-                "elfin_reboot_interval": "int"
-            }
+            # addon_info에서 schema 정보 가져오기
+            schema = self.addon_info.get('schema', {}) if self.addon_info else {}
+            
             return jsonify({
                 'config': self.wallpad_controller.config,
                 'schema': schema
@@ -205,90 +170,13 @@ class WebServer:
                 if not data:
                     return jsonify({'error': '설정 데이터가 없습니다.'}), 400
 
-                # 현재 설정 파일 읽기
-                with open('/data/options.json', 'r', encoding='utf-8') as f:
-                    current_options = json.load(f)
-
-                schema = current_options.get('schema', {})
+                # addon_info에서 현재 설정 가져오기
+                current_options = self.addon_info.get('options', {}) if self.addon_info else {}
                 
-                # 스키마 기반 유효성 검사
-                validation_errors = []
-                for key, value in data.items():
-                    if key in schema:
-                        field_schema = schema[key]
-                        schema_type = field_schema.split('(')[0]  # list(commax|custom) -> list
-                        
-                        # 필수/선택 필드 확인
-                        is_optional = field_schema.endswith('?')
-                        if not is_optional and value is None:
-                            validation_errors.append(f"{key}: 필수 항목입니다.")
-                            continue
-                            
-                        if value is not None:  # 값이 있는 경우에만 타입 검사
-                            # 타입 검사
-                            if schema_type == 'int':
-                                try:
-                                    val = int(value)
-                                    # int(min,max) 형식에서 범위 추출
-                                    if '(' in field_schema:
-                                        range_str = field_schema.split('(')[1].rstrip('?)')
-                                        if ',' in range_str:
-                                            min_val, max_val = map(int, range_str.split(','))
-                                            if val < min_val or val > max_val:
-                                                validation_errors.append(f"{key}: {min_val}에서 {max_val} 사이의 값이어야 합니다.")
-                                except (ValueError, TypeError):
-                                    validation_errors.append(f"{key}: 정수여야 합니다.")
-                            elif schema_type == 'float':
-                                try:
-                                    val = float(value)
-                                    # float(min,max) 형식에서 범위 추출
-                                    if '(' in field_schema:
-                                        range_str = field_schema.split('(')[1].rstrip('?)')
-                                        if ',' in range_str:
-                                            min_val, max_val = map(float, range_str.split(','))
-                                            if val < min_val or val > max_val:
-                                                validation_errors.append(f"{key}: {min_val}에서 {max_val} 사이의 값이어야 합니다.")
-                                except (ValueError, TypeError):
-                                    validation_errors.append(f"{key}: 실수여야 합니다.")
-                            elif schema_type == 'bool':
-                                if not isinstance(value, bool):
-                                    validation_errors.append(f"{key}: 참/거짓 값이어야 합니다.")
-                            elif schema_type == 'list':
-                                # list(commax|custom) 형식에서 가능한 값들 추출
-                                allowed_values = field_schema.split('(')[1].rstrip('?)').split('|')
-                                if value not in allowed_values:
-                                    validation_errors.append(f"{key}: {', '.join(allowed_values)} 중 하나여야 합니다.")
-                            elif schema_type == 'str':
-                                if not isinstance(value, str):
-                                    validation_errors.append(f"{key}: 문자열이어야 합니다.")
-                            elif schema_type == 'match':
-                                if not isinstance(value, str):
-                                    validation_errors.append(f"{key}: 문자열이어야 합니다.")
-                                else:
-                                    # match(정규식) 형식에서 정규식 추출
-                                    pattern = field_schema.split('(')[1].rstrip('?)').rstrip(')')
-                                    import re
-                                    if not re.match(pattern, value):
-                                        validation_errors.append(f"{key}: 올바른 형식이 아닙니다. (형식: {pattern})")
-                                    
-
-                if validation_errors:
-                    return jsonify({
-                        'success': False,
-                        'error': '유효성 검사 실패',
-                        'details': validation_errors
-                    }), 400
-
                 try:
-                    # 현재 설정과 새로운 설정을 병합
                     updated_options = current_options.copy()
                     updated_options.update(data)
 
-                    # API 호출을 위한 헤더와 데이터 준비
-                    headers = {
-                        'Authorization': f'Bearer {os.environ.get("SUPERVISOR_TOKEN", "")}',
-                        'Content-Type': 'application/json'
-                    }
                     api_data = {
                         'options': updated_options
                     }
@@ -296,7 +184,7 @@ class WebServer:
                     # Supervisor API 호출
                     response = requests.post(
                         'http://supervisor/addons/self/options',
-                        headers=headers,
+                        headers=self.supervisor_headers,
                         json=api_data
                     )
 
@@ -309,7 +197,7 @@ class WebServer:
                     # 애드온 재시작 요청
                     restart_response = requests.post(
                         'http://supervisor/addons/self/restart',
-                        headers=headers
+                        headers=self.supervisor_headers
                     )
 
                     if restart_response.status_code != 200:
@@ -407,15 +295,9 @@ class WebServer:
                 if os.path.exists('/share/commax_found_device.json'):
                     os.remove('/share/commax_found_device.json')
                 
-                # Supervisor API를 통해 애드온 재시작
-                headers = {
-                    'Authorization': f'Bearer {os.environ.get("SUPERVISOR_TOKEN", "")}',
-                    'Content-Type': 'application/json'
-                }
-                
                 response = requests.post(
                     'http://supervisor/addons/self/restart',
-                    headers=headers
+                    headers=self.supervisor_headers
                 )
 
                 if response.status_code != 200:
@@ -630,25 +512,22 @@ class WebServer:
             except Exception as e:
                 return jsonify({'error': str(e), 'success': False})
 
-        # @self.app.route('/api/ingress_url')
-        # def ingress_url():
-        #     """Get the ingress URL for WebSocket connection"""
-        #     try:
-        #         ingress_url = self.addon_info.get('ingress_url')
-        #         if ingress_url:
-        #             return jsonify({
-        #                 'success': True,
-        #                 'ingress_url': ingress_url
-        #             })
-        #         return jsonify({
-        #             'success': False,
-        #             'error': 'Ingress URL not found'
-        #         })
-        #     except Exception as e:
-        #         return jsonify({
-        #             'success': False,
-        #             'error': str(e)
-        #         })
+    def _get_addon_info(self):
+        """Get the ingress URL from Supervisor API"""
+        if not self.SUPERVISOR_TOKEN:
+            return None
+        
+        try:
+            response = requests.get(
+                'http://supervisor/addons/self/info',
+                headers=self.supervisor_headers
+            )
+            response.raise_for_status()
+            addon_info = response.json()['data']
+            return addon_info
+        except Exception as e:
+            self.logger.error(f"Error getting ingress info: {e}")
+            return None 
 
     def _get_editable_fields(self, packet_data):
         """패킷 구조에서 편집 가능한 필드만 추출합니다."""
