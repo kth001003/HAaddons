@@ -161,8 +161,8 @@ class WallpadController:
         try:
             client = mqtt.Client(client_id or self.HA_TOPIC)
             client.username_pw_set(
-                self.config.get('mqtt_id', self.MQTT_USER),
-                self.config.get('mqtt_password', self.MQTT_PASSWORD)
+                self.config['mqtt'].get('mqtt_id', self.MQTT_USER),
+                self.config['mqtt'].get('mqtt_password', self.MQTT_PASSWORD)
             )
             return client
             
@@ -178,7 +178,7 @@ class WallpadController:
         try:
             self.logger.info("MQTT 브로커 연결 시도 중...")
             if self.mqtt_client:
-                self.mqtt_client.connect(self.config.get('mqtt_server', self.MQTT_HOST))
+                self.mqtt_client.connect(self.config['mqtt'].get('mqtt_server', self.MQTT_HOST))
             else:
                 self.logger.error("MQTT 클라이언트가 초기화되지 않았습니다.")
             return
@@ -195,7 +195,7 @@ class WallpadController:
             try:
                 self.logger.info(f"MQTT 브로커 재연결 시도 중... (시도 {attempt + 1}/{max_retries})")
                 if self.mqtt_client:
-                    self.mqtt_client.connect(self.config['mqtt_server'])
+                    self.mqtt_client.connect(self.config['mqtt'].get('mqtt_server', self.MQTT_HOST))
                     return
                 else:
                     raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
