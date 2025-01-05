@@ -21,20 +21,22 @@ class WebServer:
         logging.getLogger('werkzeug').disabled = True
         cli = sys.modules['flask.cli']
         cli.show_server_banner = lambda *x: None
+        
         self.app = Flask(__name__, template_folder='templates')
         self.app.logger.disabled = True
         self.wallpad_controller = wallpad_controller
         self.SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN')
-        self.addon_info = self._get_addon_info()
-        self.recent_messages = []
-        self.server = None
         self.logger = wallpad_controller.logger
-
+        
         self.supervisor_headers = {
             'Authorization': f'Bearer {self.SUPERVISOR_TOKEN}',
             'Content-Type': 'application/json'
         }
         
+        self.addon_info = self._get_addon_info()  # 이제 필요한 속성들이 모두 초기화된 후에 호출
+        self.recent_messages = []
+        self.server = None
+
         # 라우트 설정
         @self.app.route('/')
         def home():
