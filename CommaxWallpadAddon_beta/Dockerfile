@@ -1,14 +1,15 @@
-FROM python:slim-bookworm
+ARG BUILD_ARCH
+FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
 
 ENV LANG C.UTF-8
 ENV TZ=Asia/Seoul
 
-# # Install tzdata for timezone support
-# RUN apt-get update && apt-get install -y tzdata && \
-#     cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
-#     echo "Asia/Seoul" > /etc/timezone && \
-#     apt-get clean && \
-#     rm -rf /var/lib/apt/lists/*
+# Install tzdata for timezone support
+RUN apt-get update && apt-get install -y tzdata && \
+    cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
+    echo "Asia/Seoul" > /etc/timezone && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install requirements for add-on
 # RUN pip install --no-cache-dir --upgrade pip && \
@@ -26,4 +27,4 @@ WORKDIR /share
 COPY apps /apps
 
 ENV PYTHONPATH=/
-CMD ["python3", "-m", "apps.main"]
+CMD ["/run.sh"]
