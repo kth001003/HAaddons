@@ -145,10 +145,6 @@ class WebServer:
         def get_devices():
             return jsonify(self.wallpad_controller.device_list or {})
             
-        @self.app.route('/api/state')
-        def get_state():
-            return jsonify(self.wallpad_controller.HOMESTATE)
-
         @self.app.route('/api/mqtt_status')
         def get_mqtt_status():
             """MQTT 연결 상태 정보를 제공합니다."""
@@ -163,7 +159,7 @@ class WebServer:
             client = self.wallpad_controller.mqtt_client
             return jsonify({
                 'connected': client.is_connected(),
-                'broker': f"{self.wallpad_controller.config['mqtt_server']}",
+                'broker': f"{self.wallpad_controller.MQTT_HOST}",
                 'client_id': client._client_id.decode() if client._client_id else None,
                 'subscribed_topics': [
                     f'{self.wallpad_controller.HA_TOPIC}/+/+/command',
