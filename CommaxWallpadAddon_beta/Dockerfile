@@ -5,11 +5,9 @@ ENV LANG C.UTF-8
 ENV TZ=Asia/Seoul
 
 # Install tzdata for timezone support
-RUN apt-get update && apt-get install -y tzdata && \
+RUN apk add --no-cache tzdata && \
     cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
-    echo "Asia/Seoul" > /etc/timezone && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    echo "Asia/Seoul" > /etc/timezone
 
 # Install requirements for add-on
 # RUN pip install --no-cache-dir --upgrade pip && \
