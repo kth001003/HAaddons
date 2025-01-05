@@ -157,23 +157,10 @@ class WallpadController:
         """
         try:
             client = mqtt.Client(client_id or self.HA_TOPIC)
-            
-            # Supervisor API를 통해 MQTT 정보 가져오기
-            if os.path.exists('/data/mqtt.json'):
-                with open('/data/mqtt.json') as f:
-                    mqtt_config = json.load(f)
-                    if mqtt_config.get('username') and mqtt_config.get('password'):
-                        client.username_pw_set(
-                            mqtt_config['username'], 
-                            mqtt_config['password']
-                        )
-                        self.config['mqtt_server'] = mqtt_config.get('host', 'core-mosquitto')
-            else:
-                # 기존 설정 사용
-                client.username_pw_set(
-                    self.config['mqtt_id'], 
-                    self.config['mqtt_password']
-                )
+            client.username_pw_set(
+                self.config['mqtt_id'], 
+                self.config['mqtt_password']
+            )
             
             return client
             
