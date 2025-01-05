@@ -16,6 +16,13 @@ let pollingInterval;
 
 let packetLogInterval;
 
+const PACKET_TYPES = {
+    'command': '명령 패킷',
+    'state': '상태 패킷',
+    'state_request': '상태 요청 패킷',
+    'ack': '응답 패킷'
+};
+
 // ===============================
 // 페이지 전환 함수
 // ===============================
@@ -94,113 +101,129 @@ function updateDeviceList() {
 // ===============================
 // 패킷 분석 관련 함수
 // ===============================
-function analyzePacket(paddedPacket) {
+function detectPacketType(header) {
+    if (!packetSuggestions || !packetSuggestions.headers) {
+        return 'command';  // 기본값
+    }
+    
+    const types = {
+        'state': 'state',
+        'state_request': 'state_request',
+        'ack': 'ack'
+    };
+    
+    for (const [type, value] of Object.entries(types)) {
+        if (packetSuggestions.headers[type].some(h => h.header === header)) {
+            return value;
+        }
+    }
+    
+    return 'command';
+}
+
+// 패킷 로그 표시 관련 함수들 통합
+function updatePacketDisplay(isLive = false) {
+    const elements = document.getElementsByClassName(isLive ? 'live-unknown-packet' : 'unknown-packet');
+    const displayStyle = document.getElementById(isLive ? 'hideUnknownLive' : 'hideUnknown').checked ? 'none' : '';
+    
+    Array.from(elements).forEach(el => el.style.display = displayStyle);
+}
+
+// 기존의 updatePacketLogDisplay와 updateLivePacketLogDisplay를 대체
+const updatePacketLogDisplay = () => updatePacketDisplay(false);
+const updateLivePacketLogDisplay = () => updatePacketDisplay(true);
+
+// 패킷 처리 유틸리티 함수들
+const utils = {
+    formatPacket: packet => packet.match(/.{2}/g).join(' '),
+    isValidPacket: packet => /^[0-9A-F]{14}$|^[0-9A-F]{16}$/.test(packet),
+    getTimestamp: () => new Date().toLocaleTimeString('ko-KR', { hour12: false }),
+    cleanPacket: input => input.replace(/[\s-]+/g, '').trim().toUpperCase()
+};
+
+// 패킷 히스토리 관리 간소화
+function handlePacketHistory() {
     const packetInput = document.getElementById('packetInput');
+    const historySelect = document.getElementById('packetHistory');
+    
+    return {
+        save: (packet) => {
+            const history = JSON.parse(localStorage.getItem('packetHistory') || '[]');
+            if (!history.includes(packet)) {
+                history.unshift(packet);
+                if (history.length > 10) history.pop();
+                localStorage.setItem('packetHistory', JSON.stringify(history));
+                this.load();
+            }
+        },
+        load: () => {
+            const history = JSON.parse(localStorage.getItem('packetHistory') || '[]');
+            historySelect.innerHTML = '<option value="">패킷 기록...</option>' +
+                history.map(p => `<option value="${p}">${utils.formatPacket(p)}</option>`).join('');
+        },
+        select: () => {
+            if (historySelect.value) {
+                packetInput.value = utils.formatPacket(historySelect.value);
+                analyzePacket();
+            }
+        }
+    };
+}
+
+// 패킷 분석 결과 표시 간소화
+function displayPacketAnalysis(packet, results) {
     const resultDiv = document.getElementById('packetResult');
-    // 입력값에서 공백 제거
-    const packet = (paddedPacket || packetInput.value.replace(/[\s-]+/g, '').trim()).toUpperCase();
+    if (!results.length) {
+        resultDiv.innerHTML = `<div class="text-red-500">매칭되는 패킷 구조를 찾을 수 없습니다.</div>`;
+        return;
+    }
+
+    resultDiv.innerHTML = results.map(result => `
+        <div class="bg-white p-4 rounded-lg shadow mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-lg font-medium">${result.device}</h3>
+                <span class="text-sm text-gray-500">${result.packet_type}</span>
+            </div>
+            ${Object.entries(result.byte_meanings || {}).map(([byte, meaning]) => `
+                <div class="mb-2">
+                    <span class="font-medium">Byte ${byte}:</span>
+                    <span class="ml-2">${meaning}</span>
+                </div>
+            `).join('')}
+            ${result.description ? `
+                <div class="mt-4 text-sm text-gray-600">
+                    <span class="font-medium">설명:</span>
+                    <span class="ml-2">${result.description}</span>
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+// 패킷 분석 함수 간소화
+function analyzePacket(paddedPacket) {
+    const packet = paddedPacket || utils.cleanPacket(document.getElementById('packetInput').value);
     
     if (!packet) {
         showAvailableHeaders();
         return;
     }
     
-    if (!/^[0-9A-F]{14}$/.test(packet) && !/^[0-9A-F]{16}$/.test(packet)) {
-        if (packet.length >= 2) {
-            // 2자리 이상 입력된 경우 나머지를 00으로 채워서 분석
-            const paddedPacket = packet.padEnd(14, '0');
-            if (/^[0-9A-F]+$/.test(packet)) {
-                analyzePacket(paddedPacket);
-            }
+    if (!utils.isValidPacket(packet)) {
+        if (packet.length >= 2 && /^[0-9A-F]+$/.test(packet)) {
+            analyzePacket(packet.padEnd(14, '0'));
         }
         return;
     }
     
-    // Enter 키로 분석한 경우에만 히스토리에 저장
     if (!paddedPacket) {
-        savePacketHistory(packet);
+        handlePacketHistory().save(packet);
     }
-    
-    // 헤더로 패킷 타입 자동 감지
-    const header = packet.substring(0, 2);
-    let packetType = 'command';  // 기본값
-    
-    // packetSuggestions이 초기화된 경우에만 패킷 타입 감지 시도
-    if (packetSuggestions && packetSuggestions.headers) {
-        const isState = packetSuggestions.headers.state.some(h => h.header === header);
-        const isStateRequest = packetSuggestions.headers.state_request.some(h => h.header === header);
-        const isAck = packetSuggestions.headers.ack.some(h => h.header === header);
-        if (isState) {
-            packetType = 'state';
-        } else if (isStateRequest) {
-            packetType = 'state_request';
-        } else if (isAck) {
-            packetType = 'ack';
-        }
-    }
-    
-    fetch('./api/analyze_packet', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-            command: packet,
-            type: packetType
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            let html = '<h3 class="text-lg font-bold mb-2">분석 결과:</h3>';
-            if (packetType === 'command') {
-                html += `<p class="mb-2">패킷 타입: <strong>명령</strong></p>`;
-            } else if (packetType === 'state') {
-                html += `<p class="mb-2">패킷 타입: <strong>상태</strong></p>`;
-            } else if (packetType === 'state_request') {
-                html += `<p class="mb-2">패킷 타입: <strong>상태 요청</strong></p>`;
-            } else if (packetType === 'ack') {
-                html += `<p class="mb-2">패킷 타입: <strong>응답</strong></p>`;
-            }
-            html += `<p class="mb-2">기기: <strong>${data.device}</strong></p>`;
-            
-            if (data.checksum) {
-                const formattedChecksum = data.checksum.match(/.{2}/g).join(' ');
-                html += `<p class="mb-2">체크섬이 포함된 패킷: <strong class="font-mono">${formattedChecksum}</strong></p>`;
-            } else {
-                html += '<p class="text-red-500">체크섬 계산 실패</p>';
-            }
-            
-            if (data.analysis && data.analysis.length > 0) {
-                html += '<h4 class="text-md font-bold mt-4 mb-2">바이트별 분석:</h4>';
-                html += '<div class="font-mono space-y-1">';
-                data.analysis.forEach(desc => {
-                    html += `<div>${desc}</div>`;
-                });
-                html += '</div>';
-            }
-            
-            if (packetType === 'command' && data.expected_state) {
-                html += `<h4 class="text-md font-bold mt-4 mb-2">예상되는 상태 패킷:</h4>`;
-                html += `<p class="mb-2">필수 바이트 위치: ${data.expected_state.required_bytes.join(', ')}</p>`;
-                html += `<p class="mb-2">예상 값:</p>`;
-                html += '<div class="font-mono space-y-1">';
-                data.expected_state.possible_values.forEach((values, index) => {
-                    if (values && values.length > 0) {
-                        html += `<div>Byte ${index}: ${values.join(', ')}</div>`;
-                    }
-                });
-                html += '</div>';
-            }
-            
-            resultDiv.innerHTML = html;
-        } else {
-            resultDiv.innerHTML = `<p class="text-red-500">오류: ${data.error}</p>`;
-        }
-    })
-    .catch(error => {
-        resultDiv.innerHTML = `<p class="text-red-500">요청 실패: ${error}</p>`;
-    });
+
+    fetch(`./api/analyze_packet/${packet}`)
+        .then(response => response.json())
+        .then(data => displayPacketAnalysis(packet, data.results))
+        .catch(error => console.error('패킷 분석 실패:', error));
 }
 
 function analyzeExpectedState(packet) {
@@ -230,72 +253,61 @@ function sendPacket() {
 }
 
 // 패킷 로그 관련 함수들
-function updatePacketLog() {
+function createPacketLogEntry(packet, type) {
+    const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
+    const deviceClass = deviceInfo.device === 'Unknown' ? 'unknown-packet' : '';
+    const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
+    const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    
+    return `
+        <div class="packet-log-entry ${deviceClass} p-2 border-b border-gray-200 hover:bg-gray-50 cursor-pointer" onclick="handlePacketClick('${packet.packet}')">
+            <span class="packet-timestamp text-gray-500 text-sm">${timestamp}</span>
+            <span class="inline-block min-w-[50px] mr-2 text-sm font-semibold ${type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${type.toUpperCase()}]</span>
+            <span class="font-mono">${formattedPacket}</span>
+            <span class="inline-block min-w-[120px] ml-2 text-sm text-gray-600">[${deviceInfo.device} - ${deviceInfo.packet_type}]</span>
+        </div>`;
+}
+
+function updatePacketLog(isLive = false) {
+    if (isLive && isPaused) return;
+
     fetch('./api/packet_logs')
         .then(response => response.json())
         .then(data => {
-            const logDiv = document.getElementById('packetLog');
-            let packets = [];
-            
-            // 송신 패킷 처리
-            data.send.forEach(packet => {
-                if (!lastPackets.has('send:' + packet.packet)) {
-                    packets.push({
-                        type: 'send',
-                        raw: packet.packet,
-                        packet: packet,
-                        isNew: true
-                    });
-                    lastPackets.add('send:' + packet.packet);
-                }
-            });
-            
-            // 수신 패킷 처리
-            data.recv.forEach(packet => {
-                if (!lastPackets.has('recv:' + packet.packet)) {
-                    packets.push({
-                        type: 'recv',
-                        raw: packet.packet,
-                        packet: packet,
-                        isNew: true
-                    });
-                    lastPackets.add('recv:' + packet.packet);
-                }
-            });
-
-            // 패킷 값 기준으로 정렬
-            packets.sort((a, b) => a.raw.localeCompare(b.raw));
-
-            // 정렬된 패킷을 표시
+            const logDiv = document.getElementById(isLive ? 'livePacketLog' : 'packetLog');
+            const packetSet = isLive ? liveLastPackets : lastPackets;
             let newContent = '';
-            packets.forEach(packet => {
-                if (packet.isNew) {
-                    newContent = createPacketLogEntry(packet.packet, packet.type) + newContent;
-                }
+
+            // 송신 및 수신 패킷 처리
+            ['send', 'recv'].forEach(type => {
+                data[type].forEach(packet => {
+                    const packetKey = `${type}:${packet.packet}`;
+                    if (!isLive || !packetSet.has(packetKey)) {
+                        newContent = createPacketLogEntry(packet, type) + newContent;
+                        if (isLive) packetSet.add(packetKey);
+                    }
+                });
             });
 
             if (newContent) {
                 logDiv.innerHTML = newContent + logDiv.innerHTML;
                 // Unknown 패킷 숨기기 상태 적용
-                updatePacketLogDisplay();
+                if (isLive) {
+                    updateLivePacketLogDisplay();
+                    // 로그 길이 제한
+                    const maxEntries = 2000;
+                    const entries = logDiv.getElementsByClassName('packet-log-entry');
+                    if (entries.length > maxEntries) {
+                        for (let i = maxEntries; i < entries.length; i++) {
+                            entries[i].remove();
+                        }
+                    }
+                } else {
+                    updatePacketLogDisplay();
+                }
             }
-        });
-}
-
-function createPacketLogEntry(packet, type) {
-    const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
-    const deviceText = deviceInfo.device !== "Unknown" ? 
-        `${deviceInfo.device} ${deviceInfo.packet_type}` : 
-        "Unknown";
-    
-    const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
-    
-    return `
-        <div class="p-2 border-b border-gray-200 hover:bg-gray-50 cursor-pointer ${deviceInfo.device === 'Unknown' ? 'opacity-70 unknown-packet' : ''}" onclick="handlePacketClick('${packet.packet}')">
-            <span class="inline-block min-w-[50px] mr-2 text-sm font-semibold ${type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${type.toUpperCase()}]</span>
-            <span class="font-mono">${formattedPacket}</span>
-            <span class="inline-block min-w-[120px] ml-2 text-sm text-gray-600">[${deviceText}]</span>
-        </div>`;
+        })
+        .catch(error => console.error('패킷 로그 업데이트 실패:', error));
 }
 
 function handlePacketClick(packet) {
@@ -416,7 +428,7 @@ function createPacketTable(deviceData) {
     table.className = 'min-w-full divide-y divide-gray-200';
     
     const headerRow = document.createElement('tr');
-    const headers = ['Byte', '명령', '응답', '상태요청', '상태'];
+    const headers = ['Byte', ...Object.values(PACKET_TYPES)];
     headers.forEach(header => {
         const th = document.createElement('th');
         th.className = 'px-4 py-2 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
@@ -434,8 +446,7 @@ function createPacketTable(deviceData) {
         byteCell.textContent = `Byte ${byte}`;
         row.appendChild(byteCell);
         
-        const types = ['command', 'ack', 'state_request', 'state'];
-        types.forEach(type => {
+        Object.keys(PACKET_TYPES).forEach(type => {
             const td = document.createElement('td');
             td.className = 'px-4 py-2 text-sm text-gray-500';
             
@@ -571,17 +582,37 @@ function createConfigField(key, value, schema) {
     const fieldDiv = document.createElement('div');
     fieldDiv.className = 'border-b border-gray-200 py-2';
 
-    // 라벨 컨테이너 생성
+    // 객체인 경우 하위 설정 처리
+    if (typeof value === 'object' && value !== null) {
+        fieldDiv.innerHTML = `
+            <div class="mb-2">
+                <label class="text-sm font-medium text-gray-700">${key}</label>
+            </div>
+            <div class="pl-4 space-y-2">
+                ${Object.entries(value).map(([subKey, subValue]) => `
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600 w-1/3">${subKey}:</label>
+                        <input type="text" 
+                            value="${subValue}" 
+                            class="form-input block rounded-md border-gray-300 text-sm py-1"
+                            data-key="${key}"
+                            data-subkey="${subKey}">
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        return fieldDiv;
+    }
+
+    // 기존 단일 설정 처리
     const labelContainer = createLabelContainer(key, schema);
     fieldDiv.appendChild(labelContainer);
 
-    // 설명 추가
     const description = document.createElement('p');
     description.className = 'text-xs text-gray-500 mb-1';
-    description.textContent = ''; // 스키마에 설명이 없음
+    description.textContent = '';
     fieldDiv.appendChild(description);
 
-    // 입력 필드 생성
     const input = createInputField(key, value, schema);
     fieldDiv.appendChild(input);
 
@@ -770,6 +801,7 @@ function saveConfig() {
     
     inputs.forEach(input => {
         const key = input.getAttribute('data-key');
+        const subKey = input.getAttribute('data-subkey');
         const schemaType = input.getAttribute('data-type');
         
         let value;
@@ -788,7 +820,15 @@ function saveConfig() {
             return;
         }
         
-        configData[key] = value;
+        // 하위 설정 처리
+        if (subKey) {
+            if (!configData[key]) {
+                configData[key] = {};
+            }
+            configData[key][subKey] = value;
+        } else {
+            configData[key] = value;
+        }
     });
 
     showConfigMessage('설정을 저장하고 애드온을 재시작하는 중...', false);
@@ -859,62 +899,62 @@ function updateRecentMessages() {
         });
 }
 
-// 실시간 패킷 로그 관련 함수들
-function createLivePacketLogEntry(packet, type, timestamp) {
-    const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
-    const deviceClass = deviceInfo.device === 'Unknown' ? 'unknown-packet' : '';
-    const formattedPacket = (packet.packet || '').match(/.{2}/g)?.join(' ') || packet.packet || '';
+// // 실시간 패킷 로그 관련 함수들
+// function createLivePacketLogEntry(packet, type, timestamp) {
+//     const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
+//     const deviceClass = deviceInfo.device === 'Unknown' ? 'unknown-packet' : '';
+//     const formattedPacket = (packet.packet || '').match(/.{2}/g)?.join(' ') || packet.packet || '';
     
-    return `
-        <div class="packet-log-entry ${deviceClass} flex items-center space-x-2 p-2 hover:bg-gray-50 border-b border-gray-100">
-            <span class="packet-timestamp text-gray-500 text-sm">${timestamp}</span>
-            <span class="packet-type ${type === 'send' ? 'text-green-600' : 'text-blue-600'} font-semibold">[${type.toUpperCase()}]</span>
-            <span class="packet-content font-mono">${formattedPacket}</span>
-            <span class="packet-device text-gray-600">[${deviceInfo.device} - ${deviceInfo.packet_type}]</span>
-        </div>
-    `;
-}
+//     return `
+//         <div class="packet-log-entry ${deviceClass} flex items-center space-x-2 p-2 hover:bg-gray-50 border-b border-gray-100">
+//             <span class="packet-timestamp text-gray-500 text-sm">${timestamp}</span>
+//             <span class="packet-type ${type === 'send' ? 'text-green-600' : 'text-blue-600'} font-semibold">[${type.toUpperCase()}]</span>
+//             <span class="packet-content font-mono">${formattedPacket}</span>
+//             <span class="packet-device text-gray-600">[${deviceInfo.device} - ${deviceInfo.packet_type}]</span>
+//         </div>
+//     `;
+// }
 
-function updateLivePacketLog() {
-    if (isPaused) return;
+// function updateLivePacketLog() {
+//     if (isPaused) return;
 
-    fetch('./api/packet_logs')
-        .then(response => response.json())
-        .then(data => {
-            const logDiv = document.getElementById('livePacketLog');
-            let newContent = '';
+//     fetch('./api/packet_logs')
+//         .then(response => response.json())
+//         .then(data => {
+//             const logDiv = document.getElementById('livePacketLog');
+//             let newContent = '';
 
-            // 송신 패킷 처리
-            data.send.forEach(packet => {
-                const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-                newContent = createLivePacketLogEntry(packet, 'send', timestamp) + newContent;
-                liveLastPackets.add('send:' + packet.packet);
-            });
+//             // 송신 패킷 처리
+//             data.send.forEach(packet => {
+//                 const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+//                 newContent = createLivePacketLogEntry(packet, 'send', timestamp) + newContent;
+//                 liveLastPackets.add('send:' + packet.packet);
+//             });
 
-            // 수신 패킷 처리
-            data.recv.forEach(packet => {
-                const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-                newContent = createLivePacketLogEntry(packet, 'recv', timestamp) + newContent;
-                liveLastPackets.add('recv:' + packet.packet);
-            });
+//             // 수신 패킷 처리
+//             data.recv.forEach(packet => {
+//                 const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+//                 newContent = createLivePacketLogEntry(packet, 'recv', timestamp) + newContent;
+//                 liveLastPackets.add('recv:' + packet.packet);
+//             });
 
-            if (newContent) {
-                logDiv.innerHTML = newContent + logDiv.innerHTML;
-                // Unknown 패킷 숨기기 상태 적용
-                updateLivePacketLogDisplay();
+//             if (newContent) {
+//                 logDiv.innerHTML = newContent + logDiv.innerHTML;
+//                 // Unknown 패킷 숨기기 상태 적용
+//                 updateLivePacketLogDisplay();
                 
-                // 로그가 너무 길어지면 오래된 항목 제거
-                const maxEntries = 2000;
-                const entries = logDiv.getElementsByClassName('packet-log-entry');
-                if (entries.length > maxEntries) {
-                    for (let i = maxEntries; i < entries.length; i++) {
-                        entries[i].remove();
-                    }
-                }
-            }
-        })
-        .catch(error => console.error('실시간 패킷 로그 업데이트 실패:', error));
-}
+//                 // 로그가 너무 길어지면 오래된 항목 제거
+//                 const maxEntries = 2000;
+//                 const entries = logDiv.getElementsByClassName('packet-log-entry');
+//                 if (entries.length > maxEntries) {
+//                     for (let i = maxEntries; i < entries.length; i++) {
+//                         entries[i].remove();
+//                     }
+//                 }
+//             }
+//         })
+//         .catch(error => console.error('실시간 패킷 로그 업데이트 실패:', error));
+// }
 
 function clearLivePacketLog() {
     const logDiv = document.getElementById('livePacketLog');
@@ -1022,7 +1062,6 @@ function renderPacketStructureEditor(structure) {
         const deviceSection = document.createElement('div');
         deviceSection.className = 'border rounded-lg p-4 mb-4';
         
-        // 기기 이름과 타입
         deviceSection.innerHTML = `
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-medium">${deviceName}</h3>
@@ -1033,9 +1072,9 @@ function renderPacketStructureEditor(structure) {
         `;
 
         // 패킷 타입별 섹션 추가
-        ['command', 'state', 'state_request', 'ack'].forEach(packetType => {
-            if (deviceData[packetType]) {
-                const packetSection = createPacketSection(deviceName, packetType, deviceData[packetType]);
+        Object.entries(PACKET_TYPES).forEach(([type, title]) => {
+            if (deviceData[type]) {
+                const packetSection = createPacketSection(deviceName, type, deviceData[type], title);
                 deviceSection.appendChild(packetSection);
             }
         });
@@ -1044,16 +1083,9 @@ function renderPacketStructureEditor(structure) {
     }
 }
 
-function createPacketSection(deviceName, packetType, packetData) {
+function createPacketSection(deviceName, packetType, packetData, title) {
     const section = document.createElement('div');
     section.className = 'mt-4 w-full sm:w-1/2 lg:w-1/4 inline-block align-top px-2';
-
-    const title = {
-        'command': '명령 패킷',
-        'state': '상태 패킷',
-        'state_request': '상태 요청 패킷',
-        'ack': '응답 패킷'
-    }[packetType];
 
     section.innerHTML = `
         <div class="bg-gray-50 p-3 rounded-lg">
