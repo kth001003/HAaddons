@@ -1,10 +1,5 @@
 #!/usr/bin/with-contenv bashio
-MQTT_HOST=$(bashio::services mqtt "host")
-MQTT_USER=$(bashio::services mqtt "username")
-MQTT_PASSWORD=$(bashio::services mqtt "password")
-
-echo "MQTT_HOST: $MQTT_HOST"
-echo "MQTT_USER: $MQTT_USER"
-echo "MQTT_PASSWORD: $MQTT_PASSWORD"
-
+export MQTT_HOST=$(bashio::services mqtt "host")
+export MQTT_USER=$(bashio::services mqtt "username") 
+export MQTT_PASSWORD=$(bashio::services mqtt "password")
 python3 -m apps.main

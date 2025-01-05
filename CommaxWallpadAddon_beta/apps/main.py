@@ -61,6 +61,9 @@ class WallpadController:
         self.ELFIN_TOPIC: str = 'ew11'
         self.HA_TOPIC: str = config['mqtt_TOPIC']
         self.STATE_TOPIC: str = self.HA_TOPIC + '/{}/{}/state'
+        self.MQTT_HOST: str = os.getenv('MQTT_HOST')
+        self.MQTT_USER: str = os.getenv('MQTT_USER')
+        self.MQTT_PASSWORD: str = os.getenv('MQTT_PASSWORD')
         self.QUEUE: List[QueueItem] = []
         self.min_receive_count: int = self.config.get("min_receive_count", 3)  # 최소 수신 횟수, 기본값 3
         self.COLLECTDATA: CollectData = {
@@ -158,10 +161,9 @@ class WallpadController:
         try:
             client = mqtt.Client(client_id or self.HA_TOPIC)
             client.username_pw_set(
-                self.config['mqtt_id'], 
-                self.config['mqtt_password']
+                self.config.get('mqtt_id', self.MQTT_USER),
+                self.config.get('mqtt_password', self.MQTT_PASSWORD)
             )
-            
             return client
             
         except Exception as e:
@@ -176,7 +178,7 @@ class WallpadController:
         try:
             self.logger.info("MQTT 브로커 연결 시도 중...")
             if self.mqtt_client:
-                self.mqtt_client.connect(self.config['mqtt_server'])
+                self.mqtt_client.connect(self.config.get('mqtt_server', self.MQTT_HOST))
             else:
                 self.logger.error("MQTT 클라이언트가 초기화되지 않았습니다.")
             return
