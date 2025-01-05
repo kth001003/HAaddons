@@ -61,7 +61,7 @@ class WallpadController:
         self.ELFIN_TOPIC: str = 'ew11'
         self.HA_TOPIC: str = config['mqtt_TOPIC']
         self.STATE_TOPIC: str = self.HA_TOPIC + '/{}/{}/state'
-        self.MQTT_HOST: str = os.getenv('MQTT_HOST')
+        self.MQTT_HOST: str = self.config['mqtt'].get('mqtt_server') or os.getenv('MQTT_HOST')
         self.MQTT_USER: str = os.getenv('MQTT_USER')
         self.MQTT_PASSWORD: str = os.getenv('MQTT_PASSWORD')
         self.QUEUE: List[QueueItem] = []
@@ -160,10 +160,15 @@ class WallpadController:
         """
         try:
             client = mqtt.Client(client_id or self.HA_TOPIC)
-            client.username_pw_set(
-                self.config['mqtt'].get('mqtt_id', self.MQTT_USER),
-                self.config['mqtt'].get('mqtt_password', self.MQTT_PASSWORD)
-            )
+            if self.config['mqtt'].get('mqtt_server'):
+                self.logger.debug(f"MQTT User ({self.config['mqtt']['mqtt_id']})로 로그인")
+                client.username_pw_set(
+                    self.config['mqtt']['mqtt_id'],
+                    self.config['mqtt']['mqtt_password']
+                )
+            else:
+                self.logger.debug(f"기본 MQTT User ({self.MQTT_USER})로 로그인")
+                client.username_pw_set(self.MQTT_USER, self.MQTT_PASSWORD)
             return client
             
         except Exception as e:
@@ -178,9 +183,8 @@ class WallpadController:
         try:
             self.logger.info("MQTT 브로커 연결 시도 중...")
             if self.mqtt_client:
-                mqtt_host = self.config['mqtt'].get('mqtt_server') or self.MQTT_HOST
-                self.logger.debug(f"MQTT 호스트: {mqtt_host}")
-                self.mqtt_client.connect(mqtt_host)
+                self.logger.debug(f"MQTT 호스트: {self.MQTT_HOST}")
+                self.mqtt_client.connect(self.MQTT_HOST)
             else:
                 self.logger.error("MQTT 클라이언트가 초기화되지 않았습니다.")
             return
@@ -195,11 +199,7 @@ class WallpadController:
         try:
             self.logger.info(f"MQTT 브로커 재연결 시도 중...")
             if self.mqtt_client:
-                mqtt_host = self.config['mqtt'].get('mqtt_server') or self.MQTT_HOST
-                self.logger.debug(f"MQTT 호스트: {mqtt_host}")
-                self.logger.debug(f"MQTT User: {self.MQTT_USER}")
-                self.logger.debug(f"MQTT Password: {self.MQTT_PASSWORD}")
-                self.mqtt_client.connect(mqtt_host)
+                self.mqtt_client.connect(self.MQTT_HOST)
             else:
                 raise Exception("MQTT 클라이언트가 초기화되지 않았습니다.")
             return
