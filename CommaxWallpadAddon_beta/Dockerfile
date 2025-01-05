@@ -25,4 +25,5 @@ WORKDIR /share
 COPY apps /apps
 
 ENV PYTHONPATH=/
+RUN chmod a+x /apps/run.sh
 CMD ["/apps/run.sh"]
