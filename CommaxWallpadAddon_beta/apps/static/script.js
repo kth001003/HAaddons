@@ -525,7 +525,7 @@ const packetInput = document.getElementById('packetInput');
 if (packetInput) {
     packetInput.addEventListener('input', handlePacketInput);
     packetInput.addEventListener('keydown', function(e) {
-        const history = loadPacketHistory();
+        const history = packetHistory.load();
         
         if (e.key === 'Enter') {
             analyzePacket();
