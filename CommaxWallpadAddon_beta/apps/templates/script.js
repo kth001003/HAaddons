@@ -544,7 +544,7 @@ function analyzePacket(paddedPacket) {
                         acc[match[1]] = match[2];
                     }
                     return acc;
-                },
+                }),
                 checksum: data.checksum,
                 expected_state: data.expected_state
             }]);
