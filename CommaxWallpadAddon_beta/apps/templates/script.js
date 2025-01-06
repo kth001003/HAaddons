@@ -257,11 +257,9 @@ function createPacketLogEntry(packet, type) {
     const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
     const deviceClass = deviceInfo.device === 'Unknown' ? 'unknown-packet' : '';
     const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
-    const timestamp = new Date().toLocaleTimeString('ko-KR', { hour12: false });
     
     return `
         <div class="packet-log-entry ${deviceClass} p-2 border-b border-gray-200 hover:bg-gray-50 cursor-pointer" onclick="handlePacketClick('${packet.packet}')">
-            <span class="packet-timestamp text-gray-500 text-sm">${timestamp}</span>
             <span class="inline-block min-w-[50px] mr-2 text-sm font-semibold ${type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${type.toUpperCase()}]</span>
             <span class="font-mono">${formattedPacket}</span>
             <span class="inline-block min-w-[120px] ml-2 text-sm text-gray-600">[${deviceInfo.device} - ${deviceInfo.packet_type}]</span>
@@ -1296,6 +1294,10 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateDeviceList, 10000);  // 10초마다 기기목록 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
     setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
+    setInterval(updateEW11Status, 5000);   // 5초마다 EW11 상태 업데이트
+    
+    // 초기 상태 업데이트
+    updateEW11Status();
     
     // 패킷 구조 초기화 버튼 이벤트 리스너
     const resetButton = document.getElementById('resetPacketStructure');
@@ -1451,4 +1453,33 @@ function stopPacketLogUpdate() {
         clearInterval(packetLogInterval);
         packetLogInterval = null;
     }
+}
+
+// EW11 상태 업데이트
+function updateEW11Status() {
+    fetch('./api/ew11_status')
+        .then(response => response.json())
+        .then(data => {
+            const statusElement = document.getElementById('ew11ConnectionStatus');
+            const lastResponseElement = document.getElementById('ew11LastResponse');
+            
+            const lastRecvTime = new Date(data.last_recv_time * 1000);
+            const now = new Date();
+            const timeDiff = (now - lastRecvTime) / 1000; // 초 단위 차이
+            
+            const isConnected = timeDiff <= data.elfin_reboot_interval;
+            
+            // 연결 상태 업데이트
+            statusElement.textContent = isConnected ? '응답 있음' : '응답 없음';
+            statusElement.className = `px-2 py-1 rounded text-sm ${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+            
+            // 마지막 응답 시간 업데이트
+            lastResponseElement.textContent = lastRecvTime.toLocaleString('ko-KR');
+        })
+        .catch(error => {
+            console.error('EW11 상태 업데이트 실패:', error);
+            const statusElement = document.getElementById('ew11ConnectionStatus');
+            statusElement.textContent = '상태 확인 실패';
+            statusElement.className = 'px-2 py-1 rounded text-sm bg-yellow-100 text-yellow-800';
+        });
 }
