@@ -21,7 +21,7 @@ class WebServer:
         cli = sys.modules['flask.cli']
         cli.show_server_banner = lambda *x: None # type: ignore
         
-        self.app = Flask(__name__, template_folder='templates')
+        self.app = Flask(__name__, template_folder='templates', static_folder='static')
         self.app.logger.disabled = True
         self.wallpad_controller = wallpad_controller
         self.logger = wallpad_controller.logger
