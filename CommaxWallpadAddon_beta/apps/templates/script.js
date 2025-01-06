@@ -1463,18 +1463,25 @@ function updateEW11Status() {
             const statusElement = document.getElementById('ew11ConnectionStatus');
             const lastResponseElement = document.getElementById('ew11LastResponse');
             
-            const lastRecvTime = new Date(data.last_recv_time * 1000);
-            const now = new Date();
-            const timeDiff = (now - lastRecvTime) / 1000; // 초 단위 차이
+            if (!data.last_recv_time) {
+                statusElement.textContent = '응답 없음';
+                statusElement.className = 'px-2 py-1 rounded text-sm bg-red-100 text-red-800';
+                lastResponseElement.textContent = '응답 기록 없음';
+                return;
+            }
+            
+            const currentTime = Math.floor(Date.now() / 1000); // 현재 시간을 초 단위로 변환
+            const lastRecvTime = Math.floor(data.last_recv_time / 1000000000); // 나노초를 초 단위로 변환
+            const timeDiff = currentTime - lastRecvTime;
             
             const isConnected = timeDiff <= data.elfin_reboot_interval;
-            console.log(data.last_recv_time, data.elfin_reboot_interval, timeDiff, isConnected);
+            
             // 연결 상태 업데이트
             statusElement.textContent = isConnected ? '응답 있음' : '응답 없음';
             statusElement.className = `px-2 py-1 rounded text-sm ${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
             
-            // 마지막 응답 시간 업데이트
-            lastResponseElement.textContent = lastRecvTime.toLocaleString('ko-KR');
+            // 마지막 응답 시간 업데이트 (초 단위)
+            lastResponseElement.textContent = `${timeDiff}초 전`;
         })
         .catch(error => {
             console.error('EW11 상태 업데이트 실패:', error);
