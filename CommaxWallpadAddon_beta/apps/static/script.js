@@ -454,10 +454,37 @@ function analyzePacket(paddedPacket) {
         packetHistory.save(packet);
     }
 
-    fetch(`./api/analyze_packet/${packet}`)
-        .then(response => response.json())
-        .then(data => displayPacketAnalysis(packet, data.results))
-        .catch(error => console.error('패킷 분석 실패:', error));
+    // API 호출 방식 수정
+    fetch('./api/analyze_packet', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            command: packet,
+            type: 'command'  // 기본값으로 command 타입 설정
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayPacketAnalysis(packet, [{
+                device: data.device,
+                packet_type: PACKET_TYPES['command'],
+                byte_meanings: data.analysis.reduce((acc, desc) => {
+                    const match = desc.match(/Byte (\d+): (.+)/);
+                    if (match) {
+                        acc[match[1]] = match[2];
+                    }
+                    return acc;
+                }, {})
+            }]);
+        } else {
+            document.getElementById('packetResult').innerHTML = 
+                `<div class="text-red-500">${data.error}</div>`;
+        }
+    })
+    .catch(error => console.error('패킷 분석 실패:', error));
 }
 
 // 분석 버튼 클릭 이벤트 리스너
@@ -762,7 +789,7 @@ function loadReferencePacketStructures() {
                     isFirst ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`;
                 button.setAttribute('data-tab', deviceName);
-                button.onclick = function(evt) { openDeviceTab(evt, deviceName); };
+                button.onclick = function(evt) { PacketReference.openTab(evt, deviceName); };
                 button.textContent = deviceName;
                 tabButtons.appendChild(button);
                 isFirst = false;
