@@ -34,7 +34,13 @@ class WebServer:
         
         self.recent_messages = []
         self.server = None
-
+        @self.app.after_request
+        def add_header(response):
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '-1'
+            return response
+        
         # 라우트 설정
         @self.app.route('/')
         def home():
