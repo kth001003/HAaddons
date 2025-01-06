@@ -505,13 +505,14 @@ class WebServer:
         def get_ew11_status():
             try:
                 last_recv_time = self.wallpad_controller.COLLECTDATA.get('last_recv_time', 0)
-                elfin_reboot_interval = self.wallpad_controller.CONFIG['elfin'].get('elfin_reboot_interval', 10)
+                elfin_reboot_interval = self.wallpad_controller.config['elfin'].get('elfin_reboot_interval', 10)
                 
                 return jsonify({
                     'last_recv_time': last_recv_time,
                     'elfin_reboot_interval': elfin_reboot_interval
                 })
             except Exception as e:
+                self.logger.error(f"EW11 상태 조회 실패: {str(e)}")
                 return jsonify({'error': str(e)}), 500
 
     def _get_editable_fields(self, packet_data):
