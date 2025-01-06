@@ -32,8 +32,9 @@ class WebServer:
         addon_info_result = self.supervisor_api.get_addon_info()
         self.addon_info = addon_info_result.data if addon_info_result.success else None
         
-        self.recent_messages = []
+        self.recent_messages = {}
         self.server = None
+        
         @self.app.after_request
         def add_header(response):
             response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
@@ -213,7 +214,7 @@ class WebServer:
         def get_recent_messages():
             """최근 MQTT 메시지 목록을 제공합니다."""
             return jsonify({
-                'messages': self.recent_messages[-100:]  # 최근 100개 메시지만 반환
+                'messages': self.recent_messages  # 전체 딕셔너리 반환
             })
 
         @self.app.route('/api/packet_logs')
@@ -666,15 +667,11 @@ class WebServer:
         return {"name": "Unknown", "packet_type": "Unknown"}
 
     def add_mqtt_message(self, topic: str, payload: str) -> None:
-        """MQTT 메시지를 최근 메시지 목록에 추가합니다."""
-        self.recent_messages.append({
-            'topic': topic,
+        """MQTT 메시지를 토픽별로 저장합니다. 각 토픽당 최신 메시지만 유지합니다."""
+        self.recent_messages[topic] = {
             'payload': payload,
             'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
-        })
-        # 최근 100개 메시지만 유지
-        if len(self.recent_messages) > 100:
-            self.recent_messages = self.recent_messages[-100:] 
+        }
 
     def run(self):
         # Flask 서버 실행

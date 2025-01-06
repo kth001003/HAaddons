@@ -160,16 +160,10 @@ class Dashboard {
         fetch('./api/recent_messages')
             .then(response => response.json())
             .then(data => {
-                if (!data.messages || data.messages.length === 0) return;
-    
-                // 토픽별로 메시지 그룹화
-                const messagesByTopic = {};
-                data.messages.forEach(msg => {
-                    messagesByTopic[msg.topic] = msg;
-                });
+                if (!data.messages) return;
     
                 // 각 토픽의 div 업데이트
-                Object.entries(messagesByTopic).forEach(([topic, msg]) => {
+                Object.entries(data.messages).forEach(([topic, messageData]) => {
                     // 와일드카드 토픽 매칭을 위한 함수
                     function matchTopic(pattern, topic) {
                         const patternParts = pattern.split('/');
@@ -193,8 +187,8 @@ class Dashboard {
                             const timestamp = topicDiv.querySelector('span:last-child');
                             const payload = topicDiv.querySelector('pre');
                             if (timestamp && payload) {
-                                timestamp.textContent = msg.timestamp;
-                                payload.textContent = msg.payload;
+                                timestamp.textContent = messageData.timestamp;
+                                payload.textContent = messageData.payload;
                             }
                         }
                     });
