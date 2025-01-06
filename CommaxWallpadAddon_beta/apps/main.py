@@ -1231,7 +1231,6 @@ class WallpadController:
             mqtt_connected = asyncio.Event()
             device_search_done = asyncio.Event()
             discovery_done = asyncio.Event()
-            no_recv_packet_count = 0
             
             # 저장된 기기 정보가 있는 경우 device_search_done 설정
             if self.device_list:
@@ -1275,6 +1274,7 @@ class WallpadController:
 
             # MQTT 연결 완료를 기다림
             async def wait_for_mqtt():
+                no_recv_packet_count = 0
                 queue_interval = self.config['command_settings'].get('queue_interval_in_second',0.01)
                 while True:
                     try:
