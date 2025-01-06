@@ -188,7 +188,12 @@ class Dashboard {
                             const payload = topicDiv.querySelector('pre');
                             if (timestamp && payload) {
                                 timestamp.textContent = messageData.timestamp;
-                                payload.textContent = messageData.payload;
+                                // 와일드카드(+)가 포함된 토픽인 경우 전체 토픽 정보 표시
+                                if (subscribedTopic.includes('+')) {
+                                    payload.textContent = `[${topic}] ${messageData.payload}`;
+                                } else {
+                                    payload.textContent = messageData.payload;
+                                }
                             }
                         }
                     });
