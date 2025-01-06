@@ -537,19 +537,37 @@ function analyzePacket(paddedPacket) {
         if (data.success) {
             displayPacketAnalysis([{
                 device: data.device,
-                packet_type: PACKET_TYPES['command'],
+                packet_type: PACKET_TYPES[data.packet_type || 'command'],
                 byte_meanings: data.analysis.reduce((acc, desc) => {
+                    // 바이트 설명을 더 의미있게 처리
                     const match = desc.match(/Byte (\d+): (.+)/);
                     if (match) {
-                        acc[match[1]] = match[2];
+                        const [, byteNum, description] = match;
+                        // header인 경우 device와 packet_type 정보 추가
+                        if (byteNum === '0' && description.startsWith('header')) {
+                            acc[byteNum] = description;
+                        } 
+                        // 체크섬인 경우
+                        else if (description.includes('체크섬')) {
+                            acc[byteNum] = description;
+                        }
+                        // 일반적인 경우 - 값과 설명을 분리하여 표시
+                        else {
+                            const [name, value] = description.split(' = ');
+                            if (value) {
+                                acc[byteNum] = `${name} = ${value}`;
+                            } else {
+                                acc[byteNum] = description;
+                            }
+                        }
                     }
                     return acc;
-                }),
+                }, {}),
                 checksum: data.checksum,
                 expected_state: data.expected_state
             }]);
         } else {
-            resultDiv.innerHTML = `<p class="text-red-500">오류: ${data.error}</p>`;
+            resultDiv.innerHTML = `<p class="text-red-500 dark:text-red-400">오류: ${data.error}</p>`;
         }
     })
     .catch(error => {
