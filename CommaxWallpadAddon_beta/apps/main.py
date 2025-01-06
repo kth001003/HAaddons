@@ -14,6 +14,7 @@ import telnetlib3 # type: ignore
 import shutil
 from .web_server import WebServer
 from .utils import byte_to_hex_str, checksum, pad
+from .supervisor_api import SupervisorAPI
 
 T = TypeVar('T')
 
@@ -55,16 +56,17 @@ class QueueItem(TypedDict):
     
 class WallpadController:
     def __init__(self, config: Dict[str, Any], logger: Logger) -> None:
+        self.supervisor_api = SupervisorAPI()
         self.config: Dict[str, Any] = config
         self.logger: Logger = logger
         self.share_dir: str = '/share'
         self.ELFIN_TOPIC: str = 'ew11'
         self.HA_TOPIC: str = config['mqtt_TOPIC']
         self.STATE_TOPIC: str = self.HA_TOPIC + '/{}/{}/state'
-        self.MQTT_HOST: str = self.config['mqtt'].get('mqtt_server') or os.getenv('MQTT_HOST')
-        self.MQTT_PORT: int = self.config['mqtt'].get('mqtt_port') or os.getenv('MQTT_PORT')
-        self.MQTT_USER: str = os.getenv('MQTT_USER')
-        self.MQTT_PASSWORD: str = os.getenv('MQTT_PASSWORD')
+        self.MQTT_HOST: str = self.config['mqtt'].get('mqtt_server') or os.getenv('MQTT_HOST') or "core-mosquitto"
+        self.MQTT_PORT: int = int(self.config['mqtt'].get('mqtt_port') or os.getenv('MQTT_PORT') or 1883)
+        self.MQTT_USER: str = os.getenv('MQTT_USER') or "my_user"
+        self.MQTT_PASSWORD: str = os.getenv('MQTT_PASSWORD') or "m1o@s#quitto"
         self.QUEUE: List[QueueItem] = []
         self.min_receive_count: int = self.config['command_settings'].get('min_receive_count', 3)  # 최소 수신 횟수, 기본값 3
         self.COLLECTDATA: CollectData = {
@@ -78,6 +80,7 @@ class WallpadController:
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.load_devices_and_packets_structures() # 기기 정보와 패킷 정보를 로드 to self.DEVICE_STRUCTURE
         self.web_server = WebServer(self)
+        self.elfin_reboot_count: int = 0
 
     def load_devices_and_packets_structures(self) -> None:
         """
@@ -825,7 +828,8 @@ class WallpadController:
             
             # 재시작 대기
             await asyncio.sleep(10)
-            
+            self.elfin_reboot_count = 0
+
         except Exception as err:
             self.logger.error(f'기기 재시작 오류: {str(err)}')
 
@@ -1161,7 +1165,7 @@ class WallpadController:
         
         await asyncio.sleep(0.05)
 
-    async def process_queue_and_monitor(self) -> bool:
+    async def process_queue_and_monitor(self) -> None:
         """
         메시지 큐를 처리하고 기기 상태를 모니터링하는 함수입니다.
 
@@ -1180,18 +1184,26 @@ class WallpadController:
             last_recv = self.COLLECTDATA['last_recv_time']
             signal_interval = (current_time - last_recv)/1_000_000 #ns to ms
             
-            if signal_interval > elfin_reboot_interval * 1_000:  # seconds
+            if signal_interval > elfin_reboot_interval * 1_000:
                 self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
                 self.COLLECTDATA['last_recv_time'] = time.time_ns()
+                self.elfin_reboot_count += 1
                 if (self.config['elfin'].get("use_auto_reboot",True)):
                     self.logger.warning('EW11 재시작을 시도합니다.')
                     await self.reboot_elfin_device()
+                if self.elfin_reboot_count == 5: 
+                    # 5회일때 1회성 알림 전송
+                    self.logger.error('EW11 응답 없음')
+                    self.supervisor_api.send_notification(title='[Commax Wallpad Addon] EW11 점검 및 재시작 필요', message='EW11에서 응답이 없습니다. EW11 상태를 점검 후 애드온을 재시작 해보세요.')
+                    self.elfin_reboot_count = 0
+                    return
             if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
                 await self.process_queue()
+            return
             
         except Exception as err:
             self.logger.error(f'process_queue_and_monitor() 오류: {str(err)}')
-            return True
+            return
         
     # 메인 실행 함수
     def run(self) -> None:

@@ -1,6 +1,6 @@
 {
   "name": "[BETA]COMMAX Wallpad Addon by ew11-mqtt",
-  "version": "1.6.1b-20",
+  "version": "1.6.1b-21",
   "slug": "commax-beta",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "개발용입니다. 절대 메인으로 사용하지 마세요.",
@@ -13,6 +13,7 @@
   "init": false,
   "hassio_api": true,
   "auth_api": true,
+  "homeassistant_api": true,
   "options": {
     "vendor": "commax",
     "mqtt_TOPIC": "commax",

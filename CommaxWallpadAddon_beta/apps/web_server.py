@@ -12,28 +12,25 @@ import requests # type: ignore
 from .utils import checksum
 from gevent.pywsgi import WSGIServer # type: ignore
 import sys
-
-
+from .supervisor_api import SupervisorAPI
 
 class WebServer:
     def __init__(self, wallpad_controller):
         # Flask 로깅 완전 비활성화
         logging.getLogger('werkzeug').disabled = True
         cli = sys.modules['flask.cli']
-        cli.show_server_banner = lambda *x: None
+        cli.show_server_banner = lambda *x: None # type: ignore
         
         self.app = Flask(__name__, template_folder='templates')
         self.app.logger.disabled = True
         self.wallpad_controller = wallpad_controller
-        self.SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN')
         self.logger = wallpad_controller.logger
+        self.supervisor_api = SupervisorAPI()
         
-        self.supervisor_headers = {
-            'Authorization': f'Bearer {self.SUPERVISOR_TOKEN}',
-            'Content-Type': 'application/json'
-        }
+        # addon_info 초기화
+        addon_info_result = self.supervisor_api.get_addon_info()
+        self.addon_info = addon_info_result.data if addon_info_result.success else None
         
-        self.addon_info = self._get_addon_info()  # 이제 필요한 속성들이 모두 초기화된 후에 호출
         self.recent_messages = []
         self.server = None
 
@@ -179,36 +176,26 @@ class WebServer:
                     updated_options = current_options.copy()
                     updated_options.update(data)
 
-                    api_data = {
-                        'options': updated_options
-                    }
-
-                    # Supervisor API 호출
-                    response = requests.post(
-                        'http://supervisor/addons/self/options',
-                        headers=self.supervisor_headers,
-                        json=api_data
-                    )
-
-                    if response.status_code != 200:
+                    # SupervisorAPI를 사용하여 설정 업데이트
+                    update_result = self.supervisor_api.update_addon_options(updated_options)
+                    if not update_result.success:
                         return jsonify({
                             'success': False,
-                            'error': f'설정 저장 실패: {response.text}'
+                            'error': update_result.message
                         }), 500
 
-                    # 애드온 재시작 요청
-                    restart_response = requests.post(
-                        'http://supervisor/addons/self/restart',
-                        headers=self.supervisor_headers
-                    )
-
-                    if restart_response.status_code != 200:
+                    # SupervisorAPI를 사용하여 애드온 재시작
+                    restart_result = self.supervisor_api.restart_addon()
+                    if not restart_result.success:
                         return jsonify({
                             'success': False,
-                            'error': f'애드온 재시작 실패: {restart_response.text}'
+                            'error': restart_result.message
                         }), 500
-                    #전달되지 못할 response..
-                    return jsonify({'success': True, 'message': '설정이 저장되었습니다. 애드온을 재시작합니다.'})
+                    
+                    return jsonify({
+                        'success': True,
+                        'message': '설정을 저장했습니다. 이 메시지는 애드온이 재시작되어 전달되지 못합니다.'
+                    })
 
                 except Exception as e:
                     return jsonify({'error': str(e)}), 500
@@ -297,18 +284,18 @@ class WebServer:
                 if os.path.exists('/share/commax_found_device.json'):
                     os.remove('/share/commax_found_device.json')
                 
-                response = requests.post(
-                    'http://supervisor/addons/self/restart',
-                    headers=self.supervisor_headers
-                )
-
-                if response.status_code != 200:
+                # SupervisorAPI를 사용하여 애드온 재시작
+                restart_result = self.supervisor_api.restart_addon()
+                if not restart_result.success:
                     return jsonify({
                         'success': False,
-                        'error': f'애드온 재시작 실패: {response.text}'
+                        'error': restart_result.message
                     }), 500
-                # 전달되지 못할 response..
-                return jsonify({'success': True})
+                
+                return jsonify({
+                    'success': True,
+                    'message': '기기 검색을 시작합니다. 이 메시지는 애드온이 재시작되어 전달되지 못합니다.'
+                })
 
             except Exception as e:
                 return jsonify({
@@ -514,23 +501,6 @@ class WebServer:
             except Exception as e:
                 return jsonify({'error': str(e), 'success': False})
 
-    def _get_addon_info(self):
-        """Get the ingress URL from Supervisor API"""
-        if not self.SUPERVISOR_TOKEN:
-            return None
-        
-        try:
-            response = requests.get(
-                'http://supervisor/addons/self/info',
-                headers=self.supervisor_headers
-            )
-            response.raise_for_status()
-            addon_info = response.json()['data']
-            return addon_info
-        except Exception as e:
-            self.logger.error(f"Error getting ingress info: {e}")
-            return None 
-
     def _get_editable_fields(self, packet_data):
         """패킷 구조에서 편집 가능한 필드만 추출합니다."""
         if not packet_data:
@@ -647,197 +617,12 @@ class WebServer:
                     byte_values[pos] = field['values']
                 if 'memo' in field:  # memo 필드가 있는 경우 저장
                     byte_memos[pos] = field['memo']
-
-        # # 예시 패킷 동적 생성
-        # if device['type'] == 'Thermo':
-        #     if packet_type == 'command':
-        #         # 온도조절기 켜기
-        #         packet = list('00' * 7)  # 7바이트 초기화
-        #         packet[0] = structure['header']  # 헤더
-        #         packet[1] = '01'  # 1번 온도조절기
-        #         packet[2] = '04'  # 전원
-        #         packet[3] = '81'  # ON
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 켜기"
-        #         })
-                
-        #         # 온도 설정
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 온도조절기
-        #         packet[2] = '03'  # 온도 설정
-        #         packet[3] = '18'  # 24도
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 온도 24도로 설정"
-        #         })
-        #     elif packet_type == 'state':
-        #         # 대기 상태
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '81'  # 상태
-        #         packet[2] = '01'  # 1번 온도조절기
-        #         packet[3] = '18'  # 24도
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 대기 상태 (현재 24도, 설정 24도)"
-        #         })
-                
-        #         # 난방 중
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '83'  # 난방
-        #         packet[2] = '01'  # 1번 온도조절기
-        #         packet[3] = '18'  # 24도
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 난방 중 (현재 24도, 설정 24도)"
-        #         })
-        #     elif packet_type == 'state_request':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 온도조절기
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 상태 요청"
-        #         })
-        #     elif packet_type == 'ack':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 온도조절기
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 상태 요청"
-        #         })
-                
-        # elif device['type'] == 'Light':
-        #     if packet_type == 'command':
-        #         # 조명 끄기
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 조명
-        #         packet[2] = '00'  # OFF
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 끄기"
-        #         })
-                
-        #         # 조명 켜기
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 조명
-        #         packet[2] = '01'  # ON
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 켜기"
-        #         })
-        #     elif packet_type == 'state':
-        #         # 조명 꺼짐
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '00'  # OFF
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 꺼짐"
-        #         })
-                
-        #         # 조명 켜짐
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # ON
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 켜짐"
-        #         })
-        #     elif packet_type == 'state_request':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 조명
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 상태 요청"
-        #         })
-        #     elif packet_type == 'ack':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 조명
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 상태 요청"
-        #         })
-                
-        # elif device['type'] == 'Fan':
-        #     if packet_type == 'command':
-        #         # 환기장치 켜기
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 환기장치
-        #         packet[2] = '01'  # 전원
-        #         packet[3] = '04'  # ON
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 켜기"
-        #         })
-                
-        #         # 환기장치 약으로 설정
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 환기장치
-        #         packet[2] = '02'  # 풍량
-        #         packet[3] = '00'  # 약(low)
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 약(low)으로 설정"
-        #         })
-        #     elif packet_type == 'state':
-        #         # 환기장치 켜짐 (약)
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '04'  # ON
-        #         packet[2] = '01'  # 1번 환기장치
-        #         packet[3] = '00'  # 약(low)
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 켜짐 (약)"
-        #         })
-                
-        #         # 환기장치 꺼짐
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 꺼짐"
-        #         })
-        #     elif packet_type == 'state_request':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 환기장치
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 상태 요청"
-        #         })
-        #     elif packet_type == 'ack':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 환기장치
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 상태 요청"
-        #         })
         
         return {
             "header": structure['header'],
             "byte_desc": byte_desc,
             "byte_values": byte_values,
             "byte_memos": byte_memos,  # memo 정보 추가
-            # "examples": examples
         }
 
     def _get_device_info(self, packet: str) -> Dict[str, str]:
@@ -879,6 +664,7 @@ class WebServer:
     def _run_server(self):
         try:
             self.logger.info("웹서버 시작")
+            assert self.server is not None
             self.server.serve_forever()
         except Exception as e:
             self.logger.error(f"Server error: {e}")
