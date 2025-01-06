@@ -1231,6 +1231,7 @@ class WallpadController:
             mqtt_connected = asyncio.Event()
             device_search_done = asyncio.Event()
             discovery_done = asyncio.Event()
+            no_recv_packet_count = 0
             
             # 저장된 기기 정보가 있는 경우 device_search_done 설정
             if self.device_list:
@@ -1275,7 +1276,7 @@ class WallpadController:
             # MQTT 연결 완료를 기다림
             async def wait_for_mqtt():
                 queue_interval = self.config['command_settings'].get('queue_interval_in_second',0.01)
-                while True:  # 무한 루프로 변경
+                while True:
                     try:
                         await mqtt_connected.wait()
                         self.logger.info("MQTT 연결이 완료되었습니다. 메인 루프를 시작합니다.")
@@ -1287,6 +1288,13 @@ class WallpadController:
                             # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
                             recv_data_len = len(self.COLLECTDATA['recv_data'])
                             if not device_search_done.is_set():
+                                if recv_data_len ==0:
+                                    no_recv_packet_count += 1
+                                    if no_recv_packet_count > 20:
+                                        self.logger.warning("기기 검색 실패. EW11로부터 받은 패킷이 없습니다.")
+                                        self.logger.warning("혹시 EW11 관리자 페이지에 MQTT설정이 되어있나요?")
+                                        self.logger.warning("EW11 상태를 확인 후 애드온을 재시작 해주세요.")
+                                        device_search_done.set()
                                 self.logger.info(f"기기 검색을 위해 데이터 모으는중... {recv_data_len}/80")
                             if recv_data_len >= 80 and not device_search_done.is_set():
                                 if not self.device_list:
