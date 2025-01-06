@@ -1468,7 +1468,7 @@ function updateEW11Status() {
             const timeDiff = (now - lastRecvTime) / 1000; // 초 단위 차이
             
             const isConnected = timeDiff <= data.elfin_reboot_interval;
-            
+            console.log(data.last_recv_time, data.elfin_reboot_interval, timeDiff, isConnected);
             // 연결 상태 업데이트
             statusElement.textContent = isConnected ? '응답 있음' : '응답 없음';
             statusElement.className = `px-2 py-1 rounded text-sm ${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
