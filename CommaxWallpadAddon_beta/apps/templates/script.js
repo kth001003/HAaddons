@@ -91,14 +91,12 @@ function updateDeviceList() {
             let html = '';
             for (const [deviceName, info] of Object.entries(data)) {
                 html += `
-                    <div class="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div class="flex justify-between items-center">
-                            <h3 class="text-lg font-medium dark:text-white">${deviceName}</h3>
-                            <span class="text-sm text-gray-500 dark:text-gray-400">타입: ${info.type}</span>
+                    <div class="mb-2 p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                        <div class="flex justify-between">
+                            <h3 class="dark:text-gray-300">${deviceName}</h3>
+                            <span class="text-sm text-gray-500">${info.type}</span>
                         </div>
-                        <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                            개수: ${info.count}개
-                        </div>
+                        <div class="text-sm text-gray-600">개수: ${info.count}개</div>
                     </div>
                 `;
             }
@@ -112,7 +110,6 @@ function updateDeviceList() {
 // MQTT 상태 관련 함수
 // ===============================
 function updateMqttStatus() {
-    console.log("MQTT 상태 업데이트 시작");
     fetch('./api/mqtt_status')
         .then(response => response.json())
         .then(data => {
@@ -152,13 +149,15 @@ function updateMqttStatus() {
                 if (!document.getElementById(topicId)) {
                     const topicDiv = document.createElement('div');
                     topicDiv.id = topicId;
-                    topicDiv.className = 'bg-gray-50 p-3 rounded-lg mb-2';
+                    topicDiv.className = 'bg-gray-50 dark:bg-gray-800 p-2 rounded mb-1';
                     topicDiv.innerHTML = `
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="font-medium text-gray-700">${topic}</span>
-                            <span class="text-xs text-gray-500">-</span>
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-gray-700 dark:text-gray-300">${topic}</span>
+                                <pre class="text-xs text-gray-600 dark:text-gray-400">메시지 없음</pre>
+                            </div>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">-</span>
                         </div>
-                        <pre class="text-sm text-gray-600 whitespace-pre-wrap break-all">메시지 없음</pre>
                     `;
                     topicsContainer.appendChild(topicDiv);
                 } else {
@@ -185,14 +184,11 @@ function updateMqttStatus() {
         });
 }
 function updateRecentMessages() {
-    console.log("최근 메시지 업데이트 시작");
     fetch('./api/recent_messages')
         .then(response => response.json())
         .then(data => {
             if (!data.messages || data.messages.length === 0) return;
 
-            console.log(`최근 메시지 수: ${data.messages.length}`);
-            console.log(`최근 메시지: ${data.messages}`);
             // 토픽별로 메시지 그룹화
             const messagesByTopic = {};
             data.messages.forEach(msg => {
@@ -816,7 +812,6 @@ function startPolling() {
     if (isPolling) return;
     
     isPolling = true;
-    console.log('실시간 패킷 데이터 폴링 시작');
     
     // 500ms마다 데이터 요청
     pollingInterval = setInterval(fetchPacketData, 500);
@@ -827,7 +822,6 @@ function stopPolling() {
     if (!isPolling) return;
     
     isPolling = false;
-    console.log('실시간 패킷 데이터 폴링 중지');
     
     if (pollingInterval) {
         clearInterval(pollingInterval);
