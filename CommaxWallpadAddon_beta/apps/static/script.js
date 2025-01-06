@@ -135,8 +135,8 @@ function updateMqttStatus() {
                 `;
                 return;
             }
-
-            console.log(`구독중인 토픽:${data.subscribed_topics}`);
+            const subscribedTopicsDiv = document.getElementById('subscribedTopics');
+            subscribedTopicsDiv.innerHTML = data.subscribed_topics.join(', ');
             // 기존에 없는 토픽에 대한 div 추가
             data.subscribed_topics.forEach(topic => {
                 // 특수문자를 안전하게 처리하도록 수정
@@ -147,6 +147,7 @@ function updateMqttStatus() {
                     return '';
                 })}`;
                 
+                // 기존 div가 없는 경우에만 새로 생성
                 if (!document.getElementById(topicId)) {
                     const topicDiv = document.createElement('div');
                     topicDiv.id = topicId;
@@ -159,6 +160,13 @@ function updateMqttStatus() {
                         <pre class="text-sm text-gray-600 whitespace-pre-wrap break-all">메시지 없음</pre>
                     `;
                     topicsContainer.appendChild(topicDiv);
+                } else {
+                    // 기존 div가 있는 경우 토픽 이름만 업데이트
+                    const existingDiv = document.getElementById(topicId);
+                    const topicSpan = existingDiv.querySelector('.font-medium');
+                    if (topicSpan) {
+                        topicSpan.textContent = topic;
+                    }
                 }
             });
 
