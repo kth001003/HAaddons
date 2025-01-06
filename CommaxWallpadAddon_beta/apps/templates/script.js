@@ -238,7 +238,39 @@ class Dashboard {
             });
     }
 }
-
+// ===============================
+// 기기 목록 관련 함수
+// ===============================
+function refreshDevices() {
+    if (!confirm('기기를 다시 검색하기 위해 애드온을 재시작합니다. 재시작 후 30초정도 후에 기기가 검색됩니다. 계속하시겠습니까?')) {
+        return;
+    }
+    fetch('./api/find_devices', {
+        method: 'POST'
+    });
+}
+function updateDeviceList() {
+    fetch('./api/devices')
+        .then(response => response.json())
+        .then(data => {
+            const deviceListDiv = document.getElementById('deviceList');
+            if (!deviceListDiv) return;
+            let html = '';
+            for (const [deviceName, info] of Object.entries(data)) {
+                html += `
+                    <div class="mb-2 p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                        <div class="flex justify-between">
+                            <h3 class="dark:text-gray-300">${deviceName}</h3>
+                            <span class="text-sm text-gray-500">${info.type}</span>
+                        </div>
+                        <div class="text-sm text-gray-600">개수: ${info.count}개</div>
+                    </div>
+                `;
+            }
+            deviceListDiv.innerHTML = html || '<p class="text-gray-500 dark:text-gray-400">연결된 기기가 없습니다.</p>';
+        })
+        .catch(error => console.error('기기 목록 업데이트 실패:', error));
+}
 // ===============================
 // 페이지 전환 함수
 // ===============================
