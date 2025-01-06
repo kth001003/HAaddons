@@ -22,6 +22,7 @@ class WebServer:
         cli.show_server_banner = lambda *x: None # type: ignore
         
         self.app = Flask(__name__, template_folder='templates', static_folder='static')
+        self.app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # static 파일 캐싱 비활성화
         self.app.logger.disabled = True
         self.wallpad_controller = wallpad_controller
         self.logger = wallpad_controller.logger
