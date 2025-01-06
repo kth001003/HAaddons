@@ -127,6 +127,7 @@ function updateMqttStatus() {
             // 구독 중인 토픽 표시
             const topicsContainer = document.getElementById('subscribedTopicsWithMessages');
             topicsContainer.innerHTML = ''; // 컨테이너 초기화
+            console.log(`구독중인 토픽:${data.subscribed_topics}`);
             if (!data.subscribed_topics || data.subscribed_topics.length === 0) {
                 topicsContainer.innerHTML = `
                     <div class="text-center text-gray-500 py-4">
