@@ -883,14 +883,35 @@ function updateRecentMessages() {
     fetch('./api/recent_messages')
         .then(response => response.json())
         .then(data => {
-            const messagesDiv = document.getElementById('recentMessages');
-            messagesDiv.innerHTML = data.messages.map(msg => `
-                <div class="text-sm border-l-4 border-blue-500 pl-2">
-                    <div class="font-medium">${msg.topic}</div>
-                    <div class="text-gray-600">${msg.payload}</div>
-                    <div class="text-xs text-gray-400">${msg.timestamp}</div>
+            const messagesDiv = document.getElementById('subscribedTopicsWithMessages');
+            if (!data.messages || data.messages.length === 0) {
+                messagesDiv.innerHTML = `
+                    <div class="text-center text-gray-500 py-4">
+                        <p>구독 중인 채널이 없습니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 토픽별로 메시지 그룹화
+            const messagesByTopic = {};
+            data.messages.forEach(msg => {
+                // 각 토픽의 가장 최근 메시지만 저장
+                messagesByTopic[msg.topic] = msg;
+            });
+
+            // 토픽별로 HTML 생성
+            const html = Object.values(messagesByTopic).map(msg => `
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-medium text-gray-700">${msg.topic}</span>
+                        <span class="text-xs text-gray-500">${msg.timestamp}</span>
+                    </div>
+                    <pre class="text-sm text-gray-600 whitespace-pre-wrap break-all">${msg.payload}</pre>
                 </div>
             `).join('');
+
+            messagesDiv.innerHTML = html;
         });
 }
 

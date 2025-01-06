@@ -108,18 +108,13 @@
                 </div>
 
                 <!-- 청취 중인 채널 -->
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h2 class="text-lg font-semibold mb-4">청취 중인 채널</h2>
-                    <div id="subscribedTopics" class="space-y-2">
-                        <!-- 채널 목록이 여기에 동적으로 추가됩니다 -->
-                    </div>
-                </div>
-
-                <!-- 최근 MQTT 메시지 -->
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h2 class="text-lg font-semibold mb-4">최근 MQTT 메시지</h2>
-                    <div id="recentMessages" class="h-48 overflow-y-auto space-y-2">
-                        <!-- 최근 메시지가 여기에 동적으로 추가됩니다 -->
+                <div class="bg-white rounded-lg shadow p-6 col-span-2">
+                    <h2 class="text-lg font-semibold mb-4">청취 중인 채널 및 최근 메시지</h2>
+                    <div id="subscribedTopicsWithMessages" class="space-y-2 h-48 overflow-y-auto">
+                        <!-- 채널별 최신 메시지가 여기에 동적으로 추가됩니다 -->
+                        <div class="text-center text-gray-500 py-4">
+                            <p>구독 중인 채널이 없습니다.</p>
+                        </div>
                     </div>
                 </div>
             </div>
