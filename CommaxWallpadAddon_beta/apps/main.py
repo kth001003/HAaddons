@@ -1191,12 +1191,13 @@ class WallpadController:
                 if (self.config['elfin'].get("use_auto_reboot",True)):
                     self.logger.warning('EW11 재시작을 시도합니다.')
                     await self.reboot_elfin_device()
-                if self.elfin_reboot_count == 5: 
-                    # 5회일때 1회성 알림 전송
+                if self.elfin_reboot_count == 10: 
+                    # 10회 실패시 1회성 알림 전송
                     self.logger.error('EW11 응답 없음')
-                    self.supervisor_api.send_notification(title='[Commax Wallpad Addon] EW11 점검 및 재시작 필요', message='EW11에서 응답이 없습니다. EW11 상태를 점검 후 애드온을 재시작 해보세요.')
-                    self.elfin_reboot_count = 0
-                    return
+                    self.supervisor_api.send_notification(
+                        title='[Commax Wallpad Addon] EW11 점검 및 재시작 필요',
+                        message='EW11에서 응답이 없습니다. EW11 상태를 점검 후 애드온을 재시작 해보세요.'
+                        )
             if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
                 await self.process_queue()
             return
@@ -1285,8 +1286,9 @@ class WallpadController:
                                 discovery_done.set()
                             # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
                             recv_data_len = len(self.COLLECTDATA['recv_data'])
+                            if not device_search_done.is_set():
+                                self.logger.info(f"기기 검색을 위해 데이터 모으는중... {recv_data_len}/80")
                             if recv_data_len >= 80 and not device_search_done.is_set():
-                                self.logger.debug(f"기기 검색 조건 상태 - device_list 비어있음: {not self.device_list}, 검색 미완료: {not device_search_done.is_set()}, recv_data 길이: {recv_data_len}")
                                 if not self.device_list:
                                     self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
                                     self.device_list = self.find_device()
