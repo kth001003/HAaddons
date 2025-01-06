@@ -420,7 +420,7 @@ function handlePacketInput(e) {
 }
 
 
-function displayPacketAnalysis(packet, results) {
+function displayPacketAnalysis(results) {
     const resultDiv = document.getElementById('packetResult');
     if (!results.length) {
         resultDiv.innerHTML = `<div class="text-red-500 dark:text-red-400">매칭되는 패킷 구조를 찾을 수 없습니다.</div>`;
@@ -439,10 +439,39 @@ function displayPacketAnalysis(packet, results) {
                     <span class="ml-2 dark:text-gray-400">${meaning}</span>
                 </div>
             `).join('')}
-            ${result.description ? `
+            ${result.checksum ? `
                 <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
-                    <span class="font-medium dark:text-gray-300">설명:</span>
-                    <span class="ml-2">${result.description}</span>
+                    <span class="font-medium dark:text-gray-300">체크섬:</span>
+                    <span class="ml-2">${result.checksum}</span>
+                </div>
+            ` : ''}
+            ${result.expected_state ? `
+                <div class="mt-4 border-t pt-4 dark:border-gray-700">
+                    <h4 class="text-md font-medium mb-2 dark:text-white">예상 상태 패킷</h4>
+                    <div class="space-y-2">
+                        ${result.expected_state.required_bytes ? `
+                            <div class="text-sm">
+                                <span class="font-medium dark:text-gray-300">필수 바이트:</span>
+                                <span class="ml-2 font-mono dark:text-gray-400">${result.expected_state.required_bytes}</span>
+                            </div>
+                        ` : ''}
+                        ${result.expected_state.possible_values ? `
+                            <div class="text-sm">
+                                <span class="font-medium dark:text-gray-300">가능한 값:</span>
+                                <div class="ml-4 space-y-1">
+                                    ${Object.entries(result.expected_state.possible_values).map(([key, value]) => `
+                                        <div class="dark:text-gray-400">
+                                            <span class="font-mono">${key}</span>: ${value}
+                                            <button onclick="analyzeExpectedState('${key}')" 
+                                                    class="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                                                분석
+                                            </button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
                 </div>
             ` : ''}
         </div>
@@ -506,7 +535,7 @@ function analyzePacket(paddedPacket) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            displayPacketAnalysis(packet, [{
+            displayPacketAnalysis([{
                 device: data.device,
                 packet_type: PACKET_TYPES['command'],
                 byte_meanings: data.analysis.reduce((acc, desc) => {
@@ -515,7 +544,9 @@ function analyzePacket(paddedPacket) {
                         acc[match[1]] = match[2];
                     }
                     return acc;
-                }, {})
+                },
+                checksum: data.checksum,
+                expected_state: data.expected_state
             }]);
         } else {
             resultDiv.innerHTML = `<p class="text-red-500">오류: ${data.error}</p>`;
