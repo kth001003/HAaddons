@@ -121,17 +121,12 @@ function detectPacketType(header) {
     return 'command';
 }
 
-// 패킷 로그 표시 관련 함수들 통합
 function updatePacketDisplay(isLive = false) {
     const elements = document.getElementsByClassName(isLive ? 'live-unknown-packet' : 'unknown-packet');
     const displayStyle = document.getElementById(isLive ? 'hideUnknownLive' : 'hideUnknown').checked ? 'none' : '';
     
     Array.from(elements).forEach(el => el.style.display = displayStyle);
 }
-
-// 기존의 updatePacketLogDisplay와 updateLivePacketLogDisplay를 대체
-const updatePacketLogDisplay = () => updatePacketDisplay(false);
-const updateLivePacketLogDisplay = () => updatePacketDisplay(true);
 
 // 패킷 처리 유틸리티 함수들
 const utils = {
@@ -141,7 +136,6 @@ const utils = {
     cleanPacket: input => input.replace(/[\s-]+/g, '').trim().toUpperCase()
 };
 
-// 패킷 히스토리 관리 간소화
 function handlePacketHistory() {
     const packetInput = document.getElementById('packetInput');
     const historySelect = document.getElementById('packetHistory');
@@ -170,7 +164,6 @@ function handlePacketHistory() {
     };
 }
 
-// 패킷 분석 결과 표시 간소화
 function displayPacketAnalysis(packet, results) {
     const resultDiv = document.getElementById('packetResult');
     if (!results.length) {
@@ -200,7 +193,6 @@ function displayPacketAnalysis(packet, results) {
     `).join('');
 }
 
-// 패킷 분석 함수 간소화
 function analyzePacket(paddedPacket) {
     const packet = paddedPacket || utils.cleanPacket(document.getElementById('packetInput').value);
     
@@ -300,7 +292,7 @@ function updatePacketLog(isLive = false) {
             if (newContent) {
                 if (isLive) {
                     logDiv.innerHTML = newContent + logDiv.innerHTML;
-                    updateLivePacketLogDisplay();
+                    updatePacketDisplay(true);
                     // 로그 길이 제한
                     const maxEntries = 2000;
                     const entries = logDiv.getElementsByClassName('packet-log-entry');
@@ -311,7 +303,7 @@ function updatePacketLog(isLive = false) {
                     }
                 } else {
                     logDiv.innerHTML = newContent;
-                    updatePacketLogDisplay();
+                    updatePacketDisplay(false);
                 }
             }
         })
@@ -545,347 +537,9 @@ function updateMqttStatus() {
             document.getElementById('clientId').textContent = data.client_id || '-';
             
             // 구독 중인 토픽 표시
-            const topicsDiv = document.getElementById('subscribedTopics');
-            topicsDiv.innerHTML = data.subscribed_topics.map(topic => 
-                `<div class="text-sm bg-gray-50 p-2 rounded">${topic}</div>`
-            ).join('');
-        });
-}
-
-// CONFIG 로드
-function loadConfig() {
-    fetch('./api/config')
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                showConfigMessage('설정을 불러오는 중 오류가 발생했습니다: ' + data.error, true);
-                return;
-            }
-
-            const configDiv = document.getElementById('configForm');
-            configDiv.innerHTML = '';
-
-            // 스키마 기반으로 설정 UI 생성
-            for (const [key, value] of Object.entries(data.config)) {
-                const schema = data.schema[key] || '';
-                configDiv.appendChild(createConfigField(key, value, schema));
-            }
-        });
-}
-
-function createConfigField(key, value, schema) {
-    const fieldDiv = document.createElement('div');
-    fieldDiv.className = 'border-b border-gray-200 py-2';
-
-    // 객체인 경우 하위 설정 처리
-    if (typeof value === 'object' && value !== null) {
-        fieldDiv.innerHTML = `
-            <div class="mb-2">
-                <label class="text-sm font-medium text-gray-700">${key}</label>
-            </div>
-            <div class="pl-4 space-y-2">
-                ${Object.entries(value).map(([subKey, subValue]) => `
-                    <div class="flex items-center gap-2">
-                        <label class="text-sm text-gray-600 w-1/3">${subKey}:</label>
-                        <input type="text" 
-                            value="${subValue}" 
-                            class="form-input block rounded-md border-gray-300 text-sm py-1"
-                            data-key="${key}"
-                            data-subkey="${subKey}">
-                    </div>
-                `).join('')}
-            </div>
-        `;
-        return fieldDiv;
-    }
-
-    // 기존 단일 설정 처리
-    const labelContainer = createLabelContainer(key, schema);
-    fieldDiv.appendChild(labelContainer);
-
-    const description = document.createElement('p');
-    description.className = 'text-xs text-gray-500 mb-1';
-    description.textContent = '';
-    fieldDiv.appendChild(description);
-
-    const input = createInputField(key, value, schema);
-    fieldDiv.appendChild(input);
-
-    return fieldDiv;
-}
-
-function createLabelContainer(key, schema) {
-    const labelContainer = document.createElement('div');
-    labelContainer.className = 'flex items-center gap-1 mb-1';
-
-    const label = document.createElement('label');
-    label.className = 'text-sm font-medium text-gray-700';
-    label.textContent = key;
-
-    const isOptional = schema.endsWith('?');
-    if (!isOptional) {
-        label.textContent += ' *';
-    }
-    schema = schema.replace('?', '');
-
-    labelContainer.appendChild(label);
-
-    // 스키마 타입에 따른 툴팁 추가
-    if (schema.includes('(')) {
-        const tooltip = createTooltip(schema);
-        if (tooltip) {
-            labelContainer.appendChild(tooltip);
-        }
-    }
-
-    return labelContainer;
-}
-
-function createTooltip(schema) {
-    const schemaType = schema.split('(')[0];
-    const tooltip = document.createElement('span');
-    tooltip.className = 'text-xs text-gray-500';
-
-    if (schemaType === 'int' || schemaType === 'float') {
-        const rangeMatch = schema.match(/\(([^)]+)\)/);
-        if (rangeMatch) {
-            const [min, max] = rangeMatch[1].split(',').map(v => v.trim());
-            tooltip.textContent = `(${min || '제한없음'} ~ ${max || '제한없음'})`;
-            return tooltip;
-        }
-    } else if (schemaType === 'list') {
-        const options = schema.split('(')[1].replace('?)', '').replace(')', '');
-        tooltip.textContent = `(${options})`;
-        return tooltip;
-    } else if (schema === 'match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)') {
-        tooltip.textContent = '(예: 192.168.0.2)';
-        return tooltip;
-    }
-
-    return null;
-}
-
-function createInputField(key, value, schema) {
-    const schemaType = schema.split('(')[0];
-    const isOptional = schema.endsWith('?');
-    schema = schema.replace('?', '');
-
-    let input;
-    const baseClassName = 'form-input block w-full rounded-md border-gray-300 text-sm py-1';
-
-    switch (schemaType) {
-        case 'bool':
-            input = createSelectInput(['true', 'false'], value === true, baseClassName);
-            break;
-        case 'list':
-            const options = schema.split('(')[1].replace('?)', '').replace(')', '').split('|');
-            input = createSelectInput(options, value, baseClassName);
-            break;
-        case 'int':
-        case 'float':
-            input = createNumberInput(schema, value, schemaType, baseClassName);
-            break;
-        case 'match':
-            input = createMatchInput(schema, value, baseClassName);
-            break;
-        default:
-            input = createTextInput(value, baseClassName);
-    }
-
-    input.id = `config-${key}`;
-    input.dataset.key = key;
-    input.dataset.type = schemaType;
-    if (!isOptional) {
-        input.required = true;
-    }
-
-    return input;
-}
-
-function createSelectInput(options, selectedValue, className) {
-    const select = document.createElement('select');
-    select.className = className;
-
-    options.forEach(option => {
-        const optionElement = document.createElement('option');
-        optionElement.value = option;
-        optionElement.textContent = option === 'true' ? '예 (true)' : 
-                                  option === 'false' ? '아니오 (false)' : 
-                                  option;
-        optionElement.selected = option === String(selectedValue);
-        select.appendChild(optionElement);
-    });
-
-    return select;
-}
-
-function createNumberInput(schema, value, type, className) {
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.value = value;
-    input.className = className;
-    input.step = type === 'float' ? '0.01' : '1';
-
-    if (schema.includes('(')) {
-        const rangeMatch = schema.match(/\(([^)]+)\)/);
-        if (rangeMatch) {
-            const [min, max] = rangeMatch[1].split(',').map(v => v.trim());
-            if (min) input.min = min;
-            if (max) input.max = max;
-            addRangeValidation(input, min, max, type);
-        }
-    }
-
-    return input;
-}
-
-function createMatchInput(schema, value, className) {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = value;
-    input.className = className;
-
-    const pattern = schema.split('(')[1].replace('?)', '').replace(')', '');
-    input.pattern = pattern;
-    addPatternValidation(input, pattern);
-
-    return input;
-}
-
-function createTextInput(value, className) {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = value;
-    input.className = className;
-    return input;
-}
-
-function addRangeValidation(input, min, max, type) {
-    input.addEventListener('input', function() {
-        const val = type === 'int' ? parseInt(this.value) : parseFloat(this.value);
-        if (min && val < parseFloat(min)) {
-            this.setCustomValidity(`최소값은 ${min}입니다.`);
-        } else if (max && val > parseFloat(max)) {
-            this.setCustomValidity(`최대값은 ${max}입니다.`);
-        } else {
-            this.setCustomValidity('');
-        }
-    });
-}
-
-function addPatternValidation(input, pattern) {
-    input.addEventListener('input', function() {
-        const regex = new RegExp(pattern);
-        if (!regex.test(this.value)) {
-            const isIpPattern = pattern === '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$';
-            this.setCustomValidity(isIpPattern ? '올바른 IP 주소 형식이 아닙니다.' : '올바른 형식이 아닙니다.');
-        } else {
-            this.setCustomValidity('');
-        }
-    });
-}
-
-// 설정 저장
-function saveConfig() {
-    if (!confirm('설정을 저장하면 애드온이 재시작됩니다. 계속하시겠습니까?')) {
-        return;
-    }
-
-    const configData = {};
-    const inputs = document.querySelectorAll('#configForm input, #configForm select');
-    
-    inputs.forEach(input => {
-        const key = input.getAttribute('data-key');
-        const subKey = input.getAttribute('data-subkey');
-        const schemaType = input.getAttribute('data-type');
-        
-        let value;
-        if (schemaType === 'bool') {
-            value = input.value === 'true';
-        } else if (schemaType === 'int') {
-            value = parseInt(input.value);
-        } else if (schemaType === 'float') {
-            value = parseFloat(input.value);
-        } else {
-            value = input.value;
-        }
-        
-        // 비밀번호 필드가 마스킹된 상태면 저장하지 않음
-        if (input.type === 'password' && value === '********') {
-            return;
-        }
-        
-        // 하위 설정 처리
-        if (subKey) {
-            if (!configData[key]) {
-                configData[key] = {};
-            }
-            configData[key][subKey] = value;
-        } else {
-            configData[key] = value;
-        }
-    });
-
-    showConfigMessage('설정을 저장하고 애드온을 재시작하는 중...', false);
-
-    // 설정 저장 API 호출
-    fetch('./api/config', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(configData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        // 유효성 검사 실패 등의 즉각적인 오류 처리
-        if (!data.success) {
-            if (data.error === '유효성 검사 실패' && data.details) {
-                const errorMessage = ['유효성 검사 실패:'].concat(data.details).join('\n');
-                showConfigMessage(errorMessage, true);
-                throw new Error('validation_failed');
-            } else {
-                showConfigMessage(data.error || '설정 저장 실패', true);
-                throw new Error('save_failed');
-            }
-        }
-    })
-    .catch(error => {
-        // 유효성 검사 실패나 명시적인 저장 실패가 아닌 경우는 재시작으로 인한 연결 끊김으로 간주
-        if (error.message !== 'validation_failed' && error.message !== 'save_failed') {
-            console.log('애드온이 재시작되는 중입니다...');
-            // 10초 후에 페이지 새로고침
-            setTimeout(() => {
-                window.location.reload();
-            }, 10000);
-        } else {
-            console.error('설정 저장 실패:', error);
-        }
-    });
-}
-
-function showConfigMessage(message, isError) {
-    const messageElement = document.getElementById('configMessage');
-    messageElement.innerHTML = message.replace(/\n/g, '<br>');
-    messageElement.className = `text-sm ${isError ? 'text-red-600' : 'text-green-600'} whitespace-pre-line`;
-}
-
-// 이벤트 리스너 추가
-document.addEventListener('DOMContentLoaded', function() {
-    const saveButton = document.getElementById('saveConfig');
-    if (saveButton) {
-        saveButton.addEventListener('click', saveConfig);
-    }
-});
-
-// 최근 MQTT 메시지 업데이트
-function updateRecentMessages() {
-    fetch('./api/recent_messages')
-        .then(response => response.json())
-        .then(data => {
-            const messagesDiv = document.getElementById('subscribedTopicsWithMessages');
-            if (!data.messages || data.messages.length === 0) {
-                messagesDiv.innerHTML = `
+            const topicsContainer = document.getElementById('subscribedTopicsWithMessages');
+            if (!data.subscribed_topics || data.subscribed_topics.length === 0) {
+                topicsContainer.innerHTML = `
                     <div class="text-center text-gray-500 py-4">
                         <p>구독 중인 채널이 없습니다.</p>
                     </div>
@@ -893,25 +547,61 @@ function updateRecentMessages() {
                 return;
             }
 
+            // 기존에 없는 토픽에 대한 div 추가
+            data.subscribed_topics.forEach(topic => {
+                const topicId = `topic-${topic.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                if (!document.getElementById(topicId)) {
+                    const topicDiv = document.createElement('div');
+                    topicDiv.id = topicId;
+                    topicDiv.className = 'bg-gray-50 p-3 rounded-lg mb-2';
+                    topicDiv.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="font-medium text-gray-700">${topic}</span>
+                            <span class="text-xs text-gray-500">-</span>
+                        </div>
+                        <pre class="text-sm text-gray-600 whitespace-pre-wrap break-all">메시지 없음</pre>
+                    `;
+                    topicsContainer.appendChild(topicDiv);
+                }
+            });
+
+            // 더 이상 구독하지 않는 토픽의 div 제거
+            const existingTopicDivs = topicsContainer.querySelectorAll('[id^="topic-"]');
+            existingTopicDivs.forEach(div => {
+                const topicFromId = div.id.replace('topic-', '').replace(/-/g, '/');
+                if (!data.subscribed_topics.includes(topicFromId)) {
+                    div.remove();
+                }
+            });
+        });
+}
+
+// 최근 MQTT 메시지 업데이트
+function updateRecentMessages() {
+    fetch('./api/recent_messages')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.messages || data.messages.length === 0) return;
+
             // 토픽별로 메시지 그룹화
             const messagesByTopic = {};
             data.messages.forEach(msg => {
-                // 각 토픽의 가장 최근 메시지만 저장
                 messagesByTopic[msg.topic] = msg;
             });
 
-            // 토픽별로 HTML 생성
-            const html = Object.values(messagesByTopic).map(msg => `
-                <div class="bg-gray-50 p-3 rounded-lg">
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="font-medium text-gray-700">${msg.topic}</span>
-                        <span class="text-xs text-gray-500">${msg.timestamp}</span>
-                    </div>
-                    <pre class="text-sm text-gray-600 whitespace-pre-wrap break-all">${msg.payload}</pre>
-                </div>
-            `).join('');
-
-            messagesDiv.innerHTML = html;
+            // 각 토픽의 div 업데이트
+            Object.entries(messagesByTopic).forEach(([topic, msg]) => {
+                const topicId = `topic-${topic.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                const topicDiv = document.getElementById(topicId);
+                if (topicDiv) {
+                    const timestamp = topicDiv.querySelector('span:last-child');
+                    const payload = topicDiv.querySelector('pre');
+                    if (timestamp && payload) {
+                        timestamp.textContent = msg.timestamp;
+                        payload.textContent = msg.payload;
+                    }
+                }
+            });
         });
 }
 
@@ -931,321 +621,6 @@ function toggleMobileMenu() {
     } else {
         mobileMenu.classList.add('hidden');
     }
-}
-
-// 페킷 구조 편집 관련 함수들
-function checkVendorSetting() {
-    fetch('./api/config')
-        .then(response => response.json())
-        .then(data => {
-            const vendorWarning = document.getElementById('vendorWarning');
-            if (data.config && data.config.vendor === 'commax') {
-                vendorWarning.classList.remove('hidden');
-            } else {
-                vendorWarning.classList.add('hidden');
-            }
-        });
-}
-
-function changeVendorToCustom() {
-    if (!confirm('vendor 설정을 변경하면 애드온이 재시작됩니다. 계속하시겠습니까?')) {
-        return;
-    }
-    fetch('./api/config')
-        .then(response => response.json())
-        .then(data => {
-            const configData = data.config || {};
-            configData.vendor = 'custom';  // vendor만 custom으로 변경
-            return configData;
-        })
-        .then(configData => {
-
-            showPacketEditorMessage('vendor 설정을 변경하고 애드온을 재시작하는 중...', false);
-
-            fetch('./api/config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(configData)
-            })
-            setTimeout(() => {
-                window.location.reload();
-            }, 3000);
-    })
-}
-
-function loadCustomPacketStructure() {
-    fetch('./api/custom_packet_structure/editable')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                renderPacketStructureEditor(data.content);
-            } else {
-                showPacketEditorMessage(data.error, true);
-            }
-        })
-        .catch(error => showPacketEditorMessage('패킷 구조를 불러오는 중 오류가 발생했습니다: ' + error, true));
-}
-
-function showPacketEditorMessage(message, isError) {
-    const messageElement = document.getElementById('packetEditorMessage');
-    if (messageElement) {
-        messageElement.textContent = message;
-        messageElement.className = `fixed bottom-4 right-4 p-4 rounded-lg shadow-lg ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
-        messageElement.classList.remove('hidden');
-        setTimeout(() => {
-            messageElement.classList.add('hidden');
-        }, 15000);
-    } else {
-        console.error('메시지 표시 요소를 찾을 수 없습니다:', message);
-    }
-}
-
-function renderPacketStructureEditor(structure) {
-    const editorDiv = document.getElementById('packetStructureEditor');
-    editorDiv.innerHTML = '';
-
-    for (const [deviceName, deviceData] of Object.entries(structure)) {
-        const deviceSection = document.createElement('div');
-        deviceSection.className = 'border rounded-lg p-4 mb-4';
-        
-        deviceSection.innerHTML = `
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-medium">${deviceName}</h3>
-                <input type="text" value="${deviceData.type}" 
-                    class="border rounded px-2 py-1 text-sm"
-                    data-device="${deviceName}" data-field="type">
-            </div>
-        `;
-
-        // 패킷 타입별 섹션 추가
-        Object.entries(PACKET_TYPES).forEach(([type, title]) => {
-            if (deviceData[type]) {
-                const packetSection = createPacketSection(deviceName, type, deviceData[type], title);
-                deviceSection.appendChild(packetSection);
-            }
-        });
-
-        editorDiv.appendChild(deviceSection);
-    }
-}
-
-function createPacketSection(deviceName, packetType, packetData, title) {
-    const section = document.createElement('div');
-    section.className = 'mt-4 w-full sm:w-1/2 lg:w-1/4 inline-block align-top px-2';
-
-    section.innerHTML = `
-        <div class="bg-gray-50 p-3 rounded-lg">
-            <h4 class="font-medium mb-2">${title}</h4>
-            <div class="space-y-2">
-                <div class="flex items-center">
-                    <span class="w-20 text-sm">Header:</span>
-                    <input type="text" value="${packetData.header}" 
-                        class="border rounded px-2 py-1 text-sm flex-1"
-                        data-device="${deviceName}" 
-                        data-packet-type="${packetType}" 
-                        data-field="header">
-                </div>
-            </div>
-        `;
-
-    if (packetData.structure) {
-        const structureDiv = document.createElement('div');
-        structureDiv.className = 'mt-2';
-        
-        Object.entries(packetData.structure).forEach(([position, field]) => {
-            const fieldDiv = document.createElement('div');
-            fieldDiv.className = 'border-l-2 border-gray-200 pl-2 py-2 mt-2';
-            fieldDiv.innerHTML = `
-                <div class="text-sm font-medium">Position ${position}</div>
-                <div class="space-y-1 mt-1">
-                    <div>
-                        <label class="block text-xs text-gray-600">Name:</label>
-                        <input type="text" value="${field.name}" 
-                            class="border rounded px-2 py-1 text-sm w-full"
-                            data-device="${deviceName}" 
-                            data-packet-type="${packetType}" 
-                            data-position="${position}"
-                            data-field="name">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-600">Values:</label>
-                        <div class="space-y-1" id="values-${deviceName}-${packetType}-${position}">
-                            ${Object.entries(field.values || {}).map(([key, value]) => `
-                                <div class="grid grid-cols-9 gap-1">
-                                    <input type="text" value="${key}" 
-                                        class="col-span-4 border rounded px-2 py-1 text-sm"
-                                        placeholder="키"
-                                        data-device="${deviceName}" 
-                                        data-packet-type="${packetType}" 
-                                        data-position="${position}"
-                                        data-field="value-key">
-                                    <input type="text" value="${value}" 
-                                        class="col-span-4 border rounded px-2 py-1 text-sm"
-                                        placeholder="값"
-                                        data-device="${deviceName}" 
-                                        data-packet-type="${packetType}" 
-                                        data-position="${position}"
-                                        data-field="value-value">
-                                    <button class="text-red-500 hover:text-red-700" onclick="removeValue(this)">×</button>
-                                </div>
-                            `).join('')}
-                            <button class="text-sm text-blue-500 hover:text-blue-700" 
-                                onclick="addValue('${deviceName}', '${packetType}', '${position}')">
-                                + 값 추가
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            structureDiv.appendChild(fieldDiv);
-        });
-        
-        section.appendChild(structureDiv);
-    }
-
-    return section;
-}
-
-function addValue(deviceName, packetType, position) {
-    const valuesDiv = document.getElementById(`values-${deviceName}-${packetType}-${position}`);
-    const newValueDiv = document.createElement('div');
-    newValueDiv.className = 'flex gap-1';
-    newValueDiv.innerHTML = `
-        <input type="text" class="border rounded px-2 py-1 text-sm flex-1" 
-            placeholder="키"
-            data-device="${deviceName}" 
-            data-packet-type="${packetType}" 
-            data-position="${position}"
-            data-field="value-key">
-        <input type="text" class="border rounded px-2 py-1 text-sm flex-1" 
-            placeholder="값"
-            data-device="${deviceName}" 
-            data-packet-type="${packetType}" 
-            data-position="${position}"
-            data-field="value-value">
-        <button class="text-red-500 hover:text-red-700" onclick="removeValue(this)">×</button>
-    `;
-    valuesDiv.insertBefore(newValueDiv, valuesDiv.lastElementChild);
-}
-
-function removeValue(button) {
-    button.parentElement.remove();
-}
-
-function saveCustomPacketStructure() {
-    const structure = {};
-    const editorDiv = document.getElementById('packetStructureEditor');
-
-    // 각 기기별로 데이터 수집
-    editorDiv.querySelectorAll('[data-device]').forEach(element => {
-        const deviceName = element.dataset.device;
-        const packetType = element.dataset.packetType;
-        const position = element.dataset.position;
-        const field = element.dataset.field;
-
-        if (!structure[deviceName]) {
-            structure[deviceName] = { type: '' };
-        }
-
-        if (field === 'type') {
-            structure[deviceName].type = element.value;
-            return;
-        }
-
-        if (!packetType) return;
-
-        if (!structure[deviceName][packetType]) {
-            structure[deviceName][packetType] = {
-                header: '',
-                structure: {}
-            };
-        }
-
-        if (field === 'header') {
-            structure[deviceName][packetType].header = element.value;
-            return;
-        }
-
-        if (position) {
-            if (!structure[deviceName][packetType].structure[position]) {
-                structure[deviceName][packetType].structure[position] = {
-                    name: '',
-                    values: {}
-                };
-            }
-
-            if (field === 'name') {
-                structure[deviceName][packetType].structure[position].name = element.value;
-            }
-        }
-    });
-
-    // values 데이터 수집
-    editorDiv.querySelectorAll('[data-field^="value-"]').forEach(element => {
-        const deviceName = element.dataset.device;
-        const packetType = element.dataset.packetType;
-        const position = element.dataset.position;
-        
-        if (!element.value) return;
-
-        const values = structure[deviceName][packetType].structure[position].values;
-        const row = element.parentElement;
-        const keyInput = row.querySelector('[data-field="value-key"]');
-        const valueInput = row.querySelector('[data-field="value-value"]');
-        
-        if (keyInput.value && valueInput.value) {
-            values[keyInput.value] = valueInput.value;
-        }
-    });
-
-    // 서버에 저장
-    fetch('./api/custom_packet_structure/editable', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ content: structure })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showPacketEditorMessage('패킷 구조가 성공적으로 저장되었습니다.', false);
-        } else {
-            showPacketEditorMessage(data.error, true);
-        }
-    })
-    .catch(error => showPacketEditorMessage('저장 중 오류가 발생했습니다: ' + error, true));
-}
-
-function resetPacketStructure() {
-    if (!confirm('패킷 구조를 초기화하면 모든 커스텀 설정이 삭제되고 commax기본값으로 돌아갑니다. 계속하시겠습니까?')) {
-        return;
-    }
-
-    fetch('./api/custom_packet_structure', {
-        method: 'DELETE'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showPacketEditorMessage('패킷 구조가 초기화되었습니다. 애드온을 재시작합니다...', false);
-            // 애드온 재시작
-            fetch('./api/find_devices', {
-                method: 'POST'
-            });
-            // 3초 후 페이지 새로고침
-            setTimeout(() => {
-                window.location.reload();
-            }, 3000);
-        } else {
-            showPacketEditorMessage(data.error || '초기화 중 오류가 발생했습니다.', true);
-        }
-    })
-    .catch(error => {
-        showPacketEditorMessage('초기화 중 오류가 발생했습니다: ' + error, true);
-    });
 }
 
 // 이벤트 리스너 추가를 DOMContentLoaded 이벤트 핸들러 내부에 추가
