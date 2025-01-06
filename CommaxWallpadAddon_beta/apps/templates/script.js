@@ -336,7 +336,31 @@ const utils = {
     formatPacket: packet => packet.match(/.{2}/g).join(' '),
     isValidPacket: packet => /^[0-9A-F]{14}$|^[0-9A-F]{16}$/.test(packet),
     getTimestamp: () => new Date().toLocaleTimeString('ko-KR', { hour12: false }),
-    cleanPacket: input => input.replace(/[\s-]+/g, '').trim().toUpperCase()
+    cleanPacket: input => input.replace(/[\s-]+/g, '').trim().toUpperCase(),
+    isValidHex: packet => /^[0-9A-F]*$/.test(packet),
+    padPacket: packet => packet.padEnd(14, '0'),
+    validatePacket: (packet) => {
+        if (!packet) return { isValid: false };
+        if (!utils.isValidHex(packet)) {
+            return {
+                isValid: false,
+                error: "잘못된 문자가 포함되어 있습니다. 16진수만 입력해주세요."
+            };
+        }
+        if (!utils.isValidPacket(packet)) {
+            if (packet.length >= 2 && packet.length < 14) {
+                return {
+                    isValid: false,
+                    shouldPad: true
+                };
+            }
+            return {
+                isValid: false,
+                error: "패킷은 14자리 또는 16자리여야 합니다."
+            };
+        }
+        return { isValid: true };
+    }
 };
 
 function detectPacketType(header) {
@@ -480,21 +504,25 @@ function displayPacketAnalysis(results) {
 function analyzePacket(paddedPacket) {
     const packetInput = document.getElementById('packetInput');
     const resultDiv = document.getElementById('packetResult');
-    // 입력값에서 공백 제거
-    const packet = (paddedPacket || packetInput.value.replace(/[\s-]+/g, '').trim()).toUpperCase();
+    
+    // 입력값 정리
+    const packet = utils.cleanPacket(paddedPacket || packetInput.value);
     
     if (!packet) {
         showAvailableHeaders();
         return;
     }
     
-    if (!/^[0-9A-F]{14}$/.test(packet) && !/^[0-9A-F]{16}$/.test(packet)) {
-        if (packet.length >= 2) {
-            // 2자리 이상 입력된 경우 나머지를 00으로 채워서 분석
-            const paddedPacket = packet.padEnd(14, '0');
-            if (/^[0-9A-F]+$/.test(packet)) {
-                analyzePacket(paddedPacket);
-            }
+    // 패킷 유효성 검사
+    const validation = utils.validatePacket(packet);
+    if (!validation.isValid) {
+        if (validation.shouldPad && !paddedPacket) {
+            analyzePacket(utils.padPacket(packet));
+            return;
+        }
+        if (validation.error) {
+            resultDiv.innerHTML = `<p class="text-red-500 dark:text-red-400">${validation.error}</p>`;
+            return;
         }
         return;
     }
@@ -539,19 +567,15 @@ function analyzePacket(paddedPacket) {
                 device: data.device,
                 packet_type: PACKET_TYPES[data.packet_type || 'command'],
                 byte_meanings: data.analysis.reduce((acc, desc) => {
-                    // 바이트 설명을 더 의미있게 처리
                     const match = desc.match(/Byte (\d+): (.+)/);
                     if (match) {
                         const [, byteNum, description] = match;
-                        // header인 경우 device와 packet_type 정보 추가
                         if (byteNum === '0' && description.startsWith('header')) {
                             acc[byteNum] = description;
                         } 
-                        // 체크섬인 경우
                         else if (description.includes('체크섬')) {
                             acc[byteNum] = description;
                         }
-                        // 일반적인 경우 - 값과 설명을 분리하여 표시
                         else {
                             const [name, value] = description.split(' = ');
                             if (value) {
@@ -571,7 +595,7 @@ function analyzePacket(paddedPacket) {
         }
     })
     .catch(error => {
-        resultDiv.innerHTML = `<p class="text-red-500">요청 실패: ${error}</p>`;
+        resultDiv.innerHTML = `<p class="text-red-500 dark:text-red-400">요청 실패: ${error}</p>`;
     });
 }
 
