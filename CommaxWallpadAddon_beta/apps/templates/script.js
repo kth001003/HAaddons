@@ -632,25 +632,10 @@ document.addEventListener('DOMContentLoaded', function() {
             showAvailableHeaders();
         });
     updateDeviceList();
-    updatePacketLogDisplay();
+    updatePacketDisplay();
     loadPacketStructures();
     updateMqttStatus();
-    loadConfig();
-
-    // 패킷 에디터 초기화
-    loadCustomPacketStructure();
-    checkVendorSetting();
-
-    // 저장 버튼 이벤트 핸들러
-    document.getElementById('savePacketStructure').addEventListener('click', saveCustomPacketStructure);
     
-    // vendor 변경 버튼 이벤트 핸들러
-    document.getElementById('changeVendorButton').addEventListener('click', changeVendorToCustom);
-    
-    const saveButton = document.getElementById('saveConfig');
-    if (saveButton) {
-        saveButton.addEventListener('click', saveConfig);
-    }
     // 패킷 입력 필드 이벤트 리스너 설정
     const packetInput = document.getElementById('packetInput');
     if (packetInput) {
@@ -695,11 +680,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // 초기 상태 업데이트
     updateEW11Status();
     
-    // 패킷 구조 초기화 버튼 이벤트 리스너
-    const resetButton = document.getElementById('resetPacketStructure');
-    if (resetButton) {
-        resetButton.addEventListener('click', resetPacketStructure);
-    }
 });
 
 function loadPacketStructures() {
