@@ -24,6 +24,222 @@ const PACKET_TYPES = {
 };
 
 // ===============================
+// 대시보드 관련 클래스
+// ===============================
+class Dashboard {
+    constructor() {
+        this.initializeIntervals();
+        this.bindEvents();
+    }
+
+    initializeIntervals() {
+        // 주기적 업데이트 설정
+        setInterval(() => this.updateMqttStatus(), 5000);   // 5초마다 MQTT 상태 업데이트
+        setInterval(() => this.updateEW11Status(), 5000);   // 5초마다 EW11 상태 업데이트
+        setInterval(() => this.updateRecentMessages(), 2000); // 2초마다 최근 메시지 업데이트
+        setInterval(() => this.updateDeviceList(), 10000);  // 10초마다 기기목록 업데이트
+    }
+
+    bindEvents() {
+        // 기기 새로고침 버튼 이벤트 바인딩
+        const refreshButton = document.getElementById('refreshDevicesButton');
+        if (refreshButton) {
+            refreshButton.addEventListener('click', () => this.refreshDevices());
+        }
+    }
+
+    refreshDevices() {
+        if (!confirm('기기를 다시 검색하기 위해 애드온을 재시작합니다. 재시작 후 30초정도 후에 기기가 검색됩니다. 계속하시겠습니까?')) {
+            return;
+        }
+    
+        fetch('./api/find_devices', {
+            method: 'POST'
+        });
+    }
+    
+    updateDeviceList() {
+        fetch('./api/devices')
+            .then(response => response.json())
+            .then(data => {
+                const deviceListDiv = document.getElementById('deviceList');
+                if (!deviceListDiv) return;
+    
+                let html = '';
+                for (const [deviceName, info] of Object.entries(data)) {
+                    html += `
+                        <div class="mb-2 p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                            <div class="flex justify-between">
+                                <h3 class="dark:text-gray-300">${deviceName}</h3>
+                                <span class="text-sm text-gray-500">${info.type}</span>
+                            </div>
+                            <div class="text-sm text-gray-600">개수: ${info.count}개</div>
+                        </div>
+                    `;
+                }
+                deviceListDiv.innerHTML = html || '<p class="text-gray-500 dark:text-gray-400">연결된 기기가 없습니다.</p>';
+            })
+            .catch(error => console.error('기기 목록 업데이트 실패:', error));
+    }
+    
+    updateMqttStatus() {
+        fetch('./api/mqtt_status')
+            .then(response => response.json())
+            .then(data => {
+                const statusElement = document.getElementById('connectionStatus');
+                statusElement.textContent = data.connected ? '연결됨' : '연결 끊김';
+                statusElement.className = data.connected ? 
+                    'px-2 py-1 rounded text-sm bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 
+                    'px-2 py-1 rounded text-sm bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100';
+                
+                document.getElementById('brokerInfo').textContent = data.broker || '-';
+                document.getElementById('clientId').textContent = data.client_id || '-';
+                
+                // 구독 중인 토픽 표시
+                const topicsContainer = document.getElementById('subscribedTopicsWithMessages');
+                topicsContainer.innerHTML = ''; // 컨테이너 초기화
+                if (!data.subscribed_topics || data.subscribed_topics.length === 0) {
+                    topicsContainer.innerHTML = `
+                        <div class="text-center text-gray-500 py-4">
+                            <p>구독 중인 채널이 없습니다.</p>
+                        </div>
+                    `;
+                    return;
+                }
+                const subscribedTopicsDiv = document.getElementById('subscribedTopics');
+                subscribedTopicsDiv.innerHTML = data.subscribed_topics.join(', ');
+                // 기존에 없는 토픽에 대한 div 추가
+                data.subscribed_topics.forEach(topic => {
+                    // 특수문자를 안전하게 처리하도록 수정
+                    const topicId = `topic-${topic.replace(/[^a-zA-Z0-9]/g, function(match) {
+                        // '/'와 '+' 문자를 각각 다르게 처리
+                        if (match === '/') return '-';
+                        if (match === '+') return 'plus';
+                        return '';
+                    })}`;
+                    
+                    // 기존 div가 없는 경우에만 새로 생성
+                    if (!document.getElementById(topicId)) {
+                        const topicDiv = document.createElement('div');
+                        topicDiv.id = topicId;
+                        topicDiv.className = 'bg-gray-50 dark:bg-gray-800 p-2 rounded mb-1';
+                        topicDiv.innerHTML = `
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-medium text-gray-700 dark:text-gray-300">${topic}</span>
+                                    <pre class="text-xs text-gray-600 dark:text-gray-400">메시지 없음</pre>
+                                </div>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">-</span>
+                            </div>
+                        `;
+                        topicsContainer.appendChild(topicDiv);
+                    } else {
+                        // 기존 div가 있는 경우 토픽 이름만 업데이트
+                        const existingDiv = document.getElementById(topicId);
+                        const topicSpan = existingDiv.querySelector('.font-medium');
+                        if (topicSpan) {
+                            topicSpan.textContent = topic;
+                        }
+                    }
+                });
+    
+                // 더 이상 구독하지 않는 토픽의 div 제거
+                const existingTopicDivs = topicsContainer.querySelectorAll('[id^="topic-"]');
+                existingTopicDivs.forEach(div => {
+                    // ID를 토픽으로 변환할 때도 동일한 규칙 적용
+                    const topicFromId = div.id.replace('topic-', '')
+                        .replace(/-/g, '/')
+                        .replace(/plus/g, '+');
+                    if (!data.subscribed_topics.includes(topicFromId)) {
+                        div.remove();
+                    }
+                });
+            });
+    }
+
+    updateRecentMessages() {
+        fetch('./api/recent_messages')
+            .then(response => response.json())
+            .then(data => {
+                if (!data.messages || data.messages.length === 0) return;
+    
+                // 토픽별로 메시지 그룹화
+                const messagesByTopic = {};
+                data.messages.forEach(msg => {
+                    messagesByTopic[msg.topic] = msg;
+                });
+    
+                // 각 토픽의 div 업데이트
+                Object.entries(messagesByTopic).forEach(([topic, msg]) => {
+                    // 와일드카드 토픽 매칭을 위한 함수
+                    function matchTopic(pattern, topic) {
+                        const patternParts = pattern.split('/');
+                        const topicParts = topic.split('/');
+                        
+                        if (patternParts.length !== topicParts.length) return false;
+                        
+                        return patternParts.every((part, i) => 
+                            part === '+' || part === topicParts[i]
+                        );
+                    }
+    
+                    // 모든 구독 중인 토픽에 대해 매칭 확인
+                    document.querySelectorAll('[id^="topic-"]').forEach(topicDiv => {
+                        const subscribedTopic = topicDiv.id
+                            .replace('topic-', '')
+                            .replace(/-/g, '/')
+                            .replace(/plus/g, '+');
+                        
+                        if (matchTopic(subscribedTopic, topic)) {
+                            const timestamp = topicDiv.querySelector('span:last-child');
+                            const payload = topicDiv.querySelector('pre');
+                            if (timestamp && payload) {
+                                timestamp.textContent = msg.timestamp;
+                                payload.textContent = msg.payload;
+                            }
+                        }
+                    });
+                });
+            });
+    }
+    
+    updateEW11Status() {
+        fetch('./api/ew11_status')
+            .then(response => response.json())
+            .then(data => {
+                const statusElement = document.getElementById('ew11ConnectionStatus');
+                const lastResponseElement = document.getElementById('ew11LastResponse');
+                
+                if (!data.last_recv_time) {
+                    statusElement.textContent = '응답 없음';
+                    statusElement.className = 'px-2 py-1 rounded text-sm bg-red-100 text-red-800';
+                    lastResponseElement.textContent = '응답 기록 없음';
+                    return;
+                }
+                
+                const currentTime = Math.floor(Date.now() / 1000); // 현재 시간을 초 단위로 변환
+                const lastRecvTime = Math.floor(data.last_recv_time / 1000000000); // 나노초를 초 단위로 변환
+                const timeDiff = currentTime - lastRecvTime;
+                
+                const isConnected = timeDiff <= data.elfin_reboot_interval;
+                
+                // 연결 상태 업데이트
+                statusElement.textContent = isConnected ? '응답 있음' : '응답 없음';
+                statusElement.className = `px-2 py-1 rounded text-sm ${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+                
+                // 마지막 응답 시간 업데이트 (초 단위)
+                lastResponseElement.textContent = `${timeDiff}초 전`;
+            })
+            .catch(error => {
+                console.error('EW11 상태 업데이트 실패:', error);
+                const statusElement = document.getElementById('ew11ConnectionStatus');
+                statusElement.textContent = '상태 확인 실패';
+                statusElement.className = 'px-2 py-1 rounded text-sm bg-yellow-100 text-yellow-800';
+            });
+    }
+}
+
+// ===============================
 // 페이지 전환 함수
 // ===============================
 function showPage(pageId) {
@@ -68,205 +284,6 @@ function toggleMobileMenu() {
     }
 }
 
-// ===============================
-// 기기 목록 관련 함수
-// ===============================
-function refreshDevices() {
-    if (!confirm('기기를 다시 검색하기 위해 애드온을 재시작합니다. 재시작 후 30초정도 후에 기기가 검색됩니다. 계속하시겠습니까?')) {
-        return;
-    }
-
-    fetch('./api/find_devices', {
-        method: 'POST'
-    });
-}
-
-function updateDeviceList() {
-    fetch('./api/devices')
-        .then(response => response.json())
-        .then(data => {
-            const deviceListDiv = document.getElementById('deviceList');
-            if (!deviceListDiv) return;
-
-            let html = '';
-            for (const [deviceName, info] of Object.entries(data)) {
-                html += `
-                    <div class="mb-2 p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                        <div class="flex justify-between">
-                            <h3 class="dark:text-gray-300">${deviceName}</h3>
-                            <span class="text-sm text-gray-500">${info.type}</span>
-                        </div>
-                        <div class="text-sm text-gray-600">개수: ${info.count}개</div>
-                    </div>
-                `;
-            }
-            deviceListDiv.innerHTML = html || '<p class="text-gray-500 dark:text-gray-400">연결된 기기가 없습니다.</p>';
-        })
-        .catch(error => console.error('기기 목록 업데이트 실패:', error));
-}
-
-
-// ===============================
-// MQTT 상태 관련 함수
-// ===============================
-function updateMqttStatus() {
-    fetch('./api/mqtt_status')
-        .then(response => response.json())
-        .then(data => {
-            const statusElement = document.getElementById('connectionStatus');
-            statusElement.textContent = data.connected ? '연결됨' : '연결 끊김';
-            statusElement.className = data.connected ? 
-                'px-2 py-1 rounded text-sm bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 
-                'px-2 py-1 rounded text-sm bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100';
-            
-            document.getElementById('brokerInfo').textContent = data.broker || '-';
-            document.getElementById('clientId').textContent = data.client_id || '-';
-            
-            // 구독 중인 토픽 표시
-            const topicsContainer = document.getElementById('subscribedTopicsWithMessages');
-            topicsContainer.innerHTML = ''; // 컨테이너 초기화
-            if (!data.subscribed_topics || data.subscribed_topics.length === 0) {
-                topicsContainer.innerHTML = `
-                    <div class="text-center text-gray-500 py-4">
-                        <p>구독 중인 채널이 없습니다.</p>
-                    </div>
-                `;
-                return;
-            }
-            const subscribedTopicsDiv = document.getElementById('subscribedTopics');
-            subscribedTopicsDiv.innerHTML = data.subscribed_topics.join(', ');
-            // 기존에 없는 토픽에 대한 div 추가
-            data.subscribed_topics.forEach(topic => {
-                // 특수문자를 안전하게 처리하도록 수정
-                const topicId = `topic-${topic.replace(/[^a-zA-Z0-9]/g, function(match) {
-                    // '/'와 '+' 문자를 각각 다르게 처리
-                    if (match === '/') return '-';
-                    if (match === '+') return 'plus';
-                    return '';
-                })}`;
-                
-                // 기존 div가 없는 경우에만 새로 생성
-                if (!document.getElementById(topicId)) {
-                    const topicDiv = document.createElement('div');
-                    topicDiv.id = topicId;
-                    topicDiv.className = 'bg-gray-50 dark:bg-gray-800 p-2 rounded mb-1';
-                    topicDiv.innerHTML = `
-                        <div class="flex justify-between items-center">
-                            <div class="flex items-center gap-2">
-                                <span class="font-medium text-gray-700 dark:text-gray-300">${topic}</span>
-                                <pre class="text-xs text-gray-600 dark:text-gray-400">메시지 없음</pre>
-                            </div>
-                            <span class="text-xs text-gray-500 dark:text-gray-400">-</span>
-                        </div>
-                    `;
-                    topicsContainer.appendChild(topicDiv);
-                } else {
-                    // 기존 div가 있는 경우 토픽 이름만 업데이트
-                    const existingDiv = document.getElementById(topicId);
-                    const topicSpan = existingDiv.querySelector('.font-medium');
-                    if (topicSpan) {
-                        topicSpan.textContent = topic;
-                    }
-                }
-            });
-
-            // 더 이상 구독하지 않는 토픽의 div 제거
-            const existingTopicDivs = topicsContainer.querySelectorAll('[id^="topic-"]');
-            existingTopicDivs.forEach(div => {
-                // ID를 토픽으로 변환할 때도 동일한 규칙 적용
-                const topicFromId = div.id.replace('topic-', '')
-                    .replace(/-/g, '/')
-                    .replace(/plus/g, '+');
-                if (!data.subscribed_topics.includes(topicFromId)) {
-                    div.remove();
-                }
-            });
-        });
-}
-function updateRecentMessages() {
-    fetch('./api/recent_messages')
-        .then(response => response.json())
-        .then(data => {
-            if (!data.messages || data.messages.length === 0) return;
-
-            // 토픽별로 메시지 그룹화
-            const messagesByTopic = {};
-            data.messages.forEach(msg => {
-                messagesByTopic[msg.topic] = msg;
-            });
-
-            // 각 토픽의 div 업데이트
-            Object.entries(messagesByTopic).forEach(([topic, msg]) => {
-                // 와일드카드 토픽 매칭을 위한 함수
-                function matchTopic(pattern, topic) {
-                    const patternParts = pattern.split('/');
-                    const topicParts = topic.split('/');
-                    
-                    if (patternParts.length !== topicParts.length) return false;
-                    
-                    return patternParts.every((part, i) => 
-                        part === '+' || part === topicParts[i]
-                    );
-                }
-
-                // 모든 구독 중인 토픽에 대해 매칭 확인
-                document.querySelectorAll('[id^="topic-"]').forEach(topicDiv => {
-                    const subscribedTopic = topicDiv.id
-                        .replace('topic-', '')
-                        .replace(/-/g, '/')
-                        .replace(/plus/g, '+');
-                    
-                    if (matchTopic(subscribedTopic, topic)) {
-                        const timestamp = topicDiv.querySelector('span:last-child');
-                        const payload = topicDiv.querySelector('pre');
-                        if (timestamp && payload) {
-                            timestamp.textContent = msg.timestamp;
-                            payload.textContent = msg.payload;
-                        }
-                    }
-                });
-            });
-        });
-}
-
-
-// ===============================
-// EW11 상태 관련 함수
-// ===============================
-function updateEW11Status() {
-    fetch('./api/ew11_status')
-        .then(response => response.json())
-        .then(data => {
-            const statusElement = document.getElementById('ew11ConnectionStatus');
-            const lastResponseElement = document.getElementById('ew11LastResponse');
-            
-            if (!data.last_recv_time) {
-                statusElement.textContent = '응답 없음';
-                statusElement.className = 'px-2 py-1 rounded text-sm bg-red-100 text-red-800';
-                lastResponseElement.textContent = '응답 기록 없음';
-                return;
-            }
-            
-            const currentTime = Math.floor(Date.now() / 1000); // 현재 시간을 초 단위로 변환
-            const lastRecvTime = Math.floor(data.last_recv_time / 1000000000); // 나노초를 초 단위로 변환
-            const timeDiff = currentTime - lastRecvTime;
-            
-            const isConnected = timeDiff <= data.elfin_reboot_interval;
-            
-            // 연결 상태 업데이트
-            statusElement.textContent = isConnected ? '응답 있음' : '응답 없음';
-            statusElement.className = `px-2 py-1 rounded text-sm ${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
-            
-            // 마지막 응답 시간 업데이트 (초 단위)
-            lastResponseElement.textContent = `${timeDiff}초 전`;
-        })
-        .catch(error => {
-            console.error('EW11 상태 업데이트 실패:', error);
-            const statusElement = document.getElementById('ew11ConnectionStatus');
-            statusElement.textContent = '상태 확인 실패';
-            statusElement.className = 'px-2 py-1 rounded text-sm bg-yellow-100 text-yellow-800';
-        });
-}
 // ===============================
 // 패킷 히스토리 관련 함수
 // ===============================
@@ -432,33 +449,58 @@ function displayPacketAnalysis(packet, results) {
     `).join('');
 }
 function analyzePacket(paddedPacket) {
-    const packet = paddedPacket || utils.cleanPacket(document.getElementById('packetInput').value);
+    const packetInput = document.getElementById('packetInput');
+    const resultDiv = document.getElementById('packetResult');
+    // 입력값에서 공백 제거
+    const packet = (paddedPacket || packetInput.value.replace(/[\s-]+/g, '').trim()).toUpperCase();
     
     if (!packet) {
         showAvailableHeaders();
         return;
     }
     
-    if (!utils.isValidPacket(packet)) {
-        if (packet.length >= 2 && /^[0-9A-F]+$/.test(packet)) {
-            analyzePacket(packet.padEnd(14, '0'));
+    if (!/^[0-9A-F]{14}$/.test(packet) && !/^[0-9A-F]{16}$/.test(packet)) {
+        if (packet.length >= 2) {
+            // 2자리 이상 입력된 경우 나머지를 00으로 채워서 분석
+            const paddedPacket = packet.padEnd(14, '0');
+            if (/^[0-9A-F]+$/.test(packet)) {
+                analyzePacket(paddedPacket);
+            }
         }
         return;
     }
     
+    // Enter 키로 분석한 경우에만 히스토리에 저장
     if (!paddedPacket) {
         packetHistory.save(packet);
     }
-
-    // API 호출 방식 수정
+    
+    // 헤더로 패킷 타입 자동 감지
+    const header = packet.substring(0, 2);
+    let packetType = 'command';  // 기본값
+    
+    // packetSuggestions이 초기화된 경우에만 패킷 타입 감지 시도
+    if (packetSuggestions && packetSuggestions.headers) {
+        const isState = packetSuggestions.headers.state.some(h => h.header === header);
+        const isStateRequest = packetSuggestions.headers.state_request.some(h => h.header === header);
+        const isAck = packetSuggestions.headers.ack.some(h => h.header === header);
+        if (isState) {
+            packetType = 'state';
+        } else if (isStateRequest) {
+            packetType = 'state_request';
+        } else if (isAck) {
+            packetType = 'ack';
+        }
+    }
+    
     fetch('./api/analyze_packet', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
             command: packet,
-            type: 'command'  // 기본값으로 command 타입 설정
+            type: packetType
         })
     })
     .then(response => response.json())
@@ -476,11 +518,12 @@ function analyzePacket(paddedPacket) {
                 }, {})
             }]);
         } else {
-            document.getElementById('packetResult').innerHTML = 
-                `<div class="text-red-500 dark:text-red-400">${data.error}</div>`;
+            resultDiv.innerHTML = `<p class="text-red-500">오류: ${data.error}</p>`;
         }
     })
-    .catch(error => console.error('패킷 분석 실패:', error));
+    .catch(error => {
+        resultDiv.innerHTML = `<p class="text-red-500">요청 실패: ${error}</p>`;
+    });
 }
 
 // 분석 버튼 클릭 이벤트 리스너
@@ -894,23 +937,18 @@ function stopPacketLogUpdate() {
 
 
 document.addEventListener('DOMContentLoaded', function() {
+    // 대시보드 초기화
+    const dashboard = new Dashboard();
+    
+    // 초기 상태 업데이트
+    dashboard.updateDeviceList();
+    dashboard.updateMqttStatus();
+    dashboard.updateEW11Status();
+
     fetch('./api/packet_suggestions')
         .then(response => response.json())
         .then(data => {
             packetSuggestions = data;
             showAvailableHeaders();
         });
-    updateDeviceList();
-    updatePacketDisplay();
-    loadReferencePacketStructures();
-    updateMqttStatus();
-    // 주기적 업데이트 설정
-    setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
-    setInterval(updateEW11Status, 5000);   // 5초마다 EW11 상태 업데이트
-    setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
-    setInterval(updateDeviceList, 10000);  // 10초마다 기기목록 업데이트
-    
-    // 초기 상태 업데이트
-    updateEW11Status();
-    
 });
