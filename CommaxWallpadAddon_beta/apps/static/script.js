@@ -112,6 +112,7 @@ function updateDeviceList() {
 // MQTT 상태 관련 함수
 // ===============================
 function updateMqttStatus() {
+    console.log("MQTT 상태 업데이트 시작");
     fetch('./api/mqtt_status')
         .then(response => response.json())
         .then(data => {
@@ -184,11 +185,14 @@ function updateMqttStatus() {
         });
 }
 function updateRecentMessages() {
+    console.log("최근 메시지 업데이트 시작");
     fetch('./api/recent_messages')
         .then(response => response.json())
         .then(data => {
             if (!data.messages || data.messages.length === 0) return;
 
+            console.log(`최근 메시지 수: ${data.messages.length}`);
+            console.log(`최근 메시지: ${data.messages}`);
             // 토픽별로 메시지 그룹화
             const messagesByTopic = {};
             data.messages.forEach(msg => {
@@ -489,7 +493,41 @@ function sendPacket() {
 document.getElementById('sendPacketButton').addEventListener('click', function() {
     sendPacket();
 });
-
+// 패킷 입력 필드 이벤트 리스너 설정
+const packetInput = document.getElementById('packetInput');
+if (packetInput) {
+    packetInput.addEventListener('input', handlePacketInput);
+    packetInput.addEventListener('keydown', function(e) {
+        const history = loadPacketHistory();
+        
+        if (e.key === 'Enter') {
+            analyzePacket();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (historyIndex === -1) {
+                currentInput = this.value;
+            }
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                this.value = history[historyIndex];
+                handlePacketInput({target: this});
+            }
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (historyIndex > -1) {
+                historyIndex--;
+                this.value = historyIndex === -1 ? currentInput : history[historyIndex];
+                handlePacketInput({target: this});
+            }
+        }
+    });
+    // 포커스를 얻을 때 입력값이 없으면 헤더 목록 표시
+    packetInput.addEventListener('focus', function() {
+        if (!this.value) {
+            showAvailableHeaders();
+        }
+    });
+}
 
 
 
@@ -845,47 +883,11 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePacketDisplay();
     loadReferencePacketStructures();
     updateMqttStatus();
-    
-    // 패킷 입력 필드 이벤트 리스너 설정
-    const packetInput = document.getElementById('packetInput');
-    if (packetInput) {
-        packetInput.addEventListener('input', handlePacketInput);
-        packetInput.addEventListener('keydown', function(e) {
-            const history = loadPacketHistory();
-            
-            if (e.key === 'Enter') {
-                analyzePacket();
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                if (historyIndex === -1) {
-                    currentInput = this.value;
-                }
-                if (historyIndex < history.length - 1) {
-                    historyIndex++;
-                    this.value = history[historyIndex];
-                    handlePacketInput({target: this});
-                }
-            } else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (historyIndex > -1) {
-                    historyIndex--;
-                    this.value = historyIndex === -1 ? currentInput : history[historyIndex];
-                    handlePacketInput({target: this});
-                }
-            }
-        });
-        // 포커스를 얻을 때 입력값이 없으면 헤더 목록 표시
-        packetInput.addEventListener('focus', function() {
-            if (!this.value) {
-                showAvailableHeaders();
-            }
-        });
-    }
     // 주기적 업데이트 설정
-    setInterval(updateDeviceList, 10000);  // 10초마다 기기목록 업데이트
     setInterval(updateMqttStatus, 5000);   // 5초마다 MQTT 상태 업데이트
-    setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
     setInterval(updateEW11Status, 5000);   // 5초마다 EW11 상태 업데이트
+    setInterval(updateRecentMessages, 2000); // 2초마다 최근 메시지 업데이트
+    setInterval(updateDeviceList, 10000);  // 10초마다 기기목록 업데이트
     
     // 초기 상태 업데이트
     updateEW11Status();
