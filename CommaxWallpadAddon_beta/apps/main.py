@@ -96,7 +96,7 @@ class WallpadController:
             if 'packet_file' in self.config:
                 default_file_path = self.config['packet_file']
             else:
-                default_file_path = f'/apps/packet_structures_{vendor}.yaml'
+                default_file_path = f'/apps/packet_structures_commax.yaml'
                 
             custom_file_path = f'/share/packet_structures_custom.yaml'
 
