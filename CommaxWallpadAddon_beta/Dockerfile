@@ -22,7 +22,7 @@ WORKDIR /share
 
 # Auto update on rebuild
 ARG GITHUB_BRANCH=main
-RUN git clone -b ${GITHUB_BRANCH} https://github.com/wooooooooooook/HAaddons /tmp/repo && \
+RUN git clone -b ${GITHUB_BRANCH} https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
     cp -r /tmp/repo/CommaxWallpadAddon_beta/apps /apps && \
     rm -rf /tmp/repo
 
