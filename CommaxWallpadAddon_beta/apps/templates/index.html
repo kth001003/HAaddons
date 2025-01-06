@@ -59,36 +59,29 @@
         <div id="dashboard" class="page">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                <!-- EW11 연결 상태 -->
+                <!-- 연결 상태 -->
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <h2 class="text-lg font-semibold mb-4 dark:text-white">EW11 연결 상태</h2>
-                    <div id="ew11Status" class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="dark:text-gray-300">연결 상태:</span>
-                            <span id="ew11ConnectionStatus" class="px-2 py-1 rounded text-sm dark:text-gray-300">확인중...</span>
+                    <h2 class="text-lg font-semibold mb-4 dark:text-white">연결 상태</h2>
+                    <div class="space-y-4">
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="dark:text-gray-300">EW11 연결:</span>
+                                <span id="ew11ConnectionStatus" class="px-2 py-1 rounded text-sm dark:text-gray-300">확인중...</span>
+                            </div>
                         </div>
-                        <div class="flex justify-between">
-                            <span class="dark:text-gray-300">마지막 응답 시간:</span>
-                            <span id="ew11LastResponse" class="dark:text-gray-300">-</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- MQTT 상태 -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <h2 class="text-lg font-semibold mb-4 dark:text-white">MQTT 연결 상태</h2>
-                    <div id="mqttStatus" class="space-y-2">
-                        <div class="flex justify-between">
-                            <span class="dark:text-gray-300">연결 상태:</span>
-                            <span id="connectionStatus" class="px-2 py-1 rounded text-sm dark:text-gray-300">연결 중...</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="dark:text-gray-300">브로커:</span>
-                            <span id="brokerInfo" class="dark:text-gray-300">-</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="dark:text-gray-300">클라이언트 ID:</span>
-                            <span id="clientId" class="dark:text-gray-300">-</span>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="dark:text-gray-300">MQTT 연결:</span>
+                                <span id="connectionStatus" class="px-2 py-1 rounded text-sm dark:text-gray-300">연결 중...</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="dark:text-gray-300">브로커:</span>
+                                <span id="brokerInfo" class="dark:text-gray-300">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="dark:text-gray-300">클라이언트 ID:</span>
+                                <span id="clientId" class="dark:text-gray-300">-</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -98,9 +91,6 @@
                     <h2 class="text-lg font-semibold mb-4 dark:text-white">청취 중인 채널</h2>
                     <div id="subscribedTopicsWithMessages" class="space-y-2 h-48 overflow-y-auto">
                         <!-- 채널별 최신 메시지가 여기에 동적으로 추가됩니다 -->
-                        <div class="text-center text-gray-500 py-4">
-                            <p>구독 중인 채널이 없습니다.</p>
-                        </div>
                     </div>
                     <div id="subscribedTopics" class="hidden">
                         <!-- 구독중인 토픽이 여기에 동적으로 추가됩니다 -->

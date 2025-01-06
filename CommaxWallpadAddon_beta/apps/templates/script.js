@@ -97,7 +97,6 @@ class Dashboard {
                 
                 // 구독 중인 토픽 표시
                 const topicsContainer = document.getElementById('subscribedTopicsWithMessages');
-                topicsContainer.innerHTML = ''; // 컨테이너 초기화
                 if (!data.subscribed_topics || data.subscribed_topics.length === 0) {
                     topicsContainer.innerHTML = `
                         <div class="text-center text-gray-500 py-4">
@@ -208,33 +207,27 @@ class Dashboard {
             .then(response => response.json())
             .then(data => {
                 const statusElement = document.getElementById('ew11ConnectionStatus');
-                const lastResponseElement = document.getElementById('ew11LastResponse');
                 
                 if (!data.last_recv_time) {
                     statusElement.textContent = '응답 없음';
-                    statusElement.className = 'px-2 py-1 rounded text-sm bg-red-100 text-red-800';
-                    lastResponseElement.textContent = '응답 기록 없음';
+                    statusElement.className = 'px-2 py-1 rounded text-sm bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100';
                     return;
                 }
                 
-                const currentTime = Math.floor(Date.now() / 1000); // 현재 시간을 초 단위로 변환
-                const lastRecvTime = Math.floor(data.last_recv_time / 1000000000); // 나노초를 초 단위로 변환
+                const currentTime = Math.floor(Date.now() / 1000);
+                const lastRecvTime = Math.floor(data.last_recv_time / 1000000000);
                 const timeDiff = currentTime - lastRecvTime;
                 
                 const isConnected = timeDiff <= data.elfin_reboot_interval;
                 
-                // 연결 상태 업데이트
-                statusElement.textContent = isConnected ? '응답 있음' : '응답 없음';
-                statusElement.className = `px-2 py-1 rounded text-sm ${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
-                
-                // 마지막 응답 시간 업데이트 (초 단위)
-                lastResponseElement.textContent = `${timeDiff}초 전`;
+                statusElement.textContent = isConnected ? '정상' : '응답 없음';
+                statusElement.className = `px-2 py-1 rounded text-sm ${isConnected ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100'}`;
             })
             .catch(error => {
                 console.error('EW11 상태 업데이트 실패:', error);
                 const statusElement = document.getElementById('ew11ConnectionStatus');
                 statusElement.textContent = '상태 확인 실패';
-                statusElement.className = 'px-2 py-1 rounded text-sm bg-yellow-100 text-yellow-800';
+                statusElement.className = 'px-2 py-1 rounded text-sm bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100';
             });
     }
 }

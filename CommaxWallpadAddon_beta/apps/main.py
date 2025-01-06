@@ -214,8 +214,7 @@ class WallpadController:
     async def on_mqtt_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], rc: int) -> None:
         """MQTT 연결 성공/실패 시 호출되는 콜백"""
         if rc == 0:
-            self.logger.info("MQTT broker 접속 완료")
-            self.logger.info("구독 시작")
+            self.logger.info("MQTT 브로커 접속 완료")
             try:
                 topics = [
                     (f'{self.HA_TOPIC}/+/+/command', 0),
@@ -1301,13 +1300,11 @@ class WallpadController:
                                     self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
                                     self.device_list = self.find_device()
                                     if self.device_list:
-                                        self.logger.info(f"기기 검색 완료: {json.dumps(self.device_list, ensure_ascii=False, indent=2)}")
                                         await self.publish_discovery_message()
                                         discovery_done.set()
                                     else:
                                         self.logger.warning("기기를 찾지 못했습니다.")
                                     device_search_done.set()
-                                    self.logger.info("기기 검색 완료 표시를 설정했습니다.")
                             
                             await self.process_queue_and_monitor()
                             await asyncio.sleep(queue_interval)
