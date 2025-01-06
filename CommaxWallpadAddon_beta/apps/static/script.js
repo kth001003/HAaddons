@@ -127,7 +127,6 @@ function updateMqttStatus() {
             // 구독 중인 토픽 표시
             const topicsContainer = document.getElementById('subscribedTopicsWithMessages');
             topicsContainer.innerHTML = ''; // 컨테이너 초기화
-            console.log(`구독중인 토픽:${data.subscribed_topics}`);
             if (!data.subscribed_topics || data.subscribed_topics.length === 0) {
                 topicsContainer.innerHTML = `
                     <div class="text-center text-gray-500 py-4">
@@ -137,6 +136,7 @@ function updateMqttStatus() {
                 return;
             }
 
+            console.log(`구독중인 토픽:${data.subscribed_topics}`);
             // 기존에 없는 토픽에 대한 div 추가
             data.subscribed_topics.forEach(topic => {
                 // 특수문자를 안전하게 처리하도록 수정
