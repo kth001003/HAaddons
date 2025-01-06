@@ -89,13 +89,13 @@ class PacketStructureEditor {
 
         for (const [deviceName, deviceData] of Object.entries(structure)) {
             const deviceSection = document.createElement('div');
-            deviceSection.className = 'border rounded-lg p-4 mb-4';
+            deviceSection.className = 'border border-gray-700 dark:bg-gray-800 rounded-lg p-4 mb-4';
             
             deviceSection.innerHTML = `
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-medium">${deviceName}</h3>
+                    <h3 class="text-lg font-medium dark:text-white">${deviceName}</h3>
                     <input type="text" value="${deviceData.type}" 
-                        class="border rounded px-2 py-1 text-sm"
+                        class="border border-gray-700 dark:bg-gray-700 dark:text-white rounded px-2 py-1 text-sm"
                         data-device="${deviceName}" data-field="type">
                 </div>
             `;
@@ -116,13 +116,13 @@ class PacketStructureEditor {
         section.className = 'mt-4 w-full sm:w-1/2 lg:w-1/4 inline-block align-top px-2';
 
         section.innerHTML = `
-            <div class="bg-gray-50 p-3 rounded-lg">
-                <h4 class="font-medium mb-2">${title}</h4>
+            <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                <h4 class="font-medium mb-2 dark:text-white">${title}</h4>
                 <div class="space-y-2">
                     <div class="flex items-center">
-                        <span class="w-20 text-sm">Header:</span>
+                        <span class="w-20 text-sm dark:text-gray-300">Header:</span>
                         <input type="text" value="${packetData.header}" 
-                            class="border rounded px-2 py-1 text-sm flex-1"
+                            class="border border-gray-700 dark:bg-gray-600 dark:text-white rounded px-2 py-1 text-sm flex-1"
                             data-device="${deviceName}" 
                             data-packet-type="${packetType}" 
                             data-field="header">
@@ -155,22 +155,22 @@ class PacketStructureEditor {
 
     createFieldHTML(deviceName, packetType, position, field) {
         return `
-            <div class="text-sm font-medium">Position ${position}</div>
+            <div class="text-sm font-medium dark:text-white">Position ${position}</div>
             <div class="space-y-1 mt-1">
                 <div>
-                    <label class="block text-xs text-gray-600">Name:</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400">Name:</label>
                     <input type="text" value="${field.name}" 
-                        class="border rounded px-2 py-1 text-sm w-full"
+                        class="border border-gray-700 dark:bg-gray-700 dark:text-white rounded px-2 py-1 text-sm w-full"
                         data-device="${deviceName}" 
                         data-packet-type="${packetType}" 
                         data-position="${position}"
                         data-field="name">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-600">Values:</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400">Values:</label>
                     <div class="space-y-1" id="values-${deviceName}-${packetType}-${position}">
                         ${this.createValuesHTML(deviceName, packetType, position, field.values)}
-                        <button class="text-sm text-blue-500 hover:text-blue-700" 
+                        <button class="text-sm text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300" 
                             onclick="window.packetEditor.addValue('${deviceName}', '${packetType}', '${position}')">
                             + 값 추가
                         </button>
@@ -184,20 +184,20 @@ class PacketStructureEditor {
         return Object.entries(values).map(([key, value]) => `
             <div class="grid grid-cols-9 gap-1">
                 <input type="text" value="${key}" 
-                    class="col-span-4 border rounded px-2 py-1 text-sm"
+                    class="col-span-4 border border-gray-700 dark:bg-gray-700 dark:text-white rounded px-2 py-1 text-sm"
                     placeholder="키"
                     data-device="${deviceName}" 
                     data-packet-type="${packetType}" 
                     data-position="${position}"
                     data-field="value-key">
                 <input type="text" value="${value}" 
-                    class="col-span-4 border rounded px-2 py-1 text-sm"
+                    class="col-span-4 border border-gray-700 dark:bg-gray-700 dark:text-white rounded px-2 py-1 text-sm"
                     placeholder="값"
                     data-device="${deviceName}" 
                     data-packet-type="${packetType}" 
                     data-position="${position}"
                     data-field="value-value">
-                <button class="text-red-500 hover:text-red-700" onclick="window.packetEditor.removeValue(this)">×</button>
+                <button class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" onclick="window.packetEditor.removeValue(this)">×</button>
             </div>
         `).join('');
     }

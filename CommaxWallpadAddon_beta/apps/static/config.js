@@ -40,21 +40,21 @@ class ConfigManager {
     // ... 기존 함수들을 클래스 메서드로 변환 ...
     createConfigField(key, value, schema) {
         const fieldDiv = document.createElement('div');
-        fieldDiv.className = 'border-b border-gray-200 py-2';
+        fieldDiv.className = 'border-b border-gray-700 dark:border-gray-600 py-2';
 
         // 객체인 경우 하위 설정 처리
         if (typeof value === 'object' && value !== null) {
             fieldDiv.innerHTML = `
                 <div class="mb-2">
-                    <label class="text-sm font-medium text-gray-700">${key}</label>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">${key}</label>
                 </div>
                 <div class="pl-4 space-y-2">
                     ${Object.entries(value).map(([subKey, subValue]) => `
                         <div class="flex items-center gap-2">
-                            <label class="text-sm text-gray-600 w-1/3">${subKey}:</label>
+                            <label class="text-sm text-gray-600 dark:text-gray-400 w-1/3">${subKey}:</label>
                             <input type="text" 
                                 value="${subValue}" 
-                                class="form-input block rounded-md border-gray-300 text-sm py-1"
+                                class="form-input block rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm py-1"
                                 data-key="${key}"
                                 data-subkey="${subKey}">
                         </div>
@@ -84,7 +84,7 @@ class ConfigManager {
         labelContainer.className = 'flex items-center gap-1 mb-1';
 
         const label = document.createElement('label');
-        label.className = 'text-sm font-medium text-gray-700';
+        label.className = 'text-sm font-medium text-gray-700 dark:text-gray-300';
         label.textContent = key;
 
         const isOptional = schema.endsWith('?');
@@ -99,6 +99,7 @@ class ConfigManager {
         if (schema.includes('(')) {
             const tooltip = this.createTooltip(schema);
             if (tooltip) {
+                tooltip.className = 'text-xs text-gray-500 dark:text-gray-400';
                 labelContainer.appendChild(tooltip);
             }
         }
@@ -136,7 +137,7 @@ class ConfigManager {
         schema = schema.replace('?', '');
 
         let input;
-        const baseClassName = 'form-input block w-full rounded-md border-gray-300 text-sm py-1';
+        const baseClassName = 'form-input block w-full rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm py-1';
 
         switch (schemaType) {
             case 'bool':
@@ -302,10 +303,6 @@ class ConfigManager {
             
             let value = this.parseInputValue(input, schemaType);
             
-            if (input.type === 'password' && value === '********') {
-                return;
-            }
-            
             if (subKey) {
                 if (!configData[key]) {
                     configData[key] = {};
@@ -334,7 +331,7 @@ class ConfigManager {
 
     showConfigMessage(message, isError) {
         this.messageElement.innerHTML = message.replace(/\n/g, '<br>');
-        this.messageElement.className = `text-sm ${isError ? 'text-red-600' : 'text-green-600'} whitespace-pre-line`;
+        this.messageElement.className = `text-sm ${isError ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'} whitespace-pre-line`;
     }
 }
 

@@ -38,11 +38,11 @@ function showPage(pageId) {
     // 네비게이션 메뉴 활성화 상태 변경
     document.querySelectorAll('nav a').forEach(link => {
         if (link.getAttribute('onclick').includes(pageId)) {
-            link.classList.add('border-indigo-500', 'text-gray-900');
-            link.classList.remove('border-transparent', 'text-gray-500');
+            link.classList.add('border-indigo-500', 'text-gray-900', 'dark:text-white');
+            link.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
         } else {
-            link.classList.remove('border-indigo-500', 'text-gray-900');
-            link.classList.add('border-transparent', 'text-gray-500');
+            link.classList.remove('border-indigo-500', 'text-gray-900', 'dark:text-white');
+            link.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
         }
     });
 
@@ -91,18 +91,18 @@ function updateDeviceList() {
             let html = '';
             for (const [deviceName, info] of Object.entries(data)) {
                 html += `
-                    <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                    <div class="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                         <div class="flex justify-between items-center">
-                            <h3 class="text-lg font-medium">${deviceName}</h3>
-                            <span class="text-sm text-gray-500">타입: ${info.type}</span>
+                            <h3 class="text-lg font-medium dark:text-white">${deviceName}</h3>
+                            <span class="text-sm text-gray-500 dark:text-gray-400">타입: ${info.type}</span>
                         </div>
-                        <div class="mt-2 text-sm text-gray-600">
+                        <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
                             개수: ${info.count}개
                         </div>
                     </div>
                 `;
             }
-            deviceListDiv.innerHTML = html || '<p class="text-gray-500">연결된 기기가 없습니다.</p>';
+            deviceListDiv.innerHTML = html || '<p class="text-gray-500 dark:text-gray-400">연결된 기기가 없습니다.</p>';
         })
         .catch(error => console.error('기기 목록 업데이트 실패:', error));
 }
@@ -119,8 +119,8 @@ function updateMqttStatus() {
             const statusElement = document.getElementById('connectionStatus');
             statusElement.textContent = data.connected ? '연결됨' : '연결 끊김';
             statusElement.className = data.connected ? 
-                'px-2 py-1 rounded text-sm bg-green-100 text-green-800' : 
-                'px-2 py-1 rounded text-sm bg-red-100 text-red-800';
+                'px-2 py-1 rounded text-sm bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 
+                'px-2 py-1 rounded text-sm bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100';
             
             document.getElementById('brokerInfo').textContent = data.broker || '-';
             document.getElementById('clientId').textContent = data.client_id || '-';
@@ -350,38 +350,38 @@ function detectPacketType(header) {
 function showAvailableHeaders() {
     if (!packetSuggestions) return;
     const resultDiv = document.getElementById('packetResult');
-    let html = '<h3 class="text-lg font-bold mb-2">사용 가능한 헤더:</h3>';
+    let html = '<h3 class="text-lg font-bold mb-2 dark:text-white">사용 가능한 헤더:</h3>';
     html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
     
     // 명령 패킷 헤더
     html += '<div class="space-y-2">';
-    html += '<h4 class="font-bold text-sm text-gray-600">명령 패킷</h4>';
+    html += '<h4 class="font-bold text-sm text-gray-600 dark:text-gray-400">명령 패킷</h4>';
     packetSuggestions.headers.command.forEach(header => {
-        html += `<div class="text-sm"><span class="font-mono bg-gray-100 px-1">${header.header}</span> - ${header.device}</div>`;
+        html += `<div class="text-sm"><span class="font-mono bg-gray-100 dark:bg-gray-700 px-1 dark:text-gray-300">${header.header}</span> - <span class="dark:text-gray-400">${header.device}</span></div>`;
     });
     html += '</div>';
     
     // 상태 패킷 헤더
     html += '<div class="space-y-2">';
-    html += '<h4 class="font-bold text-sm text-gray-600">상태 패킷</h4>';
+    html += '<h4 class="font-bold text-sm text-gray-600 dark:text-gray-400">상태 패킷</h4>';
     packetSuggestions.headers.state.forEach(header => {
-        html += `<div class="text-sm"><span class="font-mono bg-gray-100 px-1">${header.header}</span> - ${header.device}</div>`;
+        html += `<div class="text-sm"><span class="font-mono bg-gray-100 dark:bg-gray-700 px-1 dark:text-gray-300">${header.header}</span> - <span class="dark:text-gray-400">${header.device}</span></div>`;
     });
     html += '</div>';
     
     // 상태 요청 패킷 헤더
     html += '<div class="space-y-2">';
-    html += '<h4 class="font-bold text-sm text-gray-600">상태 요청 패킷</h4>';
+    html += '<h4 class="font-bold text-sm text-gray-600 dark:text-gray-400">상태 요청 패킷</h4>';
     packetSuggestions.headers.state_request.forEach(header => {
-        html += `<div class="text-sm"><span class="font-mono bg-gray-100 px-1">${header.header}</span> - ${header.device}</div>`;
+        html += `<div class="text-sm"><span class="font-mono bg-gray-100 dark:bg-gray-700 px-1 dark:text-gray-300">${header.header}</span> - <span class="dark:text-gray-400">${header.device}</span></div>`;
     });
     html += '</div>';
     
     // 응답 패킷 헤더
     html += '<div class="space-y-2">';
-    html += '<h4 class="font-bold text-sm text-gray-600">응답 패킷</h4>';
+    html += '<h4 class="font-bold text-sm text-gray-600 dark:text-gray-400">응답 패킷</h4>';
     packetSuggestions.headers.ack.forEach(header => {
-        html += `<div class="text-sm"><span class="font-mono bg-gray-100 px-1">${header.header}</span> - ${header.device}</div>`;
+        html += `<div class="text-sm"><span class="font-mono bg-gray-100 dark:bg-gray-700 px-1 dark:text-gray-300">${header.header}</span> - <span class="dark:text-gray-400">${header.device}</span></div>`;
     });
     html += '</div>';
     
@@ -410,25 +410,25 @@ function handlePacketInput(e) {
 function displayPacketAnalysis(packet, results) {
     const resultDiv = document.getElementById('packetResult');
     if (!results.length) {
-        resultDiv.innerHTML = `<div class="text-red-500">매칭되는 패킷 구조를 찾을 수 없습니다.</div>`;
+        resultDiv.innerHTML = `<div class="text-red-500 dark:text-red-400">매칭되는 패킷 구조를 찾을 수 없습니다.</div>`;
         return;
     }
 
     resultDiv.innerHTML = results.map(result => `
-        <div class="bg-white p-4 rounded-lg shadow mb-4">
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
             <div class="flex justify-between items-center mb-2">
-                <h3 class="text-lg font-medium">${result.device}</h3>
-                <span class="text-sm text-gray-500">${result.packet_type}</span>
+                <h3 class="text-lg font-medium dark:text-white">${result.device}</h3>
+                <span class="text-sm text-gray-500 dark:text-gray-400">${result.packet_type}</span>
             </div>
             ${Object.entries(result.byte_meanings || {}).map(([byte, meaning]) => `
                 <div class="mb-2">
-                    <span class="font-medium">Byte ${byte}:</span>
-                    <span class="ml-2">${meaning}</span>
+                    <span class="font-medium dark:text-gray-300">Byte ${byte}:</span>
+                    <span class="ml-2 dark:text-gray-400">${meaning}</span>
                 </div>
             `).join('')}
             ${result.description ? `
-                <div class="mt-4 text-sm text-gray-600">
-                    <span class="font-medium">설명:</span>
+                <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                    <span class="font-medium dark:text-gray-300">설명:</span>
                     <span class="ml-2">${result.description}</span>
                 </div>
             ` : ''}
@@ -481,7 +481,7 @@ function analyzePacket(paddedPacket) {
             }]);
         } else {
             document.getElementById('packetResult').innerHTML = 
-                `<div class="text-red-500">${data.error}</div>`;
+                `<div class="text-red-500 dark:text-red-400">${data.error}</div>`;
         }
     })
     .catch(error => console.error('패킷 분석 실패:', error));
@@ -575,10 +575,10 @@ function createPacketLogEntry(packet, type) {
     const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
     
     return `
-        <div class="packet-log-entry ${deviceClass} p-2 border-b border-gray-200 hover:bg-gray-50 cursor-pointer" onclick="handlePacketClick('${packet.packet}')">
-            <span class="inline-block min-w-[50px] mr-2 text-sm font-semibold ${type === 'send' ? 'text-green-600' : 'text-blue-600'}">[${type.toUpperCase()}]</span>
-            <span class="font-mono">${formattedPacket}</span>
-            <span class="inline-block min-w-[120px] ml-2 text-sm text-gray-600">[${deviceInfo.device} - ${deviceInfo.packet_type}]</span>
+        <div class="packet-log-entry ${deviceClass} p-2 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer" onclick="handlePacketClick('${packet.packet}')">
+            <span class="inline-block min-w-[50px] mr-2 text-sm font-semibold ${type === 'send' ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}">[${type.toUpperCase()}]</span>
+            <span class="font-mono dark:text-gray-300">${formattedPacket}</span>
+            <span class="inline-block min-w-[120px] ml-2 text-sm text-gray-600 dark:text-gray-400">[${deviceInfo.device} - ${deviceInfo.packet_type}]</span>
         </div>`;
 }
 
