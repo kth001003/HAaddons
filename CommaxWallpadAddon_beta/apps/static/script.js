@@ -138,7 +138,14 @@ function updateMqttStatus() {
 
             // 기존에 없는 토픽에 대한 div 추가
             data.subscribed_topics.forEach(topic => {
-                const topicId = `topic-${topic.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                // 특수문자를 안전하게 처리하도록 수정
+                const topicId = `topic-${topic.replace(/[^a-zA-Z0-9]/g, function(match) {
+                    // '/'와 '+' 문자를 각각 다르게 처리
+                    if (match === '/') return '-';
+                    if (match === '+') return 'plus';
+                    return '';
+                })}`;
+                
                 if (!document.getElementById(topicId)) {
                     const topicDiv = document.createElement('div');
                     topicDiv.id = topicId;
@@ -157,7 +164,10 @@ function updateMqttStatus() {
             // 더 이상 구독하지 않는 토픽의 div 제거
             const existingTopicDivs = topicsContainer.querySelectorAll('[id^="topic-"]');
             existingTopicDivs.forEach(div => {
-                const topicFromId = div.id.replace('topic-', '').replace(/-/g, '/');
+                // ID를 토픽으로 변환할 때도 동일한 규칙 적용
+                const topicFromId = div.id.replace('topic-', '')
+                    .replace(/-/g, '/')
+                    .replace(/plus/g, '+');
                 if (!data.subscribed_topics.includes(topicFromId)) {
                     div.remove();
                 }
@@ -178,16 +188,34 @@ function updateRecentMessages() {
 
             // 각 토픽의 div 업데이트
             Object.entries(messagesByTopic).forEach(([topic, msg]) => {
-                const topicId = `topic-${topic.replace(/[^a-zA-Z0-9]/g, '-')}`;
-                const topicDiv = document.getElementById(topicId);
-                if (topicDiv) {
-                    const timestamp = topicDiv.querySelector('span:last-child');
-                    const payload = topicDiv.querySelector('pre');
-                    if (timestamp && payload) {
-                        timestamp.textContent = msg.timestamp;
-                        payload.textContent = msg.payload;
-                    }
+                // 와일드카드 토픽 매칭을 위한 함수
+                function matchTopic(pattern, topic) {
+                    const patternParts = pattern.split('/');
+                    const topicParts = topic.split('/');
+                    
+                    if (patternParts.length !== topicParts.length) return false;
+                    
+                    return patternParts.every((part, i) => 
+                        part === '+' || part === topicParts[i]
+                    );
                 }
+
+                // 모든 구독 중인 토픽에 대해 매칭 확인
+                document.querySelectorAll('[id^="topic-"]').forEach(topicDiv => {
+                    const subscribedTopic = topicDiv.id
+                        .replace('topic-', '')
+                        .replace(/-/g, '/')
+                        .replace(/plus/g, '+');
+                    
+                    if (matchTopic(subscribedTopic, topic)) {
+                        const timestamp = topicDiv.querySelector('span:last-child');
+                        const payload = topicDiv.querySelector('pre');
+                        if (timestamp && payload) {
+                            timestamp.textContent = msg.timestamp;
+                            payload.textContent = msg.payload;
+                        }
+                    }
+                });
             });
         });
 }

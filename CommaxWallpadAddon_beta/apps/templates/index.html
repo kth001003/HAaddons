@@ -52,9 +52,9 @@
     <div class="max-w-full mx-auto px-2 sm:px-4 lg:px-4 py-4">
         <!-- 대시보드 페이지 -->
         <div id="dashboard" class="page">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <!-- 연결된 기기 -->
-                <div class="bg-white rounded-lg shadow p-6">
+                <div class="bg-white rounded-lg shadow p-6 col-span-2">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-lg font-semibold">현재 연결된 기기</h2>
                         <button onclick="refreshDevices()" class="bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-1 px-3 rounded flex items-center gap-1">
@@ -108,7 +108,7 @@
                 </div>
 
                 <!-- 청취 중인 채널 -->
-                <div class="bg-white rounded-lg shadow p-6">
+                <div class="bg-white rounded-lg shadow p-6 col-span-2">
                     <h2 class="text-lg font-semibold mb-4">청취 중인 채널</h2>
                     <div id="subscribedTopicsWithMessages" class="space-y-2 h-48 overflow-y-auto">
                         <!-- 채널별 최신 메시지가 여기에 동적으로 추가됩니다 -->
