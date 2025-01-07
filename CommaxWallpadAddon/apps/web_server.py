@@ -12,46 +12,36 @@ import requests # type: ignore
 from .utils import checksum
 from gevent.pywsgi import WSGIServer # type: ignore
 import sys
-
-SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN')
-
-def get_addon_info():
-    """Get the ingress URL from Supervisor API"""
-    if not SUPERVISOR_TOKEN:
-        return None
-        
-    headers = {
-        'Authorization': f'Bearer {SUPERVISOR_TOKEN}',
-        'Content-Type': 'application/json'
-    }
-    
-    try:
-        response = requests.get(
-            'http://supervisor/addons/self/info',
-            headers=headers
-        )
-        response.raise_for_status()
-        addon_info = response.json()['data']
-        return addon_info
-    except Exception as e:
-        print(f"Error getting ingress info: {e}")
-        return None
+from .supervisor_api import SupervisorAPI
 
 class WebServer:
     def __init__(self, wallpad_controller):
         # Flask 로깅 완전 비활성화
         logging.getLogger('werkzeug').disabled = True
         cli = sys.modules['flask.cli']
-        cli.show_server_banner = lambda *x: None
+        cli.show_server_banner = lambda *x: None # type: ignore
         
-        self.app = Flask(__name__, template_folder='templates')
+        self.app = Flask(__name__, template_folder='templates', static_folder='static')
+        self.app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # static 파일 캐싱 비활성화
         self.app.logger.disabled = True
         self.wallpad_controller = wallpad_controller
-        self.addon_info = get_addon_info()
-        self.recent_messages = []
-        self.server = None
         self.logger = wallpad_controller.logger
-
+        self.supervisor_api = SupervisorAPI()
+        
+        # addon_info 초기화
+        addon_info_result = self.supervisor_api.get_addon_info()
+        self.addon_info = addon_info_result.data if addon_info_result.success else None
+        
+        self.recent_messages = {}
+        self.server = None
+        
+        @self.app.after_request
+        def add_header(response):
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '-1'
+            return response
+        
         # 라우트 설정
         @self.app.route('/')
         def home():
@@ -60,9 +50,7 @@ class WebServer:
         @self.app.route('/api/live_packets')
         def live_packets():
             """실시간 패킷 데이터를 반환하는 API"""
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             return jsonify({
-                'timestamp': current_time,
                 'send_data': self.wallpad_controller.COLLECTDATA['send_data'],
                 'recv_data': self.wallpad_controller.COLLECTDATA['recv_data']
             })
@@ -145,10 +133,6 @@ class WebServer:
         def get_devices():
             return jsonify(self.wallpad_controller.device_list or {})
             
-        @self.app.route('/api/state')
-        def get_state():
-            return jsonify(self.wallpad_controller.HOMESTATE)
-
         @self.app.route('/api/mqtt_status')
         def get_mqtt_status():
             """MQTT 연결 상태 정보를 제공합니다."""
@@ -163,7 +147,7 @@ class WebServer:
             client = self.wallpad_controller.mqtt_client
             return jsonify({
                 'connected': client.is_connected(),
-                'broker': f"{self.wallpad_controller.config['mqtt_server']}",
+                'broker': f"{self.wallpad_controller.MQTT_HOST}",
                 'client_id': client._client_id.decode() if client._client_id else None,
                 'subscribed_topics': [
                     f'{self.wallpad_controller.HA_TOPIC}/+/+/command',
@@ -175,27 +159,9 @@ class WebServer:
         @self.app.route('/api/config', methods=['GET'])
         def get_config():
             """CONFIG 객체의 내용과 스키마를 제공합니다."""
-            # 하드코딩된 schema 정보 from config.json
-            schema = {
-                "DEBUG": "bool",
-                "mqtt_log": "bool",
-                "elfin_log": "bool",
-                "vendor": "list(commax|custom)",
-                "queue_interval_in_second": "float(0.01,1.0)",
-                "max_send_count": "int(1,99)",
-                "min_receive_count": "int(1,9)",
-                "climate_min_temp": "int(0,19)",
-                "climate_max_temp": "int(20,99)",
-                "mqtt_server": "match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)",
-                "mqtt_id": "str",
-                "mqtt_password": "str",
-                "mqtt_TOPIC": "str",
-                "elfin_auto_reboot": "bool",
-                "elfin_server": "match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)?",
-                "elfin_id": "str?",
-                "elfin_password": "str?",
-                "elfin_reboot_interval": "int"
-            }
+            # addon_info에서 schema 정보 가져오기
+            schema = self.addon_info.get('schema', {}) if self.addon_info else {}
+            
             return jsonify({
                 'config': self.wallpad_controller.config,
                 'schema': schema
@@ -209,120 +175,33 @@ class WebServer:
                 if not data:
                     return jsonify({'error': '설정 데이터가 없습니다.'}), 400
 
-                # 현재 설정 파일 읽기
-                with open('/data/options.json', 'r', encoding='utf-8') as f:
-                    current_options = json.load(f)
-
-                schema = current_options.get('schema', {})
+                # addon_info에서 현재 설정 가져오기
+                current_options = self.addon_info.get('options', {}) if self.addon_info else {}
                 
-                # 스키마 기반 유효성 검사
-                validation_errors = []
-                for key, value in data.items():
-                    if key in schema:
-                        field_schema = schema[key]
-                        schema_type = field_schema.split('(')[0]  # list(commax|custom) -> list
-                        
-                        # 필수/선택 필드 확인
-                        is_optional = field_schema.endswith('?')
-                        if not is_optional and value is None:
-                            validation_errors.append(f"{key}: 필수 항목입니다.")
-                            continue
-                            
-                        if value is not None:  # 값이 있는 경우에만 타입 검사
-                            # 타입 검사
-                            if schema_type == 'int':
-                                try:
-                                    val = int(value)
-                                    # int(min,max) 형식에서 범위 추출
-                                    if '(' in field_schema:
-                                        range_str = field_schema.split('(')[1].rstrip('?)')
-                                        if ',' in range_str:
-                                            min_val, max_val = map(int, range_str.split(','))
-                                            if val < min_val or val > max_val:
-                                                validation_errors.append(f"{key}: {min_val}에서 {max_val} 사이의 값이어야 합니다.")
-                                except (ValueError, TypeError):
-                                    validation_errors.append(f"{key}: 정수여야 합니다.")
-                            elif schema_type == 'float':
-                                try:
-                                    val = float(value)
-                                    # float(min,max) 형식에서 범위 추출
-                                    if '(' in field_schema:
-                                        range_str = field_schema.split('(')[1].rstrip('?)')
-                                        if ',' in range_str:
-                                            min_val, max_val = map(float, range_str.split(','))
-                                            if val < min_val or val > max_val:
-                                                validation_errors.append(f"{key}: {min_val}에서 {max_val} 사이의 값이어야 합니다.")
-                                except (ValueError, TypeError):
-                                    validation_errors.append(f"{key}: 실수여야 합니다.")
-                            elif schema_type == 'bool':
-                                if not isinstance(value, bool):
-                                    validation_errors.append(f"{key}: 참/거짓 값이어야 합니다.")
-                            elif schema_type == 'list':
-                                # list(commax|custom) 형식에서 가능한 값들 추출
-                                allowed_values = field_schema.split('(')[1].rstrip('?)').split('|')
-                                if value not in allowed_values:
-                                    validation_errors.append(f"{key}: {', '.join(allowed_values)} 중 하나여야 합니다.")
-                            elif schema_type == 'str':
-                                if not isinstance(value, str):
-                                    validation_errors.append(f"{key}: 문자열이어야 합니다.")
-                            elif schema_type == 'match':
-                                if not isinstance(value, str):
-                                    validation_errors.append(f"{key}: 문자열이어야 합니다.")
-                                else:
-                                    # match(정규식) 형식에서 정규식 추출
-                                    pattern = field_schema.split('(')[1].rstrip('?)').rstrip(')')
-                                    import re
-                                    if not re.match(pattern, value):
-                                        validation_errors.append(f"{key}: 올바른 형식이 아닙니다. (형식: {pattern})")
-                                    
-
-                if validation_errors:
-                    return jsonify({
-                        'success': False,
-                        'error': '유효성 검사 실패',
-                        'details': validation_errors
-                    }), 400
-
                 try:
-                    # 현재 설정과 새로운 설정을 병합
                     updated_options = current_options.copy()
                     updated_options.update(data)
 
-                    # API 호출을 위한 헤더와 데이터 준비
-                    headers = {
-                        'Authorization': f'Bearer {os.environ.get("SUPERVISOR_TOKEN", "")}',
-                        'Content-Type': 'application/json'
-                    }
-                    api_data = {
-                        'options': updated_options
-                    }
-
-                    # Supervisor API 호출
-                    response = requests.post(
-                        'http://supervisor/addons/self/options',
-                        headers=headers,
-                        json=api_data
-                    )
-
-                    if response.status_code != 200:
+                    # SupervisorAPI를 사용하여 설정 업데이트
+                    update_result = self.supervisor_api.update_addon_options(updated_options)
+                    if not update_result.success:
                         return jsonify({
                             'success': False,
-                            'error': f'설정 저장 실패: {response.text}'
+                            'error': update_result.message
                         }), 500
 
-                    # 애드온 재시작 요청
-                    restart_response = requests.post(
-                        'http://supervisor/addons/self/restart',
-                        headers=headers
-                    )
-
-                    if restart_response.status_code != 200:
+                    # SupervisorAPI를 사용하여 애드온 재시작
+                    restart_result = self.supervisor_api.restart_addon()
+                    if not restart_result.success:
                         return jsonify({
                             'success': False,
-                            'error': f'애드온 재시작 실패: {restart_response.text}'
+                            'error': restart_result.message
                         }), 500
-                    #전달되지 못할 response..
-                    return jsonify({'success': True, 'message': '설정이 저장되었습니다. 애드온을 재시작합니다.'})
+                    
+                    return jsonify({
+                        'success': True,
+                        'message': '설정을 저장했습니다. 이 메시지는 애드온이 재시작되어 전달되지 못합니다.'
+                    })
 
                 except Exception as e:
                     return jsonify({'error': str(e)}), 500
@@ -333,66 +212,47 @@ class WebServer:
         def get_recent_messages():
             """최근 MQTT 메시지 목록을 제공합니다."""
             return jsonify({
-                'messages': self.recent_messages[-100:]  # 최근 100개 메시지만 반환
+                'messages': self.recent_messages  # 전체 딕셔너리 반환
             })
 
         @self.app.route('/api/packet_logs')
         def get_packet_logs():
-            """패킷 로그를 제공합니다."""
+            """패킷 로그를 제공합니다.
+            
+            Returns:
+                dict: {
+                    'send': list[dict] - 송신 패킷 목록
+                        - packet: str - 패킷 데이터
+                        - results: dict - 패킷 분석 결과
+                            - device: str - 기기 종류
+                            - packet_type: str - 패킷 타입 ['command', 'state_request', 'state', 'ack']
+                    'recv': list[dict] - 수신 패킷 목록 (송신 패킷과 동일한 구조)
+                }
+            """
             try:
                 send_packets = []
                 recv_packets = []
 
-                # 가능한 패킷 타입
-                packet_types = ['command', 'state_request', 'state', 'ack']
-
-                # 송신 패킷 처리
-                send_data_set = set(self.wallpad_controller.COLLECTDATA['send_data'])
-                for packet in send_data_set:
-                    packet_info = {
-                        'packet': packet,
-                        'results': []
-                    }
-                    for packet_type in packet_types:
-                        device_info = self._analyze_packet_structure(packet, packet_type)
+                # 송신/수신 패킷 처리
+                for data_set, packets_list in [
+                    (set(self.wallpad_controller.COLLECTDATA['send_data']), send_packets),
+                    (set(self.wallpad_controller.COLLECTDATA['recv_data']), recv_packets)
+                ]:
+                    for packet in data_set:
+                        packet_info = {
+                            'packet': packet,
+                            'results': {
+                                'device': 'Unknown',
+                                'packet_type': 'Unknown'
+                            }
+                        }
+                        device_info = self._analyze_packet_structure(packet)
                         if device_info['success']:
-                            packet_info['results'].append({
+                            packet_info['results'] = {
                                 'device': device_info['device'],
-                                'packet_type': packet_type
-                            })
-                    
-                    # 분석 결과가 없는 경우 Unknown으로 처리
-                    if not packet_info['results']:
-                        packet_info['results'].append({
-                            'device': 'Unknown',
-                            'packet_type': 'Unknown'
-                        })
-
-                    send_packets.append(packet_info)
-
-                # 수신 패킷 처리 (송신 패킷 처리와 동일한 로직 적용)
-                recv_data_set = set(self.wallpad_controller.COLLECTDATA['recv_data'])
-                for packet in recv_data_set:
-                    packet_info = {
-                        'packet': packet,
-                        'results': []
-                    }
-                    for packet_type in packet_types:
-                        device_info = self._analyze_packet_structure(packet, packet_type)
-                        if device_info['success']:
-                            packet_info['results'].append({
-                                'device': device_info['device'],
-                                'packet_type': packet_type
-                            })
-
-                    # 분석 결과가 없는 경우 Unknown으로 처리
-                    if not packet_info['results']:
-                        packet_info['results'].append({
-                            'device': 'Unknown',
-                            'packet_type': 'Unknown'
-                        })
-
-                    recv_packets.append(packet_info)
+                                'packet_type': device_info['packet_type']
+                            }
+                        packets_list.append(packet_info)
 
                 return jsonify({
                     'send': send_packets,
@@ -411,24 +271,18 @@ class WebServer:
                 if os.path.exists('/share/commax_found_device.json'):
                     os.remove('/share/commax_found_device.json')
                 
-                # Supervisor API를 통해 애드온 재시작
-                headers = {
-                    'Authorization': f'Bearer {os.environ.get("SUPERVISOR_TOKEN", "")}',
-                    'Content-Type': 'application/json'
-                }
-                
-                response = requests.post(
-                    'http://supervisor/addons/self/restart',
-                    headers=headers
-                )
-
-                if response.status_code != 200:
+                # SupervisorAPI를 사용하여 애드온 재시작
+                restart_result = self.supervisor_api.restart_addon()
+                if not restart_result.success:
                     return jsonify({
                         'success': False,
-                        'error': f'애드온 재시작 실패: {response.text}'
+                        'error': restart_result.message
                     }), 500
-                # 전달되지 못할 response..
-                return jsonify({'success': True})
+                
+                return jsonify({
+                    'success': True,
+                    'message': '기기 검색을 시작합니다. 이 메시지는 애드온이 재시작되어 전달되지 못합니다.'
+                })
 
             except Exception as e:
                 return jsonify({
@@ -441,13 +295,12 @@ class WebServer:
             try:
                 data = request.get_json()
                 command = data.get('command', '').strip()
-                packet_type = data.get('type', 'command')  # 'command' 또는 'state'
 
                 # 체크섬 계산
                 checksum_result = checksum(command)
 
                 # 패킷 구조 분석
-                analysis_result = self._analyze_packet_structure(command, packet_type)
+                analysis_result = self._analyze_packet_structure(command)
 
                 if not analysis_result["success"]:
                     return jsonify(analysis_result), 400
@@ -459,8 +312,8 @@ class WebServer:
                     "checksum": checksum_result
                 }
 
-                # command 패킷 경우 예상 상태 패킷 추가
-                if packet_type == 'command' and checksum_result:
+                # command 패킷인 경우 예상 상태 패킷 추가
+                if analysis_result.get("packet_type") == "command" and checksum_result:
                     expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
                     if expected_state:
                         response["expected_state"] = {
@@ -634,25 +487,19 @@ class WebServer:
             except Exception as e:
                 return jsonify({'error': str(e), 'success': False})
 
-        # @self.app.route('/api/ingress_url')
-        # def ingress_url():
-        #     """Get the ingress URL for WebSocket connection"""
-        #     try:
-        #         ingress_url = self.addon_info.get('ingress_url')
-        #         if ingress_url:
-        #             return jsonify({
-        #                 'success': True,
-        #                 'ingress_url': ingress_url
-        #             })
-        #         return jsonify({
-        #             'success': False,
-        #             'error': 'Ingress URL not found'
-        #         })
-        #     except Exception as e:
-        #         return jsonify({
-        #             'success': False,
-        #             'error': str(e)
-        #         })
+        @self.app.route('/api/ew11_status')
+        def get_ew11_status():
+            try:
+                last_recv_time = self.wallpad_controller.COLLECTDATA.get('last_recv_time', 0)
+                elfin_reboot_interval = self.wallpad_controller.config['elfin'].get('elfin_reboot_interval', 10)
+                
+                return jsonify({
+                    'last_recv_time': last_recv_time,
+                    'elfin_reboot_interval': elfin_reboot_interval
+                })
+            except Exception as e:
+                self.logger.error(f"EW11 상태 조회 실패: {str(e)}")
+                return jsonify({'error': str(e)}), 500
 
     def _get_editable_fields(self, packet_data):
         """패킷 구조에서 편집 가능한 필드만 추출합니다."""
@@ -689,17 +536,22 @@ class WebServer:
                 current['structure'][position]['name'] = field.get('name', '')
                 current['structure'][position]['values'] = field.get('values', {})
 
-    def _analyze_packet_structure(self, command: str, packet_type: str) -> Dict[str, Any]:
+    def _analyze_packet_structure(self, command: str) -> Dict[str, Any]:
         """패킷 구조를 분석하고 관련 정보를 반환합니다."""
         # 헤더 기기 찾기
         header = command[:2]
         device_info = None
         device_name = None
+        packet_type = None
 
         for name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
-            if packet_type in device and device[packet_type]['header'] == header:
-                device_info = device[packet_type]
-                device_name = name
+            for ptype in ['command', 'state', 'state_request', 'ack']:
+                if ptype in device and device[ptype]['header'] == header:
+                    device_info = device[ptype]
+                    device_name = name
+                    packet_type = ptype
+                    break
+            if device_info:
                 break
 
         if not device_info:
@@ -742,6 +594,7 @@ class WebServer:
         return {
             "success": True,
             "device": device_name,
+            "packet_type": packet_type,
             "analysis": byte_analysis
         }
 
@@ -770,197 +623,12 @@ class WebServer:
                     byte_values[pos] = field['values']
                 if 'memo' in field:  # memo 필드가 있는 경우 저장
                     byte_memos[pos] = field['memo']
-
-        # # 예시 패킷 동적 생성
-        # if device['type'] == 'Thermo':
-        #     if packet_type == 'command':
-        #         # 온도조절기 켜기
-        #         packet = list('00' * 7)  # 7바이트 초기화
-        #         packet[0] = structure['header']  # 헤더
-        #         packet[1] = '01'  # 1번 온도조절기
-        #         packet[2] = '04'  # 전원
-        #         packet[3] = '81'  # ON
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 켜기"
-        #         })
-                
-        #         # 온도 설정
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 온도조절기
-        #         packet[2] = '03'  # 온도 설정
-        #         packet[3] = '18'  # 24도
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 온도 24도로 설정"
-        #         })
-        #     elif packet_type == 'state':
-        #         # 대기 상태
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '81'  # 상태
-        #         packet[2] = '01'  # 1번 온도조절기
-        #         packet[3] = '18'  # 24도
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 대기 상태 (현재 24도, 설정 24도)"
-        #         })
-                
-        #         # 난방 중
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '83'  # 난방
-        #         packet[2] = '01'  # 1번 온도조절기
-        #         packet[3] = '18'  # 24도
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 난방 중 (현재 24도, 설정 24도)"
-        #         })
-        #     elif packet_type == 'state_request':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 온도조절기
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 상태 요청"
-        #         })
-        #     elif packet_type == 'ack':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 온도조절기
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 온도조절기 상태 요청"
-        #         })
-                
-        # elif device['type'] == 'Light':
-        #     if packet_type == 'command':
-        #         # 조명 끄기
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 조명
-        #         packet[2] = '00'  # OFF
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 끄기"
-        #         })
-                
-        #         # 조명 켜기
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 조명
-        #         packet[2] = '01'  # ON
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 켜기"
-        #         })
-        #     elif packet_type == 'state':
-        #         # 조명 꺼짐
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '00'  # OFF
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 꺼짐"
-        #         })
-                
-        #         # 조명 켜짐
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # ON
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 켜짐"
-        #         })
-        #     elif packet_type == 'state_request':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 조명
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 상태 요청"
-        #         })
-        #     elif packet_type == 'ack':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 조명
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 조명 상태 요청"
-        #         })
-                
-        # elif device['type'] == 'Fan':
-        #     if packet_type == 'command':
-        #         # 환기장치 켜기
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 환기장치
-        #         packet[2] = '01'  # 전원
-        #         packet[3] = '04'  # ON
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 켜기"
-        #         })
-                
-        #         # 환기장치 약으로 설정
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 환기장치
-        #         packet[2] = '02'  # 풍량
-        #         packet[3] = '00'  # 약(low)
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 약(low)으로 설정"
-        #         })
-        #     elif packet_type == 'state':
-        #         # 환기장치 켜짐 (약)
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '04'  # ON
-        #         packet[2] = '01'  # 1번 환기장치
-        #         packet[3] = '00'  # 약(low)
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 켜짐 (약)"
-        #         })
-                
-        #         # 환기장치 꺼짐
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 꺼짐"
-        #         })
-        #     elif packet_type == 'state_request':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 환기장치
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 상태 요청"
-        #         })
-        #     elif packet_type == 'ack':
-        #         # 상태 요청
-        #         packet = list('00' * 7)
-        #         packet[0] = structure['header']
-        #         packet[1] = '01'  # 1번 환기장치
-        #         examples.append({
-        #             "packet": ''.join(packet),
-        #             "desc": "1번 환기장치 상태 요청"
-        #         })
         
         return {
             "header": structure['header'],
             "byte_desc": byte_desc,
             "byte_values": byte_values,
             "byte_memos": byte_memos,  # memo 정보 추가
-            # "examples": examples
         }
 
     def _get_device_info(self, packet: str) -> Dict[str, str]:
@@ -983,15 +651,11 @@ class WebServer:
         return {"name": "Unknown", "packet_type": "Unknown"}
 
     def add_mqtt_message(self, topic: str, payload: str) -> None:
-        """MQTT 메시지를 최근 메시지 목록에 추가합니다."""
-        self.recent_messages.append({
-            'topic': topic,
+        """MQTT 메시지를 토픽별로 저장합니다. 각 토픽당 최신 메시지만 유지합니다."""
+        self.recent_messages[topic] = {
             'payload': payload,
             'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
-        })
-        # 최근 100개 메시지만 유지
-        if len(self.recent_messages) > 100:
-            self.recent_messages = self.recent_messages[-100:] 
+        }
 
     def run(self):
         # Flask 서버 실행
@@ -1002,6 +666,7 @@ class WebServer:
     def _run_server(self):
         try:
             self.logger.info("웹서버 시작")
+            assert self.server is not None
             self.server.serve_forever()
         except Exception as e:
             self.logger.error(f"Server error: {e}")

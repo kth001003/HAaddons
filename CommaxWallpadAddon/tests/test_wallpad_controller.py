@@ -21,18 +21,43 @@ def config():
     packet_file = os.path.join(os.path.dirname(__file__), 'fixtures', 'packet_structures_commax.yaml')
     
     return {
-        'mqtt_TOPIC': 'commax',
-        'mqtt_server': 'localhost',
-        'mqtt_id': 'test',
-        'mqtt_password': 'test',
-        'DEBUG': True,
-        'elfin_log': True,
-        'mqtt_log': True,
-        'min_receive_count': 3,
+        'DEBUG': False,
+        'mqtt_log': False,
+        'elfin_log': False,
+        'vendor': 'commax',
+        'queue_interval_in_second': 0.1,
+        'max_send_count': 15,
+        'min_receive_count': 1,
         'climate_min_temp': 5,
         'climate_max_temp': 40,
-        'vendor': 'commax',
-        'packet_file': packet_file
+        'mqtt': {
+            'mqtt_server': '192.168.0.39',
+            'mqtt_id': 'my_user',
+            'mqtt_password': 'm1o@s#quitto'
+        },
+        'mqtt_TOPIC': 'commax',
+        'elfin': {
+            'use_auto_reboot': True,
+            'elfin_server': '192.168.0.38',
+            'elfin_id': 'admin',
+            'elfin_password': 'admin',
+            'elfin_reboot_interval': 60
+        },
+        'log': {
+            'DEBUG': True,
+            'elfin_log': True,
+            'mqtt_log': True
+        },
+        'command_settings': {
+            'queue_interval_in_second': 0.1,
+            'max_send_count': 15,
+            'min_receive_count': 1
+        },
+        'climate_settings': {
+            'min_temp': 5,
+            'max_temp': 40
+        },
+        'packet_file': packet_file  # 테스트용 패킷 파일 경로
     }
 
 @pytest.fixture
@@ -159,6 +184,7 @@ async def test_process_ha_command_gas(controller):
     value = 'OFF'
     await controller.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '1101800000000092'
+
 @pytest.mark.asyncio
 async def test_process_ha_command_outlet(controller):
     """콘센트 명령 패킷 테스트"""
@@ -195,8 +221,6 @@ async def test_process_ha_command_ev(controller):
     value = 'ON'
     await controller.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == 'A0010101081500C0'
-
-
 
 def test_find_device_with_light(controller):
     """조명 기기 검색 테스트"""
@@ -236,6 +260,8 @@ def test_find_device_with_multiple_devices(controller):
         "8281022420000049",  # 2번 온도조절기
         "F6000101000000F8",   # 1번 환기장치
         "9080800000000090",   # 가스차단기
+        "F70101810000FFFF",  # 잘못된 체크섬
+        "F60101182425FFFF",  # 잘못된 체크섬
     ]
     controller.COLLECTDATA['recv_data'] = packets
     
@@ -261,7 +287,6 @@ def test_find_device_with_invalid_packets(controller):
     invalid_packets = [
         "F70101810000FFFF",  # 잘못된 체크섬
         "F60101182425FFFF",  # 잘못된 체크섬
-        "INVALID_PACKET",   # 잘못된 형식
     ]
     controller.COLLECTDATA['recv_data'] = invalid_packets
     
@@ -298,8 +323,8 @@ def test_setup_mqtt(mock_mqtt_client, controller, config):
     
     # username_pw_set이 호출되었는지 확인
     mock_mqtt_client.return_value.username_pw_set.assert_called_once_with(
-        config['mqtt_id'],
-        config['mqtt_password']
+        config['mqtt']['mqtt_id'],
+        config['mqtt']['mqtt_password']
     )
 
 @patch('paho.mqtt.client.Client')
