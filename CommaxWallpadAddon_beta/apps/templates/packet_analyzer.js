@@ -338,7 +338,7 @@ class PacketAnalyzer {
         const accentClass = 'font-bold text-blue-600 dark:text-blue-400';
         const topBorderClass = 'mt-4 pt-4 border-t dark:border-gray-700';
         
-        function generateTableRow (label, values, isKey){
+        function generateTableRow(label, values, isKey) {
             if (isKey) {
                 return `
                     <tr>
@@ -349,11 +349,12 @@ class PacketAnalyzer {
                     </tr>
                 `;
             } else {
-                let result = ""
-                for (const item in values) {
-                    result += `<td class="${darkTextClass} font-mono px-2">${item.map(i=>i`<br>`)}</td>`
-                }
-                return result
+                return `<tr>
+                    <td class="text-left dark:text-gray-300 pr-2">${label}:</td>
+                    ${values.map(valueList => `
+                        <td class="${darkTextClass} font-mono px-2">${Array.isArray(valueList) ? valueList.join('<br>') : valueList}</td>
+                    `).join('')}
+                </tr>`;
             }
         }
 
