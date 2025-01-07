@@ -327,73 +327,75 @@ class PacketAnalyzer {
             return;
         }
 
+        const result = results[0];
+        const _device = result.device;
+        const _packet_type = result.packet_type;
+        const _required_bytes = result.expected_state?.required_bytes || [];
+        const _possible_values = result.expected_state?.possible_values || {};
+
         const darkTextClass = 'dark:text-gray-400';
         const darkHeadingClass = 'dark:text-white';
-        const darkBorderClass = 'dark:border-gray-700';
+        const topBorderClass = 'pt-4 border-t dark:border-gray-700';
+        
+        const generateTableRow = (label, values, isKey = false) => `
+            <tr>
+                <th class="text-left dark:text-gray-300 pr-2">${label}:</th>
+                ${values.map(value => `
+                    <td class="${darkTextClass} font-mono px-2 ${isKey && _required_bytes.includes(value) ? 'font-bold text-blue-600 dark:text-blue-400' : ''}">${value}</td>
+                `).join('')}
+            </tr>
+        `;
 
-        resultDiv.innerHTML = results.map(result => {
-            const _device = result.device
-            const _packet_type = result.packet_type
-            const _required_bytes = result.expected_state.required_bytes
-            const _possible_values = result.expected_state.possible_values
-            const generateTableRow = (label, values, isKey = false) => `
-                <tr>
-                    <th class="text-left dark:text-gray-300 pr-2">${label}:</th>
-                    ${values.map(value => `
-                        <td class="${darkTextClass} font-mono px-2 ${isKey && _required_bytes.includes(value) ? 'font-bold text-blue-600 dark:text-blue-400' : ''}">${value}</td>
-                    `).join('')}
-                </tr>
-            `;
-
-            const byteMeanings = Object.entries(result.byte_meanings || {})
-                .map(([byte, meaning]) => `
-                    <div class="mb-2">
-                        <span class="font-medium dark:text-gray-300">Byte ${byte}:</span>
-                        <span class="ml-2 ${darkTextClass}">${meaning}</span>
-                    </div>
-                `).join('');
-
-            const expectedStateContent = result.expected_state ? `
-                <div class="mt-4 border-t pt-4 ${darkBorderClass}">
-                    <h4 class="text-md font-medium mb-2 ${darkHeadingClass}">예상 상태 패킷</h4>
-                    <div class="space-y-2">
-                        ${_required_bytes ? `
-                            <div class="text-sm">
-                                <span class="font-medium dark:text-gray-300">필수 바이트:</span>
-                                <span class="ml-2 font-mono ${darkTextClass}">${_required_bytes}</span>
-                            </div>
-                        ` : ''}
-                        ${_possible_values ? `
-                            <div class="text-sm">
-                                <div class="ml-4">
-                                    <table class="w-full">
-                                        ${generateTableRow('위치', Object.keys(_possible_values), true)}
-                                        ${generateTableRow('가능한 값', Object.values(_possible_values))}
-                                    </table>
-                                </div>
-                            </div>
-                        ` : ''}
-                    </div>
+        const byteMeanings = Object.entries(result.byte_meanings || {})
+            .map(([byte, meaning]) => `
+                <div class="mb-2">
+                    <span class="font-medium dark:text-gray-300">Byte ${byte}:</span>
+                    <span class="ml-2 ${darkTextClass}">${meaning}</span>
                 </div>
-            ` : '';
+            `).join('');
 
-            return `
-                <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-                    <div class="flex items-center gap-2 mb-2">
-                        <h3 class="text-lg font-medium ${darkHeadingClass}">${_device}</h3>
-                        <span class="text-sm text-gray-500 ${darkTextClass}">${_packet_type}</span>
-                    </div>
-                    ${result.checksum ? `
-                        <div class="mt-4 pt-4 border-t ${darkBorderClass} text-gray-600 text-sm ${darkTextClass}">
-                            <span class="font-medium dark:text-gray-300">체크섬 포함 패킷:</span>
-                            <span class="ml-2">${result.checksum}</span>
+        const expectedStateContent = result.expected_state ? `
+            <div class="mt-4 ${topBorderClass}">
+                <h4 class="text-md font-medium mb-2 ${darkHeadingClass}">예상 상태 패킷</h4>
+                <div class="space-y-2">
+                    ${_required_bytes ? `
+                        <div class="text-sm">
+                            <span class="font-medium dark:text-gray-300">필수 바이트:</span>
+                            <span class="ml-2 font-mono ${darkTextClass}">${_required_bytes}</span>
                         </div>
                     ` : ''}
-                    ${byteMeanings}
-                    ${expectedStateContent}
+                    ${_possible_values ? `
+                        <div class="text-sm">
+                            <div class="ml-4">
+                                <table class="w-full">
+                                    ${generateTableRow('위치', Object.keys(_possible_values), true)}
+                                    ${generateTableRow('가능한 값', Object.values(_possible_values))}
+                                </table>
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
-            `;
-        }).join('');
+            </div>
+        ` : '';
+
+        resultDiv.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <h3 class="text-lg font-medium ${darkHeadingClass}">${_device}</h3>
+                    <span class="text-sm text-gray-500 ${darkTextClass}">${_packet_type}</span>
+                </div>
+                ${result.checksum ? `
+                    <div class="mt-4 ${topBorderClass} text-gray-600 text-sm ${darkTextClass}">
+                        <span class="font-medium dark:text-gray-300">체크섬 포함 패킷:</span>
+                        <span class="ml-2">${result.checksum}</span>
+                    </div>
+                ` : ''}
+                <div class="${topBorderClass}">
+                    ${byteMeanings}
+                </div>
+                ${expectedStateContent}
+            </div>
+        `;
     }
 
     analyzeExpectedState(packet) {
