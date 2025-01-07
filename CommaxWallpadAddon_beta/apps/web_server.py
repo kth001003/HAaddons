@@ -219,7 +219,18 @@ class WebServer:
 
         @self.app.route('/api/packet_logs')
         def get_packet_logs():
-            """패킷 로그를 제공합니다."""
+            """패킷 로그를 제공합니다.
+            
+            Returns:
+                dict: {
+                    'send': list[dict] - 송신 패킷 목록
+                        - packet: str - 패킷 데이터
+                        - results: dict - 패킷 분석 결과
+                            - device: str - 기기 종류
+                            - packet_type: str - 패킷 타입 ['command', 'state_request', 'state', 'ack']
+                    'recv': list[dict] - 수신 패킷 목록 (송신 패킷과 동일한 구조)
+                }
+            """
             try:
                 send_packets = []
                 recv_packets = []
@@ -232,22 +243,22 @@ class WebServer:
                 for packet in send_data_set:
                     packet_info = {
                         'packet': packet,
-                        'results': []
+                        'results': {}
                     }
                     for packet_type in packet_types:
                         device_info = self._analyze_packet_structure(packet, packet_type)
                         if device_info['success']:
-                            packet_info['results'].append({
+                            packet_info['results'] = {
                                 'device': device_info['device'],
                                 'packet_type': packet_type
-                            })
+                            }
                     
                     # 분석 결과가 없는 경우 Unknown으로 처리
                     if not packet_info['results']:
-                        packet_info['results'].append({
+                        packet_info['results'] = {
                             'device': 'Unknown',
                             'packet_type': 'Unknown'
-                        })
+                        }
 
                     send_packets.append(packet_info)
 
@@ -261,17 +272,17 @@ class WebServer:
                     for packet_type in packet_types:
                         device_info = self._analyze_packet_structure(packet, packet_type)
                         if device_info['success']:
-                            packet_info['results'].append({
+                            packet_info['results'] = {
                                 'device': device_info['device'],
                                 'packet_type': packet_type
-                            })
+                            }
 
                     # 분석 결과가 없는 경우 Unknown으로 처리
                     if not packet_info['results']:
-                        packet_info['results'].append({
+                        packet_info['results'] = {
                             'device': 'Unknown',
                             'packet_type': 'Unknown'
-                        })
+                        }
 
                     recv_packets.append(packet_info)
 
