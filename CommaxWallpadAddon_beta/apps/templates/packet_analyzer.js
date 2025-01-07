@@ -329,22 +329,22 @@ class PacketAnalyzer {
 
         resultDiv.innerHTML = results.map(result => `
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-                <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center mb-2">
                     <h3 class="text-lg font-medium dark:text-white">${result.device}</h3>
                     <span class="text-sm text-gray-500 dark:text-gray-400">${result.packet_type}</span>
                 </div>
+                ${result.checksum ? `
+                    <div class="mt-4 text-gray-600 dark:text-gray-400">
+                        <span class="font-medium dark:text-gray-300">체크섬 포함 패킷:</span>
+                        <span class="ml-2">${result.checksum}</span>
+                    </div>
+                ` : ''}
                 ${Object.entries(result.byte_meanings || {}).map(([byte, meaning]) => `
                     <div class="mb-2">
                         <span class="font-medium dark:text-gray-300">Byte ${byte}:</span>
                         <span class="ml-2 dark:text-gray-400">${meaning}</span>
                     </div>
                 `).join('')}
-                ${result.checksum ? `
-                    <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
-                        <span class="font-medium dark:text-gray-300">체크섬:</span>
-                        <span class="ml-2">${result.checksum}</span>
-                    </div>
-                ` : ''}
                 ${result.expected_state ? `
                     <div class="mt-4 border-t pt-4 dark:border-gray-700">
                         <h4 class="text-md font-medium mb-2 dark:text-white">예상 상태 패킷</h4>
@@ -357,17 +357,23 @@ class PacketAnalyzer {
                             ` : ''}
                             ${result.expected_state.possible_values ? `
                                 <div class="text-sm">
-                                    <span class="font-medium dark:text-gray-300">가능한 값:</span>
-                                    <div class="ml-4 space-y-1">
-                                        ${Object.entries(result.expected_state.possible_values).map(([key, value]) => `
-                                            <div class="dark:text-gray-400">
-                                                <span class="font-mono">${key}</span>: ${value}
-                                                <button onclick="packetAnalyzer.analyzeExpectedState('${key}')" 
-                                                        class="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                                                    분석
-                                                </button>
-                                            </div>
-                                        `).join('')}
+                                    <div class="ml-4">
+                                        <table class="w-full">
+                                            <thead>
+                                                <tr>
+                                                    <th class="text-left dark:text-gray-300">위치</th>
+                                                    <th class="text-left dark:text-gray-300">가능한 값</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${Object.entries(result.expected_state.possible_values).map(([key, value]) => `
+                                                    <tr>
+                                                        <td class="dark:text-gray-400 font-mono ${result.expected_state.required_bytes.includes(key) ? 'font-bold text-blue-600 dark:text-blue-400' : ''}">${key}</td>
+                                                        <td class="dark:text-gray-400">${value}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             ` : ''}
