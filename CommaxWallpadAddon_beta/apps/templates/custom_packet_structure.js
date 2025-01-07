@@ -7,7 +7,7 @@ class PacketStructureEditor {
             'ack': '응답 패킷'
         };
         
-        this.editorDiv = document.getElementById('packetStructureEditor');
+        this.editorDiv = document.getElementById('customPacketTabContents');
         this.messageElement = document.getElementById('packetEditorMessage');
         this.tabButtons = document.getElementById('customPacketDeviceTabs');
         this.tabContents = document.getElementById('customPacketTabContents');
