@@ -22,12 +22,12 @@ class PacketStructureEditor {
     }
 
     openTab(evt, deviceName) {
-        const tabcontents = document.getElementsByClassName("reference-tab-content");
+        const tabcontents = document.getElementsByClassName("custom-tab-content");
         for (let content of tabcontents) {
             content.classList.add('hidden');
         }
 
-        const tabButtons = this.tabButtons.getElementsByTagName('button');
+        const tabButtons = this.tabButtons.getElementsByClassName('custum-buttons');
         for (let button of tabButtons) {
             button.className = button.className
                 .replace('border-blue-500 text-blue-600', 'border-transparent text-gray-500')
@@ -123,7 +123,7 @@ class PacketStructureEditor {
         for (const [deviceName, deviceData] of Object.entries(structure)) {
             // 탭 버튼 생성
             const button = document.createElement('button');
-            button.className = `px-4 py-2 text-sm font-medium border-b-2 focus:outline-none transition-colors ${
+            button.className = `custum-buttons px-4 py-2 text-sm font-medium border-b-2 focus:outline-none transition-colors ${
                 isFirst ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`;
             button.setAttribute('custom-data-tab', deviceName);
@@ -134,7 +134,7 @@ class PacketStructureEditor {
             // 탭 컨텐츠 생성
             const deviceSection = document.createElement('div');
             deviceSection.id = `custom-device-${deviceName}`;
-            deviceSection.className = `reference-tab-content ${isFirst ? '' : 'hidden'}`;
+            deviceSection.className = `custom-tab-content ${isFirst ? '' : 'hidden'}`;
             
             const deviceContent = document.createElement('div');
             deviceContent.className = 'border border-gray-700 dark:bg-gray-800 rounded-lg p-4 mb-4';

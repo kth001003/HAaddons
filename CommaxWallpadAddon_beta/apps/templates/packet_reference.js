@@ -98,7 +98,7 @@ class PacketReference {
             content.classList.add('hidden');
         }
 
-        const tabButtons = document.getElementById('deviceTabs').getElementsByTagName('button');
+        const tabButtons = document.getElementById('deviceTabs').getElementsByClassName('reference-button');
         for (let button of tabButtons) {
             button.className = button.className
                 .replace('border-blue-500 text-blue-600', 'border-transparent text-gray-500')
@@ -130,7 +130,7 @@ class PacketReference {
                 
                 for (const [deviceName, deviceData] of Object.entries(structures)) {
                     const button = document.createElement('button');
-                    button.className = `px-4 py-2 text-sm font-medium border-b-2 focus:outline-none transition-colors ${
+                    button.className = `reference-button px-4 py-2 text-sm font-medium border-b-2 focus:outline-none transition-colors ${
                         isFirst ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`;
                     button.setAttribute('reference-data-tab', deviceName);
