@@ -20,7 +20,7 @@
                         <span class="text-xl font-bold dark:text-white">Commax Wallpad Controller</span>
                     </div>
                     <!-- 데스크톱 메뉴 -->
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                    <div class="hidden lg:ml-6 lg:flex lg:space-x-8">
                         <a href="#" onclick="showPage('dashboard')" class="border-indigo-500 text-gray-900 dark:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">대시보드</a>
                         <a href="#" onclick="showPage('settings')" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">설정</a>
                         <a href="#" onclick="showPage('live_packets')" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">실시간 패킷</a>
@@ -30,7 +30,7 @@
                     </div>
                 </div>
                 <!-- 모바일 메뉴 버튼 -->
-                <div class="sm:hidden flex items-center">
+                <div class="lg:hidden flex items-center">
                     <button type="button" onclick="toggleMobileMenu()" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
                         <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -41,7 +41,7 @@
         </div>
 
         <!-- 모바일 메뉴 드롭다운 -->
-        <div id="mobileMenu" class="hidden sm:hidden">
+        <div id="mobileMenu" class="hidden lg:hidden">
             <div class="px-2 pt-2 pb-3 space-y-1">
                 <a href="#" onclick="showPage('dashboard'); toggleMobileMenu()" class="bg-indigo-50 border-indigo-500 text-indigo-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">대시보드</a>
                 <a href="#" onclick="showPage('settings'); toggleMobileMenu()" class="border-transparent text-gray-500 dark:text-gray-300 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white block pl-3 pr-4 py-2 border-l-4 text-base font-medium">설정</a>
@@ -258,7 +258,7 @@
                     <!-- 기기별 편집 UI가 여기에 동적으로 추가됩니다 -->
                 </div>
 
-                <div class="mt-6 flex justify-between items-center">
+                <div class="mt-6 flex justify-end items-center">
                     <div class="space-x-2">
                         <button id="savePacketStructure" class="bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800 text-white font-bold py-2 px-4 rounded">
                             저장

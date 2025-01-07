@@ -26,18 +26,22 @@ class ConfigManager {
             }
 
             this.configForm.innerHTML = '';
+            
+            // 설정을 2컬럼으로 표시하기 위한 컨테이너 생성
+            const configContainer = document.createElement('div');
+            configContainer.className = 'grid grid-cols-1 md:grid-cols-2 gap-4';
+            this.configForm.appendChild(configContainer);
 
             // 스키마 기반으로 설정 UI 생성
             for (const [key, value] of Object.entries(data.config)) {
                 const schema = data.schema[key] || '';
-                this.configForm.appendChild(this.createConfigField(key, value, schema));
+                configContainer.appendChild(this.createConfigField(key, value, schema));
             }
         } catch (error) {
             this.showConfigMessage('설정을 불러오는 중 오류가 발생했습니다.', true);
         }
     }
 
-    // ... 기존 함수들을 클래스 메서드로 변환 ...
     createConfigField(key, value, schema) {
         const fieldDiv = document.createElement('div');
         fieldDiv.className = 'border-b border-gray-700 dark:border-gray-600 py-2';

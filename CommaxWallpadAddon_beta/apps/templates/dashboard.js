@@ -84,9 +84,9 @@ class Dashboard {
                         topicDiv.className = 'bg-gray-50 dark:bg-gray-800 p-2 rounded mb-1';
                         topicDiv.innerHTML = `
                             <div class="flex justify-between items-center">
-                                <div class="flex items-center gap-2">
+                                <div class="flex flex-col gap-1">
                                     <div class="font-medium text-gray-700 dark:text-gray-300">${topic}</div>
-                                    <pre class="text-xs text-gray-600 dark:text-gray-400">메시지 없음</pre>
+                                    <pre class="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-all">메시지 없음</pre>
                                 </div>
                                 <span class="text-xs text-gray-500 dark:text-gray-400">-</span>
                             </div>

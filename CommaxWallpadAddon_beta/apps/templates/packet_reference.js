@@ -69,7 +69,7 @@ class PacketReference {
         
         if (typeData.byte_memos && typeData.byte_memos[byte]) {
             const memoDiv = document.createElement('div');
-            memoDiv.className = 'mt-2 text-sm text-gray-500 dark:text-gray-400 italic';
+            memoDiv.className = 'mt-2 text-sm text-gray-500 dark:text-gray-400 italic whitespace-pre-wrap break-words';
             memoDiv.textContent = `💡 ${typeData.byte_memos[byte]}`;
             td.appendChild(memoDiv);
         }
