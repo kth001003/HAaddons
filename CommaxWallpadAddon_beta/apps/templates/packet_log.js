@@ -52,7 +52,7 @@ class PacketLogger {
     }
 
     createPacketLogEntry(packet, type) {
-        const deviceInfo = packet.results.length > 0 ? packet.results : { device: 'Unknown', packet_type: 'Unknown' };
+        const deviceInfo = packet.results;
         const deviceClass = deviceInfo.device === 'Unknown' ? 'unknown-packet' : '';
         const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
         

@@ -235,56 +235,26 @@ class WebServer:
                 send_packets = []
                 recv_packets = []
 
-                # 가능한 패킷 타입
-                packet_types = ['command', 'state_request', 'state', 'ack']
-
-                # 송신 패킷 처리
-                send_data_set = set(self.wallpad_controller.COLLECTDATA['send_data'])
-                for packet in send_data_set:
-                    packet_info = {
-                        'packet': packet,
-                        'results': {}
-                    }
-                    for packet_type in packet_types:
-                        device_info = self._analyze_packet_structure(packet, packet_type)
+                # 송신/수신 패킷 처리
+                for data_set, packets_list in [
+                    (set(self.wallpad_controller.COLLECTDATA['send_data']), send_packets),
+                    (set(self.wallpad_controller.COLLECTDATA['recv_data']), recv_packets)
+                ]:
+                    for packet in data_set:
+                        packet_info = {
+                            'packet': packet,
+                            'results': {
+                                'device': 'Unknown',
+                                'packet_type': 'Unknown'
+                            }
+                        }
+                        device_info = self._analyze_packet_structure(packet)
                         if device_info['success']:
                             packet_info['results'] = {
                                 'device': device_info['device'],
-                                'packet_type': packet_type
+                                'packet_type': device_info['packet_type']
                             }
-                    
-                    # 분석 결과가 없는 경우 Unknown으로 처리
-                    if not packet_info['results']:
-                        packet_info['results'] = {
-                            'device': 'Unknown',
-                            'packet_type': 'Unknown'
-                        }
-
-                    send_packets.append(packet_info)
-
-                # 수신 패킷 처리 (송신 패킷 처리와 동일한 로직 적용)
-                recv_data_set = set(self.wallpad_controller.COLLECTDATA['recv_data'])
-                for packet in recv_data_set:
-                    packet_info = {
-                        'packet': packet,
-                        'results': []
-                    }
-                    for packet_type in packet_types:
-                        device_info = self._analyze_packet_structure(packet, packet_type)
-                        if device_info['success']:
-                            packet_info['results'] = {
-                                'device': device_info['device'],
-                                'packet_type': packet_type
-                            }
-
-                    # 분석 결과가 없는 경우 Unknown으로 처리
-                    if not packet_info['results']:
-                        packet_info['results'] = {
-                            'device': 'Unknown',
-                            'packet_type': 'Unknown'
-                        }
-
-                    recv_packets.append(packet_info)
+                        packets_list.append(packet_info)
 
                 return jsonify({
                     'send': send_packets,
@@ -327,13 +297,12 @@ class WebServer:
             try:
                 data = request.get_json()
                 command = data.get('command', '').strip()
-                packet_type = data.get('type', 'command')  # 'command' 또는 'state'
 
                 # 체크섬 계산
                 checksum_result = checksum(command)
 
                 # 패킷 구조 분석
-                analysis_result = self._analyze_packet_structure(command, packet_type)
+                analysis_result = self._analyze_packet_structure(command)
 
                 if not analysis_result["success"]:
                     return jsonify(analysis_result), 400
@@ -345,8 +314,8 @@ class WebServer:
                     "checksum": checksum_result
                 }
 
-                # command 패킷 경우 예상 상태 패킷 추가
-                if packet_type == 'command' and checksum_result:
+                # command 패킷인 경우 예상 상태 패킷 추가
+                if analysis_result.get("packet_type") == "command" and checksum_result:
                     expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
                     if expected_state:
                         response["expected_state"] = {
@@ -569,17 +538,22 @@ class WebServer:
                 current['structure'][position]['name'] = field.get('name', '')
                 current['structure'][position]['values'] = field.get('values', {})
 
-    def _analyze_packet_structure(self, command: str, packet_type: str) -> Dict[str, Any]:
+    def _analyze_packet_structure(self, command: str) -> Dict[str, Any]:
         """패킷 구조를 분석하고 관련 정보를 반환합니다."""
         # 헤더 기기 찾기
         header = command[:2]
         device_info = None
         device_name = None
+        packet_type = None
 
         for name, device in self.wallpad_controller.DEVICE_STRUCTURE.items():
-            if packet_type in device and device[packet_type]['header'] == header:
-                device_info = device[packet_type]
-                device_name = name
+            for ptype in ['command', 'state', 'state_request', 'ack']:
+                if ptype in device and device[ptype]['header'] == header:
+                    device_info = device[ptype]
+                    device_name = name
+                    packet_type = ptype
+                    break
+            if device_info:
                 break
 
         if not device_info:
@@ -622,6 +596,7 @@ class WebServer:
         return {
             "success": True,
             "device": device_name,
+            "packet_type": packet_type,
             "analysis": byte_analysis
         }
 
