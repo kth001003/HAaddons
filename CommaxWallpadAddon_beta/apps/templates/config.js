@@ -67,7 +67,7 @@ class ConfigManager {
         fieldDiv.appendChild(labelContainer);
 
         const input = this.createInputBasedOnSchema(schemaItem, value);
-        fieldDiv.appendChild(input);
+        labelContainer.appendChild(input);
 
         return fieldDiv;
     }
@@ -131,7 +131,7 @@ class ConfigManager {
 
         return `
             <div class="flex items-start gap-2">
-                <label class="text-sm text-gray-600 dark:text-gray-400 w-1/2 text-left pt-1 whitespace-pre-wrap break-words" for="${fieldId}">
+                <label class="text-sm text-gray-600 dark:text-gray-400 w-1/2 text-left pt-1 break-words" for="${fieldId}">
                     ${subSchema.name}${isRequired}:
                 </label>
                 ${inputHtml}
