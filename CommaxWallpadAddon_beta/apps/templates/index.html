@@ -278,12 +278,13 @@
     </div>
 </div>
     <script>
-        {% include 'script.js' %}
+        {% include 'dashboard.js' %}
         {% include 'config.js' %}
+        {% include 'packet_analyzer.js' %}
+        {% include 'packet_log.js' %}
+        {% include 'packet_reference.js' %}
         {% include 'custom_packet_structure.js' %}
+        {% include 'script.js' %}
     </script>
-    <!-- <script src=".{{ url_for('static', filename='script.js') }}?{{ range(1000, 9999) | random }}"></script>
-    <script src=".{{ url_for('static', filename='config.js') }}?{{ range(1000, 9999) | random }}"></script>
-    <script src=".{{ url_for('static', filename='custom_packet_structure.js') }}?{{ range(1000, 9999) | random }}"></script> -->
 </body>
 </html>
