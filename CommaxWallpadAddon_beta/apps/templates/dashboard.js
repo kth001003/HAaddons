@@ -86,7 +86,7 @@ class Dashboard {
                             <div class="flex justify-between items-center">
                                 <div class="flex flex-col gap-1">
                                     <div class="font-medium text-gray-700 dark:text-gray-300">${topic}</div>
-                                    <pre class="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-all">메시지 없음</pre>
+                                    <pre class="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-all">-</pre>
                                 </div>
                                 <span class="text-xs text-gray-500 dark:text-gray-400">-</span>
                             </div>

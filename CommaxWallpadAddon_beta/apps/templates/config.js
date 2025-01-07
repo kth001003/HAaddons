@@ -33,226 +33,159 @@ class ConfigManager {
             this.configForm.appendChild(configContainer);
 
             // 스키마 기반으로 설정 UI 생성
-            for (const [key, value] of Object.entries(data.config)) {
-                const schema = data.schema[key] || '';
-                configContainer.appendChild(this.createConfigField(key, value, schema));
-            }
+            data.schema.forEach(schemaItem => {
+                const value = data.config[schemaItem.name];
+                configContainer.appendChild(this.createConfigField(schemaItem, value));
+            });
         } catch (error) {
             this.showConfigMessage('설정을 불러오는 중 오류가 발생했습니다.', true);
         }
     }
 
-    createConfigField(key, value, schema) {
+    createConfigField(schemaItem, value) {
         const fieldDiv = document.createElement('div');
         fieldDiv.className = 'border-b border-gray-700 dark:border-gray-600 py-2';
 
-        // 객체인 경우 하위 설정 처리
-        if (typeof value === 'object' && value !== null) {
+        // 스키마 타입이 schema인 경우 하위 설정 처리
+        if (schemaItem.type === 'schema') {
             fieldDiv.innerHTML = `
                 <div class="mb-2">
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">${key}</label>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">${schemaItem.name}</label>
                 </div>
                 <div class="pl-4 space-y-2">
-                    ${Object.entries(value).map(([subKey, subValue]) => `
-                        <div class="flex items-center gap-2">
-                            <label class="text-sm text-gray-600 dark:text-gray-400 w-1/3 whitespace-pre-wrap break-words">${subKey}:</label>
-                            <input type="text" 
-                                value="${subValue}" 
-                                class="form-input block rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
-                                data-key="${key}"
-                                data-subkey="${subKey}">
-                        </div>
-                    `).join('')}
+                    ${schemaItem.schema.map(subSchema => {
+                        const subValue = value ? value[subSchema.name] : '';
+                        return this.createSchemaSubField(subSchema, subValue, schemaItem.name);
+                    }).join('')}
                 </div>
             `;
             return fieldDiv;
         }
 
-        // 기존 단일 설정 처리
-        const labelContainer = this.createLabelContainer(key, schema);
+        // 기본 필드 생성
+        const labelContainer = this.createLabelContainer(schemaItem);
         fieldDiv.appendChild(labelContainer);
 
-        const description = document.createElement('p');
-        description.className = 'text-xs text-gray-500 mb-1';
-        description.textContent = '';
-        fieldDiv.appendChild(description);
-
-        const input = this.createInputField(key, value, schema);
+        const input = this.createInputBasedOnSchema(schemaItem, value);
         fieldDiv.appendChild(input);
 
         return fieldDiv;
     }
 
-    createLabelContainer(key, schema) {
+    createSchemaSubField(subSchema, value, parentKey) {
+        let inputHtml = '';
+        const isRequired = subSchema.required ? '*' : '';
+        const fieldId = `${parentKey}-${subSchema.name}`;
+
+        switch (subSchema.type) {
+            case 'boolean':
+                inputHtml = `
+                    <select class="form-input block rounded-md border-gray-700 w-2/3 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
+                            id="${fieldId}"
+                            data-key="${parentKey}"
+                            data-subkey="${subSchema.name}"
+                            data-type="bool"
+                            ${subSchema.required ? 'required' : ''}>
+                        <option value="true" ${value === true ? 'selected' : ''}>예 (true)</option>
+                        <option value="false" ${value === false ? 'selected' : ''}>아니오 (false)</option>
+                    </select>`;
+                break;
+            case 'integer':
+                inputHtml = `
+                    <input type="number"
+                           class="form-input block rounded-md border-gray-700 w-2/3 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
+                           id="${fieldId}"
+                           value="${value || ''}"
+                           data-key="${parentKey}"
+                           data-subkey="${subSchema.name}"
+                           data-type="int"
+                           ${subSchema.lengthMin !== undefined ? `min="${subSchema.lengthMin}"` : ''}
+                           ${subSchema.lengthMax !== undefined ? `max="${subSchema.lengthMax}"` : ''}
+                           ${subSchema.required ? 'required' : ''}>`;
+                break;
+            case 'float':
+                inputHtml = `
+                    <input type="number"
+                           step="0.01"
+                           class="form-input block rounded-md border-gray-700 w-2/3 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
+                           id="${fieldId}"
+                           value="${value || ''}"
+                           data-key="${parentKey}"
+                           data-subkey="${subSchema.name}"
+                           data-type="float"
+                           ${subSchema.lengthMin !== undefined ? `min="${subSchema.lengthMin}"` : ''}
+                           ${subSchema.lengthMax !== undefined ? `max="${subSchema.lengthMax}"` : ''}
+                           ${subSchema.required ? 'required' : ''}>`;
+                break;
+            default:
+                inputHtml = `
+                    <input type="text"
+                           class="form-input block rounded-md border-gray-700 w-2/3 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
+                           id="${fieldId}"
+                           value="${value || ''}"
+                           data-key="${parentKey}"
+                           data-subkey="${subSchema.name}"
+                           data-type="string"
+                           ${subSchema.required ? 'required' : ''}>`;
+        }
+
+        return `
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-600 dark:text-gray-400 w-1/3 whitespace-pre-wrap break-words" for="${fieldId}">
+                    ${subSchema.name}${isRequired}:
+                </label>
+                ${inputHtml}
+            </div>`;
+    }
+
+    createLabelContainer(schemaItem) {
         const labelContainer = document.createElement('div');
         labelContainer.className = 'flex items-center gap-1 mb-1';
 
         const label = document.createElement('label');
         label.className = 'text-sm font-medium text-gray-700 dark:text-gray-300';
-        label.textContent = key;
+        label.textContent = schemaItem.name;
 
-        const isOptional = schema.endsWith('?');
-        if (!isOptional) {
+        if (schemaItem.required) {
             label.textContent += ' *';
         }
-        schema = schema.replace('?', '');
 
         labelContainer.appendChild(label);
-
-        // 스키마 타입에 따른 툴팁 추가
-        if (schema.includes('(')) {
-            const tooltip = this.createTooltip(schema);
-            if (tooltip) {
-                tooltip.className = 'text-xs text-gray-500 dark:text-gray-400';
-                labelContainer.appendChild(tooltip);
-            }
-        }
 
         return labelContainer;
     }
 
-    createTooltip(schema) {
-        const schemaType = schema.split('(')[0];
-        const tooltip = document.createElement('span');
-        tooltip.className = 'text-xs text-gray-500';
+    createInputBasedOnSchema(schemaItem, value) {
+        const input = document.createElement(schemaItem.type === 'select' ? 'select' : 'input');
+        input.className = 'form-input block w-full rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1';
+        input.id = `config-${schemaItem.name}`;
+        input.dataset.key = schemaItem.name;
+        input.dataset.schemaType = schemaItem.type;
 
-        if (schemaType === 'int' || schemaType === 'float') {
-            const rangeMatch = schema.match(/\(([^)]+)\)/);
-            if (rangeMatch) {
-                const [min, max] = rangeMatch[1].split(',').map(v => v.trim());
-                tooltip.textContent = `(${min || '제한없음'} ~ ${max || '제한없음'})`;
-                return tooltip;
-            }
-        } else if (schemaType === 'list') {
-            const options = schema.split('(')[1].replace('?)', '').replace(')', '');
-            tooltip.textContent = `(${options})`;
-            return tooltip;
-        } else if (schema === 'match(^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$)') {
-            tooltip.textContent = '(예: 192.168.0.2)';
-            return tooltip;
-        }
-
-        return null;
-    }
-
-    createInputField(key, value, schema) {
-        const schemaType = schema.split('(')[0];
-        const isOptional = schema.endsWith('?');
-        schema = schema.replace('?', '');
-
-        let input;
-        const baseClassName = 'form-input block w-full rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1';
-
-        switch (schemaType) {
-            case 'bool':
-                input = this.createSelectInput(['true', 'false'], value === true, baseClassName);
-                break;
-            case 'list':
-                const options = schema.split('(')[1].replace('?)', '').replace(')', '').split('|');
-                input = this.createSelectInput(options, value, baseClassName);
-                break;
-            case 'int':
-            case 'float':
-                input = this.createNumberInput(schema, value, schemaType, baseClassName);
-                break;
-            case 'match':
-                input = this.createMatchInput(schema, value, baseClassName);
-                break;
-            default:
-                input = this.createTextInput(value, baseClassName);
-        }
-
-        input.id = `config-${key}`;
-        input.dataset.key = key;
-        input.dataset.type = schemaType;
-        if (!isOptional) {
+        if (schemaItem.required) {
             input.required = true;
         }
 
-        return input;
-    }
-
-    createSelectInput(options, selectedValue, className) {
-        const select = document.createElement('select');
-        select.className = className;
-
-        options.forEach(option => {
-            const optionElement = document.createElement('option');
-            optionElement.value = option;
-            optionElement.textContent = option === 'true' ? '예 (true)' : 
-                                      option === 'false' ? '아니오 (false)' : 
-                                      option;
-            optionElement.selected = option === String(selectedValue);
-            select.appendChild(optionElement);
-        });
-
-        return select;
-    }
-
-    createNumberInput(schema, value, type, className) {
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.value = value;
-        input.className = className;
-        input.step = type === 'float' ? '0.01' : '1';
-
-        if (schema.includes('(')) {
-            const rangeMatch = schema.match(/\(([^)]+)\)/);
-            if (rangeMatch) {
-                const [min, max] = rangeMatch[1].split(',').map(v => v.trim());
-                if (min) input.min = min;
-                if (max) input.max = max;
-                this.addRangeValidation(input, min, max, type);
+        if (schemaItem.type === 'select') {
+            schemaItem.options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                optionElement.selected = option === value;
+                input.appendChild(optionElement);
+            });
+        } else {
+            const inputType = schemaItem.type === 'string' ? 'text' : 
+                            schemaItem.type === 'integer' || schemaItem.type === 'float' ? 'number' : 
+                            'text';
+            input.setAttribute('type', inputType);
+            if (schemaItem.type === 'float') {
+                input.setAttribute('step', '0.01');
             }
+            input.value = value || '';
         }
 
         return input;
-    }
-
-    createMatchInput(schema, value, className) {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = value;
-        input.className = className;
-
-        const pattern = schema.split('(')[1].replace('?)', '').replace(')', '');
-        input.pattern = pattern;
-        this.addPatternValidation(input, pattern);
-
-        return input;
-    }
-
-    createTextInput(value, className) {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = value;
-        input.className = className;
-        return input;
-    }
-
-    addRangeValidation(input, min, max, type) {
-        input.addEventListener('input', function() {
-            const val = type === 'int' ? parseInt(this.value) : parseFloat(this.value);
-            if (min && val < parseFloat(min)) {
-                this.setCustomValidity(`최소값은 ${min}입니다.`);
-            } else if (max && val > parseFloat(max)) {
-                this.setCustomValidity(`최대값은 ${max}입니다.`);
-            } else {
-                this.setCustomValidity('');
-            }
-        });
-    }
-
-    addPatternValidation(input, pattern) {
-        input.addEventListener('input', function() {
-            const regex = new RegExp(pattern);
-            if (!regex.test(this.value)) {
-                const isIpPattern = pattern === '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$';
-                this.setCustomValidity(isIpPattern ? '올바른 IP 주소 형식이 아닙니다.' : '올바른 형식이 아닙니다.');
-            } else {
-                this.setCustomValidity('');
-            }
-        });
     }
 
     async saveConfig() {
