@@ -80,11 +80,13 @@ class PacketLogger {
                         if (isLive) {
                             const packetKey = `${type}:${packet.packet}`;
                             if(!packetSet.has(packetKey)){
+                                packetSet.add(packetKey)
                                 newContent = this.createPacketLogEntry(packet, type) + newContent;
                             }
                         } else {
                             const packetKey = `${type}:${packet.packet}:${packet.results.device}:${packet.results.packet_type}`
                             if(!packetSet.has(packetKey)){
+                                packetSet.add(packetKey)
                                 let packetArray = Array.from(packetSet).sort()
                                 // 패킷 배열을 순회하며 정렬된 순서로 newContent 생성
                                 for (const key of packetArray) {
