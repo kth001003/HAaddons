@@ -50,9 +50,9 @@ class ConfigManager {
         if (schemaItem.type === 'schema') {
             fieldDiv.innerHTML = `
                 <div class="mb-2">
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">${schemaItem.name}</label>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 text-left block">${schemaItem.name}</label>
                 </div>
-                <div class="pl-4 space-y-2">
+                <div class="pl-3 space-y-1">
                     ${schemaItem.schema.map(subSchema => {
                         const subValue = value ? value[subSchema.name] : '';
                         return this.createSchemaSubField(subSchema, subValue, schemaItem.name);
@@ -80,7 +80,7 @@ class ConfigManager {
         switch (subSchema.type) {
             case 'boolean':
                 inputHtml = `
-                    <select class="form-input block rounded-md border-gray-700 w-2/3 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
+                    <select class="form-input block rounded-md border-gray-700 w-1/2 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
                             id="${fieldId}"
                             data-key="${parentKey}"
                             data-subkey="${subSchema.name}"
@@ -93,7 +93,7 @@ class ConfigManager {
             case 'integer':
                 inputHtml = `
                     <input type="number"
-                           class="form-input block rounded-md border-gray-700 w-2/3 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
+                           class="form-input block rounded-md border-gray-700 w-1/2 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
                            id="${fieldId}"
                            value="${value || ''}"
                            data-key="${parentKey}"
@@ -107,7 +107,7 @@ class ConfigManager {
                 inputHtml = `
                     <input type="number"
                            step="0.01"
-                           class="form-input block rounded-md border-gray-700 w-2/3 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
+                           class="form-input block rounded-md border-gray-700 w-1/2 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
                            id="${fieldId}"
                            value="${value || ''}"
                            data-key="${parentKey}"
@@ -120,7 +120,7 @@ class ConfigManager {
             default:
                 inputHtml = `
                     <input type="text"
-                           class="form-input block rounded-md border-gray-700 w-2/3 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
+                           class="form-input block rounded-md border-gray-700 w-1/2 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
                            id="${fieldId}"
                            value="${value || ''}"
                            data-key="${parentKey}"
@@ -130,8 +130,8 @@ class ConfigManager {
         }
 
         return `
-            <div class="flex items-center gap-2">
-                <label class="text-sm text-gray-600 dark:text-gray-400 w-1/3 whitespace-pre-wrap break-words" for="${fieldId}">
+            <div class="flex items-start gap-2">
+                <label class="text-sm text-gray-600 dark:text-gray-400 w-1/2 text-left pt-1 whitespace-pre-wrap break-words" for="${fieldId}">
                     ${subSchema.name}${isRequired}:
                 </label>
                 ${inputHtml}
@@ -140,10 +140,10 @@ class ConfigManager {
 
     createLabelContainer(schemaItem) {
         const labelContainer = document.createElement('div');
-        labelContainer.className = 'flex items-center gap-1 mb-1';
+        labelContainer.className = 'flex items-start gap-2 mb-1';
 
         const label = document.createElement('label');
-        label.className = 'text-sm font-medium text-gray-700 dark:text-gray-300';
+        label.className = 'text-sm w-1/2 font-medium text-gray-700 dark:text-gray-300 text-left';
         label.textContent = schemaItem.name;
 
         if (schemaItem.required) {
@@ -157,7 +157,7 @@ class ConfigManager {
 
     createInputBasedOnSchema(schemaItem, value) {
         const input = document.createElement(schemaItem.type === 'select' ? 'select' : 'input');
-        input.className = 'form-input block w-full rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1';
+        input.className = 'form-input block w-1/2 rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1';
         input.id = `config-${schemaItem.name}`;
         input.dataset.key = schemaItem.name;
         input.dataset.schemaType = schemaItem.type;
