@@ -335,16 +335,27 @@ class PacketAnalyzer {
 
         const darkTextClass = 'dark:text-gray-400';
         const darkHeadingClass = 'dark:text-white';
-        const topBorderClass = 'pt-4 border-t dark:border-gray-700';
+        const accentClass = 'font-bold text-blue-600 dark:text-blue-400';
+        const topBorderClass = 'mt-4 pt-4 border-t dark:border-gray-700';
         
-        const generateTableRow = (label, values, isKey = false) => `
-            <tr>
-                <th class="text-left dark:text-gray-300 pr-2">${label}:</th>
-                ${values.map(value => `
-                    <td class="${darkTextClass} font-mono px-2 ${isKey && _required_bytes.includes(value) ? 'font-bold text-blue-600 dark:text-blue-400' : ''}">${value}</td>
-                `).join('')}
-            </tr>
-        `;
+        function generateTableRow (label, values, isKey){
+            if (isKey) {
+                return `
+                    <tr>
+                        <th class="text-left dark:text-gray-300 pr-2">${label}:</th>
+                        ${values.map(value => `
+                            <td class="${darkTextClass} font-mono px-2 ${isKey && _required_bytes.includes(value) ? accentClass : ''}">${value}</td>
+                        `).join('')}
+                    </tr>
+                `;
+            } else {
+                let result = ""
+                for (const item in values) {
+                    result += `<td class="${darkTextClass} font-mono px-2">${item.map(i=>i`<br>`)}</td>`
+                }
+                return result
+            }
+        }
 
         const byteMeanings = Object.entries(result.byte_meanings || {})
             .map(([byte, meaning]) => `
@@ -355,7 +366,7 @@ class PacketAnalyzer {
             `).join('');
 
         const expectedStateContent = result.expected_state ? `
-            <div class="mt-4 ${topBorderClass}">
+            <div class="${topBorderClass}">
                 <h4 class="text-md font-medium mb-2 ${darkHeadingClass}">예상 상태 패킷</h4>
                 <div class="space-y-2">
                     ${_required_bytes ? `
@@ -385,7 +396,7 @@ class PacketAnalyzer {
                     <span class="text-sm text-gray-500 ${darkTextClass}">${_packet_type}</span>
                 </div>
                 ${result.checksum ? `
-                    <div class="mt-4 ${topBorderClass} text-gray-600 text-sm ${darkTextClass}">
+                    <div class="${topBorderClass} text-gray-600 text-sm ${darkTextClass}">
                         <span class="font-medium dark:text-gray-300">체크섬 포함 패킷:</span>
                         <span class="ml-2">${result.checksum}</span>
                     </div>
