@@ -83,7 +83,7 @@ class PacketReference {
         Object.entries(data).forEach(([deviceName, deviceData], index) => {
             const deviceSection = document.createElement('div');
             deviceSection.id = `device-${deviceName}`;
-            deviceSection.className = `tab-content ${index !== 0 ? 'hidden' : ''}`;
+            deviceSection.className = `reference-tab-content ${index !== 0 ? 'hidden' : ''}`;
             
             const table = this.createTable(deviceData);
             deviceSection.appendChild(table);
@@ -93,7 +93,7 @@ class PacketReference {
     }
 
     openTab(evt, deviceName) {
-        const tabcontents = document.getElementsByClassName("tab-content");
+        const tabcontents = document.getElementsByClassName("reference-tab-content");
         for (let content of tabcontents) {
             content.classList.add('hidden');
         }

@@ -73,23 +73,24 @@ class PacketLogger {
                 const logDiv = document.getElementById(isLive ? 'livePacketLog' : 'packetLog');
                 const packetSet = isLive ? this.liveLastPackets : this.lastPackets;
                 let newContent = '';
-
+                
                 // 송신 및 수신 패킷 처리
                 ['send', 'recv'].forEach(type => {
                     data[type].forEach(packet => {
                         const packetKey = `${type}:${packet.packet}`;
                         
-                        if (isLive) {
-                            // 실시간 모드: 새로운 패킷이면 추가
-                            if (!packetSet.has(packetKey)) {
+                        if (!packetSet.has(packetKey)) {
+                            packetSet.add(packetKey);
+                            if (isLive) {
                                 newContent = this.createPacketLogEntry(packet, type) + newContent;
-                                packetSet.add(packetKey);
-                            }
-                        } else {
-                            // 일반 모드: Set에 없는 패킷만 추가하고 표시
-                            if (!packetSet.has(packetKey)) {
-                                newContent = this.createPacketLogEntry(packet, type) + newContent;
-                                packetSet.add(packetKey);
+                            } else {
+                                // 일반 모드: 정렬 후 표시
+                                let packetArray = Array.from(packetSet).sort()
+                                // 패킷 배열을 순회하며 정렬된 순서로 newContent 생성
+                                for (const key of packetArray) {
+                                    const [_type, _packet] = key.split(':');
+                                    newContent += this.createPacketLogEntry(_packet, _type);
+                                }
                             }
                         }
                     });

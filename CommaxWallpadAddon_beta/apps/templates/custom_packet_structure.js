@@ -22,7 +22,7 @@ class PacketStructureEditor {
     }
 
     openTab(evt, deviceName) {
-        const tabcontents = document.getElementsByClassName("tab-content");
+        const tabcontents = document.getElementsByClassName("reference-tab-content");
         for (let content of tabcontents) {
             content.classList.add('hidden');
         }
@@ -134,7 +134,7 @@ class PacketStructureEditor {
             // 탭 컨텐츠 생성
             const deviceSection = document.createElement('div');
             deviceSection.id = `custom-device-${deviceName}`;
-            deviceSection.className = `tab-content ${isFirst ? '' : 'hidden'}`;
+            deviceSection.className = `reference-tab-content ${isFirst ? '' : 'hidden'}`;
             
             const deviceContent = document.createElement('div');
             deviceContent.className = 'border border-gray-700 dark:bg-gray-800 rounded-lg p-4 mb-4';
