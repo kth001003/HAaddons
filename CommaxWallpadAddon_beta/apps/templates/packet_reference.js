@@ -76,7 +76,7 @@ class PacketReference {
     }
 
     update(data) {
-        const tabContents = document.getElementById('tabContents');
+        const tabContents = document.getElementById('referenceTabContents');
         if (!tabContents) return;
         
         tabContents.innerHTML = '';
@@ -122,7 +122,7 @@ class PacketReference {
             .then(response => response.json())
             .then(structures => {
                 const tabButtons = document.getElementById('deviceTabs');
-                const tabContents = document.getElementById('tabContents');
+                const tabContents = document.getElementById('referenceTabContents');
                 if (!tabButtons || !tabContents) return;
                 
                 tabButtons.innerHTML = '';
@@ -144,7 +144,7 @@ class PacketReference {
             })
             .catch(error => {
                 console.error('패킷 구조 로드 실패:', error);
-                const tabContents = document.getElementById('tabContents');
+                const tabContents = document.getElementById('referenceTabContents');
                 if (tabContents) {
                     tabContents.innerHTML = `
                         <div class="text-red-500 p-4">

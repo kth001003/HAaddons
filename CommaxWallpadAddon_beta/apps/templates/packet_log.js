@@ -1,4 +1,3 @@
-
 // ===============================
 // 패킷 로그 관련 클래스
 // ===============================
@@ -10,6 +9,7 @@ class PacketLogger {
         this.isPolling = false;
         this.pollingInterval = null;
         this.packetLogInterval = null;
+        this.pauseButton = document.getElementById('pauseButton');
 
         this.bindEvents();
     }
@@ -28,13 +28,12 @@ class PacketLogger {
         }
 
         // 일시정지 버튼 이벤트 리스너
-        const pauseButton = document.getElementById('pauseButton');
-        if (pauseButton) {
-            pauseButton.addEventListener('click', () => {
+        if (this.pauseButton) {
+            this.pauseButton.addEventListener('click', () => {
                 this.togglePause();
-                pauseButton.textContent = this.isPaused ? '재개' : '일시정지';
-                pauseButton.classList.toggle('bg-blue-500');
-                pauseButton.classList.toggle('bg-green-500');
+                this.pauseButton.textContent = this.isPaused ? '재개' : '일시정지';
+                this.pauseButton.classList.toggle('bg-blue-500');
+                this.pauseButton.classList.toggle('bg-green-500');
             });
         }
     }
@@ -118,7 +117,7 @@ class PacketLogger {
     }
 
     handlePacketClick(packet) {
-        const packetInput = document.getElementById('packetInput');
+        const packetInput = document.getElementById('analyzerPacketInput');
         if (!(packetInput instanceof HTMLInputElement)) return;
         packetInput.value = packet;
         packetAnalyzer.analyzePacket();
@@ -189,9 +188,8 @@ class PacketLogger {
 
     togglePause() {
         this.isPaused = !this.isPaused;
-        const pauseButton = document.getElementById('pauseButton');
-        if (pauseButton) {
-            pauseButton.textContent = this.isPaused ? '재개' : '일시정지';
+        if (this.pauseButton) {
+            this.pauseButton.textContent = this.isPaused ? '재개' : '일시정지';
         }
     }
 

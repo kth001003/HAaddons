@@ -38,7 +38,7 @@ class PacketStructureEditor {
             }
         }
         
-        const selectedTab = document.getElementById(`device-${deviceName}`);
+        const selectedTab = document.getElementById(`custom-device-${deviceName}`);
         if (selectedTab) {
             selectedTab.classList.remove('hidden');
         }
@@ -133,7 +133,7 @@ class PacketStructureEditor {
 
             // 탭 컨텐츠 생성
             const deviceSection = document.createElement('div');
-            deviceSection.id = `device-${deviceName}`;
+            deviceSection.id = `custom-device-${deviceName}`;
             deviceSection.className = `tab-content ${isFirst ? '' : 'hidden'}`;
             
             const deviceContent = document.createElement('div');

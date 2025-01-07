@@ -188,7 +188,7 @@
                         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">* 패킷은 7바이트(14자리)로 입력하세요. 체크섬은 자동으로 계산됩니다.</p>
                         <div class="flex gap-2 mb-2">
                             <div class="flex-grow">
-                                <input type="text" id="packetInput" placeholder="패킷 입력 (예: F7010104000000)" class="form-input block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded shadow focus:outline-none focus:shadow-outline">
+                                <input type="text" id="analyzerPacketInput" placeholder="패킷 입력 (예: F7010104000000)" class="form-input block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded shadow focus:outline-none focus:shadow-outline">
                             </div>
                             <button id="analyzePacketButton" class="bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-800 text-white font-bold py-2 px-4 rounded">
                                 분석
@@ -212,25 +212,22 @@
             </div>
         </div>
 
-        <!-- 패킷 참조자료 페이지 -->
+        <!-- 패킷 참조자료 -->
         <div id="packet_reference" class="page hidden">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <h2 class="text-lg font-semibold mb-4 dark:text-white">📚 패킷 참조 자료</h2>
                 <div>
                     <div id="deviceTabs" class="flex border-b border-gray-200 overflow-x-auto">
-                        <!-- 탭 버튼이 동적으로 추가됩니다 -->
                     </div>
                     <div class="overflow-x-auto">
-                        <div id="tabContents" class="mt-4 min-w-[640px]">
-                            <!-- 각 디바이스별 패킷 테이블이 여기에 추가됩니다 -->
+                        <div id="referenceTabContents" class="mt-4 min-w-[640px]">
                         </div>
                     </div>
                 </div>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">*FF로 표시된 값은 정수값이 들어올 수 있습니다.</p>
             </div>
         </div>
 
-        <!-- 패킷 구조 편집 페이지 -->
+        <!-- 패킷 구조 편집 -->
         <div id="custom_packet" class="page hidden">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <h2 class="text-lg font-semibold mb-4 dark:text-white">커스텀 패킷 구조 편집</h2>

@@ -137,7 +137,7 @@ class PacketAnalyzer {
         }
 
         // 패킷 입력 필드 이벤트 리스너
-        const packetInput = document.getElementById('packetInput');
+        const packetInput = document.getElementById('analyzerPacketInput');
         if (packetInput) {
             packetInput.addEventListener('input', (e) => this.handlePacketInput(e));
             packetInput.addEventListener('keydown', (e) => {
@@ -236,7 +236,7 @@ class PacketAnalyzer {
     }
 
     analyzePacket(paddedPacket) {
-        const packetInput = document.getElementById('packetInput');
+        const packetInput = document.getElementById('analyzerPacketInput');
         if (!(packetInput instanceof HTMLInputElement)) return;
         const resultDiv = document.getElementById('packetResult');
         
@@ -379,12 +379,12 @@ class PacketAnalyzer {
     }
 
     analyzeExpectedState(packet) {
-        document.getElementById('packetInput').value = packet;
+        document.getElementById('analyzerPacketInput').value = packet;
         this.analyzePacket();
     }
 
     sendPacket() {
-        const packetInput = document.getElementById('packetInput');
+        const packetInput = document.getElementById('analyzerPacketInput');
         if (!(packetInput instanceof HTMLInputElement)) return;
         const packet = packetInput.value.replace(/[\s-]+/g, '').trim();
 
