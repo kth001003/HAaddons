@@ -52,7 +52,7 @@ class PacketLogger {
     }
 
     createPacketLogEntry(packet, type) {
-        const deviceInfo = packet.results.length > 0 ? packet.results[0] : { device: 'Unknown', packet_type: 'Unknown' };
+        const deviceInfo = packet.results.length > 0 ? packet.results : { device: 'Unknown', packet_type: 'Unknown' };
         const deviceClass = deviceInfo.device === 'Unknown' ? 'unknown-packet' : '';
         const formattedPacket = packet.packet.match(/.{2}/g).join(' ');
         
@@ -93,7 +93,10 @@ class PacketLogger {
                                     const [_type, _packet, _device,_packet_type] = key.split(':');
                                     newContent += this.createPacketLogEntry({
                                         packet: _packet,
-                                        results: {device:_device,packet_type:_packet_type}
+                                        results: {
+                                            device:_device,
+                                            packet_type:_packet_type
+                                        }
                                     }, _type);
                                 }
                             }
