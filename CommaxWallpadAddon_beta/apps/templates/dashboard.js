@@ -15,6 +15,35 @@ class Dashboard {
         setInterval(() => this.deviceManager.updateDeviceList(), 10000);  // 10초마다 기기목록 업데이트
     }
     
+    updateEW11Status() {
+        fetch('./api/ew11_status')
+            .then(response => response.json())
+            .then(data => {
+                const statusElement = document.getElementById('ew11ConnectionStatus');
+                
+                if (!data.last_recv_time) {
+                    statusElement.textContent = '응답 없음';
+                    statusElement.className = 'px-2 py-1 rounded text-sm bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100';
+                    return;
+                }
+                
+                const currentTime = Math.floor(Date.now() / 1000);
+                const lastRecvTime = Math.floor(data.last_recv_time / 1000000000);
+                const timeDiff = currentTime - lastRecvTime;
+                
+                const isConnected = timeDiff <= data.elfin_reboot_interval;
+                
+                statusElement.textContent = isConnected ? '정상' : '응답 없음';
+                statusElement.className = `px-2 py-1 rounded text-sm ${isConnected ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100'}`;
+            })
+            .catch(error => {
+                console.error('EW11 상태 업데이트 실패:', error);
+                const statusElement = document.getElementById('ew11ConnectionStatus');
+                statusElement.textContent = '상태 확인 실패';
+                statusElement.className = 'px-2 py-1 rounded text-sm bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100';
+            });
+    }
+    
     updateMqttStatus() {
         fetch('./api/mqtt_status')
             .then(response => response.json())
@@ -38,8 +67,6 @@ class Dashboard {
                     `;
                     return;
                 }
-                const subscribedTopicsDiv = document.getElementById('subscribedTopics');
-                subscribedTopicsDiv.innerHTML = data.subscribed_topics.join(', ');
                 // 기존에 없는 토픽에 대한 div 추가
                 data.subscribed_topics.forEach(topic => {
                     // 특수문자를 안전하게 처리하도록 수정
@@ -58,7 +85,7 @@ class Dashboard {
                         topicDiv.innerHTML = `
                             <div class="flex justify-between items-center">
                                 <div class="flex items-center gap-2">
-                                    <span class="font-medium text-gray-700 dark:text-gray-300">${topic}</span>
+                                    <div class="font-medium text-gray-700 dark:text-gray-300">${topic}</div>
                                     <pre class="text-xs text-gray-600 dark:text-gray-400">메시지 없음</pre>
                                 </div>
                                 <span class="text-xs text-gray-500 dark:text-gray-400">-</span>
@@ -131,35 +158,6 @@ class Dashboard {
                         }
                     });
                 });
-            });
-    }
-    
-    updateEW11Status() {
-        fetch('./api/ew11_status')
-            .then(response => response.json())
-            .then(data => {
-                const statusElement = document.getElementById('ew11ConnectionStatus');
-                
-                if (!data.last_recv_time) {
-                    statusElement.textContent = '응답 없음';
-                    statusElement.className = 'px-2 py-1 rounded text-sm bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100';
-                    return;
-                }
-                
-                const currentTime = Math.floor(Date.now() / 1000);
-                const lastRecvTime = Math.floor(data.last_recv_time / 1000000000);
-                const timeDiff = currentTime - lastRecvTime;
-                
-                const isConnected = timeDiff <= data.elfin_reboot_interval;
-                
-                statusElement.textContent = isConnected ? '정상' : '응답 없음';
-                statusElement.className = `px-2 py-1 rounded text-sm ${isConnected ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100'}`;
-            })
-            .catch(error => {
-                console.error('EW11 상태 업데이트 실패:', error);
-                const statusElement = document.getElementById('ew11ConnectionStatus');
-                statusElement.textContent = '상태 확인 실패';
-                statusElement.className = 'px-2 py-1 rounded text-sm bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100';
             });
     }
 }

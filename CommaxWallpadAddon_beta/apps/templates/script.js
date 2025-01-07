@@ -75,4 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 패킷 참조자료 초기화
     const packetReference = new PacketReference();
     packetReference.loadReferencePacketStructures();
+
+    // 패킷 구조 에디터 초기화
+    window.packetEditor = PacketStructureEditor.initialize();
 });

@@ -1,4 +1,3 @@
-
 // ===============================
 // 패킷 참조자료 관련 클래스
 // ===============================
@@ -8,13 +7,13 @@ class PacketReference {
 
     createTable(deviceData) {
         const table = document.createElement('table');
-        table.className = 'min-w-full divide-y divide-gray-200';
+        table.className = 'min-w-full divide-y divide-gray-200 dark:divide-gray-700';
         
         const headerRow = document.createElement('tr');
         const headers = ['Byte', ...Object.values(PACKET_TYPES)];
         headers.forEach(header => {
             const th = document.createElement('th');
-            th.className = 'px-4 py-2 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+            th.className = 'px-4 py-2 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider';
             th.textContent = header;
             headerRow.appendChild(th);
         });
@@ -22,16 +21,16 @@ class PacketReference {
         
         for (let byte = 0; byte < 8; byte++) {
             const row = document.createElement('tr');
-            row.className = byte % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+            row.className = byte % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800';
             
             const byteCell = document.createElement('td');
-            byteCell.className = 'px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900';
+            byteCell.className = 'px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100';
             byteCell.textContent = `Byte ${byte}`;
             row.appendChild(byteCell);
             
             Object.keys(PACKET_TYPES).forEach(type => {
                 const td = document.createElement('td');
-                td.className = 'px-4 py-2 text-sm text-gray-500';
+                td.className = 'px-4 py-2 text-sm text-gray-500 dark:text-gray-400';
                 
                 if (deviceData[type]) {
                     this.appendCellContent(td, deviceData[type], byte);
@@ -47,9 +46,11 @@ class PacketReference {
     }
 
     appendCellContent(td, typeData, byte) {
+        td.className = 'px-4 py-2 text-sm text-gray-500 dark:text-gray-400';
+        
         if (typeData.byte_desc && typeData.byte_desc[byte] !== undefined) {
             const descDiv = document.createElement('div');
-            descDiv.className = 'font-medium text-gray-900 mb-2';
+            descDiv.className = 'font-medium text-gray-900 dark:text-gray-100 mb-2';
             descDiv.textContent = typeData.byte_desc[byte];
             td.appendChild(descDiv);
         }
@@ -59,7 +60,7 @@ class PacketReference {
             valuesDiv.className = 'space-y-1';
             Object.entries(typeData.byte_values[byte]).forEach(([key, value]) => {
                 const valueSpan = document.createElement('div');
-                valueSpan.className = 'text-sm text-gray-600';
+                valueSpan.className = 'text-sm text-gray-600 dark:text-gray-300';
                 valueSpan.textContent = `${key}: ${value}`;
                 valuesDiv.appendChild(valueSpan);
             });
@@ -68,7 +69,7 @@ class PacketReference {
         
         if (typeData.byte_memos && typeData.byte_memos[byte]) {
             const memoDiv = document.createElement('div');
-            memoDiv.className = 'mt-2 text-sm text-gray-500 italic';
+            memoDiv.className = 'mt-2 text-sm text-gray-500 dark:text-gray-400 italic';
             memoDiv.textContent = `💡 ${typeData.byte_memos[byte]}`;
             td.appendChild(memoDiv);
         }
@@ -79,10 +80,10 @@ class PacketReference {
         if (!tabContents) return;
         
         tabContents.innerHTML = '';
-        Object.entries(data).forEach(([deviceName, deviceData]) => {
+        Object.entries(data).forEach(([deviceName, deviceData], index) => {
             const deviceSection = document.createElement('div');
             deviceSection.id = `device-${deviceName}`;
-            deviceSection.className = 'tab-content';
+            deviceSection.className = `tab-content ${index !== 0 ? 'hidden' : ''}`;
             
             const table = this.createTable(deviceData);
             deviceSection.appendChild(table);
@@ -108,7 +109,7 @@ class PacketReference {
             }
         }
         
-        const selectedTab = document.getElementById(deviceName);
+        const selectedTab = document.getElementById(`device-${deviceName}`);
         if (selectedTab) {
             selectedTab.classList.remove('hidden');
         }

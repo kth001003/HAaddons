@@ -9,6 +9,8 @@ class PacketStructureEditor {
         
         this.editorDiv = document.getElementById('packetStructureEditor');
         this.messageElement = document.getElementById('packetEditorMessage');
+        this.tabButtons = document.getElementById('customPacketDeviceTabs');
+        this.tabContents = document.getElementById('customPacketTabContents');
         
         this.bindEvents();
     }
@@ -17,6 +19,31 @@ class PacketStructureEditor {
         document.getElementById('savePacketStructure')?.addEventListener('click', () => this.saveCustomPacketStructure());
         document.getElementById('resetPacketStructure')?.addEventListener('click', () => this.resetPacketStructure());
         document.getElementById('changeVendorButton')?.addEventListener('click', () => this.changeVendorToCustom());
+    }
+
+    openTab(evt, deviceName) {
+        const tabcontents = document.getElementsByClassName("tab-content");
+        for (let content of tabcontents) {
+            content.classList.add('hidden');
+        }
+
+        const tabButtons = this.tabButtons.getElementsByTagName('button');
+        for (let button of tabButtons) {
+            button.className = button.className
+                .replace('border-blue-500 text-blue-600', 'border-transparent text-gray-500')
+                .replace('hover:text-gray-700 hover:border-gray-300', '');
+            
+            if (button.getAttribute('data-tab') !== deviceName) {
+                button.className += ' hover:text-gray-700 hover:border-gray-300';
+            }
+        }
+        
+        const selectedTab = document.getElementById(`device-${deviceName}`);
+        if (selectedTab) {
+            selectedTab.classList.remove('hidden');
+        }
+        evt.currentTarget.className = evt.currentTarget.className
+            .replace('border-transparent text-gray-500', 'border-blue-500 text-blue-600');
     }
 
     checkVendorSetting() {
@@ -85,13 +112,34 @@ class PacketStructureEditor {
     }
 
     renderPacketStructureEditor(structure) {
-        this.editorDiv.innerHTML = '';
+        if (!this.tabButtons || !this.tabContents) return;
 
+        // 탭 버튼 초기화
+        this.tabButtons.innerHTML = '';
+        this.tabContents.innerHTML = '';
+        
+        let isFirst = true;
+        
         for (const [deviceName, deviceData] of Object.entries(structure)) {
+            // 탭 버튼 생성
+            const button = document.createElement('button');
+            button.className = `px-4 py-2 text-sm font-medium border-b-2 focus:outline-none transition-colors ${
+                isFirst ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`;
+            button.setAttribute('data-tab', deviceName);
+            button.onclick = (evt) => this.openTab(evt, deviceName);
+            button.textContent = deviceName;
+            this.tabButtons.appendChild(button);
+
+            // 탭 컨텐츠 생성
             const deviceSection = document.createElement('div');
-            deviceSection.className = 'border border-gray-700 dark:bg-gray-800 rounded-lg p-4 mb-4';
+            deviceSection.id = `device-${deviceName}`;
+            deviceSection.className = `tab-content ${isFirst ? '' : 'hidden'}`;
             
-            deviceSection.innerHTML = `
+            const deviceContent = document.createElement('div');
+            deviceContent.className = 'border border-gray-700 dark:bg-gray-800 rounded-lg p-4 mb-4';
+            
+            deviceContent.innerHTML = `
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-lg font-medium dark:text-white">${deviceName}</h3>
                     <input type="text" value="${deviceData.type}" 
@@ -100,20 +148,27 @@ class PacketStructureEditor {
                 </div>
             `;
 
+            const packetContainer = document.createElement('div');
+            packetContainer.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4';
+
             Object.entries(this.PACKET_TYPES).forEach(([type, title]) => {
                 if (deviceData[type]) {
                     const packetSection = this.createPacketSection(deviceName, type, deviceData[type], title);
-                    deviceSection.appendChild(packetSection);
+                    packetContainer.appendChild(packetSection);
                 }
             });
 
-            this.editorDiv.appendChild(deviceSection);
+            deviceContent.appendChild(packetContainer);
+            deviceSection.appendChild(deviceContent);
+            this.tabContents.appendChild(deviceSection);
+            
+            isFirst = false;
         }
     }
 
     createPacketSection(deviceName, packetType, packetData, title) {
         const section = document.createElement('div');
-        section.className = 'mt-4 w-full sm:w-1/2 lg:w-1/4 inline-block align-top px-2';
+        section.className = 'w-full';
 
         section.innerHTML = `
             <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
@@ -253,18 +308,18 @@ class PacketStructureEditor {
         const structure = {};
         
         // 기본 구조 데이터 수집
-        this.editorDiv.querySelectorAll('[data-device]').forEach(element => {
-            const deviceName = element.dataset.device;
-            const packetType = element.dataset.packetType;
-            const position = element.dataset.position;
-            const field = element.dataset.field;
+        this.editorDiv.querySelectorAll('[data-device]').forEach((element) => {
+            const deviceName = element.getAttribute('data-device');
+            const packetType = element.getAttribute('data-packet-type');
+            const position = element.getAttribute('data-position');
+            const field = element.getAttribute('data-field');
 
             if (!structure[deviceName]) {
                 structure[deviceName] = { type: '' };
             }
 
             if (field === 'type') {
-                structure[deviceName].type = element.value;
+                structure[deviceName].type = element instanceof HTMLInputElement ? element.value : '';
                 return;
             }
 
@@ -278,7 +333,7 @@ class PacketStructureEditor {
             }
 
             if (field === 'header') {
-                structure[deviceName][packetType].header = element.value;
+                structure[deviceName][packetType].header = element instanceof HTMLInputElement ? element.value : '';
                 return;
             }
 
@@ -291,7 +346,7 @@ class PacketStructureEditor {
                 }
 
                 if (field === 'name') {
-                    structure[deviceName][packetType].structure[position].name = element.value;
+                    structure[deviceName][packetType].structure[position].name = element instanceof HTMLInputElement ? element.value : '';
                 }
             }
         });
@@ -303,10 +358,12 @@ class PacketStructureEditor {
     }
 
     collectValuesData(structure) {
-        this.editorDiv.querySelectorAll('[data-field^="value-"]').forEach(element => {
-            const deviceName = element.dataset.device;
-            const packetType = element.dataset.packetType;
-            const position = element.dataset.position;
+        this.editorDiv.querySelectorAll('[data-field^="value-"]').forEach((element) => {
+            if (!(element instanceof HTMLInputElement)) return;
+            
+            const deviceName = element.getAttribute('data-device');
+            const packetType = element.getAttribute('data-packet-type');
+            const position = element.getAttribute('data-position');
             
             if (!element.value) return;
 
@@ -315,7 +372,7 @@ class PacketStructureEditor {
             const keyInput = row.querySelector('[data-field="value-key"]');
             const valueInput = row.querySelector('[data-field="value-value"]');
             
-            if (keyInput.value && valueInput.value) {
+            if (keyInput instanceof HTMLInputElement && valueInput instanceof HTMLInputElement && keyInput.value && valueInput.value) {
                 values[keyInput.value] = valueInput.value;
             }
         });
@@ -353,6 +410,3 @@ class PacketStructureEditor {
         return editor;
     }
 }
-
-// 전역 인스턴스 생성
-window.packetEditor = PacketStructureEditor.initialize();
