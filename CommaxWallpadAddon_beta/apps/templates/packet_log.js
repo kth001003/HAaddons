@@ -77,19 +77,22 @@ class PacketLogger {
                 // 송신 및 수신 패킷 처리
                 ['send', 'recv'].forEach(type => {
                     data[type].forEach(packet => {
-                        const packetKey = `${type}:${packet.packet}`;
-                        
-                        if (!packetSet.has(packetKey)) {
-                            packetSet.add(packetKey);
-                            if (isLive) {
+                        if (isLive) {
+                            const packetKey = `${type}:${packet.packet}`;
+                            if(!packetSet.has(packetKey)){
                                 newContent = this.createPacketLogEntry(packet, type) + newContent;
-                            } else {
-                                // 일반 모드: 정렬 후 표시
+                            }
+                        } else {
+                            const packetKey = `${type}:${packet.packet}:${packet.result.device}:${packet.result.packet_type}`
+                            if(!packetSet.has(packetKey)){
                                 let packetArray = Array.from(packetSet).sort()
                                 // 패킷 배열을 순회하며 정렬된 순서로 newContent 생성
                                 for (const key of packetArray) {
-                                    const [_type, _packet] = key.split(':');
-                                    newContent += this.createPacketLogEntry(_packet, _type);
+                                    const [_type, _packet, _device,_packet_type] = key.split(':');
+                                    newContent += this.createPacketLogEntry({
+                                        packet: _packet,
+                                        result: {device:_device,packet_type:_packet_type}
+                                    }, _type);
                                 }
                             }
                         }
