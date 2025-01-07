@@ -33,7 +33,7 @@ class PacketStructureEditor {
                 .replace('border-blue-500 text-blue-600', 'border-transparent text-gray-500')
                 .replace('hover:text-gray-700 hover:border-gray-300', '');
             
-            if (button.getAttribute('data-tab') !== deviceName) {
+            if (button.getAttribute('custom-data-tab') !== deviceName) {
                 button.className += ' hover:text-gray-700 hover:border-gray-300';
             }
         }
@@ -126,7 +126,7 @@ class PacketStructureEditor {
             button.className = `px-4 py-2 text-sm font-medium border-b-2 focus:outline-none transition-colors ${
                 isFirst ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`;
-            button.setAttribute('data-tab', deviceName);
+            button.setAttribute('custom-data-tab', deviceName);
             button.onclick = (evt) => this.openTab(evt, deviceName);
             button.textContent = deviceName;
             this.tabButtons.appendChild(button);

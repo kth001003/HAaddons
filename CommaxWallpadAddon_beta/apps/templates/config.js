@@ -55,10 +55,10 @@ class ConfigManager {
                 <div class="pl-4 space-y-2">
                     ${Object.entries(value).map(([subKey, subValue]) => `
                         <div class="flex items-center gap-2">
-                            <label class="text-sm text-gray-600 dark:text-gray-400 w-1/3">${subKey}:</label>
+                            <label class="text-sm text-gray-600 dark:text-gray-400 w-1/3 whitespace-pre-wrap break-words">${subKey}:</label>
                             <input type="text" 
                                 value="${subValue}" 
-                                class="form-input block rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm py-1"
+                                class="form-input block rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1"
                                 data-key="${key}"
                                 data-subkey="${subKey}">
                         </div>
@@ -141,7 +141,7 @@ class ConfigManager {
         schema = schema.replace('?', '');
 
         let input;
-        const baseClassName = 'form-input block w-full rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm py-1';
+        const baseClassName = 'form-input block w-full rounded-md border-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1';
 
         switch (schemaType) {
             case 'bool':
