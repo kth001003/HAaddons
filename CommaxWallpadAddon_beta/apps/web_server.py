@@ -50,9 +50,7 @@ class WebServer:
         @self.app.route('/api/live_packets')
         def live_packets():
             """실시간 패킷 데이터를 반환하는 API"""
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             return jsonify({
-                'timestamp': current_time,
                 'send_data': self.wallpad_controller.COLLECTDATA['send_data'],
                 'recv_data': self.wallpad_controller.COLLECTDATA['recv_data']
             })

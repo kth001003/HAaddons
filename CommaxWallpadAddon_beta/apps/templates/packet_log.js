@@ -4,7 +4,6 @@
 class PacketLogger {
     constructor() {
         this.lastPackets = new Set();
-        this.liveLastPackets = new Set();
         this.isPaused = false;
         this.isPolling = false;
         this.pollingInterval = null;
@@ -20,13 +19,6 @@ class PacketLogger {
         if (clearButton) {
             clearButton.addEventListener('click', () => this.clearPacketLog());
         }
-
-        // 실시간 패킷 로그 초기화 버튼 이벤트 리스너
-        const clearLiveButton = document.getElementById('livePacketLogClearButton');
-        if (clearLiveButton) {
-            clearLiveButton.addEventListener('click', () => this.clearLivePacketLog());
-        }
-
         // 일시정지 버튼 이벤트 리스너
         if (this.pauseButton) {
             this.pauseButton.addEventListener('click', () => {
@@ -38,9 +30,9 @@ class PacketLogger {
         }
     }
 
-    updatePacketDisplay(isLive = false) {
-        const elements = document.getElementsByClassName(isLive ? 'live-unknown-packet' : 'unknown-packet');
-        const hideUnknown = document.getElementById(isLive ? 'hideUnknownLive' : 'hideUnknown');
+    updatePacketDisplay() {
+        const elements = document.getElementsByClassName('unknown-packet');
+        const hideUnknown = document.getElementById('hideUnknown');
         if (!(hideUnknown instanceof HTMLInputElement)) return;
         const displayStyle = hideUnknown.checked ? 'none' : '';
         
@@ -64,62 +56,37 @@ class PacketLogger {
             </div>`;
     }
 
-    updatePacketLog(isLive = false) {
-        if (isLive && this.isPaused) return;
-
+    updatePacketLog() {
         fetch('./api/packet_logs')
             .then(response => response.json())
             .then(data => {
-                const logDiv = document.getElementById(isLive ? 'livePacketLog' : 'packetLog');
-                const packetSet = isLive ? this.liveLastPackets : this.lastPackets;
+                const logDiv = document.getElementById('packetLog');
+                const lastPacketSet = this.lastPackets;
                 let newContent = '';
                 
                 // 송신 및 수신 패킷 처리
                 ['send', 'recv'].forEach(type => {
                     data[type].forEach(packet => {
-                        if (isLive) {
-                            const packetKey = `${type}:${packet.packet}`;
-                            if(!packetSet.has(packetKey)){
-                                packetSet.add(packetKey)
-                                newContent = this.createPacketLogEntry(packet, type) + newContent;
-                            }
-                        } else {
-                            const packetKey = `${type}:${packet.packet}:${packet.results.device}:${packet.results.packet_type}`
-                            if(!packetSet.has(packetKey)){
-                                packetSet.add(packetKey)
-                                let packetArray = Array.from(packetSet).sort()
-                                // 패킷 배열을 순회하며 정렬된 순서로 newContent 생성
-                                for (const key of packetArray) {
-                                    const [_type, _packet, _device,_packet_type] = key.split(':');
-                                    newContent += this.createPacketLogEntry({
-                                        packet: _packet,
-                                        results: {
-                                            device:_device,
-                                            packet_type:_packet_type
-                                        }
-                                    }, _type);
-                                }
-                            }
+                        const packetKey = `${type}:${packet.packet}:${packet.results.device}:${packet.results.packet_type}`
+                        if(!lastPacketSet.has(packetKey)){
+                            lastPacketSet.add(packetKey)
                         }
                     });
                 });
-
-                if (newContent) {
-                    if (isLive) {
-                        logDiv.innerHTML = newContent + logDiv.innerHTML;
-                        this.updatePacketDisplay(true);
-                        // 로그 길이 제한
-                        const maxEntries = 2000;
-                        const entries = logDiv.getElementsByClassName('packet-log-entry');
-                        if (entries.length > maxEntries) {
-                            for (let i = maxEntries; i < entries.length; i++) {
-                                entries[i].remove();
-                            }
+                let packetArray = Array.from(lastPacketSet).sort()
+                for (const key of packetArray) {
+                    const [_type, _packet, _device,_packet_type] = key.split(':');
+                    newContent += this.createPacketLogEntry({
+                        packet: _packet,
+                        results: {
+                            device:_device,
+                            packet_type:_packet_type
                         }
-                    } else {
-                        logDiv.innerHTML = newContent;
-                        this.updatePacketDisplay(false);
-                    }
+                    }, _type);
+                }
+                if (newContent) {
+                    logDiv.innerHTML = newContent;
+                    this.updatePacketDisplay();
                 }
             })
             .catch(error => console.error('패킷 로그 업데이트 실패:', error));
@@ -136,14 +103,6 @@ class PacketLogger {
         const logDiv = document.getElementById('packetLog');
         logDiv.innerHTML = '';
         this.lastPackets.clear();
-    }
-
-    clearLivePacketLog() {
-        const sendLogDiv = document.getElementById('send-data');
-        const recvLogDiv = document.getElementById('recv-data');
-        sendLogDiv.innerHTML = '';
-        recvLogDiv.innerHTML = '';
-        this.liveLastPackets.clear();
     }
 
     startPolling() {
