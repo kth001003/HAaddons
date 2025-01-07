@@ -91,7 +91,7 @@ class PacketLogger {
                                     const [_type, _packet, _device,_packet_type] = key.split(':');
                                     newContent += this.createPacketLogEntry({
                                         packet: _packet,
-                                        result: {device:_device,packet_type:_packet_type}
+                                        results: {device:_device,packet_type:_packet_type}
                                     }, _type);
                                 }
                             }
