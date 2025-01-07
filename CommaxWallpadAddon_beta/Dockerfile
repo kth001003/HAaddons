@@ -22,7 +22,7 @@ WORKDIR /share
 
 # Auto update on rebuild
 RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
-    cp -r /tmp/repo/CommaxWallpadAddon_beta/apps /apps && \
+    cp -r /tmp/repo/CommaxWallpadAddon/apps /apps && \
     rm -rf /tmp/repo
 
 ENV PYTHONPATH=/
