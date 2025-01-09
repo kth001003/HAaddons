@@ -1,7 +1,7 @@
 # Commax Wallpad Addon for Home Assistant
 
 코맥스 월패드를 Home Assistant에 연동하기 위한 애드온입니다.
-EW-11 전용입니다. usb-serial 통신은 지원하지 않습니다.
+EW-11 전용입니다. usb-serial 통신은 아직 지원하지 않습니다.
 
 이 애드온은 [@kimtc99](https://github.com/kimtc99/HAaddons)의 'CommaxWallpadBySaram' 애드온을 기반으로 작성되었으며 mqtt를 통해 ew11과 통신을 하는 특징이 있습니다.
 
@@ -13,11 +13,11 @@ EW-11 전용입니다. usb-serial 통신은 지원하지 않습니다.
 다만 애드온을 거의 새로 작성하면서 저희집 월패드가 보일러만 있기 떄문에 보일러만 테스트 되었고 나머지 기능은 구현만 되어있습니다.
 
 ## 지원하는 기능
-- 조명 제어 (테스트 안되어있음)
+- 조명 제어 (디머 제어 x)
 - 난방 제어
-- 콘센트 제어 (테스트 안되어있음, 전력량 미지원)
-- 전열교환기 제어 (테스트 안되어있음)
-- 가스밸브 상태 확인 (테스트 안되어있음)
+- 콘센트 제어 (대기전력차단 토글 x)
+- 전열교환기 제어
+- 가스밸브 잠금
 - 엘리베이터 호출 (테스트 안되어있음)
 
 ## 설치 방법
@@ -56,52 +56,86 @@ EW11 관리페이지의 Community Settings에서 mqtt를 추가하고 다음과 
 - Security: Disable
 - Route: Uart
 
+
 ## 애드온 설정 방법
-애드온 구성에서 다음 옵션들을 설정하세요:
+EW11 mqtt설정 후에 애드온 설정은 기본값으로 사용해도 무방합니다.
+
+### 기본 설정
+- `vendor`: 기기 패킷 구조 파일 선택 (commax/custom 선택), custom을 선택한경우 /share/packet_structures_custom.yaml을 우선적으로 적용하게됩니다.
+- `mqtt_TOPIC`: MQTT 토픽 prefix (기본값: "commax", 변경 할 필요는 없습니다.)
+
+### 로그 설정
+- `log.DEBUG`: 디버그 로그 출력 여부 (true/false)
+- `log.mqtt_log`: MQTT 로그 출력 여부 (true/false)
+- `log.elfin_log`: EW11 로그 출력 여부 (true/false)
+
+### 명령 설정
+- `command_settings.queue_interval_in_second`: 명령패킷 전송 간격 (초 단위, 기본값: 0.1 (100ms), 범위: 0.01-1.0)
+- `command_settings.max_send_count`: 명령패킷 최대 재시도 횟수 (기본값: 15, 범위: 1-99)
+- `command_settings.min_receive_count`: 패킷 전송 성공으로 판단할 예상패킷 최소 수신 횟수 (기본값: 1, 범위: 1-9)
+- `send_command_on_idle`: 월패드가 패킷전송을 잠시 쉴 때 (>130ms) 애드온에서 생성한 명령패킷을 전송하는 기능 (기본값 true)
+
+### 온도조절기 설정
+- `climate_settings.min_temp`: 온도조절기 최저 온도 제한 (기본값: 5°C, 범위: 0-19)
+- `climate_settings.max_temp`: 온도조절기 최고 온도 제한 (기본값: 40°C, 범위: 20-99)
 
 ### MQTT 설정
-- `mqtt_server`: MQTT 브로커의 IP 주소 (예: "192.168.0.39")
-- `mqtt_id`: MQTT 브로커 로그인 아이디 (mosquitto broker 애드온의 구성에서 확인하세요.)
-- `mqtt_password`: MQTT 브로커 로그인 비밀번호 (mosquitto broker 애드온의 구성에서 확인하세요.)
-- `mqtt_TOPIC`: MQTT 토픽 이름 (기본값: "commax", 수정 필요 없음)
+기본 MQTT 브로커를 사용하려면 아래 설정들을 비워두세요:
+- `mqtt.mqtt_server`: MQTT 브로커 서버 주소
+- `mqtt.mqtt_port`: MQTT 브로커 포트 (기본값: 1883)
+- `mqtt.mqtt_id`: MQTT 사용자 아이디
+- `mqtt.mqtt_password`: MQTT 비밀번호
 
-### EW11 (Elfin) 설정 
-- `elfin_auto_reboot`: EW11 자동 재부팅 사용 여부 (true/false)
-- `elfin_server`: EW11 장치의 IP 주소 (ew11 재시작 기능을 위해 필요합니다. 아닌경우 기본값으로 두셔도됩니다.)
-- `elfin_id`: EW11 관리자 아이디 (기본값: "admin") (ew11 재시작 기능을 위해 필요합니다. 아닌경우 기본값으로 두셔도됩니다.)
-- `elfin_password`: EW11 관리자 비밀번호 (ew11 재시작 기능을 위해 필요합니다. 아닌경우 기본값으로 두셔도됩니다.)
-- `elfin_reboot_interval`: EW11 자동 재부팅 간격, 설정된 시간만큼 ew11로부터 신호를 받지 못하면 재부팅을 시도합니다. (초 단위, 기본값: 60)
-
-### 기타 설정
-- `queue_interval_in_second`: 명령패킷 전송 간격 (초 단위, 기본값: 0.1 (100ms)), 너무 작은 값을 설정하면 명령패킷 전송이 너무 빠르게 이루어져 명령이 제대로 처리되지 않을 수 있습니다. 이 설정값과 관계없이 상태패킷 수신이 130ms 이상 유휴중일때만 명령패킷을 전송합니다.
-- `max_send_count`: 명령패킷 최대 재시도 횟수 (기본값: 15, 범위 1-99) 값을 높일 수록 연속된 명령을 보낼 때 딜레이가 커질 수 있습니다.
-- `min_receive_count`: 패킷 전송 성공으로 판단할 예상패킷 최소 수신 횟수 (기본값: 1, 범위 1-9) 값을 높일 수록 연속된 명령을 보낼 때 딜레이가 커질 수 있습니다.
-- `DEBUG`: 디버그 로그 출력 여부 (true/false)
-- `mqtt_log`: MQTT 로그 출력 여부 (true/false)
-- `elfin_log`: EW11 로그 출력 여부 (true/false)
-- `vendor`: 기기 패킷 구조 파일 선택 (commax/custom 선택), custom을 선택한경우 /share/packet_structures_custom.yaml을 우선적으로 적용하게됩니다. 패킷정보가 다른경우 수정해서 쓸 수 있습니다. 기기구조 파일은 웹UI에서도 수정할 수 있습니다.
-- `climate_min_temp`: 온도조절기 최저 온도 제한 (기본값: 5°C)
-- `climate_max_temp`: 온도조절기 최고 온도 제한 (기본값: 40°C)
+### EW11 (Elfin) 설정
+- `elfin.use_auto_reboot`: EW11 자동 재부팅 사용 여부 (true/false)
+- `elfin.elfin_server`: EW11 장치의 IP 주소 (재부팅기능에 사용)
+- `elfin.elfin_id`: EW11 관리자 아이디 (재부팅기능에 사용)
+- `elfin.elfin_password`: EW11 관리자 비밀번호 (재부팅기능에 사용)
+- `elfin.elfin_reboot_interval`: EW11 자동 재부팅 간격 (초 단위, 기본값: 60)
 
 설정 예시:
 ```yaml
-queue_interval_in_second: 0.1
-max_send_count: 15
-min_receive_count: 1
-climate_min_temp: 5
-climate_max_temp: 40
-DEBUG: false
-mqtt_log: false
-elfin_log: false
-mqtt_server: "192.168.0.39" # HA 서버의 IP 주소
-mqtt_id: "my_user"
-mqtt_password: "m1o@s#quitto"
-mqtt_TOPIC: "commax"
-elfin_auto_reboot: true
-elfin_server: "192.168.0.40" # ew11 장치의 IP 주소
-elfin_id: "admin"
-elfin_password: "admin"
-elfin_reboot_interval: 60
 vendor: "commax"
+mqtt_TOPIC: "commax"
+
+log:
+  DEBUG: false
+  mqtt_log: false
+  elfin_log: false
+
+command_settings:
+  queue_interval_in_second: 0.1
+  max_send_count: 15
+  min_receive_count: 1
+  send_command_on_idle: true
+
+climate_settings:
+  min_temp: 5
+  max_temp: 40
+
+mqtt:
+  mqtt_server: ""  # 기본 브로커 사용시 비워두세요
+  mqtt_port: 1883
+  mqtt_id: ""
+  mqtt_password: ""
+
+elfin:
+  use_auto_reboot: true
+  elfin_server: "192.168.0.38"
+  elfin_id: "admin"
+  elfin_password: "admin"
+  elfin_reboot_interval: 60
 ```
 
+## 커스텀 패킷구조 지원
+
+패킷 값이 다른 경우 웹UI의 '커스텀 패킷 구조 편집' 메뉴에서 수정하여 사용할 수 있습니다.
+웹UI - '플레이그라운드'에서 올라오고있는 패킷구조를 확인하여 커스텀 패킷구조를 작성할 수 있습니다.
+
+## 엘리베이터를 활성화 하는방법
+
+기기검색 중에 엘리베이터 상태 패킷이 올라오면됩니다.
+즉 웹UI에서 기기검색을 누른다(기기목록 초기화 후 재시작하여 기기검색을 다시 수행)
+-> 잠시후 월패드에서 엘베 호출을 누른다 -> 엘베 상태 패킷이 올라오며 애드온에서 엘베 버튼을 추가함.
+
+혹 엘베 버튼 구성요소가 동작하지 않는다면 커스텀 패킷 구조 편집 -> EV의 유형을 switch로 변경후 다시 시도해보세요.
