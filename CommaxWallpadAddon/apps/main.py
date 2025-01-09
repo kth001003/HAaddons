@@ -82,6 +82,7 @@ class WallpadController:
         self.load_devices_and_packets_structures() # 기기 정보와 패킷 정보를 로드 to self.DEVICE_STRUCTURE
         self.web_server = WebServer(self)
         self.elfin_reboot_count: int = 0
+        self.send_command_on_idle: bool = self.config['command_settings'].get('send_command_on_idle', True)
         self.message_processor = MessageProcessor(self)
 
     def load_devices_and_packets_structures(self) -> None:
@@ -943,7 +944,10 @@ class WallpadController:
                 if (self.config['elfin'].get("use_auto_reboot",True)):
                     self.logger.warning('EW11 재시작을 시도합니다.')
                     await self.reboot_elfin_device()
-            if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
+            if (self.send_command_on_idle):
+                if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
+                    await self.process_queue()
+            else:
                 await self.process_queue()
             return
             
