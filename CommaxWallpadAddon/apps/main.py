@@ -16,6 +16,7 @@ from .web_server import WebServer
 from .utils import byte_to_hex_str, checksum, pad
 from .supervisor_api import SupervisorAPI
 from .message_processor import MessageProcessor
+from .discovery_publisher import DiscoveryPublisher
 
 T = TypeVar('T')
 
@@ -84,6 +85,8 @@ class WallpadController:
         self.elfin_reboot_count: int = 0
         self.send_command_on_idle: bool = self.config['command_settings'].get('send_command_on_idle', True)
         self.message_processor = MessageProcessor(self)
+        self.discovery_publisher = DiscoveryPublisher(self)
+        self.is_available: bool = False
 
     def load_devices_and_packets_structures(self) -> None:
         """
@@ -191,6 +194,7 @@ class WallpadController:
             self.logger.info("MQTT 브로커 연결 시도 중...")
             if self.mqtt_client:
                 self.logger.debug(f"MQTT 호스트: {self.MQTT_HOST}")
+                self.mqtt_client.will_set(f"{self.HA_TOPIC}/status", "offline", retain=True)
                 self.mqtt_client.connect(self.MQTT_HOST, self.MQTT_PORT)
             else:
                 self.logger.error("MQTT 클라이언트가 초기화되지 않았습니다.")
@@ -225,6 +229,9 @@ class WallpadController:
                     (f'{self.ELFIN_TOPIC}/send', 0)
                 ]
                 client.subscribe(topics)
+                # 온라인 상태 발행
+                self.publish_mqtt(f"{self.HA_TOPIC}/status", "online", retain=True)
+                self.is_available = True
             except Exception as e:
                 self.logger.error(f"MQTT 토픽 구독 중 오류 발생: {str(e)}")
         else:
@@ -244,7 +251,11 @@ class WallpadController:
             
             if topics[0] == self.ELFIN_TOPIC:
                 if topics[1] == 'recv':
-                    self.elfin_reboot_count = 0
+                    self.elfin_reboot_count = 0            
+                    if not self.is_available:
+                        # 통신이 정상이고 offline 상태일 때 online으로 변경
+                        self.publish_mqtt(f"{self.HA_TOPIC}/status", "online", retain=True)
+                        self.is_available = True
                     raw_data = msg.payload.hex().upper()
                     self.logger.signal(f'->> 수신: {raw_data}')
                     if self.loop and self.loop.is_running():
@@ -367,145 +378,6 @@ class WallpadController:
         except Exception as e:
             self.logger.error(f'기기 검색 중 오류 발생: {str(e)}')
             return {}
-
-    async def publish_discovery_message(self):
-        """홈어시스턴트 MQTT Discovery 메시지 발행"""
-        try:
-            # Discovery 접두사
-            discovery_prefix = "homeassistant"
-            
-            # 공통 디바이스 정보
-            device_base_info = {
-                "identifiers": ["commax_wallpad"],
-                "name": "commax_wallpad",
-                "model": "commax_wallpad",
-                "manufacturer": "commax_wallpad"
-            }
-            
-            if self.device_list is None:
-                self.logger.error("device_list가 초기화되지 않았습니다.")
-                return
-            
-            for device_name, device_info in self.device_list.items():
-                device_type = device_info['type']
-                device_count = device_info['count']
-                
-                # device_count가 0인 경우 건너뛰기
-                if device_count == 0:
-                    continue
-                
-                # 1부터 시작
-                for idx in range(1, device_count + 1):
-                    device_id = f"{device_name}{idx}"
-                    
-                    if device_type == 'switch':  # 기타 스위치
-                        if device_name == 'Outlet':  # 콘센트인 경우
-                            # 스위치 설정
-                            config_topic = f"{discovery_prefix}/switch/{device_id}/config"
-                            payload = {
-                                "name": f"{device_name} {idx}",
-                                "unique_id": f"commax_{device_id}",
-                                "state_topic": self.STATE_TOPIC.format(device_id, "power"),
-                                "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
-                                "payload_on": "ON",
-                                "payload_off": "OFF",
-                                "device_class": "outlet",
-                                "device": device_base_info
-                            }
-                            # # 절전모드 설정
-                            # config_topic = f"{discovery_prefix}/switch/{device_id}_ecomode/config"
-                            # payload = {
-                            #     "name": f"{device_name} {idx} Eco Mode",
-                            #     "unique_id": f"commax_{device_id}_ecomode",
-                            #     "state_topic": self.STATE_TOPIC.format(device_id, "ecomode"),
-                            #     "command_topic": f"{self.HA_TOPIC}/{device_id}/ecomode/command",
-                            #     "payload_on": "ON",
-                            #     "payload_off": "OFF",
-                            #     "device_class": "switch",
-                            #     "device": device_base_info
-                            # }
-                            # 전력 센서 설정
-                            config_topic = f"{discovery_prefix}/sensor/{device_id}_watt/config"
-                            payload = {
-                                "name": f"{device_name} {idx} Power",
-                                "unique_id": f"commax_{device_id}_watt",
-                                "state_topic": self.STATE_TOPIC.format(device_id, "watt"),
-                                "unit_of_measurement": "W",
-                                "device_class": "power",
-                                "state_class": "measurement",
-                                "device": device_base_info
-                            }
-                        else:  # 일반 스위치인 경우
-                            config_topic = f"{discovery_prefix}/switch/{device_id}/config"
-                            payload = {
-                                "name": f"{device_name} {idx}",
-                                "unique_id": f"commax_{device_id}",
-                                "state_topic": self.STATE_TOPIC.format(device_id, "power"),
-                                "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
-                                "payload_on": "ON",
-                                "payload_off": "OFF",
-                                "device": device_base_info
-                            }
-                    elif device_type == 'light':  # 조명
-                        config_topic = f"{discovery_prefix}/light/{device_id}/config"
-                        payload = {
-                            "name": f"{device_name} {idx}",
-                            "unique_id": f"commax_{device_id}",
-                            "state_topic": self.STATE_TOPIC.format(device_id, "power"),
-                            "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
-                            "payload_on": "ON",
-                            "payload_off": "OFF",
-                            "device": device_base_info
-                        }
-                    elif device_type == 'fan':  # 환기장치
-                        config_topic = f"{discovery_prefix}/fan/{device_id}/config"
-                        payload = {
-                            "name": f"{device_name} {idx}",
-                            "unique_id": f"commax_{device_id}",
-                            "state_topic": self.STATE_TOPIC.format(device_id, "power"),
-                            "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
-                            "speed_state_topic": self.STATE_TOPIC.format(device_id, "speed"),
-                            "speed_command_topic": f"{self.HA_TOPIC}/{device_id}/speed/command",
-                            "speeds": ["low", "medium", "high"],
-                            "payload_on": "ON",
-                            "payload_off": "OFF",
-                            "device": device_base_info
-                        }
-                        
-                    elif device_type == 'climate':  # 온도조절기
-                        config_topic = f"{discovery_prefix}/climate/{device_id}/config"
-                        payload = {
-                            "name": f"{device_name} {idx}",
-                            "unique_id": f"commax_{device_id}",
-                            "device": device_base_info,
-                            "current_temperature_topic": self.STATE_TOPIC.format(device_id, "curTemp"),
-                            "temperature_command_topic": f"{self.HA_TOPIC}/{device_id}/setTemp/command",
-                            "temperature_state_topic": self.STATE_TOPIC.format(device_id, "setTemp"),
-                            "mode_command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
-                            "mode_state_topic": self.STATE_TOPIC.format(device_id, "power"),
-                            "action_state_topic": self.STATE_TOPIC.format(device_id, "action"),
-                            "modes": ["off", "heat"],
-                            "temperature_unit": "C",
-                            "min_temp": int(self.config['climate_settings'].get('min_temp',5)),
-                            "max_temp": int(self.config['climate_settings'].get('max_temp',40)),
-                            "temp_step": 1,
-                        }
-                    elif device_type == 'button':  # 버튼형 기기 (가스밸브, 엘리베이터 호출)
-                        config_topic = f"{discovery_prefix}/button/{device_id}/config"
-                        payload = {
-                            "name": f"{device_name} {idx}",
-                            "unique_id": f"commax_{device_id}",
-                            "state_topic": self.STATE_TOPIC.format(device_id, "power"),
-                            "command_topic": f"{self.HA_TOPIC}/{device_id}/power/command",
-                            "device": device_base_info
-                        }
-                    if 'payload' in locals():
-                        self.publish_mqtt(config_topic, json.dumps(payload), retain=True)
-
-            self.logger.info("MQTT Discovery 설정 완료")
-            
-        except Exception as e:
-            self.logger.error(f"MQTT Discovery 설정 중 오류 발생: {str(e)}")
 
     # 명령 생성 함수들
     @require_device_structure(None)
@@ -941,8 +813,12 @@ class WallpadController:
                 self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
                 self.COLLECTDATA['last_recv_time'] = time.time_ns()
                 self.elfin_reboot_count += 1
+                # availability 상태 업데이트
+                if self.is_available:
+                    self.publish_mqtt(f"{self.HA_TOPIC}/status", "offline", retain=True)
+                    self.is_available = False
                 if (self.config['elfin'].get("use_auto_reboot",True)):
-                    self.logger.warning('EW11 재시작을 시도합니다.')
+                    self.logger.warning(f'EW11 재시작을 시도합니다. {self.elfin_reboot_count}')
                     await self.reboot_elfin_device()
             if (self.send_command_on_idle):
                 if signal_interval > 130: #130ms이상 여유있을 때 큐 실행
@@ -1032,7 +908,7 @@ class WallpadController:
                         
                         while mqtt_connected.is_set():
                             if not discovery_done.is_set() and device_search_done.is_set():
-                                await self.publish_discovery_message()
+                                await self.discovery_publisher.publish_discovery_message()
                                 discovery_done.set()
                             # device_list가 비어있고 아직 기기 검색이 완료되지 않은 경우
                             recv_data_len = len(self.COLLECTDATA['recv_data'])
@@ -1050,7 +926,7 @@ class WallpadController:
                                     self.logger.info("충분한 데이터가 수집되어 기기 검색을 시작합니다.")
                                     self.device_list = self.find_device()
                                     if self.device_list:
-                                        await self.publish_discovery_message()
+                                        await self.discovery_publisher.publish_discovery_message()
                                         discovery_done.set()
                                     else:
                                         self.logger.warning("기기를 찾지 못했습니다.")
