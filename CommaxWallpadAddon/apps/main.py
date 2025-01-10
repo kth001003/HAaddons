@@ -331,9 +331,7 @@ class WallpadController:
             
             device_count = {name: 0 for name in state_headers.values()}
             
-            #init recent_recv_data
-            self.COLLECTDATA['recent_recv_data'] = set()
-            collect_data_set = self.COLLECTDATA['recent_recv_data']
+            collect_data_set = set(self.COLLECTDATA['recv_data'])
             for data in collect_data_set:
                 data_bytes = bytes.fromhex(data)
                 header = byte_to_hex_str(data_bytes[0])
