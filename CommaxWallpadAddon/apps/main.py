@@ -645,7 +645,6 @@ class WallpadController:
             required_bytes = expected_state['required_bytes']
             possible_values = expected_state['possible_values']
             
-            self.COLLECTDATA['recent_recv_data'] = set()
             recv_data_set = self.COLLECTDATA['recent_recv_data']
             for received_packet in recv_data_set:
                 if not isinstance(received_packet, str):
@@ -678,6 +677,7 @@ class WallpadController:
                     
                 if match:
                     send_data['received_count'] += 1
+                    self.COLLECTDATA['recent_recv_data'] = set()
                     self.logger.debug(f"예상된 응답을 수신했습니다 ({send_data['received_count']}/{self.min_receive_count}): {received_packet}")
                     
             if send_data['received_count'] >= self.min_receive_count:
