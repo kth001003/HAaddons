@@ -168,7 +168,7 @@ class DiscoveryPublisher:
                             {
                                 "name": f"{device_name} {idx}",
                                 "unique_id": f"commax_{device_id}",
-                                "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/command",
+                                "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/button/command",
                                 "payload_press": "PRESS",
                                 **self.device_base_info,
                                 **self.availability
