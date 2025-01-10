@@ -143,3 +143,7 @@ elfin:
 -> 잠시후 월패드에서 엘베 호출을 누른다 -> 엘베 상태 패킷이 올라오며 애드온에서 엘베 버튼을 추가함.
 
 혹 엘베 버튼 구성요소가 동작하지 않는다면 커스텀 패킷 구조 편집 -> EV의 유형을 switch로 변경후 다시 시도해보세요.
+
+## 기타
+- elfin_reboot_interval값 x 10 동안 ew11 응닶없음 -> 구성요소들이 사용불가 (unavailable)상태로 변경됩니다.
+- elfin_reboot_interval값 x 20 동안 ew11 응닶없음 -> elfin_unavailable_notification 값이 true일 경우 HA 알림이 발생합니다.

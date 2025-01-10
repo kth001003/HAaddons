@@ -589,6 +589,10 @@ class WallpadController:
     
     async def reboot_elfin_device(self):
         try:
+            if self.is_available > 10 and self.is_available:
+                # availability 상태 업데이트
+                self.publish_mqtt(f"{self.HA_TOPIC}/status", "offline", retain=True)
+                self.is_available = False
             if self.elfin_unavailable_notification and self.elfin_reboot_count == 20: 
                 # 20회 실패시 1회성 알림 전송 (기본값 60초 x 10 = 20분간 응답 없었음)
                 self.logger.error('EW11 응답 없음')
@@ -597,6 +601,7 @@ class WallpadController:
                     message=f'[{time.strftime("%Y-%m-%d %H:%M:%S")}] EW11에서 응답이 없습니다. EW11 상태를 점검 후 애드온을 재시작 해주세요. 이 메시지를 확인했을 때 애드온이 다시 정상 작동 중이라면 무시해도 좋습니다.'
                     )
                 return
+            
             # telnetlib3는 비동기 연결을 반환합니다
             reader, writer = await telnetlib3.open_connection(self.config['elfin'].get('elfin_server'))
             assert reader is not None and writer is not None
@@ -718,10 +723,6 @@ class WallpadController:
                 self.logger.warning(f'{elfin_reboot_interval}초간 신호를 받지 못했습니다.')
                 self.COLLECTDATA['last_recv_time'] = time.time_ns()
                 self.elfin_reboot_count += 1
-                # availability 상태 업데이트
-                if self.is_available:
-                    self.publish_mqtt(f"{self.HA_TOPIC}/status", "offline", retain=True)
-                    self.is_available = False
                 if (self.config['elfin'].get("use_auto_reboot",True)):
                     self.logger.warning(f'EW11 재시작을 시도합니다. {self.elfin_reboot_count}')
                     await self.reboot_elfin_device()
