@@ -13,6 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from apps.main import WallpadController
 from apps.logger import Logger
 from apps.main import CollectData, ExpectedStatePacket
+from apps.state_updater import StateUpdater
 
 @pytest.fixture
 def config():
@@ -107,7 +108,7 @@ async def test_process_ha_command(controller):
     value = '24'
     
     # process_ha_command 호출
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     
     # QUEUE에 명령이 추가되었는지 확인
     assert len(controller.QUEUE) > 0
@@ -118,12 +119,12 @@ async def test_process_ha_command_light(controller):
     # 조명 켜기
     topics = ['commax', 'Light1', 'power', 'command'] 
     value = 'ON'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '3101010000000033'
     
     # 조명 끄기
     value = 'OFF'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '3101000000000032'
 
 @pytest.mark.asyncio
@@ -132,18 +133,18 @@ async def test_process_ha_command_thermo(controller):
     # 온도조절기 켜기
     topics = ['commax', 'Thermo1', 'power', 'command']
     value = 'heat'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '040104810000008A'
 
     # 온도조절기 끄기
     value = 'off'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '0401040000000009'
 
     # 온도 설정
     topics = ['commax', 'Thermo1', 'setTemp', 'command']
     value = '24'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '040103240000002C'
 
 @pytest.mark.asyncio
@@ -152,28 +153,28 @@ async def test_process_ha_command_fan(controller):
     # 전원 켜기
     topics = ['commax', 'Fan1', 'power', 'command']
     value = 'ON'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '780101040000007E'
 
     # 전원 끄기
     value = 'off'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '780101000000007A'
 
     # 속도 low
     topics = ['commax', 'Fan1', 'speed', 'command']
     value = 'low'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '780102010000007C'
 
     # 속도 medium
     value = 'medium'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '780102020000007D'
 
     # 속도 high
     value = 'high'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '780102030000007E'
 
 @pytest.mark.asyncio
@@ -182,7 +183,7 @@ async def test_process_ha_command_gas(controller):
     # 가스밸브 차단
     topics = ['commax', 'Gas1', 'power', 'command']
     value = 'OFF'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '1101800000000092'
 
 @pytest.mark.asyncio
@@ -191,12 +192,12 @@ async def test_process_ha_command_outlet(controller):
     # 전원 켜기
     topics = ['commax', 'Outlet1', 'power', 'command']
     value = 'ON'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '7A0101010000007D'
 
     # 전원 끄기 
     value = 'OFF'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '7A0101000000007C'
 
 @pytest.mark.asyncio
@@ -205,12 +206,12 @@ async def test_process_ha_command_lightbreaker(controller):
     # 전원 켜기
     topics = ['commax', 'LightBreaker1', 'power', 'command']
     value = 'ON'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '2201010100000025'
 
     # 전원 끄기
     value = 'off'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '2201010000000024'
 
 @pytest.mark.asyncio
@@ -219,7 +220,7 @@ async def test_process_ha_command_ev(controller):
     # 전원 켜기
     topics = ['commax', 'EV1', 'power', 'command']
     value = 'ON'
-    await controller.process_ha_command(topics, value)
+    await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == 'A0010101081500C0'
 
 def test_find_device_with_light(controller):
@@ -416,9 +417,183 @@ async def test_process_elfin_data_outlet(controller):
     outlet_packet = "F901011100010310"
     
     # update_outlet 메서드를 mock으로 대체
-    with patch.object(controller, 'update_outlet') as mock_update:
+    with patch.object(controller.state_updater, 'update_outlet') as mock_update:
         # 패킷 처리
-        await controller.process_elfin_data(outlet_packet)
+        await controller.message_processor.process_elfin_data(outlet_packet)
         
         # update_outlet이 올바른 인자와 함께 호출되었는지 확인
         mock_update.assert_called_once_with(1, "ON", 103, None)
+
+@pytest.mark.asyncio
+async def test_state_updater_light():
+    """조명 상태 업데이트 테스트"""
+    # mock publish_mqtt 함수 생성
+    mock_publish = Mock()
+    state_topic = "commax/{}/{}/state"
+    
+    # StateUpdater 인스턴스 생성
+    updater = StateUpdater(state_topic, mock_publish)
+    
+    # 조명 상태 업데이트
+    await updater.update_light(1, "ON")
+    
+    # publish_mqtt가 올바른 인자와 함께 호출되었는지 확인
+    mock_publish.assert_called_once_with(
+        state_topic.format("Light1", "power"),
+        "ON"
+    )
+
+@pytest.mark.asyncio
+async def test_state_updater_thermo():
+    """온도조절기 상태 업데이트 테스트"""
+    # mock publish_mqtt 함수 생성
+    mock_publish = Mock()
+    state_topic = "commax/{}/{}/state"
+    
+    # StateUpdater 인스턴스 생성
+    updater = StateUpdater(state_topic, mock_publish)
+    
+    # 온도조절기 상태 업데이트
+    await updater.update_temperature(1, "heat", "heating", 24, 25)
+    
+    # publish_mqtt가 올바른 횟수만큼 호출되었는지 확인
+    assert mock_publish.call_count == 4
+    
+    # 각각의 호출이 올바른 인자와 함께 이루어졌는지 확인
+    mock_publish.assert_any_call(
+        state_topic.format("Thermo1", "curTemp"),
+        "24"
+    )
+    mock_publish.assert_any_call(
+        state_topic.format("Thermo1", "setTemp"),
+        "25"
+    )
+    mock_publish.assert_any_call(
+        state_topic.format("Thermo1", "power"),
+        "heat"
+    )
+    mock_publish.assert_any_call(
+        state_topic.format("Thermo1", "action"),
+        "heating"
+    )
+
+@pytest.mark.asyncio
+async def test_state_updater_fan():
+    """환기장치 상태 업데이트 테스트"""
+    # mock publish_mqtt 함수 생성
+    mock_publish = Mock()
+    state_topic = "commax/{}/{}/state"
+    
+    # StateUpdater 인스턴스 생성
+    updater = StateUpdater(state_topic, mock_publish)
+    
+    # 환기장치 ON 상태 업데이트
+    await updater.update_fan(1, "ON", "medium")
+    
+    # publish_mqtt가 올바른 횟수만큼 호출되었는지 확인
+    assert mock_publish.call_count == 2
+    
+    # 각각의 호출이 올바른 인자와 함께 이루어졌는지 확인
+    mock_publish.assert_any_call(
+        state_topic.format("Fan1", "speed"),
+        "medium"
+    )
+    mock_publish.assert_any_call(
+        state_topic.format("Fan1", "power"),
+        "ON"
+    )
+    
+    # mock 초기화
+    mock_publish.reset_mock()
+    
+    # 환기장치 OFF 상태 업데이트
+    await updater.update_fan(1, "OFF", "low")
+    
+    # OFF 상태에서는 power만 업데이트
+    mock_publish.assert_called_once_with(
+        state_topic.format("Fan1", "power"),
+        "OFF"
+    )
+
+@pytest.mark.asyncio
+async def test_state_updater_outlet():
+    """콘센트 상태 업데이트 테스트"""
+    # mock publish_mqtt 함수 생성
+    mock_publish = Mock()
+    state_topic = "commax/{}/{}/state"
+    
+    # StateUpdater 인스턴스 생성
+    updater = StateUpdater(state_topic, mock_publish)
+    
+    # 콘센트 ON 상태 업데이트 (전력값 포함)
+    await updater.update_outlet(1, "ON", 103, None)
+    
+    # publish_mqtt가 올바른 횟수만큼 호출되었는지 확인
+    assert mock_publish.call_count == 2
+    
+    # 각각의 호출이 올바른 인자와 함께 이루어졌는지 확인
+    mock_publish.assert_any_call(
+        state_topic.format("Outlet2", "power"),
+        "ON"
+    )
+    mock_publish.assert_any_call(
+        state_topic.format("Outlet2", "watt"),
+        "10.3"
+    )
+    
+    # mock 초기화
+    mock_publish.reset_mock()
+    
+    # 콘센트 OFF 상태 업데이트
+    await updater.update_outlet(1, "OFF", None, None)
+    
+    # OFF 상태에서는 power만 업데이트
+    mock_publish.assert_called_once_with(
+        state_topic.format("Outlet2", "power"),
+        "OFF"
+    )
+
+@pytest.mark.asyncio
+async def test_state_updater_ev():
+    """엘리베이터 상태 업데이트 테스트"""
+    # mock publish_mqtt 함수 생성
+    mock_publish = Mock()
+    state_topic = "commax/{}/{}/state"
+    
+    # StateUpdater 인스턴스 생성
+    updater = StateUpdater(state_topic, mock_publish)
+    
+    # 엘리베이터 상태 업데이트
+    await updater.update_ev(1, "ON", "15")
+    
+    # publish_mqtt가 올바른 횟수만큼 호출되었는지 확인
+    assert mock_publish.call_count == 2
+    
+    # 각각의 호출이 올바른 인자와 함께 이루어졌는지 확인
+    mock_publish.assert_any_call(
+        state_topic.format("EV1", "power"),
+        "ON"
+    )
+    mock_publish.assert_any_call(
+        state_topic.format("EV1", "floor"),
+        "15"
+    )
+
+@pytest.mark.asyncio
+async def test_state_updater_light_breaker():
+    """조명차단기 상태 업데이트 테스트"""
+    # mock publish_mqtt 함수 생성
+    mock_publish = Mock()
+    state_topic = "commax/{}/{}/state"
+    
+    # StateUpdater 인스턴스 생성
+    updater = StateUpdater(state_topic, mock_publish)
+    
+    # 조명차단기 상태 업데이트
+    await updater.update_light_breaker(1, "ON")
+    
+    # publish_mqtt가 올바른 인자와 함께 호출되었는지 확인
+    mock_publish.assert_called_once_with(
+        state_topic.format("LightBreaker1", "power"),
+        "ON"
+    )

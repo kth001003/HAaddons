@@ -13,10 +13,11 @@ import re
 import telnetlib3 # type: ignore
 import shutil
 from .web_server import WebServer
-from .utils import byte_to_hex_str, checksum, pad
+from .utils import byte_to_hex_str, checksum
 from .supervisor_api import SupervisorAPI
 from .message_processor import MessageProcessor
 from .discovery_publisher import DiscoveryPublisher
+from .state_updater import StateUpdater
 
 T = TypeVar('T')
 
@@ -83,9 +84,11 @@ class WallpadController:
         self.load_devices_and_packets_structures() # 기기 정보와 패킷 정보를 로드 to self.DEVICE_STRUCTURE
         self.web_server = WebServer(self)
         self.elfin_reboot_count: int = 0
+        self.elfin_unavailable_notification: bool = self.config['elfin'].get('elfin_unavailable_notification', False)
         self.send_command_on_idle: bool = self.config['command_settings'].get('send_command_on_idle', True)
         self.message_processor = MessageProcessor(self)
         self.discovery_publisher = DiscoveryPublisher(self)
+        self.state_updater = StateUpdater(self.STATE_TOPIC, self.publish_mqtt)
         self.is_available: bool = False
 
     def load_devices_and_packets_structures(self) -> None:
@@ -314,10 +317,8 @@ class WallpadController:
             
             save_path = os.path.join(self.share_dir, 'commax_found_device.json')
             
-            # 헤입 체크를 위한 assertion 추가
             assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
             
-            # 헤더로 기기 타입 매핑
             state_headers = {
                 self.DEVICE_STRUCTURE[name]["state"]["header"]: name 
                 for name in self.DEVICE_STRUCTURE 
@@ -325,10 +326,8 @@ class WallpadController:
             }
             self.logger.info(f'검색 대상 기기 headers: {state_headers}')
             
-            # 기기별 최대 인덱스 저장
             device_count = {name: 0 for name in state_headers.values()}
             
-            # COLLECTDATA의 recv_data 분석
             collect_data_set = set(self.COLLECTDATA['recv_data'])
             for data in collect_data_set:
                 data_bytes = bytes.fromhex(data)
@@ -340,7 +339,8 @@ class WallpadController:
                         device_id_pos = self.DEVICE_STRUCTURE[name]["state"]["fieldPositions"]["deviceId"]
                         device_count[name] = max(
                             device_count[name],
-                            int(str(data_bytes[int(device_id_pos)]), 16)  # 바이트를 문자열로 변환 후 16진수로 변환
+                            #기기 갯수가 10개 넘어가면 HEX냐 DEC냐에 따라 갯수에 오류발생함!
+                            int(byte_to_hex_str(data_bytes[int(device_id_pos)]),16)
                         )
                         self.logger.debug(f'기기 갯수 업데이트: {device_count[name]}')
                     except Exception as e:
@@ -497,7 +497,6 @@ class WallpadController:
             
             # 필요한 바이트 리스트
             required_bytes = [0] # 헤더는 항상 포함
-            # 헤더 값을 바이트로 변환
             possible_values[0] = [device_structure['state']['header']]
             
             # 기기 ID
@@ -585,105 +584,9 @@ class WallpadController:
                             f"command_structure: {command_structure}")
             return None
     
-    # 상태 업데이트 함수들
-    async def update_light(self, idx: int, onoff: str) -> None:
-        state = 'power'
-        deviceID = 'Light' + str(idx)
-
-        topic = self.STATE_TOPIC.format(deviceID, state)
-        self.publish_mqtt(topic, onoff)
-    
-    async def update_light_breaker(self, idx: int, onoff: str) -> None:
-        state = 'power'
-        deviceID = 'LightBreaker' + str(idx)
-
-        topic = self.STATE_TOPIC.format(deviceID, state)
-        self.publish_mqtt(topic, onoff)
-
-    async def update_temperature(self, idx: int, mode_text: str, action_text: str, curTemp: int, setTemp: int) -> None:
-        """
-        온도 조절기 상태를 업데이트하는 함수입니다.
-
-        Args:
-            idx (int): 온도 조절기 장치의 인덱스 번호.
-            mode_text (str): 온도 조절기의 모드 텍스트 (예: 'heat', 'off').
-            action_text (str): 온도 조절기의 동작 텍스트 (예: 'heating', 'idle').
-            curTemp (int): 현재 온도 값.
-            setTemp (int): 설정하고자 하는 목표 온도 값.
-
-        Raises:
-            Exception: 온도 업데이트 중 오류가 발생하면 예외를 발생시킵니다.
-        """
-        try:
-            deviceID = 'Thermo' + str(idx)
-            
-            # 온도 상태 업데이트
-            temperature = {
-                'curTemp': pad(curTemp),
-                'setTemp': pad(setTemp)
-            }
-            for state in temperature:
-                # key = deviceID + state
-                val = temperature[state]
-                topic = self.STATE_TOPIC.format(deviceID, state)
-                self.publish_mqtt(topic, val)
-            
-            power_topic = self.STATE_TOPIC.format(deviceID, 'power')
-            action_topic = self.STATE_TOPIC.format(deviceID, 'action')
-            self.publish_mqtt(power_topic, mode_text)
-            self.publish_mqtt(action_topic, action_text)
-            
-        except Exception as e:
-            self.logger.error(f"온도 업데이트 중 오류 발생: {str(e)}")
- 
-    async def update_fan(self, idx: int, power_text: str, speed_text: str) -> None:
-        try:
-            deviceID = 'Fan' + str(idx)
-            if power_text == 'OFF':
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                self.publish_mqtt(topic,'OFF')
-            else:
-                topic = self.STATE_TOPIC.format(deviceID, 'speed')
-                self.publish_mqtt(topic, speed_text)
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                self.publish_mqtt(topic, 'ON')
-                
-        except Exception as e:
-            self.logger.error(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
-
-    async def update_outlet(self, idx: int, power_text: str, watt: Union[int,None], ecomode_text: Union[str,None]) -> None:
-        try:
-            deviceID = 'Outlet' + str(idx + 1)
-            if power_text == 'ON':
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                self.publish_mqtt(topic, 'ON')
-                if watt is not None:
-                    val = '%.1f' % float(int(watt) / 10)
-                    topic = self.STATE_TOPIC.format(deviceID, 'watt')
-                    self.publish_mqtt(topic, val)
-                if ecomode_text is not None:
-                    topic = self.STATE_TOPIC.format(deviceID, 'ecomode')
-                    self.publish_mqtt(topic, ecomode_text)
-            else:
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                self.publish_mqtt(topic, 'OFF')
-        except Exception as e:
-            self.logger.error(f"콘센트 상태 업데이트 중 오류 발생: {str(e)}")
-
-    async def update_ev(self, idx: int, power_text: str, floor_text: str) -> None:
-        try:
-            deviceID = 'EV' + str(idx)
-            if power_text == 'ON':
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                self.publish_mqtt(topic, 'ON')
-                topic = self.STATE_TOPIC.format(deviceID, 'floor')
-                self.publish_mqtt(topic, floor_text)
-        except Exception as e:
-            self.logger.error(f"엘리베이터 상태 업데이트 중 오류 발생: {str(e)}")
-
     async def reboot_elfin_device(self):
         try:
-            if self.elfin_reboot_count == 20: 
+            if self.elfin_unavailable_notification and self.elfin_reboot_count == 20: 
                 # 20회 실패시 1회성 알림 전송 (기본값 60초 x 10 = 20분간 응답 없었음)
                 self.logger.error('EW11 응답 없음')
                 self.supervisor_api.send_notification(

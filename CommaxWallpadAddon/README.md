@@ -89,6 +89,7 @@ EW11 mqtt설정 후에 애드온 설정은 기본값으로 사용해도 무방�
 
 ### EW11 (Elfin) 설정
 - `elfin.use_auto_reboot`: EW11 자동 재부팅 사용 여부 (true/false)
+- `elfin_unavailable_notification`: EW11 응답 없을 때 HA 알림 생성 여부 (true/false) 
 - `elfin.elfin_server`: EW11 장치의 IP 주소 (재부팅기능에 사용)
 - `elfin.elfin_id`: EW11 관리자 아이디 (재부팅기능에 사용)
 - `elfin.elfin_password`: EW11 관리자 비밀번호 (재부팅기능에 사용)

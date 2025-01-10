@@ -42,6 +42,7 @@
     },
     "elfin":{
       "use_auto_reboot": true,
+      "elfin_unavailable_notification": false,
       "✅fill_belows_to_use_auto_reboot": "",
       "elfin_server": "192.168.0.38",
       "elfin_id": "admin",
@@ -77,6 +78,7 @@
     },
     "elfin":{
       "use_auto_reboot": "bool",
+      "elfin_unavailable_notification": "bool",
       "✅fill_belows_to_use_auto_reboot": "str?",
       "elfin_server": "str?",
       "elfin_id": "str?",

@@ -1,8 +1,5 @@
 from typing import Any, Dict, List, Optional, TypedDict
 import re
-import time
-import asyncio
-from .logger import Logger
 from .utils import byte_to_hex_str, checksum
 
 class ExpectedStatePacket(TypedDict):
@@ -69,7 +66,7 @@ class MessageProcessor:
                                 mode_text = 'off' if power_hex == power_off_hex else 'heat'
                                 action_text = 'heating' if power_hex == power_heating_hex else 'idle'
                                 self.logger.signal(f'{byte_data.hex()}: 온도조절기 ### {device_id}번, 모드: {mode_text}, 현재 온도: {current_temp}°C, 설정 온도: {target_temp}°C')
-                                await self.controller.update_temperature(device_id, mode_text, action_text, current_temp, target_temp)
+                                await self.controller.state_updater.update_temperature(device_id, mode_text, action_text, current_temp, target_temp)
                             
                             elif device_name == 'Light':
                                 power_pos = field_positions.get('power', 1)
@@ -79,7 +76,7 @@ class MessageProcessor:
                                 state = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 조명 ### {device_id}번, 상태: {state}')
-                                await self.controller.update_light(device_id, state)
+                                await self.controller.state_updater.update_light(device_id, state)
 
                             elif device_name == 'LightBreaker':
                                 power_pos = field_positions.get('power', 1)
@@ -89,7 +86,7 @@ class MessageProcessor:
                                 state = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 조명차단기 ### {device_id}번, 상태: {state}')
-                                await self.controller.update_light_breaker(device_id, state)
+                                await self.controller.state_updater.update_light_breaker(device_id, state)
                                 
                             elif device_name == 'Outlet':
                                 power_pos = field_positions.get('power', 1)
@@ -111,7 +108,7 @@ class MessageProcessor:
                                         self.logger.error(f"콘센트 {device_id} 전력값 변환 중 오류 발생: {consecutive_bytes.hex()}")
                                         watt = 0
                                     self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 전력: {watt * 0.1}W')
-                                    await self.controller.update_outlet(device_id, power_text, watt, None)
+                                    await self.controller.state_updater.update_outlet(device_id, power_text, watt, None)
                                 #TODO: 절전모드 (대기전력차단모드) 로직을 알 수 없음..
                                 # elif state_type_text == 'ecomode':
                                 #     consecutive_bytes = byte_data[4:7]
@@ -132,7 +129,7 @@ class MessageProcessor:
                                 speed_text = speed_values.get(speed_hex, 'low')
                                 
                                 self.logger.signal(f'{byte_data.hex()}: 환기장치 ### {device_id}번, 상태: {power_text}, 속도: {speed_text}')
-                                await self.controller.update_fan(device_id, power_text, speed_text)
+                                await self.controller.state_updater.update_fan(device_id, power_text, speed_text)
                             
                             elif device_name == 'EV':
                                 power_pos = field_positions.get('power', 1)
@@ -146,7 +143,7 @@ class MessageProcessor:
                                 floor_hex = byte_to_hex_str(floor)
                                 floor_text = floor_values.get(floor_hex, 'B')
                                 self.logger.signal(f'{byte_data.hex()}: 엘리베이터 ### {device_id}번, 상태: {power_text}, 층: {floor_text}')
-                                await self.controller.update_ev(device_id, power_text, floor_text)
+                                await self.controller.state_updater.update_ev(device_id, power_text, floor_text)
 
                             break
                 else:
