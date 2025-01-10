@@ -104,7 +104,7 @@ class WallpadController:
         try:
             vendor = self.config.get('vendor', 'commax').lower()
             
-            # 기본 파일 경로 설정 (config에서 지정된 경로가 있으면 그것을 사용 for test)
+            # 기본 파일 경로 설정 (config에서 지정된 경로가 있으면 그것을 사용 for pytest)
             if 'packet_file' in self.config:
                 default_file_path = self.config['packet_file']
             else:
@@ -645,7 +645,8 @@ class WallpadController:
             required_bytes = expected_state['required_bytes']
             possible_values = expected_state['possible_values']
             
-            recv_data_set = set(self.COLLECTDATA['recv_data'])
+            self.COLLECTDATA['recent_recv_data'] = set()
+            recv_data_set = self.COLLECTDATA['recent_recv_data']
             for received_packet in recv_data_set:
                 if not isinstance(received_packet, str):
                     continue
