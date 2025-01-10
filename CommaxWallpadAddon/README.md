@@ -74,7 +74,7 @@ EW11 mqtt설정 후에 애드온 설정은 기본값으로 사용해도 무방�
 - `command_settings.queue_interval_in_second`: 명령패킷 전송 간격 (초 단위, 기본값: 0.1 (100ms), 범위: 0.01-1.0)
 - `command_settings.max_send_count`: 명령패킷 최대 재시도 횟수 (기본값: 15, 범위: 1-99)
 - `command_settings.min_receive_count`: 패킷 전송 성공으로 판단할 예상패킷 최소 수신 횟수 (기본값: 1, 범위: 1-9)
-- `send_command_on_idle`: 월패드가 패킷전송을 잠시 쉴 때 (>130ms) 애드온에서 생성한 명령패킷을 전송하는 기능 (기본값 true)
+- `command_settings.send_command_on_idle`: 월패드가 패킷전송을 잠시 쉴 때 (>130ms) 애드온에서 생성한 명령패킷을 전송하는 기능 (기본값 true)
 
 ### 온도조절기 설정
 - `climate_settings.min_temp`: 온도조절기 최저 온도 제한 (기본값: 5°C, 범위: 0-19)
@@ -89,7 +89,7 @@ EW11 mqtt설정 후에 애드온 설정은 기본값으로 사용해도 무방�
 
 ### EW11 (Elfin) 설정
 - `elfin.use_auto_reboot`: EW11 자동 재부팅 사용 여부 (true/false)
-- `elfin_unavailable_notification`: EW11 응답 없을 때 HA 알림 생성 여부 (true/false) 
+- `elfin.elfin_unavailable_notification`: EW11 응답 없을 때 HA 알림 생성 여부 (true/false) 
 - `elfin.elfin_server`: EW11 장치의 IP 주소 (재부팅기능에 사용)
 - `elfin.elfin_id`: EW11 관리자 아이디 (재부팅기능에 사용)
 - `elfin.elfin_password`: EW11 관리자 비밀번호 (재부팅기능에 사용)
@@ -99,6 +99,7 @@ EW11 mqtt설정 후에 애드온 설정은 기본값으로 사용해도 무방�
 ```yaml
 vendor: "commax"
 mqtt_TOPIC: "commax"
+elfin_TOPIC: "ew11"
 
 log:
   DEBUG: false
@@ -123,6 +124,7 @@ mqtt:
 
 elfin:
   use_auto_reboot: true
+  elfin_unavailable_notification: false
   elfin_server: "192.168.0.38"
   elfin_id: "admin"
   elfin_password: "admin"
