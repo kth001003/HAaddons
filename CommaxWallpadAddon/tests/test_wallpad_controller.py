@@ -181,8 +181,8 @@ async def test_process_ha_command_fan(controller):
 async def test_process_ha_command_gas(controller):
     """가스밸브 명령 패킷 테스트"""
     # 가스밸브 차단
-    topics = ['commax', 'Gas1', 'power', 'command']
-    value = 'OFF'
+    topics = ['commax', 'Gas1', 'command']
+    value = 'PRESS'
     await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '1101800000000092'
 
@@ -218,8 +218,8 @@ async def test_process_ha_command_lightbreaker(controller):
 async def test_process_ha_command_ev(controller):
     """EV 호출 명령 패킷 테스트"""
     # 전원 켜기
-    topics = ['commax', 'EV1', 'power', 'command']
-    value = 'ON'
+    topics = ['commax', 'EV1', 'command']
+    value = 'PRESS'
     await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == 'A0010101081500C0'
 
@@ -261,6 +261,7 @@ def test_find_device_with_multiple_devices(controller):
         "8281022420000049",  # 2번 온도조절기
         "F6000101000000F8",   # 1번 환기장치
         "9080800000000090",   # 가스차단기
+        "2301012300000048",  # 1번 엘리베이터 상태
         "F70101810000FFFF",  # 잘못된 체크섬
         "F60101182425FFFF",  # 잘못된 체크섬
     ]
@@ -281,6 +282,9 @@ def test_find_device_with_multiple_devices(controller):
     
     assert 'Gas' in result
     assert result['Gas']['count'] == 1
+
+    assert 'EV' in result
+    assert result['EV']['count'] == 1
 
 def test_find_device_with_invalid_packets(controller):
     """잘못된 패킷으로 기기 검색 테스트"""
@@ -423,6 +427,20 @@ async def test_process_elfin_data_outlet(controller):
         
         # update_outlet이 올바른 인자와 함께 호출되었는지 확인
         mock_update.assert_called_once_with(1, "ON", 103, None)
+
+@pytest.mark.asyncio
+async def test_process_elfin_data_ev(controller):
+    """엘리베이터 상태 패킷 처리 테스트"""
+    # 엘리베이터 상태 패킷 (1번 EV, 전원 ON, 23층)
+    ev_packet = "2301012300000048"
+    
+    # update_ev 메서드를 mock으로 대체
+    with patch.object(controller.state_updater, 'update_ev') as mock_update:
+        # 패킷 처리
+        await controller.message_processor.process_elfin_data(ev_packet)
+        
+        # update_ev가 올바른 인자와 함께 호출되었는지 확인
+        mock_update.assert_called_once_with(1, "ON", "23")
 
 @pytest.mark.asyncio
 async def test_state_updater_light():

@@ -1,7 +1,7 @@
 """홈어시스턴트 MQTT Discovery 메시지 발행을 담당하는 모듈"""
 
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 from .logger import Logger
 
 class DiscoveryPublisher:
@@ -48,23 +48,26 @@ class DiscoveryPublisher:
                 for idx in range(1, device_count + 1):
                     device_id = f"{device_name}{idx}"
                     
-                    payload = None
+                    # config_topic과 payload를 리스트로 관리
+                    configs: List[Tuple[str, dict]] = []
                     
                     if device_type == 'switch':  # 기타 스위치
                         if device_name == 'Outlet':  # 콘센트인 경우
                             # 스위치 설정
-                            config_topic = f"{self.discovery_prefix}/switch/{device_id}/config"
-                            payload = {
-                                "name": f"{device_name} {idx}",
-                                "unique_id": f"commax_{device_id}",
-                                "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
-                                "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
-                                "payload_on": "ON",
-                                "payload_off": "OFF",
-                                "device_class": "outlet",
-                                **self.device_base_info,
-                                **self.availability
-                            }
+                            configs.append((
+                                f"{self.discovery_prefix}/switch/{device_id}/config",
+                                {
+                                    "name": f"{device_name} {idx}",
+                                    "unique_id": f"commax_{device_id}",
+                                    "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
+                                    "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
+                                    "payload_on": "ON",
+                                    "payload_off": "OFF",
+                                    "device_class": "outlet",
+                                    **self.device_base_info,
+                                    **self.availability
+                                }
+                            ))
                             # # 절전모드 설정
                             # config_topic = f"{self.discovery_prefix}/switch/{device_id}_ecomode/config"
                             # payload = {
@@ -79,20 +82,37 @@ class DiscoveryPublisher:
                             #     **self.availability
                             # }
                             # 전력 센서 설정
-                            config_topic = f"{self.discovery_prefix}/sensor/{device_id}_watt/config"
-                            payload = {
-                                "name": f"{device_name} {idx} Power",
-                                "unique_id": f"commax_{device_id}_watt",
-                                "state_topic": self.controller.STATE_TOPIC.format(device_id, "watt"),
-                                "unit_of_measurement": "W",
-                                "device_class": "power",
-                                "state_class": "measurement",
-                                **self.device_base_info,
-                                **self.availability
-                            }
+                            configs.append((
+                                f"{self.discovery_prefix}/sensor/{device_id}_watt/config",
+                                {
+                                    "name": f"{device_name} {idx} Power",
+                                    "unique_id": f"commax_{device_id}_watt",
+                                    "state_topic": self.controller.STATE_TOPIC.format(device_id, "watt"),
+                                    "unit_of_measurement": "W",
+                                    "device_class": "power",
+                                    "state_class": "measurement",
+                                    **self.device_base_info,
+                                    **self.availability
+                                }
+                            ))
                         else:  # 일반 스위치인 경우
-                            config_topic = f"{self.discovery_prefix}/switch/{device_id}/config"
-                            payload = {
+                            configs.append((
+                                f"{self.discovery_prefix}/switch/{device_id}/config",
+                                {
+                                    "name": f"{device_name} {idx}",
+                                    "unique_id": f"commax_{device_id}",
+                                    "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
+                                    "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
+                                    "payload_on": "ON",
+                                    "payload_off": "OFF",
+                                    **self.device_base_info,
+                                    **self.availability
+                                }
+                            ))
+                    elif device_type == 'light':  # 조명
+                        configs.append((
+                            f"{self.discovery_prefix}/light/{device_id}/config",
+                            {
                                 "name": f"{device_name} {idx}",
                                 "unique_id": f"commax_{device_id}",
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
@@ -102,64 +122,86 @@ class DiscoveryPublisher:
                                 **self.device_base_info,
                                 **self.availability
                             }
-                    elif device_type == 'light':  # 조명
-                        config_topic = f"{self.discovery_prefix}/light/{device_id}/config"
-                        payload = {
-                            "name": f"{device_name} {idx}",
-                            "unique_id": f"commax_{device_id}",
-                            "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
-                            "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
-                            "payload_on": "ON",
-                            "payload_off": "OFF",
-                            **self.device_base_info,
-                            **self.availability
-                        }
+                        ))
                     elif device_type == 'fan':  # 환기장치
-                        config_topic = f"{self.discovery_prefix}/fan/{device_id}/config"
-                        payload = {
-                            "name": f"{device_name} {idx}",
-                            "unique_id": f"commax_{device_id}",
-                            "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
-                            "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
-                            "speed_state_topic": self.controller.STATE_TOPIC.format(device_id, "speed"),
-                            "speed_command_topic": f"{self.controller.HA_TOPIC}/{device_id}/speed/command",
-                            "speeds": ["low", "medium", "high"],
-                            "payload_on": "ON",
-                            "payload_off": "OFF",
-                            **self.device_base_info,
-                            **self.availability
-                        }
+                        configs.append((
+                            f"{self.discovery_prefix}/fan/{device_id}/config",
+                            {
+                                "name": f"{device_name} {idx}",
+                                "unique_id": f"commax_{device_id}",
+                                "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
+                                "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
+                                "speed_state_topic": self.controller.STATE_TOPIC.format(device_id, "speed"),
+                                "speed_command_topic": f"{self.controller.HA_TOPIC}/{device_id}/speed/command",
+                                "speeds": ["low", "medium", "high"],
+                                "payload_on": "ON",
+                                "payload_off": "OFF",
+                                **self.device_base_info,
+                                **self.availability
+                            }
+                        ))
                     elif device_type == 'climate':  # 온도조절기
-                        config_topic = f"{self.discovery_prefix}/climate/{device_id}/config"
-                        payload = {
-                            "name": f"{device_name} {idx}",
-                            "unique_id": f"commax_{device_id}",
-                            "current_temperature_topic": self.controller.STATE_TOPIC.format(device_id, "curTemp"),
-                            "temperature_command_topic": f"{self.controller.HA_TOPIC}/{device_id}/setTemp/command",
-                            "temperature_state_topic": self.controller.STATE_TOPIC.format(device_id, "setTemp"),
-                            "mode_command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
-                            "mode_state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
-                            "action_state_topic": self.controller.STATE_TOPIC.format(device_id, "action"),
-                            "action_template": "{% if value == 'off' %}off{% elif value == 'idle' %}idle{% elif value == 'heating' %}heating{% endif %}",
-                            "modes": ["off", "heat"],
-                            "temperature_unit": "C",
-                            "min_temp": int(self.controller.config['climate_settings'].get('min_temp',5)),
-                            "max_temp": int(self.controller.config['climate_settings'].get('max_temp',40)),
-                            "temp_step": 1,
-                            **self.device_base_info,
-                            **self.availability
-                        }
-                    elif device_type == 'button':  # 버튼형 기기 (가스밸브, 엘리베이터 호출)
-                        config_topic = f"{self.discovery_prefix}/button/{device_id}/config"
-                        payload = {
-                            "name": f"{device_name} {idx}",
-                            "unique_id": f"commax_{device_id}",
-                            "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
-                            "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
-                            **self.device_base_info,
-                            **self.availability
-                        }
-                    if payload is not None:
+                        configs.append((
+                            f"{self.discovery_prefix}/climate/{device_id}/config",
+                            {
+                                "name": f"{device_name} {idx}",
+                                "unique_id": f"commax_{device_id}",
+                                "current_temperature_topic": self.controller.STATE_TOPIC.format(device_id, "curTemp"),
+                                "temperature_command_topic": f"{self.controller.HA_TOPIC}/{device_id}/setTemp/command",
+                                "temperature_state_topic": self.controller.STATE_TOPIC.format(device_id, "setTemp"),
+                                "mode_command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
+                                "mode_state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
+                                "action_state_topic": self.controller.STATE_TOPIC.format(device_id, "action"),
+                                "action_template": "{% if value == 'off' %}off{% elif value == 'idle' %}idle{% elif value == 'heating' %}heating{% endif %}",
+                                "modes": ["off", "heat"],
+                                "temperature_unit": "C",
+                                "min_temp": int(self.controller.config['climate_settings'].get('min_temp',5)),
+                                "max_temp": int(self.controller.config['climate_settings'].get('max_temp',40)),
+                                "temp_step": 1,
+                                **self.device_base_info,
+                                **self.availability
+                            }
+                        ))
+                    elif device_type == 'button':  # 버튼형 기기 (가스밸브잠금, 엘리베이터 호출)
+                        configs.append((
+                            f"{self.discovery_prefix}/button/{device_id}/config",
+                            {
+                                "name": f"{device_name} {idx}",
+                                "unique_id": f"commax_{device_id}",
+                                "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/command",
+                                "payload_press": "PRESS",
+                                **self.device_base_info,
+                                **self.availability
+                            }
+                        ))
+                    if device_name == 'EV':  # 엘리베이터 층수 센서
+                        configs.append((
+                            f"{self.discovery_prefix}/sensor/{device_id}_floor/config",
+                            {
+                                "name": f"{device_name} {idx} Floor",
+                                "unique_id": f"commax_{device_id}_floor",
+                                "state_topic": self.controller.STATE_TOPIC.format(device_id, "floor"),
+                                **self.device_base_info,
+                                **self.availability
+                            }
+                        ))
+                    elif device_name == 'Gas':  # 가스밸브 상태 센서
+                        configs.append((
+                            f"{self.discovery_prefix}/binary_sensor/{device_id}/config",
+                            {
+                                "name": f"{device_name} {idx}",
+                                "unique_id": f"commax_{device_id}",
+                                "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
+                                "payload_on": "ON",
+                                "payload_off": "OFF",
+                                "device_class": "gas",
+                                **self.device_base_info,
+                                **self.availability
+                            }
+                        ))
+                    
+                    # 모든 config 발행
+                    for config_topic, payload in configs:
                         self.controller.publish_mqtt(config_topic, json.dumps(payload), retain=True)
 
             self.logger.info("MQTT Discovery 설정 완료")

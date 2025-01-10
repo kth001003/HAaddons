@@ -140,11 +140,9 @@ class MessageProcessor:
                                 power_text = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
                                 floor_pos = field_positions.get('floor', 3)
                                 floor = byte_data[int(floor_pos)]
-                                floor_values = state_structure['structure'][floor_pos]['values']
                                 floor_hex = byte_to_hex_str(floor)
-                                floor_text = floor_values.get(floor_hex, 'B')
-                                self.logger.signal(f'{byte_data.hex()}: 엘리베이터 ### {device_id}번, 상태: {power_text}, 층: {floor_text}')
-                                await self.controller.state_updater.update_ev(device_id, power_text, floor_text)
+                                self.logger.signal(f'{byte_data.hex()}: 엘리베이터 ### {device_id}번, 상태: {power_text}, 층: {floor_hex}')
+                                await self.controller.state_updater.update_ev(device_id, power_text, floor_hex)
 
                             break
                 else:
@@ -196,10 +194,11 @@ class MessageProcessor:
                     self.logger.debug(f'콘센트 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
                 #TODO: 절전모드 (대기전력차단모드) 추가
             elif device == 'Gas':
-                # off만 가능함.
-                power_value = command["structure"][str(field_positions["power"])]["values"]["off"]
-                packet[int(field_positions["power"])] = int(power_value, 16)
-                self.logger.debug(f'가스차단기 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
+                # 가스밸브 차단 명령
+                if value == "PRESS":
+                    power_value = command["structure"][str(field_positions["power"])]["values"]["off"]
+                    packet[int(field_positions["power"])] = int(power_value, 16)
+                    self.logger.debug(f'가스차단기 {device_id} 차단 명령 생성 {packet.hex().upper()}')
             elif device == 'Thermo':                
                 if action == 'power':
                     if value == 'heat':
@@ -238,14 +237,15 @@ class MessageProcessor:
                     self.logger.debug(f'환기장치 속도 {value} 명령 생성')
                 self.logger.debug(f'환기장치 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
             elif device == 'EV':
-                #EV 헤더 A0가 중복이라 따로 처리함..
-                packet[0] = int("A0", 16)
-                #호출(power on)만 가능함.
-                packet[int(field_positions["power"])] = int(command["structure"][str(field_positions["power"])]["values"]["on"], 16)
-                packet[int(field_positions["unknown1"])] = int(command["structure"][str(field_positions["unknown1"])]["values"]["fixed"], 16)
-                packet[int(field_positions["unknown2"])] = int(command["structure"][str(field_positions["unknown2"])]["values"]["fixed"], 16)
-                packet[int(field_positions["unknown3"])] = int(command["structure"][str(field_positions["unknown3"])]["values"]["fixed"], 16)
-                self.logger.debug(f'엘리베이터 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
+                # 엘리베이터 호출 명령
+                if value == "PRESS":
+                    # EV 헤더 A0가 중복이라 따로 처리함..
+                    packet[0] = int("A0", 16)
+                    packet[int(field_positions["power"])] = int(command["structure"][str(field_positions["power"])]["values"]["on"], 16)
+                    packet[int(field_positions["unknown1"])] = int(command["structure"][str(field_positions["unknown1"])]["values"]["fixed"], 16)
+                    packet[int(field_positions["unknown2"])] = int(command["structure"][str(field_positions["unknown2"])]["values"]["fixed"], 16)
+                    packet[int(field_positions["unknown3"])] = int(command["structure"][str(field_positions["unknown3"])]["values"]["fixed"], 16)
+                    self.logger.debug(f'엘리베이터 {device_id} 호출 명령 생성 {packet.hex().upper()}')
 
             if packet_hex is None:
                 packet_hex = packet.hex().upper()
