@@ -597,29 +597,42 @@ class WallpadController:
                     message=f'[{time.strftime("%Y-%m-%d %H:%M:%S")}] EW11에서 응답이 없습니다. EW11 상태를 점검 후 애드온을 재시작 해주세요. 이 메시지를 확인했을 때 애드온이 다시 정상 작동 중이라면 무시해도 좋습니다.'
                     )
                 return
-            # telnetlib3는 비동기 연결을 반환합니다
-            reader, writer = await telnetlib3.open_connection(self.config['elfin'].get('elfin_server'))
-            assert reader is not None and writer is not None
-            # 로그인 프롬프트 대기 및 응답
-            await reader.readuntil(b"login: ")
-            writer.write(self.config['elfin'].get('elfin_id') + '\n')
-            
-            # 패스워드 프롬프트 대기 및 응답
-            await reader.readuntil(b"password: ")
-            writer.write(self.config['elfin'].get('elfin_password') + '\n')
-            
-            # 재시작 명령 전송
-            writer.write('Restart\n')
-            
-            # 연결 종료
-            writer.close()
+
+            try:
+                async with asyncio.timeout(10):  # 10초 타임아웃 설정
+                    reader, writer = await telnetlib3.open_connection(
+                        self.config['elfin'].get('elfin_server'),
+                        connect_minwait=0.1,  # 최소 대기 시간
+                        connect_maxwait=1.0   # 최대 대기 시간
+                    )
+                    assert reader and writer
+                    try:
+                        await reader.readuntil(b"login: ")
+                        writer.write(self.config['elfin'].get('elfin_id') + '\n')
+                        
+                        await reader.readuntil(b"password: ")
+                        writer.write(self.config['elfin'].get('elfin_password') + '\n')
+                        
+                        writer.write('Restart\n')
+                        await writer.drain()  # 버퍼의 모든 데이터가 전송될 때까지 대기
+                        
+                    except Exception as e:
+                        self.logger.error(f'텔넷 통신 중 오류 발생: {str(e)}')
+                    finally:
+                        writer.close()
+                        await writer.wait_closed()  # 연결이 완전히 닫힐 때까지 대기 #type: ignore
+                        
+            except asyncio.TimeoutError:
+                self.logger.error('텔넷 연결 시도 시간 초과')
+            except Exception as e:
+                self.logger.error(f'텔넷 연결 시도 중 오류 발생: {str(e)}')
             
             # 재시작 대기
             await asyncio.sleep(10)
             self.elfin_reboot_count = 0
 
         except Exception as err:
-            self.logger.error(f'기기 재시작 오류: {str(err)}')
+            self.logger.error(f'기기 재시작 프로세스 전체 오류: {str(err)}')
 
     async def process_queue(self) -> None:
         """큐에 있는 모든 명령을 처리하고 예상되는 응답을 확인합니다."""
