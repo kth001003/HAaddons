@@ -140,6 +140,7 @@ class DiscoveryPublisher:
                             "mode_command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
                             "mode_state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                             "action_state_topic": self.controller.STATE_TOPIC.format(device_id, "action"),
+                            "action_template": "{% if value == 'off' %}off{% elif value == 'idle' %}idle{% elif value == 'heating' %}heating{% endif %}",
                             "modes": ["off", "heat"],
                             "temperature_unit": "C",
                             "min_temp": int(self.controller.config['climate_settings'].get('min_temp',5)),
