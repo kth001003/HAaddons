@@ -62,8 +62,8 @@ class WallpadController:
         self.config: Dict[str, Any] = config
         self.logger: Logger = logger
         self.share_dir: str = '/share'
-        self.ELFIN_TOPIC: str = 'ew11'
-        self.HA_TOPIC: str = config['mqtt_TOPIC']
+        self.ELFIN_TOPIC: str = config.get('elfin_TOPIC','ew11')
+        self.HA_TOPIC: str = config.get('mqtt_TOPIC','commax')
         self.STATE_TOPIC: str = self.HA_TOPIC + '/{}/{}/state'
         self.MQTT_HOST: str = self.config['mqtt'].get('mqtt_server') or os.getenv('MQTT_HOST') or "core-mosquitto"
         self.MQTT_PORT: int = int(self.config['mqtt'].get('mqtt_port') or os.getenv('MQTT_PORT') or 1883)

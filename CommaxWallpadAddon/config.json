@@ -17,6 +17,7 @@
   "options": {
     "vendor": "commax",
     "mqtt_TOPIC": "commax",
+    "elfin_TOPIC": "ew11",
     "log":{
       "DEBUG": false, 
       "mqtt_log": false,
@@ -51,6 +52,7 @@
   "schema": {
     "vendor": "list(commax|custom)",
     "mqtt_TOPIC": "str",
+    "elfin_TOPIC": "str",
     "log":{
       "DEBUG": "bool",
       "mqtt_log": "bool",

@@ -62,7 +62,8 @@ EW11 mqtt설정 후에 애드온 설정은 기본값으로 사용해도 무방�
 
 ### 기본 설정
 - `vendor`: 기기 패킷 구조 파일 선택 (commax/custom 선택), custom을 선택한경우 /share/packet_structures_custom.yaml을 우선적으로 적용하게됩니다.
-- `mqtt_TOPIC`: MQTT 토픽 prefix (기본값: "commax", 변경 할 필요는 없습니다.)
+- `mqtt_TOPIC`: MQTT 토픽 prefix (기본값: "commax")
+- `elfin_TOPIC`: EW11 토픽 prefix (기본값: "ew11")
 
 ### 로그 설정
 - `log.DEBUG`: 디버그 로그 출력 여부 (true/false)
