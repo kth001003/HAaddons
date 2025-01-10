@@ -43,6 +43,7 @@ def require_device_structure(default_return: Any = None) -> Callable:
 class CollectData(TypedDict):
     send_data: List[str]
     recv_data: List[str]
+    recent_recv_data: Set[str]
     last_recv_time: int
 
 class ExpectedStatePacket(TypedDict):
@@ -71,10 +72,12 @@ class WallpadController:
         self.MQTT_USER: str = os.getenv('MQTT_USER') or "my_user"
         self.MQTT_PASSWORD: str = os.getenv('MQTT_PASSWORD') or "m1o@s#quitto"
         self.QUEUE: List[QueueItem] = []
+        self.max_send_count: int = self.config['command_settings'].get('max_send_count', 20)
         self.min_receive_count: int = self.config['command_settings'].get('min_receive_count', 3)  # 최소 수신 횟수, 기본값 3
         self.COLLECTDATA: CollectData = {
             'send_data': [],
             'recv_data': [],
+            'recent_recv_data': set(),
             'last_recv_time': time.time_ns()
         }
         self.mqtt_client: Optional[mqtt.Client] = None
@@ -328,7 +331,9 @@ class WallpadController:
             
             device_count = {name: 0 for name in state_headers.values()}
             
-            collect_data_set = set(self.COLLECTDATA['recv_data'])
+            #init recent_recv_data
+            self.COLLECTDATA['recent_recv_data'] = set()
+            collect_data_set = self.COLLECTDATA['recent_recv_data']
             for data in collect_data_set:
                 data_bytes = bytes.fromhex(data)
                 header = byte_to_hex_str(data_bytes[0])
@@ -620,7 +625,7 @@ class WallpadController:
 
     async def process_queue(self) -> None:
         """큐에 있는 모든 명령을 처리하고 예상되는 응답을 확인합니다."""
-        max_send_count = self.config['command_settings'].get('max_send_count', 20)
+        max_send_count = self.max_send_count
         if not self.QUEUE:
             return
         
@@ -635,9 +640,7 @@ class WallpadController:
             return
             
         expected_state = send_data.get('expected_state')
-        if (isinstance(expected_state, dict) and 
-            isinstance(expected_state.get('required_bytes'), list) and 
-            isinstance(expected_state.get('possible_values'), list)):
+        if (isinstance(expected_state, dict)):
             
             required_bytes = expected_state['required_bytes']
             possible_values = expected_state['possible_values']

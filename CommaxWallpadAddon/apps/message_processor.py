@@ -26,6 +26,7 @@ class MessageProcessor:
                 data = raw_data[k:k + 16]
                 if data == checksum(data):
                     self.COLLECTDATA['recv_data'].append(data)
+                    self.COLLECTDATA['recent_recv_data'].add(data)
                     if len(self.COLLECTDATA['recv_data']) > 300:
                         self.COLLECTDATA['recv_data'] = self.COLLECTDATA['recv_data'][-300:]
                     
