@@ -36,12 +36,12 @@ RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo &
 # pip 업그레이드 및 Python 패키지 설치
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
-        flask==2.0.1 \
-        numpy==1.21.0 \
-        pillow==8.3.1 \
-        requests==2.26.0 \
-        websockets==10.0 \
-        scipy==1.7.1
+        flask \
+        numpy \
+        pillow \
+        requests \
+        websockets \
+        scipy
 
 # 실행 권한 설정
 RUN chmod a+x /apps/run.sh
