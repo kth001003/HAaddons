@@ -12,7 +12,7 @@ RUN apk add --no-cache tzdata git && \
 WORKDIR /
 # Auto update on rebuild
 RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
-    cp -r /tmp/repo/HeatMapBuilder/apps / && \
+    cp -r /tmp/repo/HeatMapBuilder/apps /apps && \
     rm -rf /tmp/repo
     
 # 필요한 시스템 라이브러리 설치
@@ -46,6 +46,6 @@ RUN pip3 install --no-cache-dir \
     requests==2.26.0 
 
 # 실행 권한 설정
-RUN chmod a+x /run.sh
+RUN chmod a+x /apps/run.sh
 
-CMD [ "/run.sh" ] 
+CMD [ "/apps/run.sh" ] 
