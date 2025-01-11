@@ -1,0 +1,21 @@
+{
+  "name": "ThermoMap Builder",
+  "version": "1.0.0",
+  "slug": "thermomapbuilder",
+  "description": "Floor plan based temperature visualization tool",
+  "url": "https://github.com/your_repository/ThermoMapBuilder",
+  "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
+  "startup": "application",
+  "boot": "auto",
+  "ingress": true,
+  "ingress_port": 8099,
+  "panel_icon": "mdi:thermometer",
+  "init": false,
+  "map": ["media:rw"],
+  "options": {
+    "media_path": "/media"
+  },
+  "schema": {
+    "media_path": "str"
+  }
+} 

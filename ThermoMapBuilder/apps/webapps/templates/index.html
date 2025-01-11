@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>ThermoMap Builder</title>
+    <style>
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 300px;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .main-content {
+            flex: 1;
+            padding: 20px;
+        }
+        #floorplan-container {
+            position: relative;
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+        #svg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        .sensor-list {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>설정</h2>
+            <div>
+                <h3>Floor Plan 업로드</h3>
+                <input type="file" id="floorplan-upload" accept="image/*">
+            </div>
+            <div class="sensor-list">
+                <h3>온도 센서</h3>
+                <div id="sensor-container"></div>
+            </div>
+            <div>
+                <button id="save-btn">저장</button>
+                <button id="generate-map">온도지도 생성</button>
+            </div>
+        </div>
+        <div class="main-content">
+            <div id="floorplan-container">
+                <img id="floorplan-img" style="max-width: 100%;">
+                <svg id="svg-overlay"></svg>
+            </div>
+        </div>
+    </div>
+    <script src="static/js/main.js"></script>
+</body>
+</html> 
