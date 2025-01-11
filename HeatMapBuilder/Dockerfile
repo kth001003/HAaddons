@@ -20,6 +20,8 @@ RUN apk add --no-cache \
     build-base \
     python3-dev \
     py3-pip \
+    py3-numpy \
+    py3-scipy \
     jpeg-dev \
     zlib-dev \
     lapack-dev \
@@ -30,11 +32,9 @@ RUN apk add --no-cache \
 # Python 패키지 설치
 RUN pip3 install --no-cache-dir \
     flask==2.0.1 \
-    numpy==1.21.0 \
     pillow==8.3.1 \
     requests==2.26.0 \
-    websockets==10.0 \
-    scipy==1.7.1 
+    websockets==10.0
 
 # 실행 권한 설정
 RUN chmod a+x /run.sh
