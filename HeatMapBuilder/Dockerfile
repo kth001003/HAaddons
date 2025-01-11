@@ -27,7 +27,18 @@ RUN apk add --no-cache \
     lapack-dev \
     gfortran \
     musl-dev \
-    linux-headers
+    linux-headers \
+    freetype-dev \
+    fribidi-dev \
+    harfbuzz-dev \
+    lcms2-dev \
+    openjpeg-dev \
+    tcl-dev \
+    tiff-dev \
+    tk-dev
+
+# pip 업그레이드
+RUN python3 -m pip install --upgrade pip
 
 # Python 패키지 설치
 RUN pip3 install --no-cache-dir \
