@@ -15,8 +15,20 @@ RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo &
     cp -r /tmp/repo/HeatMapBuilder/apps / && \
     rm -rf /tmp/repo
     
+# 필요한 시스템 라이브러리 설치
+RUN apk add --no-cache \
+    build-base \
+    python3-dev \
+    py3-pip \
+    jpeg-dev \
+    zlib-dev \
+    lapack-dev \
+    gfortran \
+    musl-dev \
+    linux-headers
+
 # Python 패키지 설치
-RUN pip3 install \
+RUN pip3 install --no-cache-dir \
     flask==2.0.1 \
     numpy==1.21.0 \
     pillow==8.3.1 \
