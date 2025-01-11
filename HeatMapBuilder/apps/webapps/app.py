@@ -46,7 +46,7 @@ def get_states():
 def save_config():
     """Floor plan 설정을 저장합니다."""
     data = request.json
-    config_file = '/data/thermomap_config.json'
+    config_file = '/data/heatmap_config.json'
     
     # Base64 이미지를 파일로 저장
     if data.get('floorplan'):
@@ -70,7 +70,7 @@ def generate_map():
     """온도 데이터를 기반으로 열지도를 생성합니다."""
     try:
         # 설정 로드
-        with open('/data/thermomap_config.json', 'r') as f:
+        with open('/data/heatmap_config.json', 'r') as f:
             config = json.load(f)
         
         # 기준 이미지 로드

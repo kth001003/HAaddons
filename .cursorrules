@@ -2,14 +2,6 @@
 
 이 프로젝트는 Home Assistant 애드온 프로젝트 입니다. 다음과 같은 폴더 구조를 가지고 있습니다:
 
-ThermoMapBuilder/               #thermomapbuilder 폴더
 CommaxWallpadAddon/            #CommaxWallpadAddon 폴더
-├── apps/
-│   ├── templates/
-│   │   ├── index.html          # 메인 웹 인터페이스
-│   │   ├── custom_packet_structure.js  # 패킷 구조 편집 기능
-│   │   └── packet_analyzer.js   # 패킷 분석 기능
-│   ├── main.py                 # 월패드 컨트롤러 메인 로직
-│   └── web_server.py           # 웹 서버 구현
-└── .gitignore                  # Git 제외 파일 설정
-CommaxWallpadAddon_beta/        #베타버전 운용을 위한 폴더
+CommaxWallpadAddon_beta/        #CommaxWallpadAddon 베타버전 운용을 위한 폴더
+ThermoMapBuilder/               #thermomapbuilder 폴더

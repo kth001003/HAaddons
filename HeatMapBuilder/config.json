@@ -1,0 +1,26 @@
+{
+  "name": "[alpha]heatmapbuilder",
+  "version": "1.0.0",
+  "slug": "heatmapbuilder",
+  "url": "https://github.com/wooooooooooook/HAaddons",
+  "description": "개발용입니다. 절대 메인으로 사용하지 마세요.",
+  "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
+  "map": [
+    "media:rw"
+  ],
+  "startup": "application",
+  "boot": "auto",
+  "init": false,
+  "hassio_api": true,
+  "auth_api": true,
+  "homeassistant_api": true,
+  "options": {
+  },
+  "schema": {
+  },
+  "ingress": true,
+  "ingress_port": 8099,
+  "ports": {
+    "8099/tcp": null
+  }
+}
