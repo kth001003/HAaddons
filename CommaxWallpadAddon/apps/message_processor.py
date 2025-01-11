@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, Union
 import re
 from .utils import byte_to_hex_str, checksum
 
@@ -16,6 +16,206 @@ class MessageProcessor:
         self.HA_TOPIC = controller.HA_TOPIC
         self.ELFIN_TOPIC = controller.ELFIN_TOPIC
         self.config = controller.config
+
+    def make_climate_command(self, device_id: int, target_temp: int, command_type: str) -> Union[str, None]:
+        """
+        온도 조절기의 16진수 명령어를 생성하는 함수
+        
+        Args:
+            device_id (int): 온도 조절기 장치 id
+            current_temp (int): 현재 온도 값
+            target_temp (int): 설정하고자 하는 목표 온도 값
+            command_type (str): 명령어 타입
+                - 'commandOFF': 전원 끄기 명령
+                - 'commandON': 전원 켜기 명령
+                - 'commandCHANGE': 온도 변경 명령
+        
+        Returns:
+            Union[str, None]: 
+                - 성공 시: 체크섬이 포함된 16진수 명령어 문자열
+                - 실패 시: None
+        
+        Examples:
+            >>> make_climate_command(0, 24, 'commandON')  # 온도절기 1번 켜기
+            >>> make_climate_command(1, 26, 'commandCHANGE')  # 온도조절기 2번 온도 변경
+        """
+        try:
+            assert isinstance(self.DEVICE_STRUCTURE, dict), "DEVICE_STRUCTURE must be a dictionary"
+            
+            thermo_structure = self.DEVICE_STRUCTURE["Thermo"]
+            command = thermo_structure["command"]
+            
+            # 패킷 초기화
+            packet = bytearray([0] * 7)
+
+            # 헤더 설정
+            packet[0] = int(command["header"], 16)
+            
+            # 기기 번호 설정 
+            device_id_pos = command["fieldPositions"]["deviceId"]
+            packet[int(device_id_pos)] = device_id
+            
+            # 명령 타입 및 값 설정
+            command_type_pos = command["fieldPositions"]["commandType"]
+            value_pos = command["fieldPositions"]["value"]
+            
+            if command_type == 'commandOFF':
+                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["power"], 16)
+                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["off"], 16)
+            elif command_type == 'commandON':
+                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["power"], 16)
+                packet[int(value_pos)] = int(command["structure"][value_pos]["values"]["on"], 16)
+            elif command_type == 'commandCHANGE':
+                packet[int(command_type_pos)] = int(command["structure"][command_type_pos]["values"]["change"], 16)
+                packet[int(value_pos)] = int(str(target_temp), 16)
+            else:
+                self.logger.error(f'잘못된 명령 타입: {command_type}')
+                return None
+            
+            # 패킷을 16진수 문자열로 변환
+            packet_hex = packet.hex().upper()
+            
+            # 체크섬 추가하여 return
+            return checksum(packet_hex)
+        
+        except KeyError as e:
+            # DEVICE_STRUCTURE에 필요한 키가 없는 경우
+            self.logger.error(f'DEVICE_STRUCTURE에 필요한 키가 없습니다: {e}')
+            return None
+        except Exception as e:
+            # 기타 예외 처리
+            self.logger.error(f'예외 발생: {e}')
+            return None
+
+    def generate_expected_state_packet(self, command_str: str) -> Union[ExpectedStatePacket, None]:
+        """명령 패킷으로부터 예상되는 상태 패킷을 생성합니다.
+        
+        Args:
+            command_str (str): 16진수 형태의 명령 패킷 문자열
+            
+        Returns:
+            Union[ExpectedStatePacket, None]: 예상되는 상태 패킷 정보를 담은 딕셔너리 또는 None
+        """
+        try:
+            assert isinstance(self.DEVICE_STRUCTURE, dict)
+            
+            # 명령 패킷 검증
+            if len(command_str) != 16:
+                self.logger.error("명령 패킷 길이가 16자가 아닙니다.")
+                return None
+                
+            # 명령 패킷을 바이트로 변환
+            command_packet = bytes.fromhex(command_str)
+
+            #TODO: 8바이트 이외 패킷 처리 필요시 바이트 길이 판단 필요
+            possible_values: List[List[str]] = [[] for _ in range(7)]
+
+            # 헤더로 기기 타입 찾기
+            device_type = None
+            for name, structure in self.DEVICE_STRUCTURE.items():
+                if command_packet[0] == int(structure['command']['header'], 16):
+                    device_type = name
+                    break
+                    
+            if not device_type:
+                self.logger.error("알 수 없는 명령 패킷입니다.")
+                return None
+                        
+            # 기기별 상태 패킷 생성
+            device_structure = self.DEVICE_STRUCTURE[device_type]
+            command_structure = device_structure['command']['structure']
+            state_structure = device_structure['state']['structure']
+            command_field_positions = device_structure['command']['fieldPositions']
+            state_field_positions = device_structure['state']['fieldPositions']
+            
+            # 필요한 바이트 리스트
+            required_bytes = [0] # 헤더는 항상 포함
+            possible_values[0] = [device_structure['state']['header']]
+            
+            # 기기 ID
+            device_id_pos = state_field_positions.get('deviceId', 2)
+            required_bytes.append(int(device_id_pos))
+            possible_values[int(device_id_pos)] = [byte_to_hex_str(command_packet[int(command_field_positions.get('deviceId', 1))])]
+
+            if device_type == 'Thermo':
+                # 온도조절기 상태 패킷 생성
+                command_type_pos = command_field_positions.get('commandType', 2)
+                command_type = command_packet[int(command_type_pos)]
+                value_pos = command_field_positions.get('value',3)
+                
+                power_pos = state_field_positions.get('power',1)
+                if command_type == int(command_structure[str(command_type_pos)]['values']['power'], 16): #04
+                    command_value = command_packet[int(value_pos)] #command value on:81, off:00
+                    #off인경우
+                    if command_value == int(command_structure[str(value_pos)]['values']['off'], 16):
+                        possible_values[int(power_pos)] = [state_structure[str(power_pos)]['values']['off']]
+                    #off가 아닌경우 (on)
+                    else:
+                        possible_values[int(power_pos)] = [
+                            state_structure[str(power_pos)]['values']['idle'],
+                            state_structure[str(power_pos)]['values']['heating']
+                        ]
+                    required_bytes.append(int(power_pos))
+
+                elif command_type == int(command_structure[str(command_type_pos)]['values']['change'], 16): #03
+                    target_temp = command_packet[int(value_pos)]
+
+                    target_temp_pos = state_field_positions.get('targetTemp', 4)
+
+                    # 필요한 바이트 리스트에 목표 온도 위치 추가
+                    required_bytes.append(int(target_temp_pos))
+                    possible_values[int(target_temp_pos)] = [byte_to_hex_str(target_temp)]
+            
+            #on off 타입 기기
+            elif device_type == 'Light' or device_type == 'LightBreaker':
+                state_power_pos = state_field_positions.get('power',1)
+                command_power_pos = command_field_positions.get('power',2)
+                command_power_value = command_packet[int(command_power_pos)]
+                #off인 경우
+                if command_power_value == int(command_structure[str(command_power_pos)]['values']['off'], 16):
+                    possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['off']]
+                #on인 경우
+                else:
+                    possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on']]
+                # 필요한 바이트 리스트에 전원 위치 추가
+                required_bytes.append(int(state_power_pos))
+                
+            elif device_type == 'Fan':
+                # 팬 상태 패킷 생성
+                command_type_pos = command_field_positions.get('commandType', 2)
+                command_type = command_packet[int(command_type_pos)]
+                
+                state_power_pos = state_field_positions.get('power',1)
+                if command_type == int(command_structure[command_type_pos]['values']['power'], 16):
+                    command_value = command_packet[int(command_field_positions.get('value', 3))]
+                    #off인경우
+                    if command_value == int(command_structure[str(command_field_positions.get('value', 3))]['values']['off'], 16):
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['off']]
+                    #off가 아닌경우 (on)
+                    else:
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on']]
+                    required_bytes.append(int(state_power_pos))
+
+                elif command_type == int(command_structure[command_type_pos]['values']['setSpeed'], 16):
+                    speed = command_packet[int(command_field_positions.get('value', 3))]
+                    state_speed_pos = state_field_positions.get('speed', 4)
+                    required_bytes.append(int(state_speed_pos))
+                    possible_values[int(state_speed_pos)] = [state_structure[str(state_speed_pos)]['values'][str(speed)]]
+            
+            return ExpectedStatePacket(
+                required_bytes=sorted(required_bytes),
+                possible_values=possible_values
+            )
+            
+        except Exception as e:
+            self.logger.error(f"상태 패킷 생성 중 오류 발생: {str(e)}\n"
+                            f"장치 타입: {device_type}\n"
+                            f"명령 패킷: {command_packet.hex().upper()}\n"
+                            f'required_bytes: {required_bytes}\n'
+                            f'possible_values: {possible_values}\n'
+                            f"State_structure: {state_structure}\n"
+                            f"command_structure: {command_structure}")
+            return None
 
     async def process_elfin_data(self, raw_data: str) -> None:
         """Elfin 장치에서 전송된 raw_data를 분석합니다."""
@@ -195,16 +395,16 @@ class MessageProcessor:
                 #TODO: 절전모드 (대기전력차단모드) 추가
             elif device == 'Gas':
                 # 가스밸브 차단 명령
-                if value == "PRESS":
+                if value == "PRESS" or value == "ON":
                     power_value = command["structure"][str(field_positions["power"])]["values"]["off"]
                     packet[int(field_positions["power"])] = int(power_value, 16)
                     self.logger.debug(f'가스차단기 {device_id} 차단 명령 생성 {packet.hex().upper()}')
             elif device == 'Thermo':                
                 if action == 'power':
                     if value == 'heat':
-                        packet_hex = self.controller.make_climate_command(device_id, 0, 'commandON')
+                        packet_hex = self.make_climate_command(device_id, 0, 'commandON')
                     else:
-                        packet_hex = self.controller.make_climate_command(device_id, 0, 'commandOFF')
+                        packet_hex = self.make_climate_command(device_id, 0, 'commandOFF')
                 elif action == 'setTemp':
                     try:
                         set_temp = int(float(value))
@@ -217,7 +417,7 @@ class MessageProcessor:
                     except ValueError as e:
                         self.logger.error(f"온도 값이 올바르지 않습니다: {value}")
                         return
-                    packet_hex = self.controller.make_climate_command(device_id, set_temp, 'commandCHANGE')
+                    packet_hex = self.make_climate_command(device_id, set_temp, 'commandCHANGE')
                 self.logger.debug(f'온도조절기 {device_id} {action} {value} 명령 생성 {packet_hex}')
             elif device == 'Fan':
                 if action == 'power':
@@ -238,7 +438,7 @@ class MessageProcessor:
                 self.logger.debug(f'환기장치 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
             elif device == 'EV':
                 # 엘리베이터 호출 명령
-                if value == "PRESS":
+                if value == "PRESS" or value == "ON":
                     # EV 헤더 A0가 중복이라 따로 처리함..
                     packet[0] = int("A0", 16)
                     packet[int(field_positions["power"])] = int(command["structure"][str(field_positions["power"])]["values"]["on"], 16)
@@ -252,7 +452,7 @@ class MessageProcessor:
                 packet_hex = checksum(packet_hex)
 
             if packet_hex:
-                expected_state = self.controller.generate_expected_state_packet(packet_hex)
+                expected_state = self.generate_expected_state_packet(packet_hex)
                 if expected_state:
                     self.logger.debug(f'예상 상태: {expected_state}')
                     self.QUEUE.append({

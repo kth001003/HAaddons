@@ -83,6 +83,8 @@ class WebServer:
         def save_editable_packet_structure():
             """편집된 패킷 구조를 기존 구조와 병합하여 저장합니다."""
             try:
+                if not request.json:
+                    return jsonify({'error': '요청 데이터가 없습니다.', 'success': False})
                 content = request.json.get('content', {})
                 
                 # 현재 패킷 구조 로드
@@ -314,7 +316,7 @@ class WebServer:
 
                 # command 패킷인 경우 예상 상태 패킷 추가
                 if analysis_result.get("packet_type") == "command" and checksum_result:
-                    expected_state = self.wallpad_controller.generate_expected_state_packet(checksum_result)
+                    expected_state = self.wallpad_controller.message_processor.generate_expected_state_packet(checksum_result)
                     if expected_state:
                         response["expected_state"] = {
                             "required_bytes": expected_state["required_bytes"],
@@ -460,7 +462,12 @@ class WebServer:
         def save_custom_packet_structure():
             """커스텀 패킷 구조 파일을 저장합니다."""
             try:
+                if not request.json:
+                    return jsonify({'error': 'JSON 형식이 아닙니다.', 'success': False}), 400
+                    
                 content = request.json.get('content', '')
+                if not content:
+                    return jsonify({'error': '내용이 비어있습니다.', 'success': False}), 400
                 
                 # YAML 유효성 검사
                 try:
