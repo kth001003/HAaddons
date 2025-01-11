@@ -4,6 +4,8 @@
 mkdir -p /data
 mkdir -p /media
 
-# 웹 애플리케이션 실행
+# 웹 애플리케이션 실행 (개발 모드)
 cd /apps/webapps
+FLASK_ENV=development 
+FLASK_DEBUG=1 
 python3 app.py 

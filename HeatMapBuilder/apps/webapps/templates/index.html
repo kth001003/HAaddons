@@ -3,60 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <title>HeatMap Builder</title>
-    <style>
-        .container {
-            display: flex;
-            height: 100vh;
-        }
-        .sidebar {
-            width: 300px;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .main-content {
-            flex: 1;
-            padding: 20px;
-        }
-        #floorplan-container {
-            position: relative;
-            border: 1px solid #ccc;
-            margin-top: 20px;
-        }
-        #svg-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            pointer-events: none;
-        }
-        .sensor-list {
-            margin-top: 20px;
-        }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="container">
-        <div class="sidebar">
-            <h2>설정</h2>
-            <div>
-                <h3>Floor Plan 업로드</h3>
-                <input type="file" id="floorplan-upload" accept="image/*">
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <!-- 사이드바 -->
+        <div class="w-80 p-5 bg-white shadow-lg">
+            <h2 class="text-2xl font-bold mb-6">온도지도 생성기</h2>
+            
+            <!-- 메시지 컨테이너 -->
+            <div id="message-container" class="fixed top-0 left-1/2 transform -translate-x-1/2 mt-3 z-50"></div>
+
+            <!-- 단계 표시 -->
+            <div class="mb-6">
+                <button class="step-button w-full flex items-center mb-2 p-2 rounded-lg hover:bg-gray-50 transition-colors" data-step="1">
+                    <div id="step1-indicator" class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center mr-2">1</div>
+                    <span class="text-sm">벽 그리기</span>
+                </button>
+                <button class="step-button w-full flex items-center mb-2 p-2 rounded-lg hover:bg-gray-50 transition-colors" data-step="2">
+                    <div id="step2-indicator" class="w-8 h-8 rounded-full bg-gray-300 text-white flex items-center justify-center mr-2">2</div>
+                    <span class="text-sm">센서 배치</span>
+                </button>
+                <button class="step-button w-full flex items-center p-2 rounded-lg hover:bg-gray-50 transition-colors" data-step="3">
+                    <div id="step3-indicator" class="w-8 h-8 rounded-full bg-gray-300 text-white flex items-center justify-center mr-2">3</div>
+                    <span class="text-sm">온도지도 생성</span>
+                </button>
             </div>
-            <div class="sensor-list">
-                <h3>온도 센서</h3>
-                <div id="sensor-container"></div>
+
+            <!-- 단계 1: 벽 그리기 -->
+            <div id="step1-controls" class="mb-6">
+                <h3 class="text-lg font-semibold mb-2">1단계: 벽 그리기</h3>
+                <div class="mb-4">
+                    <input type="file" id="floorplan-upload" accept="image/*" 
+                        class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <div class="space-y-3">
+                        <div class="flex gap-2">
+                            <button id="line-tool" 
+                                class="tool-btn flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors">
+                                직선
+                            </button>
+                            <button id="eraser-tool" 
+                                class="tool-btn flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors">
+                                지우개
+                            </button>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">선 두께:</label>
+                            <div class="flex items-center gap-3">
+                                <input type="range" id="line-width" min="1" max="20" value="10" 
+                                    class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <span id="line-width-value" class="text-sm text-gray-600 min-w-[3rem]">10px</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="undo-btn" 
+                                class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                                </svg>
+                                실행취소
+                            </button>
+                            <button id="redo-btn" 
+                                class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                                </svg>
+                                다시실행
+                            </button>
+                            <button id="clear-btn" 
+                                class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors">
+                                초기화
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <button id="save-walls-btn" 
+                    class="mt-4 w-full px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+                    벽 저장 및 다음 단계
+                </button>
             </div>
-            <div>
-                <button id="save-btn">저장</button>
-                <button id="generate-map">온도지도 생성</button>
+
+            <!-- 단계 2: 센서 배치 -->
+            <div id="step2-controls" class="mb-6 hidden">
+                <h3 class="text-lg font-semibold mb-2">2단계: 센서 배치</h3>
+                <div id="sensor-container" class="space-y-2 mb-4"></div>
+                <button id="save-sensors-btn" 
+                    class="w-full px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+                    센서 저장 및 다음 단계
+                </button>
+            </div>
+
+            <!-- 단계 3: 온도지도 생성 -->
+            <div id="step3-controls" class="mb-6 hidden">
+                <h3 class="text-lg font-semibold mb-2">3단계: 온도지도 생성</h3>
+                <button id="generate-map" 
+                    class="w-full px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors">
+                    온도지도 생성
+                </button>
+                <!-- 열지도 컨테이너 -->
+                <div id="thermal-map-container" class="mt-4 border rounded-lg p-4 bg-white">
+                    <p class="text-gray-500 text-sm text-center">여기에 생성된 열지도가 표시됩니다.</p>
+                </div>
             </div>
         </div>
-        <div class="main-content">
-            <div id="floorplan-container">
-                <img id="floorplan-img" style="max-width: 100%;">
-                <svg id="svg-overlay"></svg>
+
+        <!-- 메인 컨텐츠 -->
+        <div class="flex-1 p-5">
+            <div id="floorplan-container" 
+                class="relative w-full h-[calc(100vh-2.5rem)] border border-gray-300 rounded-lg overflow-hidden flex justify-center items-center bg-white">
+                <img id="floorplan-img" class="max-w-full max-h-full object-contain">
+                <div class="absolute inset-0 bg-white opacity-50 pointer-events-none"></div>
+                <svg id="svg-overlay" class="absolute inset-0 w-full h-full cursor-crosshair"></svg>
             </div>
         </div>
     </div>
+
+    <!-- 스크립트 -->
+    <script src="static/js/drawing_tool.js"></script>
+    <script src="static/js/sensor_manager.js"></script>
     <script src="static/js/main.js"></script>
 </body>
 </html> 
