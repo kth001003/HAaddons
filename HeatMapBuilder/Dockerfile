@@ -43,9 +43,7 @@ RUN python3 -m pip install --upgrade pip
 # Python 패키지 설치
 RUN pip3 install --no-cache-dir \
     flask==2.0.1 \
-    pillow==8.3.1 \
     requests==2.26.0 \
-    websockets==10.0
 
 # 실행 권한 설정
 RUN chmod a+x /run.sh
