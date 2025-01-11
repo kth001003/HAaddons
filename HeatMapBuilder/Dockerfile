@@ -17,7 +17,7 @@ RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo &
     rm -rf /tmp/repo
     
 # Python 패키지 설치
-RUN pip3 install -r requirements.txt
+RUN pip3 install -r /requirements.txt
 
 # 실행 권한 설정
 RUN chmod a+x /run.sh
