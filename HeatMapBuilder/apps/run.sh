@@ -5,5 +5,5 @@ mkdir -p /data
 mkdir -p /media
 
 # 웹 애플리케이션 실행
-cd /usr/share/webapps
+cd /apps
 python3 app.py 

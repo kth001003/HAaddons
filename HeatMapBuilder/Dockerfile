@@ -12,14 +12,40 @@ RUN apk add --no-cache tzdata git && \
 WORKDIR /
 # Auto update on rebuild
 RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
-    cp -r /tmp/repo/HeatMapBuilder/apps / && \
-    cp -r /tmp/repo/HeatMapBuilder/requirements.txt / && \
+    cp -r /tmp/repo/HeatMapBuilder/apps /apps && \
     rm -rf /tmp/repo
     
+# 필요한 시스템 라이브러리 설치
+RUN apk add --no-cache \
+    build-base \
+    python3-dev \
+    py3-pip \
+    py3-numpy \
+    py3-scipy \
+    jpeg-dev \
+    zlib-dev \
+    lapack-dev \
+    gfortran \
+    musl-dev \
+    linux-headers \
+    freetype-dev \
+    fribidi-dev \
+    harfbuzz-dev \
+    lcms2-dev \
+    openjpeg-dev \
+    tcl-dev \
+    tiff-dev \
+    tk-dev
+
+# pip 업그레이드
+RUN python3 -m pip install --upgrade pip
+
 # Python 패키지 설치
-RUN pip3 install -r requirements.txt
+RUN pip3 install --no-cache-dir \
+    flask==2.0.1 \
+    requests==2.26.0 
 
 # 실행 권한 설정
-RUN chmod a+x /run.sh
+RUN chmod a+x /apps/run.sh
 
-CMD [ "/run.sh" ] 
+CMD [ "/apps/run.sh" ] 
