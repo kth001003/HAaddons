@@ -32,14 +32,14 @@ def checksum(input_hex: str) -> str | None:
     except:
         return None
 
-def pad(value: int | str) -> str:
-    """한 자리 숫자를 두 자리로 패딩하는 함수
+# def pad(value: int | str) -> str:
+#     """한 자리 숫자를 두 자리로 패딩하는 함수
     
-    Args:
-        value (int | str): 패딩할 값
+#     Args:
+#         value (int | str): 패딩할 값
         
-    Returns:
-        str: 패딩된 문자열
-    """
-    value = int(value)
-    return '0' + str(value) if value < 10 else str(value) 
+#     Returns:
+#         str: 패딩된 문자열
+#     """
+#     value = int(value)
+#     return '0' + str(value) if value < 10 else str(value) 

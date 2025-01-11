@@ -1,6 +1,6 @@
 {
   "name": "COMMAX Wallpad Addon by ew11-mqtt",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "slug": "commax",
   "url": "https://github.com/wooooooooooook/HAaddons",
   "description": "mqtt 통신을 활용한 코맥스 월패드 컨트롤러",
@@ -26,7 +26,8 @@
     "command_settings":{
       "queue_interval_in_second": "0.1",
       "max_send_count" : 15,
-      "min_receive_count" : 1
+      "min_receive_count" : 1,
+      "send_command_on_idle" : true
     },
     "climate_settings":{
       "min_temp": 5,
@@ -41,6 +42,7 @@
     },
     "elfin":{
       "use_auto_reboot": true,
+      "elfin_unavailable_notification": false,
       "✅fill_belows_to_use_auto_reboot": "",
       "elfin_server": "192.168.0.38",
       "elfin_id": "admin",
@@ -60,7 +62,8 @@
     "command_settings":{
       "queue_interval_in_second": "float(0.01,1.0)",
       "max_send_count": "int(1,99)",
-      "min_receive_count": "int(1,9)"
+      "min_receive_count": "int(1,9)",
+      "send_command_on_idle" : "bool"
     },
     "climate_settings":{
       "min_temp": "int(0,19)",
@@ -75,6 +78,7 @@
     },
     "elfin":{
       "use_auto_reboot": "bool",
+      "elfin_unavailable_notification": "bool",
       "✅fill_belows_to_use_auto_reboot": "str?",
       "elfin_server": "str?",
       "elfin_id": "str?",
