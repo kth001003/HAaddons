@@ -22,23 +22,17 @@ def config():
     packet_file = os.path.join(os.path.dirname(__file__), 'fixtures', 'packet_structures_commax.yaml')
     
     return {
-        'DEBUG': False,
-        'mqtt_log': False,
-        'elfin_log': False,
         'vendor': 'commax',
-        'queue_interval_in_second': 0.1,
-        'max_send_count': 15,
-        'min_receive_count': 1,
-        'climate_min_temp': 5,
-        'climate_max_temp': 40,
         'mqtt': {
             'mqtt_server': '192.168.0.39',
             'mqtt_id': 'my_user',
             'mqtt_password': 'm1o@s#quitto'
         },
         'mqtt_TOPIC': 'commax',
+        'elfin_TOPIC': 'ew11',
         'elfin': {
             'use_auto_reboot': True,
+            'elfin_unavailable_notification': False,
             'elfin_server': '192.168.0.38',
             'elfin_id': 'admin',
             'elfin_password': 'admin',
@@ -52,7 +46,8 @@ def config():
         'command_settings': {
             'queue_interval_in_second': 0.1,
             'max_send_count': 15,
-            'min_receive_count': 1
+            'min_receive_count': 1,
+            'send_command_on_idle': True
         },
         'climate_settings': {
             'min_temp': 5,
@@ -298,8 +293,9 @@ def test_find_device_with_invalid_packets(controller):
     # find_device 실행
     result = controller.find_device()
     
-    # 결과 검증 - 빈 딕셔너리여야 함
-    assert result == {}
+    # 결과 검증 - 모든 기기의 count가 0이 아니어야 함
+    for device in result.values():
+        assert device['count'] == 0
 
 def test_checksum_generation():
     """체크섬 생성 테스트"""
@@ -353,7 +349,7 @@ def test_generate_expected_state_packet(controller):
     command_str = "3101010000000033"
     
     # generate_expected_state_packet 호출
-    result = controller.generate_expected_state_packet(command_str)
+    result = controller.message_processor.generate_expected_state_packet(command_str)
     
     # 결과가 None이 아닌지 확인
     assert result is not None, "예상 상태 패킷이 생성되지 않았습니다"

@@ -197,15 +197,17 @@ class DeviceManager {
     
                 let html = '';
                 for (const [deviceName, info] of Object.entries(data)) {
-                    html += `
-                        <div class="mb-2 p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                            <div class="flex justify-between">
-                                <h3 class="dark:text-gray-300">${deviceName}</h3>
-                                <span class="text-sm text-gray-500">${info.type}</span>
+                    if (info.count > 0) {
+                        html += `
+                            <div class="mb-2 p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                                <div class="flex justify-between">
+                                    <h3 class="dark:text-gray-300">${deviceName}</h3>
+                                    <span class="text-sm text-gray-500">${info.type}</span>
+                                </div>
+                                <div class="text-sm text-gray-600">개수: ${info.count}개</div>
                             </div>
-                            <div class="text-sm text-gray-600">개수: ${info.count}개</div>
-                        </div>
-                    `;
+                        `;
+                    }
                 }
                 deviceListDiv.innerHTML = html || '<p class="text-gray-500 dark:text-gray-400">연결된 기기가 없습니다.</p>';
             })
