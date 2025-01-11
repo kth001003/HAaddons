@@ -418,7 +418,6 @@ class WallpadController:
                         self.logger.error(f'텔넷 통신 중 오류 발생: {str(e)}')
                     finally:
                         writer.close()
-                        await writer.wait_closed()  # 연결이 완전히 닫힐 때까지 대기 #type: ignore
                         
             except asyncio.TimeoutError:
                 self.logger.error('텔넷 연결 시도 시간 초과')
