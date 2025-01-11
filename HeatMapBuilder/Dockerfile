@@ -16,7 +16,7 @@ RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo &
     rm -rf /tmp/repo
     
 # Python 패키지 설치
-RUN pip3 install - \
+RUN pip3 install \
     flask==2.0.1 \
     numpy==1.21.0 \
     pillow==8.3.1 \
