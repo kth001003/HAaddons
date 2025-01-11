@@ -14,7 +14,8 @@ WORKDIR /
 RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
     cp -r /tmp/repo/HeatMapBuilder/apps /apps && \
     rm -rf /tmp/repo
-    
+# COPY apps /apps
+
 # 필요한 시스템 라이브러리 설치
 RUN apk add --no-cache \
     build-base \
