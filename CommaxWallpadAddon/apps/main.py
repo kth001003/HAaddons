@@ -358,13 +358,12 @@ class WallpadController:
             device_list = {}
             
             for name, count in device_count.items():
-                if count > 0:
-                    assert isinstance(self.DEVICE_STRUCTURE, dict)  # 타입 체크 재확인
-                    device_list[name] = {
-                        "type": self.DEVICE_STRUCTURE[name]["type"],
-                        "count": count
-                    }
-                    self.logger.info(f'DEVICE: {name} COUNT: {count}')
+                assert isinstance(self.DEVICE_STRUCTURE, dict)  # 타입 체크 재확인
+                device_list[name] = {
+                    "type": self.DEVICE_STRUCTURE[name]["type"],
+                    "count": count
+                }
+                self.logger.info(f'DEVICE: {name} COUNT: {count}')
             
             self.logger.info('======================================')
             
