@@ -115,14 +115,19 @@
                 class="relative w-full h-[calc(100vh-2.5rem)] border border-gray-300 rounded-lg overflow-hidden flex justify-center items-center bg-white">
                 <img id="floorplan-img" class="max-w-full max-h-full object-contain">
                 <div class="absolute inset-0 bg-white opacity-50 pointer-events-none"></div>
-                <svg id="svg-overlay" class="absolute inset-0 w-full h-full cursor-crosshair"></svg>
+                <svg id="svg-overlay" 
+                    class="absolute inset-0 w-full h-full" 
+                    style="pointer-events: all;">
+                    <!-- SVG 내용이 여기에 그려집니다 -->
+                </svg>
             </div>
         </div>
     </div>
 
     <!-- 스크립트 -->
-    <script src="static/js/drawing_tool.js"></script>
-    <script src="static/js/sensor_manager.js"></script>
-    <script src="static/js/main.js"></script>
+    <script src="{{ url_for('static', filename='js/drawing_utils.js') }}" type="module"></script>
+    <script src="{{ url_for('static', filename='js/drawing_tool.js') }}" type="module"></script>
+    <script src="{{ url_for('static', filename='js/sensor_manager.js') }}" type="module"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}" type="module"></script>
 </body>
 </html> 

@@ -1,4 +1,4 @@
-class SensorManager {
+export class SensorManager {
     constructor(svgElement) {
         this.svg = svgElement;
         this.sensors = [];
@@ -18,13 +18,11 @@ class SensorManager {
     enable() {
         this.enabled = true;
         this.updateSensorList();
-        this.svg.style.pointerEvents = 'auto';
     }
 
     disable() {
         this.enabled = false;
         this.updateSensorList();
-        this.svg.style.pointerEvents = 'none';
     }
 
     // 센서 데이터 로드
