@@ -46,7 +46,8 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
         "websockets==14.1" \
         "scipy==1.15.1" \
         "matplotlib==3.10.0" \
-        "shapely==2.0.6"
+        "shapely==2.0.6" \
+        "svgpath2mpl==1.0.0" 
 
 # 실행 권한 설정
 RUN chmod a+x /apps/run.sh

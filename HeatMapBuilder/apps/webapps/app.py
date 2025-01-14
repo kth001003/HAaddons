@@ -70,11 +70,9 @@ def get_sensor_state(entity_id: str) -> Dict[str, Any]:
     """센서 상태를 가져옵니다."""
     try:
         if IS_DEV:
-            app.logger.debug(f"개발 환경에서 센서 상태 조회: {entity_id}")
             mock_data = get_mock_data()
             for sensor in mock_data.get('temperature_sensors', []):
                 if sensor['entity_id'] == entity_id:
-                    app.logger.debug(f"Mock 센서 데이터 찾음: {sensor}")
                     return {
                         'entity_id': entity_id,
                         'state': sensor.get('state', '0'),

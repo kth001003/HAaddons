@@ -1,5 +1,6 @@
 import { DrawingTool } from './drawing_tool.js';
 import { SensorManager } from './sensor_manager.js';
+import { DrawingUtils } from './drawing_utils.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM Content Loaded');
@@ -35,6 +36,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('step2-controls').classList.toggle('hidden', step !== 2);
         document.getElementById('step3-controls').classList.toggle('hidden', step !== 3);
 
+        // 온도맵 표시/숨김
+        const thermalMapContainer = document.getElementById('thermal-map-container');
+        if (thermalMapContainer) {
+            thermalMapContainer.classList.toggle('hidden', step !== 3);
+        }
+
         // 플로어플랜 이미지 표시/숨김
         if (step === 1) {
             floorplanImg.style.display = 'block';
@@ -49,7 +56,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 drawingTool.enable();
                 drawingTool.setTool('line');
                 setActiveTool('line');
-                svg.style.cursor = 'crosshair';
+                svg.style.cursor = DrawingUtils.createCustomCursor();
             } else {
                 console.error('DrawingTool is not initialized');
             }
@@ -197,6 +204,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const thermalMapContainer = document.getElementById('thermal-map-container');
                 if (!thermalMapContainer) return;
                 
+                // hidden 클래스 제거
+                thermalMapContainer.classList.remove('hidden');
+                
                 // 기존 내용 제거
                 while (thermalMapContainer.firstChild) {
                     thermalMapContainer.removeChild(thermalMapContainer.firstChild);
@@ -285,6 +295,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('line-tool').addEventListener('click', function() {
             setActiveTool('line');
             drawingTool.setTool('line');
+        });
+        
+        document.getElementById('move-point-tool').addEventListener('click', function() {
+            setActiveTool('move-point');
+            drawingTool.setTool('move-point');
+            svg.style.cursor = 'move';
         });
         
         document.getElementById('eraser-tool').addEventListener('click', function() {

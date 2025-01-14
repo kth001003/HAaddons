@@ -16,6 +16,11 @@ export class DrawingTool {
         this.maxHistoryLength = 50; // 최대 실행취소 횟수
         this.areas = []; // 감지된 영역들을 저장
 
+        // 점 이동 관련 속성 추가
+        this.selectedPoint = null;
+        this.affectedLines = new Set();
+        this.isDragging = false;
+
         // 이벤트 리스너 바인딩
         this.startDrawing = this.startDrawing.bind(this);
         this.draw = this.draw.bind(this);
@@ -25,6 +30,9 @@ export class DrawingTool {
         this.undo = this.undo.bind(this);
         this.redo = this.redo.bind(this);
         this.clear = this.clear.bind(this);
+        this.startPointMove = this.startPointMove.bind(this);
+        this.movePoint = this.movePoint.bind(this);
+        this.endPointMove = this.endPointMove.bind(this);
 
         // SVG 이벤트 리스너 등록
         this.svg.addEventListener('mousedown', this.startDrawing);
@@ -131,10 +139,10 @@ export class DrawingTool {
         if (this.isDrawing && this.startPoint) {
             const tempLine = this.svg.querySelector('.temp-line');
             if (tempLine) {
-                const currentPoint = this.getMousePosition({
+                const currentPoint = DrawingUtils.getMousePosition({
                     clientX: this.lastMouseX,
                     clientY: this.lastMouseY
-                });
+                }, this.svg);
                 this.drawTempLine(this.processPoint(currentPoint));
             }
         }
@@ -151,47 +159,19 @@ export class DrawingTool {
         if (this.isDrawing && this.startPoint) {
             const tempLine = this.svg.querySelector('.temp-line');
             if (tempLine) {
-                const currentPoint = this.getMousePosition({
+                const currentPoint = DrawingUtils.getMousePosition({
                     clientX: this.lastMouseX,
                     clientY: this.lastMouseY
-                });
+                }, this.svg);
                 this.drawTempLine(this.processPoint(currentPoint));
             }
         }
     }
 
-    // 15도 단위로 각도 스냅
-    snapToAngle(point) {
-        if (!this.isShiftPressed || !this.startPoint) return point;
-
-        const dx = point.x - this.startPoint.x;
-        const dy = point.y - this.startPoint.y;
-        const angle = Math.atan2(dy, dx);
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // 15도 단위로 반올림
-        const snapAngle = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12);
-
-        return {
-            x: this.startPoint.x + Math.cos(snapAngle) * distance,
-            y: this.startPoint.y + Math.sin(snapAngle) * distance
-        };
-    }
 
     enable() {
         this.enabled = true;
-        
-        // 커스텀 커서 설정
-        const cursorSvg = `
-            <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
-                <line x1='0' y1='12' x2='24' y2='12' stroke='white' stroke-width='3'/>
-                <line x1='12' y1='0' x2='12' y2='24' stroke='white' stroke-width='3'/>
-                <line x1='0' y1='12' x2='24' y2='12' stroke='black' stroke-width='1'/>
-                <line x1='12' y1='0' x2='12' y2='24' stroke='black' stroke-width='1'/>
-            </svg>`;
-        
-        const cursorUrl = `data:image/svg+xml;base64,${btoa(cursorSvg)}`;
-        this.svg.style.cursor = `url('${cursorUrl}') 12 12, crosshair`;
+        this.svg.style.cursor = DrawingUtils.createCustomCursor();
     }
 
     disable() {
@@ -214,10 +194,138 @@ export class DrawingTool {
         this.lineWidth = width;
     }
 
+    // 점 이동 시작
+    startPointMove(e) {
+        if (!this.enabled || this.currentTool !== 'move-point') return;
+        
+        e.preventDefault();
+        const mousePoint = DrawingUtils.getMousePosition(e, this.svg);
+        const lines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
+        
+        // 모든 선의 끝점을 검사하여 마우스와 가까운 점 찾기
+        for (const line of lines) {
+            const x1 = parseFloat(line.getAttribute('x1'));
+            const y1 = parseFloat(line.getAttribute('y1'));
+            const x2 = parseFloat(line.getAttribute('x2'));
+            const y2 = parseFloat(line.getAttribute('y2'));
+            
+            const point1 = { x: x1, y: y1 };
+            const point2 = { x: x2, y: y2 };
+            
+            if (DrawingUtils.calculateDistance(mousePoint, point1) < this.snapDistance) {
+                this.selectedPoint = point1;
+                this.findConnectedLines(point1);
+                this.isDragging = true;
+                break;
+            } else if (DrawingUtils.calculateDistance(mousePoint, point2) < this.snapDistance) {
+                this.selectedPoint = point2;
+                this.findConnectedLines(point2);
+                this.isDragging = true;
+                break;
+            }
+        }
+    }
+
+    // 연결된 모든 선 찾기
+    findConnectedLines(point) {
+        this.affectedLines.clear();
+        const lines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
+        
+        for (const line of lines) {
+            const x1 = parseFloat(line.getAttribute('x1'));
+            const y1 = parseFloat(line.getAttribute('y1'));
+            const x2 = parseFloat(line.getAttribute('x2'));
+            const y2 = parseFloat(line.getAttribute('y2'));
+            
+            if (DrawingUtils.isPointEqual(point, { x: x1, y: y1 })) {
+                this.affectedLines.add({ line, isStart: true });
+            } else if (DrawingUtils.isPointEqual(point, { x: x2, y: y2 })) {
+                this.affectedLines.add({ line, isStart: false });
+            }
+        }
+    }
+
+    // 점 이동
+    movePoint(e) {
+        if (!this.enabled || !this.isDragging || !this.selectedPoint) return;
+        
+        e.preventDefault();
+        const currentPoint = DrawingUtils.getMousePosition(e, this.svg);
+        const processedPoint = this.processPoint(currentPoint);
+        
+        // 연결된 모든 선의 끝점 업데이트
+        for (const { line, isStart } of this.affectedLines) {
+            if (isStart) {
+                line.setAttribute('x1', String(processedPoint.x));
+                line.setAttribute('y1', String(processedPoint.y));
+            } else {
+                line.setAttribute('x2', String(processedPoint.x));
+                line.setAttribute('y2', String(processedPoint.y));
+            }
+        }
+        
+        this.selectedPoint = processedPoint;
+    }
+
+    // 점 이동 종료
+    endPointMove() {
+        if (this.isDragging) {
+            // 각 이동된 선에 대해 교차점 처리
+            for (const { line } of this.affectedLines) {
+                const splitLines = this.processIntersections(line);
+                line.remove();
+                splitLines.forEach(line => this.svg.appendChild(line));
+            }
+
+            this.isDragging = false;
+            this.selectedPoint = null;
+            this.affectedLines.clear();
+
+            // 영역 업데이트
+            this.updateAreas();
+            
+            // 상태 저장
+            this.saveState();
+        }
+    }
+
+    // 영역 감지 및 채우기 공통 메서드
+    updateAreas() {
+        // 닫힌 영역 감지 및 채우기
+        const lines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
+        const closedPaths = this.detectClosedArea(lines) || [];
+        
+        console.log(`닫힌 영역 감지 결과: ${closedPaths.length}개`, closedPaths);
+        
+        // 기존 영역 제거
+        const existingAreas = Array.from(this.svg.querySelectorAll('.area'));
+        for (const area of existingAreas) {
+            if (area && area.parentNode) {
+                area.remove();
+            }
+        }
+        this.areas = [];
+        
+        // 새로운 영역 채우기
+        for (const path of closedPaths) {
+            this.fillArea(path);
+        }
+
+        // 길이가 0에 가까운 선분 제거
+        this.removeTinyLines();
+    }
+
+    // 기존 startDrawing 메서드 수정
     startDrawing(e) {
         if (!this.enabled) return;
         
         e.preventDefault();
+        
+        if (this.currentTool === 'move-point') {
+            this.startPointMove(e);
+            return;
+        }
+        
         this.isDrawing = true;
         const point = DrawingUtils.getMousePosition(e, this.svg);
         
@@ -228,14 +336,20 @@ export class DrawingTool {
         }
     }
 
+    // 기존 draw 메서드 수정
     draw(e) {
-        if (!this.enabled || !this.isDrawing) return;
+        if (!this.enabled) return;
         
         e.preventDefault();
-        
-        // 마우스 위치 저장
         this.lastMouseX = e.clientX;
         this.lastMouseY = e.clientY;
+        
+        if (this.currentTool === 'move-point') {
+            this.movePoint(e);
+            return;
+        }
+        
+        if (!this.isDrawing) return;
         
         const currentPoint = DrawingUtils.getMousePosition(e, this.svg);
         
@@ -247,40 +361,6 @@ export class DrawingTool {
         }
     }
 
-    // 두 선분의 교차점 계산
-    findIntersection(line1, line2) {
-        const x1 = line1.x1;
-        const y1 = line1.y1;
-        const x2 = line1.x2;
-        const y2 = line1.y2;
-        
-        const x3 = line2.x1;
-        const y3 = line2.y1;
-        const x4 = line2.x2;
-        const y4 = line2.y2;
-
-        // 평행한 경우 처리
-        const denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-        if (Math.abs(denominator) < 0.001) return null;
-
-        const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denominator;
-        const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denominator;
-
-        // 선분 내부에 교차점이 있는 경우만 반환
-        if (ua >= -0.1 && ua <= 1.1 && ub >= -0.1 && ub <= 1.1) {
-            const x = x1 + ua * (x2 - x1);
-            const y = y1 + ua * (y2 - y1);
-            
-            // 좌표를 소수점 둘째 자리까지 유지하여 정밀도 문제 방지
-            return {
-                x: Math.round(x * 100) / 100,
-                y: Math.round(y * 100) / 100
-            };
-        }
-
-        return null;
-    }
-
     // 선분 분할
     splitLine(line, point) {
         const x1 = parseFloat(line.getAttribute('x1'));
@@ -288,48 +368,24 @@ export class DrawingTool {
         const x2 = parseFloat(line.getAttribute('x2'));
         const y2 = parseFloat(line.getAttribute('y2'));
 
-        // 점이 다른 선과 연결되어 있는지 확인하는 함수
-        const isPointConnected = (px, py) => {
-            const existingLines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
-            let connectionCount = 0;
-            
-            for (const otherLine of existingLines) {
-                if (otherLine === line) continue;
-                
-                const ox1 = parseFloat(otherLine.getAttribute('x1'));
-                const oy1 = parseFloat(otherLine.getAttribute('y1'));
-                const ox2 = parseFloat(otherLine.getAttribute('x2'));
-                const oy2 = parseFloat(otherLine.getAttribute('y2'));
-                
-                // 점과 선의 끝점 사이의 거리가 허용 오차 이내인지 확인
-                const tolerance = 1.0;
-                if ((Math.abs(px - ox1) < tolerance && Math.abs(py - oy1) < tolerance) ||
-                    (Math.abs(px - ox2) < tolerance && Math.abs(py - oy2) < tolerance)) {
-                    connectionCount++;
-                }
-            }
-            // 2개 이상의 선과 연결되어 있어야 true 반환
-            return connectionCount >= 2;
-        };
+        // 분할점이 선분의 끝점과 같은 경우 분할하지 않음
+        if (DrawingUtils.isPointEqual({x: x1, y: y1}, point) || 
+            DrawingUtils.isPointEqual({x: x2, y: y2}, point)) {
+            return [];
+        }
 
-        const minLength = 10; // 최소 선분 길이
-        const tinyLength = 5; // 매우 작은 길이 기준
+        // 선분의 길이 계산
+        const length1 = DrawingUtils.calculateDistance({x: x1, y: y1}, point);
+        const length2 = DrawingUtils.calculateDistance(point, {x: x2, y: y2});
+        
+        const minLength = 1;
         const lines = [];
 
-        // 첫 번째 선분 길이 확인
-        const length1 = DrawingUtils.calculateDistance({x: x1, y: y1}, point);
-        const isPoint1Connected = isPointConnected(x1, y1);
-        const isIntersectionPointConnected = isPointConnected(point.x, point.y);
-
-        if (length1 >= minLength || (length1 >= tinyLength && (isPoint1Connected || isIntersectionPointConnected))) {
+        if (length1 >= minLength) {
             lines.push(DrawingUtils.createSVGLine(x1, y1, point.x, point.y, this.lineWidth));
         }
 
-        // 두 번째 선분 길이 확인
-        const length2 = DrawingUtils.calculateDistance(point, {x: x2, y: y2});
-        const isPoint2Connected = isPointConnected(x2, y2);
-
-        if (length2 >= minLength || (length2 >= tinyLength && (isPoint2Connected || isIntersectionPointConnected))) {
+        if (length2 >= minLength) {
             lines.push(DrawingUtils.createSVGLine(point.x, point.y, x2, y2, this.lineWidth));
         }
 
@@ -338,72 +394,222 @@ export class DrawingTool {
 
     // 교차점에서 선분 분할 처리
     processIntersections(newLine) {
-        let currentLines = [newLine];
         const existingLines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
         const intersections = [];
+        const linesToProcess = new Set([newLine]); // 처리해야 할 선분들
+        const processedLines = new Set(); // 이미 처리된 선분들
+        const linesToRemove = new Set(); // 제거할 선분들
+        const newLines = new Set(); // 새로 추가할 선분들
+
+        // 새로운 선의 시작점과 끝점
+        const newX1 = parseFloat(newLine.getAttribute('x1'));
+        const newY1 = parseFloat(newLine.getAttribute('y1'));
+        const newX2 = parseFloat(newLine.getAttribute('x2'));
+        const newY2 = parseFloat(newLine.getAttribute('y2'));
 
         // 모든 교차점 찾기
         for (const existingLine of existingLines) {
-            const intersection = this.findIntersection(
+            if (existingLine === newLine) continue;
+
+            const x1 = parseFloat(existingLine.getAttribute('x1'));
+            const y1 = parseFloat(existingLine.getAttribute('y1'));
+            const x2 = parseFloat(existingLine.getAttribute('x2'));
+            const y2 = parseFloat(existingLine.getAttribute('y2'));
+
+            // 새로운 선의 시작점이 기존 선 위에 있는지 확인
+            const startPointOnLine = DrawingUtils.projectPointOnLine(
+                {x: newX1, y: newY1},
+                {x: x1, y: y1},
+                {x: x2, y: y2}
+            );
+
+            if (startPointOnLine && 
+                DrawingUtils.calculateDistance({x: newX1, y: newY1}, startPointOnLine) < 0.1 &&
+                DrawingUtils.isPointOnLineSegment(startPointOnLine, {x: x1, y: y1}, {x: x2, y: y2})) {
+                intersections.push({
+                    point: {x: newX1, y: newY1},
+                    existingLine: existingLine
+                });
+                if (!processedLines.has(existingLine)) {
+                    linesToProcess.add(existingLine);
+                }
+            }
+
+            // 새로운 선의 끝점이 기존 선 위에 있는지 확인
+            const endPointOnLine = DrawingUtils.projectPointOnLine(
+                {x: newX2, y: newY2},
+                {x: x1, y: y1},
+                {x: x2, y: y2}
+            );
+
+            if (endPointOnLine && 
+                DrawingUtils.calculateDistance({x: newX2, y: newY2}, endPointOnLine) < 0.1 &&
+                DrawingUtils.isPointOnLineSegment(endPointOnLine, {x: x1, y: y1}, {x: x2, y: y2})) {
+                intersections.push({
+                    point: {x: newX2, y: newY2},
+                    existingLine: existingLine
+                });
+                if (!processedLines.has(existingLine)) {
+                    linesToProcess.add(existingLine);
+                }
+            }
+
+            // 일반적인 교차점 찾기
+            const intersection = DrawingUtils.findIntersection(
                 {
-                    x1: parseFloat(newLine.getAttribute('x1')),
-                    y1: parseFloat(newLine.getAttribute('y1')),
-                    x2: parseFloat(newLine.getAttribute('x2')),
-                    y2: parseFloat(newLine.getAttribute('y2'))
+                    x1: newX1,
+                    y1: newY1,
+                    x2: newX2,
+                    y2: newY2
                 },
                 {
-                    x1: parseFloat(existingLine.getAttribute('x1')),
-                    y1: parseFloat(existingLine.getAttribute('y1')),
-                    x2: parseFloat(existingLine.getAttribute('x2')),
-                    y2: parseFloat(existingLine.getAttribute('y2'))
+                    x1: x1,
+                    y1: y1,
+                    x2: x2,
+                    y2: y2
                 }
             );
 
             if (intersection) {
-                intersections.push({
-                    point: intersection,
-                    existingLine: existingLine
-                });
-            }
-        }
+                // 교차점이 선분의 끝점과 일치하는지 확인
+                const isEndPoint = (
+                    DrawingUtils.isPointEqual(intersection, {x: newX1, y: newY1}) ||
+                    DrawingUtils.isPointEqual(intersection, {x: newX2, y: newY2}) ||
+                    DrawingUtils.isPointEqual(intersection, {x: x1, y: y1}) ||
+                    DrawingUtils.isPointEqual(intersection, {x: x2, y: y2})
+                );
 
-        // 교차점들을 선분의 시작점에서부터의 거리순으로 정렬
-        intersections.sort((a, b) => {
-            const distA = Math.pow(a.point.x - parseFloat(newLine.getAttribute('x1')), 2) +
-                         Math.pow(a.point.y - parseFloat(newLine.getAttribute('y1')), 2);
-            const distB = Math.pow(b.point.x - parseFloat(newLine.getAttribute('x1')), 2) +
-                         Math.pow(b.point.y - parseFloat(newLine.getAttribute('y1')), 2);
-            return distA - distB;
-        });
-
-        // 각 교차점에서 선분들 분할
-        for (const intersection of intersections) {
-            // 현재 선분들을 교차점에서 분할
-            const newSplitLines = [];
-            for (const line of currentLines) {
-                const splitLines = this.splitLineAtPoint(line, intersection.point);
-                if (splitLines.length > 0) {
-                    newSplitLines.push(...splitLines);
-                } else {
-                    newSplitLines.push(line);
+                if (!isEndPoint) {
+                    intersections.push({
+                        point: intersection,
+                        existingLine: existingLine
+                    });
+                    if (!processedLines.has(existingLine)) {
+                        linesToProcess.add(existingLine);
+                    }
                 }
             }
-            currentLines = newSplitLines;
+        }
 
-            // 기존 선분 분할
-            const splitExistingLines = this.splitLineAtPoint(intersection.existingLine, intersection.point);
-            if (splitExistingLines.length > 0) {
-                // 기존 선분을 DOM에서 제거
-                this.svg.removeChild(intersection.existingLine);
-                
-                // 분할된 선분들을 DOM에 추가
-                splitExistingLines.forEach(line => {
-                    this.svg.appendChild(line);
+        if (intersections.length === 0) {
+            newLines.add(newLine);
+        } else {
+            // 교차점들을 선분의 시작점에서부터의 거리순으로 정렬
+            const sortIntersectionsByDistance = (line, points) => {
+                const x1 = parseFloat(line.getAttribute('x1'));
+                const y1 = parseFloat(line.getAttribute('y1'));
+                return points.sort((a, b) => {
+                    const distA = Math.pow(a.x - x1, 2) + Math.pow(a.y - y1, 2);
+                    const distB = Math.pow(b.x - x1, 2) + Math.pow(b.y - y1, 2);
+                    return distA - distB;
                 });
+            };
+
+            // 각 선분에 대해 처리
+            for (const line of linesToProcess) {
+                if (processedLines.has(line)) continue;
+
+                // 현재 선분과 관련된 모든 교차점 찾기
+                const lineIntersections = intersections
+                    .filter(intersection => 
+                        intersection.existingLine === line || line === newLine)
+                    .map(intersection => intersection.point);
+
+                if (lineIntersections.length === 0) {
+                    newLines.add(line);
+                    processedLines.add(line);
+                    continue;
+                }
+
+                // 교차점들을 거리순으로 정렬
+                const sortedPoints = sortIntersectionsByDistance(line, lineIntersections);
+                
+                // 선분의 시작점과 끝점
+                const x1 = parseFloat(line.getAttribute('x1'));
+                const y1 = parseFloat(line.getAttribute('y1'));
+                const x2 = parseFloat(line.getAttribute('x2'));
+                const y2 = parseFloat(line.getAttribute('y2'));
+
+                // 모든 점들을 순서대로 연결
+                let prevPoint = { x: x1, y: y1 };
+                for (const point of sortedPoints) {
+                    if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
+                        console.warn('유효하지 않은 교차점:', point);
+                        continue;
+                    }
+                    
+                    // 이미 존재하는 선분인지 확인
+                    let isDuplicate = false;
+                    for (const existingLine of newLines) {
+                        const ex1 = parseFloat(existingLine.getAttribute('x1'));
+                        const ey1 = parseFloat(existingLine.getAttribute('y1'));
+                        const ex2 = parseFloat(existingLine.getAttribute('x2'));
+                        const ey2 = parseFloat(existingLine.getAttribute('y2'));
+
+                        if ((DrawingUtils.isPointEqual({x: ex1, y: ey1}, prevPoint) && 
+                             DrawingUtils.isPointEqual({x: ex2, y: ey2}, point)) ||
+                            (DrawingUtils.isPointEqual({x: ex1, y: ey1}, point) && 
+                             DrawingUtils.isPointEqual({x: ex2, y: ey2}, prevPoint))) {
+                            isDuplicate = true;
+                            break;
+                        }
+                    }
+
+                    if (!isDuplicate && DrawingUtils.calculateDistance(prevPoint, point) >= 1) {
+                        const splitLine = DrawingUtils.createSVGLine(
+                            prevPoint.x, prevPoint.y,
+                            point.x, point.y,
+                            this.lineWidth
+                        );
+                        newLines.add(splitLine);
+                    }
+                    prevPoint = point;
+                }
+                
+                // 마지막 교차점에서 선분의 끝점까지
+                let isDuplicate = false;
+                for (const existingLine of newLines) {
+                    const ex1 = parseFloat(existingLine.getAttribute('x1'));
+                    const ey1 = parseFloat(existingLine.getAttribute('y1'));
+                    const ex2 = parseFloat(existingLine.getAttribute('x2'));
+                    const ey2 = parseFloat(existingLine.getAttribute('y2'));
+
+                    if ((DrawingUtils.isPointEqual({x: ex1, y: ey1}, prevPoint) && 
+                         DrawingUtils.isPointEqual({x: ex2, y: ey2}, {x: x2, y: y2})) ||
+                        (DrawingUtils.isPointEqual({x: ex1, y: ey1}, {x: x2, y: y2}) && 
+                         DrawingUtils.isPointEqual({x: ex2, y: ey2}, prevPoint))) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+
+                if (!isDuplicate && DrawingUtils.calculateDistance(prevPoint, {x: x2, y: y2}) >= 1) {
+                    const lastSplitLine = DrawingUtils.createSVGLine(
+                        prevPoint.x, prevPoint.y,
+                        x2, y2,
+                        this.lineWidth
+                    );
+                    newLines.add(lastSplitLine);
+                }
+
+                linesToRemove.add(line);
+                processedLines.add(line);
             }
         }
 
-        return currentLines;
+        // 제거할 선분들 제거
+        linesToRemove.forEach(line => {
+            if (line.parentNode) {
+                line.remove();
+            }
+        });
+
+        // 메모리 정리
+        linesToProcess.clear();
+        processedLines.clear();
+        linesToRemove.clear();
+
+        return Array.from(newLines);
     }
 
     // 선분을 특정 점에서 분할
@@ -437,10 +643,18 @@ export class DrawingTool {
         return lines;
     }
 
+    // 기존 endDrawing 메서드 수정
     endDrawing(e) {
-        if (!this.enabled || !this.isDrawing) return;
+        if (!this.enabled) return;
         
         if (e) e.preventDefault();
+        
+        if (this.currentTool === 'move-point') {
+            this.endPointMove();
+            return;
+        }
+        
+        if (!this.isDrawing) return;
         
         // 임시 선 제거
         const tempLine = this.svg.querySelector('.temp-line');
@@ -479,27 +693,10 @@ export class DrawingTool {
             newLine.remove();
             splitLines.forEach(line => this.svg.appendChild(line));
 
-            // 닫힌 영역 감지 및 채우기
-            const lines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
-            const closedPaths = this.detectClosedArea(lines) || [];
+            // 영역 업데이트
+            this.updateAreas();
             
-            console.log(`닫힌 영역 감지 결과: ${closedPaths.length}개`, closedPaths);
-            
-            // 기존 영역 제거
-            const existingAreas = Array.from(this.svg.querySelectorAll('.area'));
-            for (const area of existingAreas) {
-                if (area && area.parentNode) {
-                    area.remove();
-                }
-            }
-            this.areas = [];
-            
-            // 새로운 영역 채우기
-            for (const path of closedPaths) {
-                this.fillArea(path);
-            }
-
-            // 사용자 행동 완료 후 상태 저장
+            // 상태 저장
             this.saveState();
         }
         
@@ -525,93 +722,18 @@ export class DrawingTool {
     eraseElements(e) {
         const elements = document.elementsFromPoint(e.clientX, e.clientY);
         let hasErased = false;
-        let erasedLines = [];
 
         elements.forEach(element => {
-            if (element instanceof SVGElement) {
-                if (element.tagName === 'path') {
-                    element.remove();
-                    hasErased = true;
-                } else if (element.tagName === 'line') {
-                    erasedLines.push(element);
-                    element.remove();
-                    hasErased = true;
-                }
+            if (element instanceof SVGElement && element.tagName === 'line') {
+                element.remove();
+                hasErased = true;
             }
         });
-
-        // 선분이 지워졌다면 병합 처리 수행
-        if (erasedLines.length > 0) {
-            this.mergeLinesAfterErase();
-        }
-
-        // 요소가 지워졌을 때만 상태 저장
         if (hasErased) {
+            this.mergeLinesAfterErase();
+            this.updateAreas();
             this.saveState();
         }
-    }
-
-    // 선분이 다른 선분들과 교차하는지 확인
-    hasIntersectionWithOtherLines(testLine, excludeLines = []) {
-        const lines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
-        
-        for (const line of lines) {
-            if (excludeLines.includes(line) || line === testLine) continue;
-            
-            const x1 = parseFloat(line.getAttribute('x1'));
-            const y1 = parseFloat(line.getAttribute('y1'));
-            const x2 = parseFloat(line.getAttribute('x2'));
-            const y2 = parseFloat(line.getAttribute('y2'));
-            
-            const intersection = DrawingUtils.findIntersection(
-                {
-                    x1: parseFloat(testLine.getAttribute('x1')),
-                    y1: parseFloat(testLine.getAttribute('y1')),
-                    x2: parseFloat(testLine.getAttribute('x2')),
-                    y2: parseFloat(testLine.getAttribute('y2'))
-                },
-                { x1, y1, x2, y2 }
-            );
-
-            if (intersection) {
-                const testLinePoints = [
-                    { x: parseFloat(testLine.getAttribute('x1')), y: parseFloat(testLine.getAttribute('y1')) },
-                    { x: parseFloat(testLine.getAttribute('x2')), y: parseFloat(testLine.getAttribute('y2')) }
-                ];
-                const linePoints = [
-                    { x: x1, y: y1 },
-                    { x: x2, y: y2 }
-                ];
-
-                if (!DrawingUtils.isPointOnEndpoints(intersection, testLinePoints) && 
-                    !DrawingUtils.isPointOnEndpoints(intersection, linePoints)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    // 점을 선에 투영
-    projectPointOnLine(point, lineStart, lineEnd) {
-        const dx = lineEnd.x - lineStart.x;
-        const dy = lineEnd.y - lineStart.y;
-        const lineLength = Math.sqrt(dx * dx + dy * dy);
-        
-        if (lineLength === 0) return null;
-
-        const t = (
-            ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) /
-            (lineLength * lineLength)
-        );
-
-        // 선분 범위 내에 있는지 확인
-        if (t < 0 || t > 1) return null;
-
-        return {
-            x: lineStart.x + t * dx,
-            y: lineStart.y + t * dy
-        };
     }
 
     // 포인트 처리 (스냅 + 각도 스냅)
@@ -619,7 +741,7 @@ export class DrawingTool {
         let processedPoint = this.findSnapPoint(point);
         
         if (this.isShiftPressed) {
-            processedPoint = this.snapToAngle(processedPoint);
+            processedPoint = DrawingUtils.snapToAngle(processedPoint, this.startPoint);
         }
         
         return processedPoint;
@@ -678,132 +800,24 @@ export class DrawingTool {
         return closestPoint;
     }
 
-    // 경로의 면적 계산
-    calculateArea(path) {
-        let area = 0;
-        for (let i = 0; i < path.length; i++) {
-            const j = (i + 1) % path.length;
-            area += path[i].x * path[j].y;
-            area -= path[j].x * path[i].y;
-        }
-        return Math.abs(area) / 2;
-    }
-
-    // 자체 교차 검사
-    hasSelfIntersection(path) {
-        for (let i = 0; i < path.length; i++) {
-            const p1 = path[i];
-            const p2 = path[(i + 1) % path.length];
-            
-            for (let j = i + 2; j < path.length; j++) {
-                const p3 = path[j];
-                const p4 = path[(j + 1) % path.length];
-                
-                if (i === 0 && j === path.length - 1) continue; // 시작점과 끝점 연결은 무시
-                
-                if (DrawingUtils.doLinesIntersect(p1, p2, p3, p4)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    // 두 선분의 교차 여부 확인
-    doLinesIntersect(p1, p2, p3, p4) {
-        const ccw = (A, B, C) => {
-            return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
-        };
-        
-        return ccw(p1, p3, p4) !== ccw(p2, p3, p4) && 
-               ccw(p1, p2, p3) !== ccw(p1, p2, p4);
-    }
-
-    // 다른 선분과의 유효하지 않은 교차 검사
-    hasInvalidIntersections(path, lines) {
-        for (let i = 0; i < path.length; i++) {
-            const p1 = path[i];
-            const p2 = path[(i + 1) % path.length];
-
-            for (const line of lines) {
-                const x1 = parseFloat(line.getAttribute('x1'));
-                const y1 = parseFloat(line.getAttribute('y1'));
-                const x2 = parseFloat(line.getAttribute('x2'));
-                const y2 = parseFloat(line.getAttribute('y2'));
-
-                // 현재 경로를 구성하는 선분은 건너뛰기
-                if (DrawingUtils.isPointEqual(p1, { x: x1, y: y1 }) && DrawingUtils.isPointEqual(p2, { x: x2, y: y2 }) ||
-                    DrawingUtils.isPointEqual(p1, { x: x2, y: y2 }) && DrawingUtils.isPointEqual(p2, { x: x1, y: y1 })) {
-                    continue;
-                }
-
-                const intersection = DrawingUtils.findIntersection(
-                    { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y },
-                    { x1, y1, x2, y2 }
-                );
-
-                if (intersection && 
-                    !DrawingUtils.isPointEqual(intersection, p1) && 
-                    !DrawingUtils.isPointEqual(intersection, p2) &&
-                    !DrawingUtils.isPointEqual(intersection, { x: x1, y: y1 }) &&
-                    !DrawingUtils.isPointEqual(intersection, { x: x2, y: y2 })) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-    }
-
-    // 중복 경로 제거
-    removeDuplicatePaths(paths) {
-        const uniquePaths = [];
-        for (const path of paths) {
-            let isDuplicate = false;
-            for (const existingPath of uniquePaths) {
-                if (this.arePathsEqual(path, existingPath)) {
-                    isDuplicate = true;
-                    break;
-                }
-            }
-            if (!isDuplicate) {
-                uniquePaths.push(path);
-            }
-        }
-        return uniquePaths;
-    }
-
-    // 두 경로가 같은지 확인
-    arePathsEqual(path1, path2) {
-        if (path1.length !== path2.length) return false;
-
-        // 모든 가능한 시작점에 대해 비교
-        for (let start = 0; start < path1.length; start++) {
-            let isEqual = true;
-            for (let i = 0; i < path1.length; i++) {
-                const p1 = path1[i];
-                const p2 = path2[(start + i) % path2.length];
-                if (!DrawingUtils.isPointEqual(p1, p2)) {
-                    isEqual = false;
-                    break;
-                }
-            }
-            if (isEqual) return true;
-        }
-        return false;
-    }
-
     // 영역 채우기
     fillArea(path) {
         if (!path || path.length < 3) return;  // 최소 3개의 점이 필요
 
-        // path가 이미 좌표 객체 배열인 경우 처리
-        const points = path.map(point => {
-            if (typeof point === 'string') {
-                return point.split(',').map(Number);
-            }
-            return [point.x, point.y];
-        });
-        
+        // 유효하지 않은 좌표가 있는지 확인
+        const validPath = path.every(point => 
+            point && 
+            typeof point.x === 'number' && 
+            typeof point.y === 'number' && 
+            !isNaN(point.x) && 
+            !isNaN(point.y)
+        );
+
+        if (!validPath) {
+            console.warn('유효하지 않은 좌표가 포함된 경로:', path);
+            return;
+        }
+
         // 영역이 너무 작으면 무시
         const minArea = 100; // 최소 영역 크기 (픽셀 단위)
         const area = DrawingUtils.calculateArea(path);
@@ -814,8 +828,9 @@ export class DrawingTool {
 
         try {
             // SVG path 생성
-            const pathData = points.reduce((acc, [x, y], i) => {
-                return acc + (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
+            const pathData = path.reduce((acc, point, i) => {
+                const command = i === 0 ? 'M' : 'L';
+                return `${acc} ${command} ${point.x} ${point.y}`;
             }, '') + ' Z';
             
             const areaElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -832,12 +847,6 @@ export class DrawingTool {
         } catch (error) {
             console.error('영역 생성 중 오류:', error);
         }
-    }
-
-    // 파스텔 색상 생성
-    generatePastelColor() {
-        const hue = Math.floor(Math.random() * 360);
-        return `hsl(${hue}, 70%, 80%)`;
     }
 
     // 선들이 닫힌 영역을 형성하는지 확인
@@ -872,60 +881,88 @@ export class DrawingTool {
         });
 
         // 사이클 찾기 함수
-        const findCycles = (startNode, currentNode, visited = new Set(), path = []) => {
+        const findCycles = (startNode, currentNode, visited = new Set(), path = [], depth = 0) => {
             const cycles = [];
-            visited.add(currentNode);
+            const maxDepth = 20; // 최대 깊이 제한
+            
+            if (depth > maxDepth) return cycles; // 깊이 제한 초과시 종료
+            
             path.push(currentNode);
+            visited.add(currentNode);
 
             const node = nodes.get(currentNode);
+            if (!node) return cycles;
+
             for (const nextNode of node.connections) {
                 if (nextNode === startNode && path.length >= 3) {
                     // 사이클 발견
                     cycles.push([...path]);
                 } else if (!visited.has(nextNode)) {
                     // 다음 노드로 탐색
-                    const newCycles = findCycles(startNode, nextNode, visited, path);
+                    const newCycles = findCycles(startNode, nextNode, new Set(visited), [...path], depth + 1);
                     cycles.push(...newCycles);
                 }
             }
 
-            visited.delete(currentNode);
-            path.pop();
             return cycles;
         };
 
         // 모든 노드에서 시작하여 사이클 찾기
-        const allCycles = [];
+        const allCycles = new Set(); // 중복 제거를 위해 Set 사용
+
         for (const startNode of nodes.keys()) {
             const cycles = findCycles(startNode, startNode);
-            allCycles.push(...cycles);
+            cycles.forEach(cycle => {
+                // 좌표 객체 배열로 변환
+                const pathPoints = cycle.map(point => {
+                    const [x, y] = point.split(',').map(Number);
+                    return { x, y };
+                });
+                
+                // 정규화된 사이클 문자열 생성 (정렬된 좌표 문자열)
+                const normalizedCycle = pathPoints
+                    .map(p => `${p.x},${p.y}`)
+                    .sort()
+                    .join('|');
+                
+                allCycles.add(JSON.stringify(pathPoints)); // 전체 경로 객체를 JSON으로 저장
+            });
         }
 
-        // 사이클을 좌표 객체 배열로 변환
-        const pathsFromCycles = allCycles.map(cycle => 
-            cycle.map(point => {
-                const [x, y] = point.split(',').map(Number);
-                return { x, y };
-            })
-        );
+        // Set을 배열로 변환하고 각 사이클 JSON을 다시 객체로 변환
+        const pathsFromCycles = Array.from(allCycles).map(cycleJson => JSON.parse(cycleJson));
 
         // 유효한 경로만 필터링
         const validPaths = pathsFromCycles.filter(path => {
+            // 유효하지 않은 좌표 확인
+            const hasInvalidCoords = path.some(point => 
+                !point || 
+                typeof point.x !== 'number' || 
+                typeof point.y !== 'number' || 
+                isNaN(point.x) || 
+                isNaN(point.y)
+            );
+            
+            if (hasInvalidCoords) {
+                console.warn('유효하지 않은 좌표가 포함된 경로:', path);
+                return false;
+            }
+
             // 최소 크기 검증
             const area = DrawingUtils.calculateArea(path);
-            if (area < 100) return false; // 최소 크기 제한
+            if (area < 10) return false; // 최소 크기 제한
 
             // 자체 교차 검증
-            if (this.hasSelfIntersection(path)) return false;
+            if (DrawingUtils.hasSelfIntersection(path)) return false;
 
             // 다른 선분과의 교차 검증
-            if (this.hasInvalidIntersections(path, lines)) return false;
+            if (DrawingUtils.hasInvalidIntersections(path, lines)) return false;
 
             return true;
         });
 
         // 중복 경로 제거
-        const uniquePaths = this.removeDuplicatePaths(validPaths);
+        const uniquePaths = DrawingUtils.removeDuplicatePaths(validPaths);
         console.log(`전체 경로: ${pathsFromCycles.length}, 유효 경로: ${validPaths.length}, 중복 제거 경로: ${uniquePaths.length}`);
         return uniquePaths;
     }
@@ -983,14 +1020,9 @@ export class DrawingTool {
                         );
 
                         // 교차점이 없는 경우에만 병합
-                        if (!this.hasIntersectionWithOtherLines(tempLine, [line1, line2])) {
-                            const newLine = DrawingUtils.createSVGLine(
-                                mergedLine.x1,
-                                mergedLine.y1,
-                                mergedLine.x2,
-                                mergedLine.y2,
-                                this.lineWidth
-                            );
+                        const allLines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
+                        if (!DrawingUtils.hasIntersectionWithOtherLines(tempLine, allLines, [line1, line2])) {
+                            const newLine = tempLine;
                             
                             this.svg.appendChild(newLine);
                             line1.remove();
@@ -1010,26 +1042,27 @@ export class DrawingTool {
         } while (merged);
     }
 
-    getMousePosition(e) {
-        const rect = this.svg.getBoundingClientRect();
-        const point = this.svg.createSVGPoint();
-        point.x = e.clientX;
-        point.y = e.clientY;
+    // 매우 짧은 선분 제거
+    removeTinyLines() {
+        const lines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
+        const minLength = 0.4; // 최소 길이 (픽셀 단위)
         
-        // SVG 좌표계로 변환
-        const matrix = this.svg.getScreenCTM();
-        if (matrix) {
-            const transformedPoint = point.matrixTransform(matrix.inverse());
-            return {
-                x: transformedPoint.x,
-                y: transformedPoint.y
-            };
+        for (const line of lines) {
+            const x1 = parseFloat(line.getAttribute('x1'));
+            const y1 = parseFloat(line.getAttribute('y1'));
+            const x2 = parseFloat(line.getAttribute('x2'));
+            const y2 = parseFloat(line.getAttribute('y2'));
+            
+            // 선분의 길이 계산
+            const length = DrawingUtils.calculateDistance(
+                { x: x1, y: y1 },
+                { x: x2, y: y2 }
+            );
+            
+            // 최소 길이보다 짧은 선분 제거
+            if (length < minLength) {
+                line.remove();
+            }
         }
-        
-        // fallback: 간단한 좌표 계산
-        return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
     }
 } 

@@ -4,3 +4,4 @@ scipy>=1.7.0
 shapely>=2.0.0
 Flask>=2.0.0
 requests>=2.26.0 
+svgpath2mpl>=1.0.0 
