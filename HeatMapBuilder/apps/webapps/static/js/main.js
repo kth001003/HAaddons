@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 저장된 설정 로드
     async function loadConfig() {
         try {
-            const response = await fetch('/api/load-config');
+            const response = await fetch('./api/load-config');
             if (response.ok) {
                 const config = await response.json();
                 
@@ -208,7 +208,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         };
 
-        fetch('/api/generate-map', {
+        fetch('./api/generate-map', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -399,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 };
 
                 try {
-                    await fetch('/api/save-walls', {
+                    await fetch('./api/save-walls', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 };
 
                 try {
-                    await fetch('/api/save-sensors', {
+                    await fetch('./api/save-sensors', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
