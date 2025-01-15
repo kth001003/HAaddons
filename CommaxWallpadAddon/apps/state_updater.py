@@ -71,7 +71,7 @@ class StateUpdater:
 
     async def update_outlet(self, idx: int, power_text: str, watt: Union[int,None], ecomode_text: Union[str,None]) -> None:
         try:
-            deviceID = 'Outlet' + str(idx + 1)
+            deviceID = 'Outlet' + str(idx)
             if power_text == 'ON':
                 topic = self.STATE_TOPIC.format(deviceID, 'power')
                 self.publish_mqtt(topic, 'ON')
