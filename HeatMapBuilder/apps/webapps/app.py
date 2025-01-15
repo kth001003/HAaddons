@@ -2,6 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 import json
+import time
 from flask import Flask, request, jsonify, render_template, send_from_directory
 import requests
 from typing import Optional, Dict, Any
@@ -11,27 +12,33 @@ app = Flask(__name__)
 
 
 # 개발 환경 확인
-IS_DEV = os.environ.get('FLASK_ENV') == 'development' and not os.environ.get('SUPERVISOR_TOKEN')
+IS_DEV = os.environ.get('FLASK_ENV') == 'development'
+IS_LOCAL = os.environ.get('SUPERVISOR_TOKEN') is None
+
 if IS_DEV:
     app.debug = True
     # 템플릿 자동 리로드
     app.jinja_env.auto_reload = True
     # 정적 파일 캐시 비활성화 
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+# 캐시버스터
+cache_buster = str(time.time())
+
 # 로깅 설정
-LOG_PATH = '/data/thermomap.log' if not IS_DEV else 'thermomap.log'
+LOG_PATH = os.path.join(os.path.dirname(__file__), 'thermomap.log') if IS_LOCAL else '/data/thermomap.log'
 handler = RotatingFileHandler(LOG_PATH, maxBytes=10000000, backupCount=5)
 handler.setFormatter(logging.Formatter(
     '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
 ))
 app.logger.addHandler(handler)
-app.logger.setLevel(logging.INFO if not IS_DEV else logging.DEBUG)
+app.logger.setLevel(logging.DEBUG if IS_DEV else logging.INFO)
     
 # 설정 파일 경로
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'test_config.json') if IS_DEV else '/data/options.json'
-MEDIA_PATH = os.path.join(os.path.dirname(__file__), 'media') if IS_DEV else '/media'
-WALLS_CONFIG = os.path.join(os.path.dirname(__file__), 'media', 'walls.json') if IS_DEV else '/data/walls.json'
-SENSORS_CONFIG = os.path.join(os.path.dirname(__file__), 'media', 'sensors.json') if IS_DEV else '/data/sensors.json'
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'test_config.json') if IS_LOCAL else '/data/options.json'
+MEDIA_PATH = os.path.join(os.path.dirname(__file__), 'media') if IS_LOCAL else '/media'
+WALLS_CONFIG = os.path.join(os.path.dirname(__file__), 'media', 'walls.json') if IS_LOCAL else '/data/walls.json'
+SENSORS_CONFIG = os.path.join(os.path.dirname(__file__), 'media', 'sensors.json') if IS_LOCAL else '/data/sensors.json'
 
 # media 디렉토리가 없으면 생성
 try:
@@ -52,7 +59,7 @@ def get_mock_data():
 
 def get_ha_api() -> Optional[Dict[str, Any]]:
     """Home Assistant API 설정을 가져옵니다."""
-    if IS_DEV:
+    if IS_LOCAL:
         return {
             'base_url': 'mock_url',
             'headers': {'Content-Type': 'application/json'}
@@ -69,7 +76,7 @@ def get_ha_api() -> Optional[Dict[str, Any]]:
 def get_sensor_state(entity_id: str) -> Dict[str, Any]:
     """센서 상태를 가져옵니다."""
     try:
-        if IS_DEV:
+        if IS_LOCAL:
             mock_data = get_mock_data()
             for sensor in mock_data.get('temperature_sensors', []):
                 if sensor['entity_id'] == entity_id:
@@ -104,7 +111,7 @@ def index():
 @app.route('/api/states')
 def get_states():
     """상태 정보를 가져옵니다."""
-    if IS_DEV:
+    if IS_LOCAL:
         mock_data = get_mock_data()
         return jsonify(mock_data.get('temperature_sensors', []))
     
