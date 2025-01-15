@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 
 # 개발 환경 확인
-IS_DEV = os.environ.get('FLASK_ENV') == 'development'
+IS_DEV = os.environ.get('FLASK_ENV') == 'development' and not os.environ.get('SUPERVISOR_TOKEN')
 if IS_DEV:
     app.debug = True
     # 템플릿 자동 리로드
