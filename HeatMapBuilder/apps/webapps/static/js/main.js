@@ -1,6 +1,5 @@
 import { DrawingTool } from './drawing_tool.js';
 import { SensorManager } from './sensor_manager.js';
-import { DrawingUtils } from './drawing_utils.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM Content Loaded');
