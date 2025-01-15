@@ -344,14 +344,30 @@ export class DrawingUtils {
     }
 
     // 커스텀 커서 SVG 생성 유틸리티
-    static createCustomCursor() {
-        const cursorSvg = `
-            <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
-                <line x1='0' y1='12' x2='24' y2='12' stroke='black' stroke-width='3'/>
-                <line x1='12' y1='0' x2='12' y2='24' stroke='black' stroke-width='3'/>
-                <line x1='0' y1='12' x2='24' y2='12' stroke='white' stroke-width='1'/>
-                <line x1='12' y1='0' x2='12' y2='24' stroke='white' stroke-width='1'/>
-            </svg>`;
+    static createCustomCursor(tool) {
+        let cursorSvg;
+        switch (tool) {
+            case 'line':
+                cursorSvg = `
+                    <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
+                        <line x1='0' y1='12' x2='24' y2='12' stroke='black' stroke-width='3'/>
+                        <line x1='12' y1='0' x2='12' y2='24' stroke='black' stroke-width='3'/>
+                        <line x1='0' y1='12' x2='24' y2='12' stroke='white' stroke-width='1'/>
+                        <line x1='12' y1='0' x2='12' y2='24' stroke='white' stroke-width='1'/>
+                    </svg>`;
+                break;
+            case 'move-point':
+                return 'move';
+            case 'eraser':
+                cursorSvg = `
+                    <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
+                        <rect x='0' y='0' width='24' height='24' fill='transparent' stroke='black' stroke-width='2'/>
+                        <line x1='12' y1='12' x2='12' y2='12' stroke='white' stroke-width='4'/>
+                    </svg>`;
+                break;
+            default:
+                cursorSvg = 'default';
+        }
         
         const cursorUrl = `data:image/svg+xml;base64,${btoa(cursorSvg)}`;
         return `url('${cursorUrl}') 12 12, crosshair`;

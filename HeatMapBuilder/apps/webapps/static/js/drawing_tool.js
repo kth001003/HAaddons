@@ -171,7 +171,7 @@ export class DrawingTool {
 
     enable() {
         this.enabled = true;
-        this.svg.style.cursor = DrawingUtils.createCustomCursor();
+        this.svg.style.cursor = DrawingUtils.createCustomCursor(this.currentTool);
     }
 
     disable() {
@@ -188,6 +188,7 @@ export class DrawingTool {
 
     setTool(tool) {
         this.currentTool = tool;
+        this.svg.style.cursor = DrawingUtils.createCustomCursor(this.currentTool);
     }
 
     setLineWidth(width) {

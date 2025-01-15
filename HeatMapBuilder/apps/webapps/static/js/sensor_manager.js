@@ -220,12 +220,17 @@ export class SensorManager {
 
             // 센서 위치 업데이트
             sensor.position = { x: newX, y: newY };
+            point.x = newX;  // point 객체도 업데이트
+            point.y = newY;  // point 객체도 업데이트
         };
 
         const handleMouseUp = () => {
             if (!isDragging) return;
             isDragging = false;
             group.style.pointerEvents = 'auto';
+            // 드래그가 끝난 후 originalX, originalY 값을 현재 위치로 업데이트
+            originalX = point.x;
+            originalY = point.y;
         };
 
         // 이벤트 리스너 등록

@@ -20,7 +20,8 @@ RUN apt-get update && apt-get install -y \
     libopenjp2-7-dev \
     tcl-dev \
     libtiff-dev \
-    tk-dev && \
+    tk-dev \
+    fonts-nanum && \
     rm -rf /var/lib/apt/lists/*
 
 # 타임존 설정
@@ -47,7 +48,8 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
         "scipy==1.15.1" \
         "matplotlib==3.10.0" \
         "shapely==2.0.6" \
-        "svgpath2mpl==1.0.0" 
+        "svgpath2mpl==1.0.0" \
+        "pykrige==1.7.2" 
 
 # 실행 권한 설정
 RUN chmod a+x /apps/run.sh

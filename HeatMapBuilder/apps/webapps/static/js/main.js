@@ -56,7 +56,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                 drawingTool.enable();
                 drawingTool.setTool('line');
                 setActiveTool('line');
-                svg.style.cursor = DrawingUtils.createCustomCursor();
             } else {
                 console.error('DrawingTool is not initialized');
             }
@@ -64,11 +63,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         } else if (step === 2) {
             if (drawingTool) drawingTool.disable();
             if (sensorManager) sensorManager.enable();
-            svg.style.cursor = 'default';
         } else {
             if (drawingTool) drawingTool.disable();
             if (sensorManager) sensorManager.disable();
-            svg.style.cursor = 'default';
         }
     }
 
@@ -157,6 +154,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     goToStep(1);
                 }
             }
+            drawingTool.saveState();
         } catch (error) {
             console.error('설정을 불러오는데 실패했습니다:', error);
             goToStep(1);
@@ -192,8 +190,32 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 열지도 생성 함수
     function generateHeatmap() {
+        // 보간 파라미터 수집
+        const interpolationParams = {
+            gaussian: {
+                sigma_factor: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('gaussian-sigma-factor')).value)
+            },
+            rbf: {
+                function: /** @type {HTMLSelectElement} */ (document.getElementById('rbf-function')).value,
+                epsilon_factor: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('rbf-epsilon-factor')).value)
+            },
+            kriging: {
+                variogram_model: /** @type {HTMLSelectElement} */ (document.getElementById('kriging-variogram-model')).value,
+                nlags: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('kriging-nlags')).value),
+                weight: /** @type {HTMLInputElement} */ (document.getElementById('kriging-weight')).checked,
+                anisotropy_scaling: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-anisotropy-scaling')).value),
+                anisotropy_angle: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-anisotropy-angle')).value)
+            }
+        };
+
         fetch('/api/generate-map', {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                interpolation_params: interpolationParams
+            })
         })
         .then(response => response.json())
         .then(data => {
@@ -300,7 +322,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('move-point-tool').addEventListener('click', function() {
             setActiveTool('move-point');
             drawingTool.setTool('move-point');
-            svg.style.cursor = 'move';
         });
         
         document.getElementById('eraser-tool').addEventListener('click', function() {

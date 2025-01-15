@@ -11,11 +11,14 @@ from shapely.geometry import LineString, Point, Polygon, MultiPolygon  #type: ig
 from shapely.ops import unary_union  #type: ignore
 import svgpath2mpl  #type: ignore
 import matplotlib.path as mpath  #type: ignore
+import matplotlib.font_manager as fm  #type: ignore
 import re
 from flask import current_app
+from pykrige.ok import OrdinaryKriging  #type: ignore
 
 class ThermalMapGenerator:
-    def __init__(self, walls_data: str, sensors_data: List[Dict[str, Any]], get_sensor_state_func):
+    def __init__(self, walls_data: str, sensors_data: List[Dict[str, Any]], get_sensor_state_func, 
+                 interpolation_params: Optional[Dict[str, Any]] = None):
         """
         온도맵 생성기를 초기화합니다.
         
@@ -23,6 +26,7 @@ class ThermalMapGenerator:
             walls_data: SVG 형식의 벽 데이터
             sensors_data: 센서 위치 및 정보 목록
             get_sensor_state_func: 센서 상태를 조회하는 함수
+            interpolation_params: 보간 파라미터 설정
         """
         self.walls_data = walls_data
         self.sensors_data = sensors_data
@@ -30,7 +34,66 @@ class ThermalMapGenerator:
         self.padding = 50  # 여백 크기
         self.areas: List[Polygon] = []  # area 폴리곤 저장용
         self.area_sensors: Dict[int, List[Tuple[Point, float]]] = {}  # area별 센서 그룹
+        
+        # 보간 파라미터 설정
+        self.interpolation_params = {
+            'gaussian': {
+                'sigma_factor': 8.0,  # area 크기 대비 sigma 비율
+            },
+            'rbf': {
+                'function': 'inverse',
+                'epsilon_factor': 1.5,  # area 크기 대비 epsilon 비율
+            },
+            'kriging': {
+                'variogram_model': 'gaussian',
+                'nlags': 20,
+                'weight': True,
+                'anisotropy_scaling': 1.0,
+                'anisotropy_angle': 0.0
+            }
+        }
+        
+        # 사용자 정의 파라미터로 업데이트
+        if interpolation_params:
+            self._update_interpolation_params(interpolation_params)
+        
+        # 한글 폰트 설정
+        self._setup_korean_font()
         current_app.logger.info("ThermalMapGenerator 초기화됨")
+
+    def _update_interpolation_params(self, params: Dict[str, Any]):
+        """보간 파라미터를 업데이트합니다."""
+        for method in ['gaussian', 'rbf', 'kriging']:
+            if method in params:
+                self.interpolation_params[method].update(params[method])
+                current_app.logger.debug(f"{method} 파라미터 업데이트: {params[method]}")
+
+    def _setup_korean_font(self):
+        """한글 폰트를 설정합니다."""
+        try:
+            font_paths = [
+                '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',  # Linux 나눔고딕
+            ]
+            
+            font_found = False
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    # 폰트 추가
+                    fm.fontManager.addfont(font_path)
+                    # 기본 폰트 설정
+                    plt.rcParams['font.family'] = 'NanumGothic'  # 폰트 이름으로 직접 설정
+                    current_app.logger.info(f"한글 폰트 설정 완료: {font_path}")
+                    font_found = True
+                    break
+            
+            if not font_found:
+                current_app.logger.warning("한글 폰트를 찾을 수 없습니다. 기본 폰트를 사용합니다.")
+                
+            # 마이너스 기호 깨짐 방지
+            plt.rcParams['axes.unicode_minus'] = False
+            
+        except Exception as e:
+            current_app.logger.error(f"한글 폰트 설정 중 오류 발생: {str(e)}")
 
     def _parse_svg_path(self, path_data: str) -> Optional[Polygon]:
         """SVG path 데이터를 Polygon으로 변환합니다."""
@@ -176,68 +239,134 @@ class ThermalMapGenerator:
         for area_idx, sensors in self.area_sensors.items():
             current_app.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, 온도: {[temp for _, temp in sensors]}")
 
-    def _calculate_area_temperature(self, area_idx: int, grid_x: np.ndarray, grid_y: np.ndarray) -> np.ndarray:
+    def _calculate_area_temperature(self, area_idx: int, area: Polygon, grid_points: np.ndarray, 
+                                   grid_x: np.ndarray, grid_y: np.ndarray, min_x: float, max_x: float, 
+                                   min_y: float, max_y: float) -> np.ndarray:
         """특정 area의 온도 분포를 계산합니다."""
-        sensors = self.area_sensors.get(area_idx, [])
-        area = self.areas[area_idx]
-        
         try:
-            # 그리드 포인트가 area 내부인지 확인하는 마스크 생성
-            grid_points = np.column_stack((grid_x.flatten(), grid_y.flatten()))
+            # area 마스크 생성
             area_mask = np.array([area.contains(Point(x, y)) for x, y in grid_points])
             area_mask = area_mask.reshape(grid_x.shape)
+            temps = np.full_like(grid_x[area_mask], np.nan)
             
-            if not sensors:  # 센서가 없는 area
-                current_app.logger.debug(f"Area {area_idx}에 센서가 없음")
-                return np.full_like(grid_x, np.nan)
+            if area_idx not in self.area_sensors:
+                return temps
             
-            if len(sensors) == 1:  # 센서가 1개인 area
-                current_app.logger.debug(f"Area {area_idx}에 센서가 1개: {sensors[0][1]:.1f}°C")
-                # 가우시안 분포로 부드럽게 처리
-                center_x, center_y = sensors[0][0].x, sensors[0][0].y
-                sigma = min(grid_x.max() - grid_x.min(), grid_y.max() - grid_y.min()) / 20
-                
-                weights = np.exp(-((grid_x - center_x)**2 + (grid_y - center_y)**2) / (2 * sigma**2))
-                weights = weights / weights.max()
-                
-                temp_variation = 0.3  # 온도 변화 범위 축소
-                grid_z = sensors[0][1] - temp_variation * (1 - weights)
-                return np.where(area_mask, grid_z, np.nan)
-            
-            # 2개 이상의 센서가 있는 area는 RBF 보간 수행
-            sensor_points = np.array([[p.x, p.y] for p, _ in sensors])
+            # 센서가 있는 area
+            sensors = self.area_sensors[area_idx]
+            sensor_locs = np.array([[p.x, p.y] for p, _ in sensors])
             sensor_temps = np.array([t for _, t in sensors])
+            mask_points = grid_points[area_mask.flatten()]
             
-            current_app.logger.debug(f"Area {area_idx} RBF 보간 시작: {len(sensors)}개 센서, 온도: {sensor_temps}")
+            # 가우시안 분포 계산 함수
+            def calculate_gaussian_distribution(points, locs, temps, sigma):
+                weighted_temps = np.zeros_like(points[:, 0])
+                weight_sum = np.zeros_like(points[:, 0])
+                
+                for loc, temp in zip(locs, temps):
+                    distances = np.sqrt(np.sum((points - loc) ** 2, axis=1))
+                    weights = np.exp(-(distances ** 2) / (2 * sigma ** 2))
+                    weighted_temps += weights * temp
+                    weight_sum += weights
+                
+                return weighted_temps / (weight_sum + 1e-10)
             
-            try:
-                # RBF 보간기 생성 (multiquadric 함수 사용)
-                rbf = Rbf(sensor_points[:, 0], sensor_points[:, 1], sensor_temps,
-                         function='multiquadric',
-                         epsilon=np.mean([grid_x.max() - grid_x.min(), grid_y.max() - grid_y.min()]) / 8)
+            # 센서 개수에 따른 처리
+            sensor_count = len(sensors)
+            area_width = max_x - min_x
+            area_height = max_y - min_y
+            
+            # 가우시안 sigma 계산
+            sigma = min(area_width, area_height) / self.interpolation_params['gaussian']['sigma_factor']
+            
+            if sensor_count == 1:  # 단일 센서: 가우시안 분포
+                current_app.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - 가우시안 분포 적용")
+                temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
                 
-                # 전체 그리드에 대해 보간
-                grid_z = rbf(grid_x, grid_y)
-                
-                # area 외부는 NaN으로 설정
-                return np.where(area_mask, grid_z, np.nan)
-                
-            except Exception as e:
-                current_app.logger.error(f"Area {area_idx} RBF 보간 실패: {str(e)}")
-                # 실패시 linear 보간으로 폴백
+            elif sensor_count <= 3:  # 2~3개 센서: RBF -> 가우시안
                 try:
-                    grid_z = griddata(sensor_points, sensor_temps, (grid_x, grid_y), method='linear')
-                    if np.any(np.isnan(grid_z)):
-                        nearest = griddata(sensor_points, sensor_temps, (grid_x, grid_y), method='nearest')
-                        grid_z[np.isnan(grid_z)] = nearest[np.isnan(grid_z)]
-                    return np.where(area_mask, grid_z, np.nan)
-                except:
-                    # 모든 보간이 실패하면 평균값 사용
-                    return np.where(area_mask, np.mean(sensor_temps), np.nan)
+                    current_app.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - RBF 보간 시도")
+                    # RBF 보간기 설정
+                    rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
+                            function=self.interpolation_params['rbf']['function'],
+                            epsilon=min(area_width, area_height) / self.interpolation_params['rbf']['epsilon_factor'])
+                    
+                    # RBF 예측 수행
+                    temps = rbf(mask_points[:, 0], mask_points[:, 1])
+                    
+                    # 예측값 범위 제한
+                    temp_min, temp_max = np.min(sensor_temps), np.max(sensor_temps)
+                    margin = 0.1 * (temp_max - temp_min)  # 10% 마진
+                    temps = np.clip(temps, temp_min - margin, temp_max + margin)
+                    
+                    current_app.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
+                    
+                except Exception as rbf_error:
+                    current_app.logger.warning(f"Area {area_idx} RBF 보간 실패, 가우시안 분포로 대체: {str(rbf_error)}")
+                    temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
+                
+            else:  # 4개 이상: 크리깅 -> RBF -> 가우시안
+                try:
+                    # 데이터 전처리: 중복된 위치 제거
+                    unique_locs = {}
+                    for loc, temp in zip(sensor_locs, sensor_temps):
+                        key = (loc[0], loc[1])
+                        if key not in unique_locs:
+                            unique_locs[key] = []
+                        unique_locs[key].append(temp)
+                    
+                    unique_sensor_locs = np.array(list(unique_locs.keys()))
+                    unique_sensor_temps = np.array([np.mean(temps) for temps in unique_locs.values()])
+                    
+                    # 크리깅 모델 생성
+                    ok = OrdinaryKriging(
+                        unique_sensor_locs[:, 0],
+                        unique_sensor_locs[:, 1],
+                        unique_sensor_temps,
+                        **self.interpolation_params['kriging']
+                    )
+                    
+                    # 크리깅 예측 수행
+                    temps, variances = ok.execute('points', mask_points[:, 0], mask_points[:, 1])
+                    
+                    # 예측값 범위 제한
+                    temp_min, temp_max = np.min(sensor_temps), np.max(sensor_temps)
+                    margin = 0.5 * (temp_max - temp_min)  # 50% 마진
+                    temps = np.clip(temps, temp_min - margin, temp_max + margin)
+                    
+                    current_app.logger.debug(f"Area {area_idx}: 크리깅 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
+                    
+                except Exception as kriging_error:
+                    current_app.logger.warning(f"Area {area_idx} 크리깅 보간 실패, RBF 시도: {str(kriging_error)}")
+                    try:
+                        # RBF 보간 시도
+                        rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
+                                function=self.interpolation_params['rbf']['function'],
+                                epsilon=min(area_width, area_height) / self.interpolation_params['rbf']['epsilon_factor'])
+                        temps = rbf(mask_points[:, 0], mask_points[:, 1])
+                        
+                        # 예측값 범위 제한
+                        temp_min, temp_max = np.min(sensor_temps), np.max(sensor_temps)
+                        margin = 0.1 * (temp_max - temp_min)
+                        temps = np.clip(temps, temp_min - margin, temp_max + margin)
+                        
+                        current_app.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
+                        
+                    except Exception as rbf_error:
+                        current_app.logger.warning(f"Area {area_idx} RBF 보간도 실패, 가우시안 분포로 대체: {str(rbf_error)}")
+                        temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
+            
+            # NaN 처리
+            if np.any(np.isnan(temps)):
+                current_app.logger.debug(f"Area {area_idx}: NaN 값을 nearest로 채우기")
+                nearest_temps = griddata(sensor_locs, sensor_temps, mask_points, method='nearest')
+                temps[np.isnan(temps)] = nearest_temps[np.isnan(temps)]
+            
+            return temps
             
         except Exception as e:
             current_app.logger.error(f"Area {area_idx} 온도 계산 중 오류: {str(e)}")
-            return np.full_like(grid_x, np.nan)
+            return np.full_like(grid_x[area_mask], np.nan)
 
     def _collect_sensor_data(self) -> Tuple[List[List[float]], List[float]]:
         """센서 데이터를 수집하여 위치와 온도 값을 반환합니다."""
@@ -340,66 +469,18 @@ class ThermalMapGenerator:
 
             # 전체 마스크와 온도 배열 초기화
             grid_z = np.full_like(grid_x, np.nan)
+            grid_points = np.column_stack((grid_x.flatten(), grid_y.flatten()))
             
-            # 각 area별로 처리
+            # 각 area별로 온도 계산
             for area_idx, area in enumerate(self.areas):
-                # area 마스크 생성
-                grid_points = np.column_stack((grid_x.flatten(), grid_y.flatten()))
+                area_temps = self._calculate_area_temperature(
+                    area_idx, area, grid_points, grid_x, grid_y,
+                    min_x, max_x, min_y, max_y
+                )
+                # area 마스크 생성 및 결과 할당
                 area_mask = np.array([area.contains(Point(x, y)) for x, y in grid_points])
                 area_mask = area_mask.reshape(grid_x.shape)
-                
-                if area_idx in self.area_sensors:
-                    # 센서가 있는 area
-                    sensors = self.area_sensors[area_idx]
-                    sensor_locs = np.array([[p.x, p.y] for p, _ in sensors])
-                    sensor_temps = np.array([t for _, t in sensors])
-                    
-                    if len(sensors) == 1:
-                        # 단일 센서: 가우시안 분포로 부드럽게 처리
-                        center_x, center_y = sensor_locs[0]
-                        sigma = min(grid_x.max() - grid_x.min(), grid_y.max() - grid_y.min()) / 20  # 표준편차 설정
-                        
-                        # 가우시안 가중치 계산
-                        weights = np.exp(-((grid_x - center_x)**2 + (grid_y - center_y)**2) / (2 * sigma**2))
-                        weights = weights / weights.max()  # 정규화
-                        
-                        # 온도값 설정 (중심에서 멀어질수록 약간의 변화)
-                        temp_variation = 0.5  # 온도 변화 범위 (°C)
-                        grid_z_area = sensor_temps[0] - temp_variation * (1 - weights)
-                        
-                        # area 마스크 적용
-                        grid_z[area_mask.reshape(grid_x.shape)] = grid_z_area[area_mask.reshape(grid_x.shape)]
-                        
-                        current_app.logger.debug(f"Area {area_idx}: 가우시안 분포로 온도 {sensor_temps[0]:.1f}°C 설정")
-                    else:
-                        # 다중 센서: cubic 보간 시도 후 실패시 linear
-                        try:
-                            # 해당 area 내부의 점들만 선택
-                            mask_points = grid_points[area_mask.flatten()]
-                            
-                            # cubic 보간 시도
-                            try:
-                                temps = griddata(sensor_locs, sensor_temps, mask_points, method='cubic')
-                                if np.any(np.isnan(temps)):
-                                    # cubic 실패한 부분은 linear로 보간
-                                    linear_temps = griddata(sensor_locs, sensor_temps, mask_points, method='linear')
-                                    temps[np.isnan(temps)] = linear_temps[np.isnan(temps)]
-                            except Exception:
-                                # cubic 실패시 linear 사용
-                                temps = griddata(sensor_locs, sensor_temps, mask_points, method='linear')
-                            
-                            # 여전히 남은 NaN은 nearest로 채움
-                            if np.any(np.isnan(temps)):
-                                nearest_temps = griddata(sensor_locs, sensor_temps, mask_points, method='nearest')
-                                temps[np.isnan(temps)] = nearest_temps[np.isnan(temps)]
-                            
-                            # 결과를 grid_z에 할당
-                            grid_z[area_mask] = temps
-                            current_app.logger.debug(f"Area {area_idx}: 다중 센서 보간 완료")
-                            
-                        except Exception as e:
-                            current_app.logger.error(f"Area {area_idx} 보간 실패: {str(e)}")
-                            grid_z[area_mask] = np.mean(sensor_temps)  # 실패시 평균값 사용
+                grid_z[area_mask] = area_temps
 
             # 플롯 생성
             plt.figure(figsize=(15, 15))
@@ -426,7 +507,7 @@ class ThermalMapGenerator:
             
             # 컬러바 설정
             cbar = plt.colorbar(contour)
-            cbar.set_label('Temperature (°C)', fontsize=12)
+            cbar.set_label('온도 (°C)', fontsize=12)  # 한글로 변경
             cbar.ax.tick_params(labelsize=10)
 
             # area 경계 그리기
@@ -437,7 +518,26 @@ class ThermalMapGenerator:
             # 센서 위치 표시
             sensor_x = [p[0] for p in sensor_points]
             sensor_y = [p[1] for p in sensor_points]
-            plt.scatter(sensor_x, sensor_y, c='red', s=50, zorder=5)
+            plt.scatter(sensor_x, sensor_y, c='red', s=1, zorder=5)
+
+            # 센서 온도값과 이름 표시
+            for i, sensor in enumerate(self.sensors_data):
+                if 'position' in sensor:
+                    state = self.get_sensor_state(sensor['entity_id'])
+                    temp = float(state['state'])
+                    name = state['attributes'].get('friendly_name', sensor['entity_id'].split('.')[-1])
+                    
+                    # 텍스트 위치 (센서 위치보다 약간 위로)
+                    text_x = sensor_points[i][0]
+                    text_y = sensor_points[i][1] - 10
+                    
+                    # 온도값과 이름 표시
+                    plt.text(text_x, text_y, f'{name}\n{temp:.1f}°C',
+                            horizontalalignment='center',
+                            verticalalignment='bottom',
+                            fontsize=8,
+                            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
+                            zorder=6)
 
             # 축 설정
             plt.axis('equal')

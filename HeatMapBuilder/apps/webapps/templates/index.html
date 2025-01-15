@@ -67,18 +67,18 @@
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
                                 </svg>
-                                실행취소
                             </button>
                             <button id="redo-btn" 
                                 class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
                                 </svg>
-                                다시실행
                             </button>
                             <button id="clear-btn" 
-                                class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors">
-                                초기화
+                                class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors flex items-center justify-center">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
                             </button>
                         </div>
                     </div>
@@ -102,6 +102,133 @@
             <!-- 단계 3: 온도지도 생성 -->
             <div id="step3-controls" class="mb-6 hidden">
                 <h3 class="text-lg font-semibold mb-2">3단계: 온도지도 생성</h3>
+                
+                <!-- 보간 설정 -->
+                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="font-medium mb-3">보간 설정</h4>
+                    
+                    <!-- 가우시안 설정 -->
+                    <div class="mb-4">
+                        <h5 class="text-sm font-medium mb-2">가우시안 분포 설정</h5>
+                        <div class="flex items-center gap-2">
+                            <div class="group relative">
+                                <label class="text-sm cursor-help">Sigma 비율:</label>
+                                <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                    영향 범위를 결정하는 값입니다. 값이 작을수록 센서 주변의 영향 범위가 넓어지고, 클수록 좁아집니다.
+                                </div>
+                            </div>
+                            <input type="number" id="gaussian-sigma-factor" 
+                                   class="w-20 px-2 py-1 border rounded" 
+                                   value="8.0" min="0.1" step="0.1">
+                        </div>
+                    </div>
+                    
+                    <!-- RBF 설정 -->
+                    <div class="mb-4">
+                        <h5 class="text-sm font-medium mb-2">RBF 설정</h5>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <div class="group relative">
+                                    <label class="text-sm cursor-help">함수:</label>
+                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                        보간에 사용할 기저 함수입니다.
+                                        - Gaussian: 부드러운 곡선 형태
+                                        - Multiquadric: 더 넓은 영향 범위
+                                        - Inverse: 급격한 변화에 적합
+                                        - Quintic: 매우 부드러운 전이
+                                        - Thin Plate: 자연스러운 곡면
+                                    </div>
+                                </div>
+                                <select id="rbf-function" class="px-2 py-1 border rounded">
+                                    <option value="gaussian">Gaussian</option>
+                                    <option value="multiquadric">Multiquadric</option>
+                                    <option value="inverse">Inverse</option>
+                                    <option value="quintic">Quintic</option>
+                                    <option value="thin_plate">Thin Plate</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="group relative">
+                                    <label class="text-sm cursor-help">Epsilon 비율:</label>
+                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                        보간의 부드러움을 조절합니다. 값이 작을수록 더 부드럽게, 클수록 더 정확하게 보간됩니다.
+                                    </div>
+                                </div>
+                                <input type="number" id="rbf-epsilon-factor" 
+                                       class="w-20 px-2 py-1 border rounded" 
+                                       value="0.5" min="0.1" step="0.1">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 크리깅 설정 -->
+                    <div class="mb-4">
+                        <h5 class="text-sm font-medium mb-2">크리깅 설정</h5>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <div class="group relative">
+                                    <label class="text-sm cursor-help">베리오그램 모델:</label>
+                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                        공간적 상관관계를 모델링하는 방식입니다.
+                                        - Gaussian: 매우 부드러운 변화
+                                        - Spherical: 일정 거리 이후 영향 없음
+                                        - Exponential: 점진적 감소
+                                        - Linear: 선형적 변화
+                                    </div>
+                                </div>
+                                <select id="kriging-variogram-model" class="px-2 py-1 border rounded">
+                                    <option value="gaussian">Gaussian</option>
+                                    <option value="spherical">Spherical</option>
+                                    <option value="exponential">Exponential</option>
+                                    <option value="linear">Linear</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="group relative">
+                                    <label class="text-sm cursor-help">Lag 수:</label>
+                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                        베리오그램 계산에 사용할 거리 구간의 수입니다. 값이 클수록 더 세밀한 공간 분석이 가능합니다.
+                                    </div>
+                                </div>
+                                <input type="number" id="kriging-nlags" 
+                                       class="w-20 px-2 py-1 border rounded" 
+                                       value="6" min="1" step="1">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="group relative">
+                                    <label class="text-sm cursor-help">이방성 스케일:</label>
+                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                        방향에 따른 영향력의 차이를 조절합니다. 1.0은 모든 방향이 동일한 영향을 미침을 의미합니다.
+                                    </div>
+                                </div>
+                                <input type="number" id="kriging-anisotropy-scaling" 
+                                       class="w-20 px-2 py-1 border rounded" 
+                                       value="1.0" min="0.1" step="0.1">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="group relative">
+                                    <label class="text-sm cursor-help">이방성 각도:</label>
+                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                        이방성의 주방향을 설정합니다. 0-360도 사이의 값으로, 특정 방향으로의 영향을 강조할 수 있습니다.
+                                    </div>
+                                </div>
+                                <input type="number" id="kriging-anisotropy-angle" 
+                                       class="w-20 px-2 py-1 border rounded" 
+                                       value="0.0" min="0" max="360" step="1">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="group relative">
+                                    <label class="text-sm cursor-help">가중치 사용:</label>
+                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                        거리에 따른 가중치를 적용할지 여부를 설정합니다. 활성화하면 더 가까운 센서의 영향이 커집니다.
+                                    </div>
+                                </div>
+                                <input type="checkbox" id="kriging-weight" checked>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <button id="generate-map" 
                     class="w-full px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors">
                     온도지도 생성

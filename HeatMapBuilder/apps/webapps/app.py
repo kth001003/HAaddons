@@ -199,6 +199,10 @@ def generate_map():
     try:
         app.logger.info("열지도 생성 시작")
         
+        # 요청 데이터 파싱
+        data = request.get_json() or {}
+        interpolation_params = data.get('interpolation_params', {})
+        
         # 벽 설정 로드
         app.logger.debug("벽 설정 로드 중")
         with open(WALLS_CONFIG, 'r') as f:
@@ -213,7 +217,7 @@ def generate_map():
         
         # 열지도 생성기 초기화
         thermal_map_path = os.path.join(MEDIA_PATH, 'thermal_map.png')
-        generator = ThermalMapGenerator(walls, sensors, get_sensor_state)
+        generator = ThermalMapGenerator(walls, sensors, get_sensor_state, interpolation_params)
         
         # 열지도 생성
         if generator.generate(thermal_map_path):
