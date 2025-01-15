@@ -29,12 +29,12 @@ RUN cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
     echo "Asia/Seoul" > /etc/timezone
 
 WORKDIR /
-# Auto update on rebuild
-# RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
-#     cp -r /tmp/repo/HeatMapBuilder/apps /apps && \
-#     rm -rf /tmp/repo
+#Auto update on rebuild
+RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
+    cp -r /tmp/repo/HeatMapBuilder/apps /apps && \
+    rm -rf /tmp/repo
 
-COPY apps /apps
+# COPY apps /apps
 
 
 # pip 업그레이드 및 Python 패키지 설치

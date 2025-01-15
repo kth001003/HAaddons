@@ -29,14 +29,14 @@ export class SensorManager {
     async loadSensors() {
         try {
             // 센서 상태 로드
-            const response = await fetch('/api/states');
+            const response = await fetch('./api/states');
             const states = await response.json();
             this.sensors = states.filter(state => 
                 state.attributes.device_class === 'temperature'
             );
 
             // 저장된 설정 로드
-            const configResponse = await fetch('/api/load-config');
+            const configResponse = await fetch('./api/load-config');
             if (configResponse.ok) {
                 const config = await configResponse.json();
                 
