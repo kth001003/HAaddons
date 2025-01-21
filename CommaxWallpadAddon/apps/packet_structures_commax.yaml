@@ -272,13 +272,11 @@ Gas:
         values:
           "on": "80"
           "off": "48"
-          "unknown": "50"
       "2":
         name: powerRepeat
         values:
           "on": "80"
           "off": "48"
-          "unknown": "50"
       "3": 
         name: empty
       "4": 

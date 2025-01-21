@@ -346,29 +346,52 @@ def test_publish_mqtt(mock_mqtt_client, controller):
 def test_generate_expected_state_packet(controller):
     """예상 상태 패킷 생성 테스트"""
     # 테스트 명령 패킷 (조명 1번 켜기 명령)
-    command_str = "3101010000000033"
+    command_str_light = "3101010000000033"
+    # 테스트 명령 패킷 (가스차단기 차단 명령)
+    command_str_gas = "1101800000000092"
     
-    # generate_expected_state_packet 호출
-    result = controller.message_processor.generate_expected_state_packet(command_str)
+    # 조명 명령에 대한 예상 상태 패킷 생성 테스트
+    result_light = controller.message_processor.generate_expected_state_packet(command_str_light)
     
     # 결과가 None이 아닌지 확인
-    assert result is not None, "예상 상태 패킷이 생성되지 않았습니다"
+    assert result_light is not None, "예상 상태 패킷이 생성되지 않았습니다"
     
     # ExpectedStatePacket의 필수 필드들이 있는지 확인
-    assert 'required_bytes' in result, "required_bytes 필드가 없습니다"
-    assert 'possible_values' in result, "possible_values 필드가 없습니다"
+    assert 'required_bytes' in result_light, "required_bytes 필드가 없습니다"
+    assert 'possible_values' in result_light, "possible_values 필드가 없습니다"
     
     # 필드 타입 확인
-    assert isinstance(result['required_bytes'], list), "required_bytes가 리스트가 아닙니다"
-    assert isinstance(result['possible_values'], list), "possible_values가 리스트가 아닙니다"
+    assert isinstance(result_light['required_bytes'], list), "required_bytes가 리스트가 아닙니다"
+    assert isinstance(result_light['possible_values'], list), "possible_values가 리스트가 아닙니다"
     
     # 조명 상태 패킷의 경우 예상되는 값들 확인
-    assert 0 in result['required_bytes'], "헤더 위치(0)가 required_bytes에 없습니다"
-    assert 1 in result['required_bytes'], "power 위치(1)가 required_bytes에 없습니다"
-    assert 2 in result['required_bytes'], "deviceId 위치(2)가 required_bytes에 없습니다"
+    assert 0 in result_light['required_bytes'], "헤더 위치(0)가 required_bytes에 없습니다"
+    assert 1 in result_light['required_bytes'], "power 위치(1)가 required_bytes에 없습니다"
+    assert 2 in result_light['required_bytes'], "deviceId 위치(2)가 required_bytes에 없습니다"
     
     # possible_values 길이 확인
-    assert len(result['possible_values']) == 7, "possible_values의 길이가 7이 아닙니다"
+    assert len(result_light['possible_values']) == 7, "possible_values의 길이가 7이 아닙니다"
+    
+    # 가스차단기 명령에 대한 예상 상태 패킷 생성 테스트
+    result_gas = controller.message_processor.generate_expected_state_packet(command_str_gas)
+    
+    # 결과가 None이 아닌지 확인
+    assert result_gas is not None, "예상 상태 패킷이 생성되지 않았습니다"
+    
+    # ExpectedStatePacket의 필수 필드들이 있는지 확인
+    assert 'required_bytes' in result_gas, "required_bytes 필드가 없습니다"
+    assert 'possible_values' in result_gas, "possible_values 필드가 없습니다"
+    
+    # 필드 타입 확인
+    assert isinstance(result_gas['required_bytes'], list), "required_bytes가 리스트가 아닙니다"
+    assert isinstance(result_gas['possible_values'], list), "possible_values가 리스트가 아닙니다"
+    
+    # 가스차단기 상태 패킷의 경우 예상되는 값들 확인
+    assert 0 in result_gas['required_bytes'], "헤더 위치(0)가 required_bytes에 없습니다"
+    assert 1 in result_gas['required_bytes'], "power 위치(1)가 required_bytes에 없습니다"
+    
+    # possible_values 길이 확인
+    assert len(result_gas['possible_values']) == 7, "possible_values의 길이가 7이 아닙니다"
 
 def test_load_devices_and_packets_structures_custom_vendor(config):
     """커스텀 벤더 설정 테스트"""
@@ -422,7 +445,7 @@ async def test_process_elfin_data_outlet(controller):
         await controller.message_processor.process_elfin_data(outlet_packet)
         
         # update_outlet이 올바른 인자와 함께 호출되었는지 확인
-        mock_update.assert_called_once_with(1, "ON", 103, None)
+        mock_update.assert_called_once_with(1, "ON", 10.3, None, False)
 
 @pytest.mark.asyncio
 async def test_process_elfin_data_ev(controller):
@@ -540,10 +563,10 @@ async def test_state_updater_outlet():
     updater = StateUpdater(state_topic, mock_publish)
     
     # 콘센트 ON 상태 업데이트 (전력값 포함)
-    await updater.update_outlet(1, "ON", 103, None)
+    await updater.update_outlet(2, "ON", 10.3, None, False)
     
     # publish_mqtt가 올바른 횟수만큼 호출되었는지 확인
-    assert mock_publish.call_count == 2
+    assert mock_publish.call_count == 3
     
     # 각각의 호출이 올바른 인자와 함께 이루어졌는지 확인
     mock_publish.assert_any_call(
@@ -554,16 +577,24 @@ async def test_state_updater_outlet():
         state_topic.format("Outlet2", "watt"),
         "10.3"
     )
+    mock_publish.assert_any_call(
+        state_topic.format("Outlet2", "auto"),
+        "OFF"
+    )
     
     # mock 초기화
     mock_publish.reset_mock()
     
     # 콘센트 OFF 상태 업데이트
-    await updater.update_outlet(1, "OFF", None, None)
+    await updater.update_outlet(2, "OFF", None, None, False)
     
-    # OFF 상태에서는 power만 업데이트
-    mock_publish.assert_called_once_with(
+    # OFF 상태
+    mock_publish.assert_any_call(
         state_topic.format("Outlet2", "power"),
+        "OFF"
+    )
+    mock_publish.assert_any_call(
+        state_topic.format("Outlet2", "auto"),
         "OFF"
     )
 

@@ -72,12 +72,8 @@ class StateUpdater:
     async def update_outlet(self, idx: int, power_text: str, watt: Union[float,None], ecomode_text: Union[str,None], is_auto: Union[bool,None]) -> None:
         try:
             deviceID = 'Outlet' + str(idx)
-            if power_text == 'ON':
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                self.publish_mqtt(topic, 'ON')
-            else:
-                topic = self.STATE_TOPIC.format(deviceID, 'power')
-                self.publish_mqtt(topic, 'OFF')
+            topic = self.STATE_TOPIC.format(deviceID, 'power')
+            self.publish_mqtt(topic, power_text)
             if watt is not None:
                 topic = self.STATE_TOPIC.format(deviceID, 'watt')
                 self.publish_mqtt(topic, '%.1f' % watt)
@@ -89,6 +85,14 @@ class StateUpdater:
                 self.publish_mqtt(topic, 'ON' if is_auto else 'OFF')
         except Exception as e:
             raise Exception(f"콘센트 상태 업데이트 중 오류 발생: {str(e)}")
+
+    async def update_gas(self, idx: int, power_text: str) -> None:
+        try:
+            deviceID = 'Gas' + str(idx)
+            topic = self.STATE_TOPIC.format(deviceID, 'power')
+            self.publish_mqtt(topic, power_text)
+        except Exception as e:
+            raise Exception(f"가스밸브 상태 업데이트 중 오류 발생: {str(e)}")
 
     async def update_ev(self, idx: int, power_text: str, floor_text: str) -> None:
         try:
