@@ -45,12 +45,6 @@ try:
 except Exception as e:
     app.logger.error(f"미디어 디렉토리 생성 실패: {str(e)}")
 
-
-# 캐시버스터
-cache_buster = str(time.time())
-app.logger.info(f"cache_buster: {cache_buster}")
-
-
 def load_mock_config():
     """mock 설정을 로드합니다."""
     with open(CONFIG_PATH, 'r') as f:
@@ -106,11 +100,13 @@ def get_sensor_state(entity_id: str) -> Dict[str, Any]:
     except Exception as e:
         app.logger.error(f"센서 상태 조회 실패: {str(e)}")
         return {'state': '0', 'entity_id': entity_id}
+    
 
 @app.route('/')
 def index():
     """메인 페이지를 렌더링합니다."""
-    return render_template('index.html')
+    cache_buster = int(time.time())
+    return render_template('index.html', cache_buster=cache_buster)
 
 @app.route('/api/states')
 def get_states():
