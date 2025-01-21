@@ -347,6 +347,8 @@ Outlet:
         values:
           "on": "01"
           "off": "00"
+          "on_with_auto": "11"
+          "off_with_auto": "10"
       "2":
         name: deviceId
         values:
@@ -376,6 +378,7 @@ Outlet:
           "ecomode": "FF"
       "7":
         name: checksum
+    scailing_factor: 0.1
 
 Fan:
   type: fan

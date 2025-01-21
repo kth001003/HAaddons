@@ -294,13 +294,21 @@ class MessageProcessor:
                                 power = byte_data[int(power_pos)]
                                 power_values = state_structure['structure'][power_pos]['values']
                                 power_hex = byte_to_hex_str(power)
-                                power_text = "ON" if power_hex == power_values.get('on', '').upper() else "OFF"
-                                
+                                power_text = "ON" if power_hex in [power_values.get('on', '').upper(), power_values.get('on_with_auto', '').upper()] else "OFF"
+                                is_auto = True if power_hex in [power_values.get('on_with_auto', '').upper(), power_values.get('off_with_auto', '').upper()] else False
                                 state_type_pos = field_positions.get('stateType', 3)
                                 state_type = byte_data[int(state_type_pos)]
                                 state_type_values = state_structure['structure'][state_type_pos]['values']
                                 state_type_hex = byte_to_hex_str(state_type)
                                 state_type_text = state_type_values.get(state_type_hex, 'wattage')
+                                try:
+                                    scaling_factor = float(state_structure.get("scailing_factor", 0.1))
+                                    if scaling_factor == 0:
+                                        self.logger.warning("outlet의 scailing factor가 0으로 해석되고있습니다. 기본값인 0.1로 대체합니다.")
+                                        scaling_factor = 0.1
+                                except (ValueError, TypeError):
+                                    self.logger.warning("outlet의 scailing factor를 해석할 수 없습니다. 기본값인 0.1로 대체합니다.")
+                                    scaling_factor = 0.1
                                 if state_type_text == 'wattage':
                                     consecutive_bytes = byte_data[4:7]
                                     try:
@@ -308,8 +316,8 @@ class MessageProcessor:
                                     except ValueError:
                                         self.logger.error(f"콘센트 {device_id} 전력값 변환 중 오류 발생: {consecutive_bytes.hex()}")
                                         watt = 0
-                                    self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 전력: {watt * 0.1}W')
-                                    await self.controller.state_updater.update_outlet(device_id, power_text, watt, None)
+                                    self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 전력: {watt} x {scaling_factor}W')
+                                    await self.controller.state_updater.update_outlet(device_id, power_text, watt * scaling_factor, None, is_auto)
                                 #TODO: 절전모드 (대기전력차단모드) 로직을 알 수 없음..
                                 # elif state_type_text == 'ecomode':
                                 #     consecutive_bytes = byte_data[4:7]

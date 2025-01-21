@@ -524,6 +524,11 @@ class WebServer:
                     'name': field.get('name', ''),
                     'values': field.get('values', {})
                 }
+        
+        # 추가 설정 항목 처리
+        for key, value in packet_data.items():
+            if key not in ['header', 'structure']:
+                result[key] = value
                 
         return result
 
@@ -542,6 +547,11 @@ class WebServer:
                     
                 current['structure'][position]['name'] = field.get('name', '')
                 current['structure'][position]['values'] = field.get('values', {})
+        
+        # 추가 설정 항목 병합
+        for key, value in new.items():
+            if key not in ['header', 'structure']:
+                current[key] = value
 
     def _analyze_packet_structure(self, command: str) -> Dict[str, Any]:
         """패킷 구조를 분석하고 관련 정보를 반환합니다."""

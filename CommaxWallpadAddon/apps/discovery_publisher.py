@@ -95,6 +95,17 @@ class DiscoveryPublisher:
                                     **self.availability
                                 }
                             ))
+                            # 자동전력차단모드 binary 센서 설정
+                            configs.append((
+                                f"{self.discovery_prefix}/binary_sensor/{device_id}_auto/config",
+                                {
+                                    "name": f"{device_name} {idx} Auto standby power cut-off",
+                                    "unique_id": f"commax_{device_id}_auto",
+                                    "state_topic": self.controller.STATE_TOPIC.format(device_id, "auto"),
+                                    **self.device_base_info,
+                                    **self.availability
+                                }
+                            ))
                         else:  # 일반 스위치인 경우
                             configs.append((
                                 f"{self.discovery_prefix}/switch/{device_id}/config",

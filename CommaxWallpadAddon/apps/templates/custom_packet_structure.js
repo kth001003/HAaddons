@@ -182,6 +182,18 @@ class PacketStructureEditor {
                             data-packet-type="${packetType}" 
                             data-field="header">
                     </div>
+                    ${Object.entries(packetData)
+                        .filter(([key]) => !['header', 'structure'].includes(key))
+                        .map(([key, value]) => `
+                            <div class="flex items-center mt-2">
+                                <span class="w-32 text-sm dark:text-gray-300">${key}:</span>
+                                <input type="text" value="${value}" 
+                                    class="border border-gray-700 dark:bg-gray-600 dark:text-white rounded px-2 py-1 text-sm flex-1"
+                                    data-device="${deviceName}" 
+                                    data-packet-type="${packetType}" 
+                                    data-field="${key}">
+                            </div>
+                        `).join('')}
                 </div>
             </div>
         `;
@@ -334,6 +346,12 @@ class PacketStructureEditor {
 
             if (field === 'header') {
                 structure[deviceName][packetType].header = element instanceof HTMLInputElement ? element.value : '';
+                return;
+            }
+
+            // 추가 설정 항목 처리
+            if (field && !['header', 'type'].includes(field) && !position) {
+                structure[deviceName][packetType][field] = element instanceof HTMLInputElement ? element.value : '';
                 return;
             }
 
