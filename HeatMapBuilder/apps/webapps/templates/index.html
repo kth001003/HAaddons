@@ -240,16 +240,20 @@
         <div class="flex-1 p-5">
             <div id="floorplan-container" 
                 class="relative w-full h-[calc(100vh-2.5rem)] border border-gray-300 rounded-lg overflow-hidden flex justify-center items-center bg-white">
-                <img id="floorplan-img" class="max-w-full max-h-full object-contain">
+                <img id="floorplan-img" class="absolute max-w-full max-h-full object-contain">
                 <div class="absolute inset-0 bg-white opacity-50 pointer-events-none"></div>
-                <svg id="svg-overlay" 
-                    class="absolute inset-0 w-full h-full" 
-                    style="pointer-events: all;">
-                    <!-- SVG 내용이 여기에 그려집니다 -->
-                </svg>
+                <div id="svg-overlay-container" class="absolute inset-0">
+                    <svg id="svg-overlay" 
+                        class="w-full h-full" 
+                        viewBox="0 0 1000 1000"
+                        preserveAspectRatio="xMidYMid meet"
+                        style="pointer-events: all;">
+                        <!-- SVG 내용이 여기에 그려집니다 -->
+                    </svg>
+                </div>
                 <!-- 열지도 컨테이너 -->
                 <div id="thermal-map-container" class="absolute inset-0 flex items-center justify-center hidden">
-                    <img id="thermal-map-img" class="max-w-full max-h-full object-contain" alt="온도지도">
+                    <img id="thermal-map-img" class="w-full object-contain" alt="온도지도">
                 </div>
             </div>
         </div>
