@@ -435,6 +435,7 @@ class WebServer:
                 return jsonify({"success": True})
             
             except Exception as e:
+                self.logger.error(f"웹UI 패킷 전송 실패: {str(e)}")
                 return jsonify({"success": False, "error": str(e)}), 500
 
         @self.app.route('/api/custom_packet_structure', methods=['GET'])
@@ -511,7 +512,7 @@ class WebServer:
                     'elfin_reboot_interval': elfin_reboot_interval
                 })
             except Exception as e:
-                self.logger.error(f"EW11 상태 조회 실패: {str(e)}")
+                self.logger.error(f"웹UI EW11 상태 조회 실패: {str(e)}")
                 return jsonify({'error': str(e)}), 500
 
     def _get_editable_fields(self, packet_data):
