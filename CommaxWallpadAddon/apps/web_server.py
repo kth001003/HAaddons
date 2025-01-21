@@ -425,6 +425,9 @@ class WebServer:
                 # 패킷을 bytes로 변환하여 MQTT로 발행
                 packet_bytes = bytes.fromhex(packet)
                 self.wallpad_controller.publish_mqtt(f'{self.wallpad_controller.ELFIN_TOPIC}/send', packet_bytes)
+
+                # elfin processor도 돌림
+                self.wallpad_controller.message_processor.process_elfin_data(packet)
                 
                 return jsonify({"success": True})
             
