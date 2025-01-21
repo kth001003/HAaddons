@@ -34,7 +34,7 @@ app.logger.setLevel(logging.DEBUG if IS_DEV else logging.INFO)
     
 # 설정 파일 경로
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'test_config.json') if IS_LOCAL else '/data/options.json'
-MEDIA_PATH = os.path.join(os.path.dirname(__file__), 'media') if IS_LOCAL else '/media'
+MEDIA_PATH = os.path.join(os.path.dirname(__file__), 'media') if IS_LOCAL else '/homeassistant/www'
 WALLS_CONFIG = os.path.join(os.path.dirname(__file__), 'media', 'walls.json') if IS_LOCAL else '/data/walls.json'
 SENSORS_CONFIG = os.path.join(os.path.dirname(__file__), 'media', 'sensors.json') if IS_LOCAL else '/data/sensors.json'
 
@@ -231,7 +231,7 @@ def generate_map():
             app.logger.info("열지도 생성 완료")
             return jsonify({
                 'status': 'success',
-                'image_url': '/media/thermal_map.png'
+                'image_url': '/local/thermal_map.png'
             })
         else:
             app.logger.error("열지도 생성 실패")
