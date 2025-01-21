@@ -22,8 +22,6 @@ if IS_DEV:
     # 정적 파일 캐시 비활성화 
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
-# 캐시버스터
-cache_buster = str(time.time())
 
 # 로깅 설정
 LOG_PATH = os.path.join(os.path.dirname(__file__), 'thermomap.log') if IS_LOCAL else '/data/thermomap.log'
@@ -36,7 +34,7 @@ app.logger.setLevel(logging.DEBUG if IS_DEV else logging.INFO)
     
 # 설정 파일 경로
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'test_config.json') if IS_LOCAL else '/data/options.json'
-MEDIA_PATH = os.path.join(os.path.dirname(__file__), 'media') if IS_LOCAL else '/media'
+MEDIA_PATH = os.path.join(os.path.dirname(__file__), 'media') if IS_LOCAL else '/homeassistant/www'
 WALLS_CONFIG = os.path.join(os.path.dirname(__file__), 'media', 'walls.json') if IS_LOCAL else '/data/walls.json'
 SENSORS_CONFIG = os.path.join(os.path.dirname(__file__), 'media', 'sensors.json') if IS_LOCAL else '/data/sensors.json'
 
@@ -102,11 +100,13 @@ def get_sensor_state(entity_id: str) -> Dict[str, Any]:
     except Exception as e:
         app.logger.error(f"센서 상태 조회 실패: {str(e)}")
         return {'state': '0', 'entity_id': entity_id}
+    
 
 @app.route('/')
 def index():
     """메인 페이지를 렌더링합니다."""
-    return render_template('index.html')
+    cache_buster = int(time.time())
+    return render_template('index.html', cache_buster=cache_buster)
 
 @app.route('/api/states')
 def get_states():
@@ -231,7 +231,7 @@ def generate_map():
             app.logger.info("열지도 생성 완료")
             return jsonify({
                 'status': 'success',
-                'image_url': '/media/thermal_map.png'
+                'image_url': '/local/thermal_map.png'
             })
         else:
             app.logger.error("열지도 생성 실패")

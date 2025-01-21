@@ -504,23 +504,27 @@ class ThermalMapGenerator:
             main_ax.scatter(sensor_x, sensor_y, c='red', s=10, zorder=5)
 
             # 센서 온도값과 이름 표시
-            for i, sensor in enumerate(self.sensors_data):
+            for i, (point, sensor) in enumerate(zip(sensor_points, self.sensors_data)):
                 if 'position' in sensor:
-                    state = self.get_sensor_state(sensor['entity_id'])
-                    temp = float(state['state'])
-                    name = state['attributes'].get('friendly_name', sensor['entity_id'].split('.')[-1])
-                    
-                    # 텍스트 위치 (센서 위치보다 약간 위로)
-                    text_x = sensor_points[i][0]
-                    text_y = sensor_points[i][1] - 10
-                    
-                    # 온도값과 이름 표시
-                    main_ax.text(text_x, text_y, f'{name}\n{temp:.1f}°C',
-                             horizontalalignment='center',
-                             verticalalignment='bottom',
-                             fontsize=8,
-                             bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
-                             zorder=6)
+                    try:
+                        state = self.get_sensor_state(sensor['entity_id'])
+                        temp = float(state['state'])
+                        name = state['attributes'].get('friendly_name', sensor['entity_id'].split('.')[-1])
+                        
+                        # 텍스트 위치 (센서 위치보다 약간 위로)
+                        text_x = point[0]
+                        text_y = point[1] - 10
+                        
+                        # 온도값과 이름 표시
+                        main_ax.text(text_x, text_y, f'{name}\n{temp:.1f}°C',
+                                 horizontalalignment='center',
+                                 verticalalignment='bottom',
+                                 fontsize=8,
+                                 bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
+                                 zorder=6)
+                    except Exception as e:
+                        current_app.logger.warning(f"센서 {sensor['entity_id']} 텍스트 표시 실패: {str(e)}")
+                        continue
 
             # # 컬러바 설정 (오른쪽 subplot 사용)
             # cbar_ax = plt.subplot2grid((1, 20), (0, 17), colspan=1)  # 컬러바용 axes

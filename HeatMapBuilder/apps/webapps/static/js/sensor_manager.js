@@ -82,21 +82,29 @@ export class SensorManager {
             return;
         }
 
-        const draggableState = this.enabled ? 'true' : 'false';
-        const cursorClass = this.enabled ? 'cursor-move' : 'cursor-not-allowed opacity-50';
+        container.innerHTML = this.sensors.map(sensor => {
+            const isPlaced = sensor.position !== undefined;
+            const draggableState = this.enabled && !isPlaced ? 'true' : 'false';
+            const itemClass = isPlaced 
+                ? 'sensor-item p-3 bg-gray-100 border border-gray-200 rounded-md shadow-sm opacity-50 cursor-not-allowed flex justify-between items-center'
+                : `sensor-item p-3 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-move flex justify-between items-center`;
 
-        container.innerHTML = this.sensors.map(sensor => `
-            <div class="sensor-item p-3 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow ${cursorClass} flex justify-between items-center" 
-                draggable="${draggableState}" data-entity-id="${sensor.entity_id}">
-                <span class="font-medium">${sensor.attributes.friendly_name || sensor.entity_id}</span>
-                <span class="text-gray-600 ml-2">${sensor.state}°C</span>
-            </div>
-        `).join('');
+            return `
+                <div class="${itemClass}" 
+                    draggable="${draggableState}" 
+                    data-entity-id="${sensor.entity_id}">
+                    <span class="font-medium">${sensor.attributes.friendly_name || sensor.entity_id}</span>
+                    <span class="text-gray-600 ml-2">${sensor.state}°C</span>
+                </div>
+            `;
+        }).join('');
 
         // 드래그 앤 드롭 이벤트 설정
         if (this.enabled) {
             container.querySelectorAll('.sensor-item').forEach(item => {
-                item.addEventListener('dragstart', this.handleDragStart);
+                if (item.getAttribute('draggable') === 'true') {
+                    item.addEventListener('dragstart', this.handleDragStart);
+                }
             });
         }
     }
