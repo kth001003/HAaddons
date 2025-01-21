@@ -410,7 +410,7 @@ class WebServer:
             return jsonify(suggestions)
 
         @self.app.route('/api/send_packet', methods=['POST'])
-        def send_packet():
+        async def send_packet():
             try:
                 data = request.get_json()
                 packet = data.get('packet', '').strip()
@@ -427,7 +427,7 @@ class WebServer:
                 self.wallpad_controller.publish_mqtt(f'{self.wallpad_controller.ELFIN_TOPIC}/send', packet_bytes)
 
                 # elfin processor도 돌림
-                self.wallpad_controller.message_processor.process_elfin_data(packet)
+                await self.wallpad_controller.message_processor.process_elfin_data(packet)
                 
                 return jsonify({"success": True})
             
