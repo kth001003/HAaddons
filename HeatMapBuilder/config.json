@@ -7,9 +7,9 @@
   "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
   "map": [
     {
-      "type": "homeassistant",
+      "type": "homeassistant_config",
       "read_only": false,
-      "subpath": "www"
+      "path": "/homeassistant/www"
     }
   ],
   "startup": "application",
