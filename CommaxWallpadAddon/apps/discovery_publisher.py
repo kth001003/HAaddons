@@ -205,7 +205,6 @@ class DiscoveryPublisher:
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                                 "payload_on": "ON",
                                 "payload_off": "OFF",
-                                "device_class": "gas",
                                 **self.device_base_info,
                                 **self.availability
                             }
