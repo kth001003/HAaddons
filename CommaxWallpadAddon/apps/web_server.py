@@ -1,6 +1,7 @@
 from flask import Flask, render_template, jsonify, request # type: ignore
 import threading
 import logging
+import asyncio
 import os
 from typing import Dict, Any
 import time
@@ -41,6 +42,9 @@ class WebServer:
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '-1'
             return response
+        @self.app.errorhandler(Exception)
+        def handle_exception(e):
+            return jsonify({"success": False, "error": str(e)}), 500
         
         # 라우트 설정
         @self.app.route('/')
@@ -418,18 +422,21 @@ class WebServer:
                 if not packet:
                     return jsonify({"success": False, "error": "패킷이 비어있습니다."}), 400
                 
-                # 패킷 체크섬 검증
                 if packet != checksum(packet):
                     return jsonify({"success": False, "error": "잘못된 패킷입니다."}), 400
                 
-                # 패킷을 bytes로 변환하여 MQTT로 발행
+                loop = asyncio.get_event_loop()
+                loop.create_task(self.wallpad_controller.message_processor.process_elfin_data(packet))
+                
                 packet_bytes = bytes.fromhex(packet)
                 self.wallpad_controller.publish_mqtt(f'{self.wallpad_controller.ELFIN_TOPIC}/send', packet_bytes)
                 
                 return jsonify({"success": True})
             
             except Exception as e:
+                self.logger.error(f"웹UI 패킷 전송 실패: {str(e)}")
                 return jsonify({"success": False, "error": str(e)}), 500
+
 
         @self.app.route('/api/custom_packet_structure', methods=['GET'])
         def get_custom_packet_structure():
@@ -505,7 +512,7 @@ class WebServer:
                     'elfin_reboot_interval': elfin_reboot_interval
                 })
             except Exception as e:
-                self.logger.error(f"EW11 상태 조회 실패: {str(e)}")
+                self.logger.error(f"웹UI EW11 상태 조회 실패: {str(e)}")
                 return jsonify({'error': str(e)}), 500
 
     def _get_editable_fields(self, packet_data):
@@ -524,6 +531,11 @@ class WebServer:
                     'name': field.get('name', ''),
                     'values': field.get('values', {})
                 }
+        
+        # 추가 설정 항목 처리
+        for key, value in packet_data.items():
+            if key not in ['header', 'structure']:
+                result[key] = value
                 
         return result
 
@@ -542,6 +554,11 @@ class WebServer:
                     
                 current['structure'][position]['name'] = field.get('name', '')
                 current['structure'][position]['values'] = field.get('values', {})
+        
+        # 추가 설정 항목 병합
+        for key, value in new.items():
+            if key not in ['header', 'structure']:
+                current[key] = value
 
     def _analyze_packet_structure(self, command: str) -> Dict[str, Any]:
         """패킷 구조를 분석하고 관련 정보를 반환합니다."""

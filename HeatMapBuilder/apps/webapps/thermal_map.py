@@ -413,22 +413,6 @@ class ThermalMapGenerator:
 
         return points, temperatures
 
-    def _calculate_bounds(self) -> Tuple[float, float, float, float]:
-        """모든 area의 경계를 계산합니다."""
-        if not self.areas:
-            return 0, 100, 0, 100  # 기본값
-            
-        bounds = self.areas[0].bounds
-        for area in self.areas[1:]:
-            area_bounds = area.bounds
-            bounds = (
-                min(bounds[0], area_bounds[0]),
-                min(bounds[1], area_bounds[1]),
-                max(bounds[2], area_bounds[2]),
-                max(bounds[3], area_bounds[3])
-            )
-        return bounds
-
     def _get_polygon_coords(self, geom) -> List[Tuple[np.ndarray, np.ndarray]]:
         """폴리곤 또는 멀티폴리곤에서 좌표를 추출합니다."""
         coords = []
@@ -455,16 +439,15 @@ class ThermalMapGenerator:
 
             # 센서를 area에 할당
             self._assign_sensors_to_areas(sensor_points, temperatures)
-            current_app.logger.info(f"센서가 있는 area 수: {len(self.area_sensors)}")
 
-            # 경계 계산
-            min_x, min_y, max_x, max_y = self._calculate_bounds()
-            current_app.logger.debug(f"맵 경계: ({min_x}, {min_y}) - ({max_x}, {max_y})")
+            # SVG 전체 크기 사용
+            # min_x, min_y, max_x, max_y = 0, 0, 1200, 1000
+            min_x, min_y, max_x, max_y = 0, 0, 1000, 1000
             
             # 격자 생성 (해상도 대폭 증가)
             grid_x, grid_y = np.mgrid[
-                min_x-self.padding:max_x+self.padding:100j,
-                min_y-self.padding:max_y+self.padding:100j
+                min_x:max_x:150j,  # padding 제거
+                min_y:max_y:150j
             ]
 
             # 전체 마스크와 온도 배열 초기화
@@ -483,42 +466,42 @@ class ThermalMapGenerator:
                 grid_z[area_mask] = area_temps
 
             # 플롯 생성
-            plt.figure(figsize=(15, 15))
-            plt.gca().invert_yaxis()
+            # fig = plt.figure(figsize=(12, 10))  # 전체 figure 크기
+            fig = plt.figure(figsize=(10, 10))  # 전체 figure 크기
+
+            # 메인 플롯 (열지도)
+            # main_ax = plt.subplot2grid((1, 20), (0, 0), colspan=17)  # 열지도용 axes
+            main_ax = plt.subplot2grid((1, 20), (0, 0), colspan=20)  # 열지도용 axes
+            main_ax.invert_yaxis()
 
             # 온도 범위 설정
             temp_min = min(temperatures)
             temp_max = max(temperatures)
             temp_range = temp_max - temp_min
-            levels = np.linspace(temp_min - 0.1 * temp_range, temp_max + 0.1 * temp_range, 100)  # 레벨 수 증가
+            levels = np.linspace(temp_min - 0.3 * temp_range, temp_max + 0.3 * temp_range, 100)
 
             # 온도 데이터가 없는 area 표시 (흰색 배경에 빗금)
             for i, area in enumerate(self.areas):
                 if i not in self.area_sensors:
                     for x, y in self._get_polygon_coords(area):
-                        plt.fill(x, y, facecolor='white', hatch='///', alpha=1.0)
+                        main_ax.fill(x, y, facecolor='white', hatch='///', alpha=1.0)
 
             # 온도 분포 그리기 (부드러운 그라데이션을 위한 설정)
-            contour = plt.contourf(grid_x, grid_y, grid_z,
-                                 levels=levels,
-                                 cmap='RdYlBu_r',
-                                 extend='both',
-                                 alpha=0.9)  # 약간의 투명도 추가
+            contour = main_ax.contourf(grid_x, grid_y, grid_z,
+                                   levels=levels,
+                                   cmap='RdYlBu_r',
+                                   extend='both',
+                                   alpha=0.9)  # 약간의 투명도 추가
             
-            # 컬러바 설정
-            cbar = plt.colorbar(contour)
-            cbar.set_label('온도 (°C)', fontsize=12)  # 한글로 변경
-            cbar.ax.tick_params(labelsize=10)
-
             # area 경계 그리기
             for area in self.areas:
                 for x, y in self._get_polygon_coords(area):
-                    plt.plot(x, y, 'black', linewidth=2)
+                    main_ax.plot(x, y, 'black', linewidth=2)
 
             # 센서 위치 표시
             sensor_x = [p[0] for p in sensor_points]
             sensor_y = [p[1] for p in sensor_points]
-            plt.scatter(sensor_x, sensor_y, c='red', s=1, zorder=5)
+            main_ax.scatter(sensor_x, sensor_y, c='red', s=10, zorder=5)
 
             # 센서 온도값과 이름 표시
             for i, sensor in enumerate(self.sensors_data):
@@ -532,22 +515,32 @@ class ThermalMapGenerator:
                     text_y = sensor_points[i][1] - 10
                     
                     # 온도값과 이름 표시
-                    plt.text(text_x, text_y, f'{name}\n{temp:.1f}°C',
-                            horizontalalignment='center',
-                            verticalalignment='bottom',
-                            fontsize=8,
-                            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
-                            zorder=6)
+                    main_ax.text(text_x, text_y, f'{name}\n{temp:.1f}°C',
+                             horizontalalignment='center',
+                             verticalalignment='bottom',
+                             fontsize=8,
+                             bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
+                             zorder=6)
+
+            # # 컬러바 설정 (오른쪽 subplot 사용)
+            # cbar_ax = plt.subplot2grid((1, 20), (0, 17), colspan=1)  # 컬러바용 axes
+            # cbar = plt.colorbar(contour, cax=cbar_ax)
+            # cbar.set_label('온도 (°C)', fontsize=12)
+            # cbar.ax.tick_params(labelsize=10)
 
             # 축 설정
-            plt.axis('equal')
-            plt.axis('off')
+            main_ax.set_aspect('equal')
+            main_ax.axis('off')
 
-            # 저장
+            # 저장 (dpi 조정으로 1000x1000 크기 맞추기)
+            # width_inches = fig.get_size_inches()[0] * (17/20)  # 메인 플롯의 실제 너비
+            width_inches = fig.get_size_inches()[0]  # 메인 플롯의 실제 너비
+            dpi = 1000 / (width_inches)  # 1000px 위해 필요한 dpi 계산
+            
             plt.savefig(output_path,
                        bbox_inches='tight',
                        pad_inches=0,
-                       dpi=300,
+                       dpi=dpi,
                        facecolor='white',
                        transparent=False)
             plt.close()

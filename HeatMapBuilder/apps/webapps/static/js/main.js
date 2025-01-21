@@ -40,12 +40,14 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (thermalMapContainer) {
             thermalMapContainer.classList.toggle('hidden', step !== 3);
         }
-
         // 플로어플랜 이미지 표시/숨김
-        if (step === 1) {
-            floorplanImg.style.display = 'block';
-        } else {
-            floorplanImg.style.display = 'none';
+        const floorplanImg = document.getElementById('floorplan-img');
+        if (floorplanImg) {
+            floorplanImg.classList.toggle('hidden', step !== 1);
+        }
+        const svgOverlayContainer = document.getElementById('svg-overlay-container');
+        if (svgOverlayContainer) {
+            svgOverlayContainer.classList.toggle('hidden', step == 3);
         }
 
         // 단계별 기능 활성화/비활성화
@@ -65,6 +67,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         } else {
             if (drawingTool) drawingTool.disable();
             if (sensorManager) sensorManager.disable();
+
         }
     }
 
@@ -108,6 +111,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         currentStep = step;
         updateStepIndicators(step);
         showStepControls(step);
+        if (step === 3) {generateHeatmap();}
     }
 
     function setActiveTool(tool) {
@@ -174,16 +178,14 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
     }
     
-    const containerRect = container.getBoundingClientRect();
-    console.log('Container size:', containerRect.width, containerRect.height);
-    
-    // SVG 크기 설정
+    // SVG 크기를 1000x1000으로 고정
+    const FIXED_SIZE = 1000;
     svg.style.width = '100%';
     svg.style.height = '100%';
     
-    svg.setAttribute('width', String(containerRect.width));
-    svg.setAttribute('height', String(containerRect.height));
-    svg.setAttribute('viewBox', `0 0 ${containerRect.width} ${containerRect.height}`);
+    svg.setAttribute('width', String(FIXED_SIZE));
+    svg.setAttribute('height', String(FIXED_SIZE));
+    svg.setAttribute('viewBox', `0 0 ${FIXED_SIZE} ${FIXED_SIZE}`);
     
     console.log('SVG attributes set');
     
@@ -228,20 +230,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // hidden 클래스 제거
                 thermalMapContainer.classList.remove('hidden');
                 
-                // 기존 내용 제거
-                while (thermalMapContainer.firstChild) {
-                    thermalMapContainer.removeChild(thermalMapContainer.firstChild);
-                }
-                
                 // 새 이미지 생성 및 추가
-                const thermalMapImage = document.createElement('img');
+                const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
                 const timestamp = new Date().getTime();
-                thermalMapImage.src = `/media/thermal_map.png?t=${timestamp}`;  // 캐시 방지를 위한 타임스탬프 추가
-                thermalMapImage.style.width = '100%';
-                thermalMapImage.style.height = 'auto';
-                thermalMapImage.style.maxWidth = '800px';
-                thermalMapImage.alt = '생성된 온도지도';
                 
+                thermalMapImage.setAttribute('src', `/media/thermal_map.png?t=${timestamp}`);  // 캐시 방지를 위한 타임스탬프 추가
+                thermalMapImage.setAttribute('alt', '생성된 온도지도');
+
                 thermalMapImage.onload = function() {
                     showMessage('열지도가 생성되었습니다.', 'success');
                 };
@@ -357,22 +352,28 @@ document.addEventListener('DOMContentLoaded', async function() {
                         const result = /** @type {string} */ (e.target?.result);
                         floorplanImg.src = result;
                         floorplanImg.onload = function() {
-                            // SVG 크기를 이미지 크기에 맞게 설정
-                            const scale = Math.min(
-                                containerRect.width / floorplanImg.naturalWidth,
-                                containerRect.height / floorplanImg.naturalHeight
-                            );
+                            // 이미지의 큰 쪽을 1000px에 맞추고 비율 유지
+                            const aspectRatio = floorplanImg.naturalWidth / floorplanImg.naturalHeight;
+                            let width, height;
                             
-                            const width = floorplanImg.naturalWidth * scale;
-                            const height = floorplanImg.naturalHeight * scale;
+                            if (aspectRatio > 1) {
+                                // 가로가 더 긴 경우
+                                width = FIXED_SIZE;
+                                height = FIXED_SIZE / aspectRatio;
+                            } else {
+                                // 세로가 더 긴 경우
+                                height = FIXED_SIZE;
+                                width = FIXED_SIZE * aspectRatio;
+                            }
                             
-                            svg.setAttribute('width', String(width));
-                            svg.setAttribute('height', String(height));
-                            svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-                            
-                            // 이미지 크기도 동일하게 설정
+                            // 이미지 크기 설정
                             floorplanImg.style.width = `${width}px`;
                             floorplanImg.style.height = `${height}px`;
+                            
+                            // SVG 크기는 1000x1000 유지
+                            svg.setAttribute('width', String(FIXED_SIZE));
+                            svg.setAttribute('height', String(FIXED_SIZE));
+                            svg.setAttribute('viewBox', `0 0 ${FIXED_SIZE} ${FIXED_SIZE}`);
 
                             // 드로잉툴 초기화
                             drawingTool.enable();
