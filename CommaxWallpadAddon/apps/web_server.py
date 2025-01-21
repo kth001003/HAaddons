@@ -41,6 +41,9 @@ class WebServer:
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '-1'
             return response
+        @self.app.errorhandler(Exception)
+        def handle_exception(e):
+            return jsonify({"success": False, "error": str(e)}), 500
         
         # 라우트 설정
         @self.app.route('/')
