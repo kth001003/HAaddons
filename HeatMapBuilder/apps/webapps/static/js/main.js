@@ -1,5 +1,9 @@
-import { DrawingTool } from './drawing_tool.js';
-import { SensorManager } from './sensor_manager.js';
+// @ts-ignore
+const random = Math.random();
+// @ts-ignore
+import { DrawingTool } from './drawing_tool.js?cache_buster=${random}';
+// @ts-ignore
+import { SensorManager } from './sensor_manager.js?cache_buster=${random}'; 
 
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM Content Loaded');
