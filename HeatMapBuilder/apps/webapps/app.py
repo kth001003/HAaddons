@@ -22,8 +22,6 @@ if IS_DEV:
     # 정적 파일 캐시 비활성화 
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
-# 캐시버스터
-cache_buster = str(time.time())
 
 # 로깅 설정
 LOG_PATH = os.path.join(os.path.dirname(__file__), 'thermomap.log') if IS_LOCAL else '/data/thermomap.log'
@@ -46,6 +44,12 @@ try:
     app.logger.info(f"미디어 디렉토리 경로: {MEDIA_PATH}")
 except Exception as e:
     app.logger.error(f"미디어 디렉토리 생성 실패: {str(e)}")
+
+
+# 캐시버스터
+cache_buster = str(time.time())
+app.logger.info(f"cache_buster: {cache_buster}")
+
 
 def load_mock_config():
     """mock 설정을 로드합니다."""
