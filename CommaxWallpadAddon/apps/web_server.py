@@ -1,6 +1,7 @@
 from flask import Flask, render_template, jsonify, request # type: ignore
 import threading
 import logging
+import asyncio
 import os
 from typing import Dict, Any
 import time
@@ -413,7 +414,7 @@ class WebServer:
             return jsonify(suggestions)
 
         @self.app.route('/api/send_packet', methods=['POST'])
-        async def send_packet():
+        def send_packet():
             try:
                 data = request.get_json()
                 packet = data.get('packet', '').strip()
@@ -421,22 +422,20 @@ class WebServer:
                 if not packet:
                     return jsonify({"success": False, "error": "패킷이 비어있습니다."}), 400
                 
-                # 패킷 체크섬 검증
                 if packet != checksum(packet):
                     return jsonify({"success": False, "error": "잘못된 패킷입니다."}), 400
                 
-                # 패킷을 bytes로 변환하여 MQTT로 발행
+                asyncio.run(self.wallpad_controller.message_processor.process_elfin_data(packet))
+                
                 packet_bytes = bytes.fromhex(packet)
                 self.wallpad_controller.publish_mqtt(f'{self.wallpad_controller.ELFIN_TOPIC}/send', packet_bytes)
-
-                # elfin processor도 돌림
-                await self.wallpad_controller.message_processor.process_elfin_data(packet)
                 
                 return jsonify({"success": True})
             
             except Exception as e:
                 self.logger.error(f"웹UI 패킷 전송 실패: {str(e)}")
                 return jsonify({"success": False, "error": str(e)}), 500
+
 
         @self.app.route('/api/custom_packet_structure', methods=['GET'])
         def get_custom_packet_structure():
