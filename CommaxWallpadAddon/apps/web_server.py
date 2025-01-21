@@ -425,7 +425,8 @@ class WebServer:
                 if packet != checksum(packet):
                     return jsonify({"success": False, "error": "잘못된 패킷입니다."}), 400
                 
-                asyncio.run(self.wallpad_controller.message_processor.process_elfin_data(packet))
+                loop = asyncio.get_event_loop()
+                loop.create_task(self.wallpad_controller.message_processor.process_elfin_data(packet))
                 
                 packet_bytes = bytes.fromhex(packet)
                 self.wallpad_controller.publish_mqtt(f'{self.wallpad_controller.ELFIN_TOPIC}/send', packet_bytes)
