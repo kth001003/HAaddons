@@ -39,6 +39,10 @@ export class DrawingTool {
         this.svg.addEventListener('mousemove', this.draw);
         this.svg.addEventListener('mouseup', this.endDrawing);
         this.svg.addEventListener('mouseleave', this.endDrawing);
+        this.svg.addEventListener("touchstart", this.touchHandler, true);
+        this.svg.addEventListener("touchmove", this.touchHandler, true);
+        this.svg.addEventListener("touchend", this.touchHandler, true);
+        this.svg.addEventListener("touchcancel", this.touchHandler, true);
 
         // 키보드 이벤트 리스너 등록
         document.addEventListener('keydown', this.handleKeyDown);
@@ -319,13 +323,38 @@ export class DrawingTool {
         // 길이가 0에 가까운 선분 제거
         this.removeTinyLines();
     }
+    touchHandler(event) {
+        const touch = event.changedTouches[0];
+        const simulatedEvent = new MouseEvent({
+            touchstart: "mousedown",
+            touchmove: "mousemove",
+            touchend: "mouseup"
+        }[event.type], {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            detail: 1,
+            screenX: touch.screenX,
+            screenY: touch.screenY,
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            ctrlKey: false,
+            altKey: false,
+            shiftKey: false,
+            metaKey: false,
+            button: 0,
+            relatedTarget: null
+        });
 
+        touch.target.dispatchEvent(simulatedEvent);
+        event.preventDefault();
+    }
     // 기존 startDrawing 메서드 수정
     startDrawing(e) {
         if (!this.enabled) return;
         
         e.preventDefault();
-        
+
         if (this.currentTool === 'move-point') {
             this.startPointMove(e);
             return;

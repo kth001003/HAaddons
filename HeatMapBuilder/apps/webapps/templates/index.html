@@ -6,264 +6,206 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
-    <div class="flex h-screen overflow-hidden">
-        <!-- 사이드바 -->
-        <div class="w-80 p-5 bg-white shadow-lg overflow-y-auto">
-            <h2 class="text-2xl font-bold mb-6">온도지도 생성기</h2>
-            
-            <!-- 메시지 컨테이너 -->
-            <div id="message-container" class="fixed w-full top-0 left-1/2 transform -translate-x-1/2 mt-3 z-50"></div>
+    <!-- 헤더 -->
+    <header class="bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <h1 class="text-3xl font-bold text-gray-900">온도지도 생성기</h1>
+        </div>
+    </header>
 
-            <!-- 단계 표시 -->
-            <div class="mb-6">
-                <button class="step-button w-full flex items-center mb-2 p-2 rounded-lg hover:bg-gray-50 transition-colors" data-step="1">
-                    <div id="step1-indicator" class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center mr-2">1</div>
-                    <span class="text-sm">벽 그리기</span>
-                </button>
-                <button class="step-button w-full flex items-center mb-2 p-2 rounded-lg hover:bg-gray-50 transition-colors" data-step="2">
-                    <div id="step2-indicator" class="w-8 h-8 rounded-full bg-gray-300 text-white flex items-center justify-center mr-2">2</div>
-                    <span class="text-sm">센서 배치</span>
-                </button>
-                <button class="step-button w-full flex items-center p-2 rounded-lg hover:bg-gray-50 transition-colors" data-step="3">
-                    <div id="step3-indicator" class="w-8 h-8 rounded-full bg-gray-300 text-white flex items-center justify-center mr-2">3</div>
-                    <span class="text-sm">온도지도 생성</span>
-                </button>
+    <!-- 탭 네비게이션 -->
+    <nav class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex space-x-8">
+                <button id="dashboard-tab" class="px-3 py-4 text-sm font-medium text-gray-900 border-b-2 border-blue-500">대시보드</button>
+                <button id="map-tab" class="px-3 py-4 text-sm font-medium text-gray-500 hover:text-gray-700">지도 및 센서 배치</button>
+                <button id="settings-tab" class="px-3 py-4 text-sm font-medium text-gray-500 hover:text-gray-700">설정</button>
             </div>
+        </div>
+    </nav>
 
-            <!-- 단계 1: 벽 그리기 -->
-            <div id="step1-controls" class="mb-6">
-                <h3 class="text-lg font-semibold mb-2">1단계: 벽 그리기</h3>
-                <div class="mb-4">
-                    <input type="file" id="floorplan-upload" accept="image/*" 
-                        class="w-full p-2 border border-gray-300 rounded-md">
+    <!-- 메시지 컨테이너 -->
+    <div id="message-container" class="fixed w-full top-0 left-1/2 transform -translate-x-1/2 mt-3 z-50"></div>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- 대시보드 탭 -->
+        <div id="dashboard-content" class="space-y-6">
+            <div id="thermal-map-container" class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">현재 온도지도</h2>
+                <div class="aspect-w-1 aspect-h-1">
+                    <img id="thermal-map-img" alt="생성된 온도지도" class="object-contain w-full h-full">
                 </div>
-                <div class="p-4 bg-gray-50 rounded-lg">
-                    <div class="space-y-3">
-                        <div class="flex gap-2">
-                            <button id="line-tool" 
-                                class="tool-btn flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors">
-                                직선
+            </div>
+        </div>
+
+        <!-- 지도 및 센서 배치 탭 -->
+        <div id="map-content" class="hidden space-y-6">
+            <div class="grid grid-cols-4 gap-6">
+                <!-- 왼쪽 컨트롤 패널 -->
+                <div class="col-span-1 space-y-6">
+                    <!-- 단계 표시 -->
+                    <div class="bg-white rounded-lg shadow-md p-4">
+                        <div class="space-y-2">
+                            <button class="step-button w-full flex items-center p-2 rounded-lg hover:bg-gray-50" data-step="1">
+                                <div id="step1-indicator" class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center mr-2">1</div>
+                                <span class="text-sm">벽 그리기</span>
                             </button>
-                            <button id="move-point-tool" 
-                                class="tool-btn flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors">
-                                점 이동
-                            </button>
-                            <button id="eraser-tool" 
-                                class="tool-btn flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors">
-                                지우개
-                            </button>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">선 두께:</label>
-                            <div class="flex items-center gap-3">
-                                <input type="range" id="line-width" min="1" max="20" value="3" 
-                                    class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                                <span id="line-width-value" class="text-sm text-gray-600 min-w-[3rem]">10px</span>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <button id="undo-btn" 
-                                class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                                </svg>
-                            </button>
-                            <button id="redo-btn" 
-                                class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
-                                </svg>
-                            </button>
-                            <button id="clear-btn" 
-                                class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors flex items-center justify-center">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
+                            <button class="step-button w-full flex items-center p-2 rounded-lg hover:bg-gray-50" data-step="2">
+                                <div id="step2-indicator" class="w-8 h-8 rounded-full bg-gray-300 text-white flex items-center justify-center mr-2">2</div>
+                                <span class="text-sm">센서 배치</span>
                             </button>
                         </div>
                     </div>
+
+                    <!-- 벽 그리기 컨트롤 -->
+                    <div id="step1-controls" class="bg-white rounded-lg shadow-md p-4">
+                        <h3 class="text-lg font-semibold mb-4">벽 그리기</h3>
+                        <div class="space-y-4">
+                            <input type="file" id="floorplan-upload" accept="image/*" class="w-full">
+                            <div class="grid grid-cols-3 gap-2">
+                                <button id="line-tool" class="tool-btn px-3 py-2 bg-white border rounded-md hover:bg-blue-50">직선</button>
+                                <button id="move-point-tool" class="tool-btn px-3 py-2 bg-white border rounded-md hover:bg-blue-50">점 이동</button>
+                                <button id="eraser-tool" class="tool-btn px-3 py-2 bg-white border rounded-md hover:bg-blue-50">지우개</button>
+                            </div>
+                            <div>
+                                <label class="block text-sm mb-1">선 두께:</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="range" id="line-width" min="1" max="20" value="3" class="flex-1">
+                                    <span id="line-width-value" class="text-sm">3px</span>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button id="undo-btn" class="px-3 py-2 bg-white border rounded-md hover:bg-blue-50">
+                                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                                    </svg>
+                                </button>
+                                <button id="redo-btn" class="px-3 py-2 bg-white border rounded-md hover:bg-blue-50">
+                                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                                    </svg>
+                                </button>
+                                <button id="clear-btn" class="px-3 py-2 bg-white border rounded-md hover:bg-red-50">
+                                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 센서 배치 컨트롤 -->
+                    <div id="step2-controls" class="hidden bg-white rounded-lg shadow-md p-4">
+                        <h3 class="text-lg font-semibold mb-4">센서 배치</h3>
+                        <div id="sensor-container" class="space-y-2 mb-4 max-h-[400px] overflow-y-auto"></div>
+                    </div>
                 </div>
-                <button id="save-walls-btn" 
-                    class="mt-4 w-full px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
-                    벽 저장 및 다음 단계
-                </button>
-            </div>
 
-            <!-- 단계 2: 센서 배치 -->
-            <div id="step2-controls" class="mb-6 hidden">
-                <h3 class="text-lg font-semibold mb-2">2단계: 센서 배치</h3>
-                <div id="sensor-container" class="space-y-2 mb-4 max-h-[calc(100vh-400px)] overflow-y-auto"></div>
-                <button id="save-sensors-btn" 
-                    class="w-full px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
-                    센서 저장 및 다음 단계
-                </button>
+                <!-- 오른쪽 캔버스 영역 -->
+                <div class="col-span-3">
+                    <div id="floorplan-container" class="bg-white rounded-lg shadow-md p-4">
+                        <div class="relative aspect-square">
+                            <img id="floorplan-img" class="absolute max-w-full max-h-full object-contain pointer-events-none">
+                            <div class="absolute inset-0 bg-white opacity-50 pointer-events-none"></div>
+                            <div id="svg-overlay-container" class="absolute inset-0 flex items-center justify-center">
+                                <svg id="svg-overlay" class="w-full h-full" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet"></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+        </div>
 
-            <!-- 단계 3: 온도지도 생성 -->
-            <div id="step3-controls" class="mb-6 hidden">
-                <h3 class="text-lg font-semibold mb-2">3단계: 온도지도 생성</h3>
-                
-                <!-- 보간 설정 -->
-                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="font-medium mb-3">보간 설정</h4>
-                    
+        <!-- 설정 탭 -->
+        <div id="settings-content" class="hidden space-y-6">
+            <!-- 보간 설정 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">보간 설정</h2>
+                <div class="grid grid-cols-2 gap-6">
                     <!-- 가우시안 설정 -->
-                    <div class="mb-4">
-                        <h5 class="text-sm font-medium mb-2">가우시안 분포 설정</h5>
-                        <div class="flex items-center gap-2">
-                            <div class="group relative">
-                                <label class="text-sm cursor-help">Sigma 비율:</label>
-                                <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
-                                    영향 범위를 결정하는 값입니다. 값이 작을수록 센서 주변의 영향 범위가 넓어지고, 클수록 좁아집니다.
-                                </div>
-                            </div>
-                            <input type="number" id="gaussian-sigma-factor" 
-                                   class="w-20 px-2 py-1 border rounded" 
-                                   value="8.0" min="0.1" step="0.1">
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">가우시안 분포 설정</h3>
+                        <div class="space-y-2">
+                            <label class="block text-sm">Sigma 비율</label>
+                            <input type="number" id="gaussian-sigma-factor" class="w-full px-3 py-2 border rounded-md" value="8.0" min="0.1" max="20" step="0.1">
                         </div>
                     </div>
-                    
+
                     <!-- RBF 설정 -->
-                    <div class="mb-4">
-                        <h5 class="text-sm font-medium mb-2">RBF 설정</h5>
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">RBF 설정</h3>
                         <div class="space-y-2">
-                            <div class="flex items-center gap-2">
-                                <div class="group relative">
-                                    <label class="text-sm cursor-help">함수:</label>
-                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
-                                        보간에 사용할 기저 함수입니다.
-                                        - Gaussian: 부드러운 곡선 형태
-                                        - Multiquadric: 더 넓은 영향 범위
-                                        - Inverse: 급격한 변화에 적합
-                                        - Quintic: 매우 부드러운 전이
-                                        - Thin Plate: 자연스러운 곡면
-                                    </div>
-                                </div>
-                                <select id="rbf-function" class="px-2 py-1 border rounded">
-                                    <option value="gaussian">Gaussian</option>
-                                    <option value="multiquadric">Multiquadric</option>
-                                    <option value="inverse">Inverse</option>
-                                    <option value="quintic">Quintic</option>
-                                    <option value="thin_plate">Thin Plate</option>
-                                </select>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="group relative">
-                                    <label class="text-sm cursor-help">Epsilon 비율:</label>
-                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
-                                        보간의 부드러움을 조절합니다. 값이 작을수록 더 부드럽게, 클수록 더 정확하게 보간됩니다.
-                                    </div>
-                                </div>
-                                <input type="number" id="rbf-epsilon-factor" 
-                                       class="w-20 px-2 py-1 border rounded" 
-                                       value="0.5" min="0.1" step="0.1">
-                            </div>
+                            <label class="block text-sm">함수</label>
+                            <select id="rbf-function" class="w-full px-3 py-2 border rounded-md">
+                                <option value="gaussian">Gaussian</option>
+                                <option value="multiquadric">Multiquadric</option>
+                                <option value="inverse">Inverse</option>
+                                <option value="quintic">Quintic</option>
+                                <option value="thin_plate">Thin Plate</option>
+                            </select>
+                            <label class="block text-sm mt-2">Epsilon 비율</label>
+                            <input type="number" id="rbf-epsilon-factor" class="w-full px-3 py-2 border rounded-md" value="0.5" min="0.1" max="10" step="0.1">
                         </div>
                     </div>
-                    
+
                     <!-- 크리깅 설정 -->
-                    <div class="mb-4">
-                        <h5 class="text-sm font-medium mb-2">크리깅 설정</h5>
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">크리깅 설정</h3>
                         <div class="space-y-2">
-                            <div class="flex items-center gap-2">
-                                <div class="group relative">
-                                    <label class="text-sm cursor-help">베리오그램 모델:</label>
-                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
-                                        공간적 상관관계를 모델링하는 방식입니다.
-                                        - Gaussian: 매우 부드러운 변화
-                                        - Spherical: 일정 거리 이후 영향 없음
-                                        - Exponential: 점진적 감소
-                                        - Linear: 선형적 변화
-                                    </div>
+                            <label class="block text-sm">베리오그램 모델</label>
+                            <select id="kriging-variogram-model" class="w-full px-3 py-2 border rounded-md">
+                                <option value="gaussian">Gaussian</option>
+                                <option value="spherical">Spherical</option>
+                                <option value="exponential">Exponential</option>
+                                <option value="linear">Linear</option>
+                            </select>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm">Lag 수</label>
+                                    <input type="number" id="kriging-nlags" class="w-full px-3 py-2 border rounded-md" value="6" min="1" max="50" step="1">
                                 </div>
-                                <select id="kriging-variogram-model" class="px-2 py-1 border rounded">
-                                    <option value="gaussian">Gaussian</option>
-                                    <option value="spherical">Spherical</option>
-                                    <option value="exponential">Exponential</option>
-                                    <option value="linear">Linear</option>
-                                </select>
+                                <div>
+                                    <label class="block text-sm">이방성 스케일</label>
+                                    <input type="number" id="kriging-anisotropy-scaling" class="w-full px-3 py-2 border rounded-md" value="1.0" min="0.1" max="50" step="0.1">
+                                </div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <div class="group relative">
-                                    <label class="text-sm cursor-help">Lag 수:</label>
-                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
-                                        베리오그램 계산에 사용할 거리 구간의 수입니다. 값이 클수록 더 세밀한 공간 분석이 가능합니다.
-                                    </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm">이방성 각도</label>
+                                    <input type="number" id="kriging-anisotropy-angle" class="w-full px-3 py-2 border rounded-md" value="0.0" min="0" max="360" step="1">
                                 </div>
-                                <input type="number" id="kriging-nlags" 
-                                       class="w-20 px-2 py-1 border rounded" 
-                                       value="6" min="1" step="1">
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="group relative">
-                                    <label class="text-sm cursor-help">이방성 스케일:</label>
-                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
-                                        방향에 따른 영향력의 차이를 조절합니다. 1.0은 모든 방향이 동일한 영향을 미침을 의미합니다.
-                                    </div>
+                                <div class="flex items-center">
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" id="kriging-weight" checked>
+                                        <span class="text-sm">가중치 사용</span>
+                                    </label>
                                 </div>
-                                <input type="number" id="kriging-anisotropy-scaling" 
-                                       class="w-20 px-2 py-1 border rounded" 
-                                       value="1.0" min="0.1" step="0.1">
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="group relative">
-                                    <label class="text-sm cursor-help">이방성 각도:</label>
-                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
-                                        이방성의 주방향을 설정합니다. 0-360도 사이의 값으로, 특정 방향으로의 영향을 강조할 수 있습니다.
-                                    </div>
-                                </div>
-                                <input type="number" id="kriging-anisotropy-angle" 
-                                       class="w-20 px-2 py-1 border rounded" 
-                                       value="0.0" min="0" max="360" step="1">
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="group relative">
-                                    <label class="text-sm cursor-help">가중치 사용:</label>
-                                    <div class="hidden group-hover:block absolute z-50 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg">
-                                        거리에 따른 가중치를 적용할지 여부를 설정합니다. 활성화하면 더 가까운 센서의 영향이 커집니다.
-                                    </div>
-                                </div>
-                                <input type="checkbox" id="kriging-weight" checked>
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                <button id="generate-map" 
-                    class="w-full px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors">
-                    온도지도 생성
+                <button id="save-interpolation-parameters" class="w-full mt-3 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">
+                    저장
+                </button>
+            </div>
+
+            <!-- 지도 생성 설정 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">지도 생성 설정</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm mb-1">생성 주기 (분)</label>
+                        <input type="number" id="generation-interval" class="w-full px-3 py-2 border rounded-md" value="5" min="1" max="1440" step="1">
+                    </div>
+                </div>
+                <button id="save-gen-configs" class="w-full mt-3 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">
+                    설정 저장
                 </button>
             </div>
         </div>
+    </main>
 
-        <!-- 메인 컨텐츠 -->
-        <div class="flex-1 p-5">
-            <div id="floorplan-container" 
-                class="relative max-w-full max-h-full border border-gray-300 rounded-lg overflow-hidden flex justify-center items-center bg-gray-200" style="aspect-ratio: 1/1;">
-                <img id="floorplan-img" class="absolute max-w-full max-h-full object-contain pointer-events-none">
-                <div class="absolute inset-0 bg-white opacity-50 pointer-events-none"></div>
-                <div id="svg-overlay-container" class="absolute inset-0 flex items-center justify-center">
-                    <div class="relative max-w-full max-h-full" style="aspect-ratio: 1/1;">
-                        <svg id="svg-overlay" 
-                        class="w-full h-full" 
-                        viewBox="0 0 1000 1000"
-                            preserveAspectRatio="xMidYMid meet">
-                            <!-- SVG 내용이 여기에 그려집니다 -->
-                        </svg>
-                    </div>
-                </div>
-                <!-- 열지도 컨테이너 -->
-                <div id="thermal-map-container" class="absolute inset-0 flex items-center justify-center hidden bg-gray-200">
-                    <img id="thermal-map-img" class="max-w-full max-h-full w-full h-full object-contain" alt="온도지도">
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 스크립트 -->
-    <!-- <script src=".{{ url_for('static', filename='js/drawing_utils.js') }}?{{ cache_buster }}" type="module"></script>
-    <script src=".{{ url_for('static', filename='js/drawing_tool.js') }}?{{ cache_buster }}" type="module"></script>
-    <script src=".{{ url_for('static', filename='js/sensor_manager.js') }}?{{ cache_buster }}" type="module"></script> -->
-    <script src=".{{ url_for('static', filename='js/main.js') }}?{{ cache_buster }}" type="module"></script>
+    <script type="module" src="./static/js/main.js"></script>
 </body>
 </html> 

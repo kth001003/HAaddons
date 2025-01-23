@@ -15,7 +15,10 @@ class ConfigManager:
     def __init__(self, is_local: bool):
         self.is_local = is_local
         self.paths = self._init_paths()
-        self._create_media_directory()
+        try:
+            os.makedirs(self.paths['media'], exist_ok=True)
+        except Exception as e:
+            logging.error(f"미디어 디렉토리 생성 실패: {str(e)}")
         
     def _init_paths(self) -> Dict[str, str]:
         """경로 초기화"""
@@ -26,6 +29,8 @@ class ConfigManager:
                 'log': os.path.join(base_dir, 'thermomap.log'),
                 'config': os.path.join(base_dir, 'test_config.json'),
                 'media': os.path.join(base_dir, 'media'),
+                'gen_config': os.path.join(base_dir, 'media', 'gen_config.json'),
+                'parameters': os.path.join(base_dir, 'media', 'parameters.json'),
                 'walls': os.path.join(base_dir, 'media', 'walls.json'),
                 'sensors': os.path.join(base_dir, 'media', 'sensors.json')
             }
@@ -33,17 +38,15 @@ class ConfigManager:
             return {
                 'log': '/data/thermomap.log',
                 'config': '/data/options.json',
+                'gen_config': '/data/gen_config.json',
                 'media': '/homeassistant/www',
+                'parameters': '/data/parameters.json',
                 'walls': '/data/walls.json',
                 'sensors': '/data/sensors.json'
             }
     
     def _create_media_directory(self):
         """미디어 디렉토리 생성"""
-        try:
-            os.makedirs(self.paths['media'], exist_ok=True)
-        except Exception as e:
-            logging.error(f"미디어 디렉토리 생성 실패: {str(e)}")
     
     def load_mock_config(self) -> Dict:
         """mock 설정 로드"""
@@ -65,21 +68,36 @@ class ConfigManager:
         with open(self.paths['sensors'], 'w') as f:
             json.dump({'sensors': sensors_data.get('sensors', [])}, f)
     
+    def save_parameters(self, parameters_data: Dict) -> None:
+        """보간파라메터 위치 저장"""
+        with open(self.paths['parameters'], 'w') as f:
+            json.dump(parameters_data, f)
+    
+    def save_gen_config(self, gen_config: Dict) -> None:
+        """생성 구성 저장"""
+        with open(self.paths['gen_config'], 'w') as f:
+            json.dump(gen_config, f)
+    
     def load_heatmap_config(self) -> Dict:
         """히트맵 설정 로드"""
         config = {
-            'floorplan': None,
+            'parameters':{},
             'walls': '',
             'sensors': []
         }
-        
-        # 플로어플랜 이미지 로드
-        floorplan_path = os.path.join(self.paths['media'], 'floorplan.png')
-        if os.path.exists(floorplan_path):
-            with open(floorplan_path, 'rb') as f:
-                image_data = base64.b64encode(f.read()).decode('utf-8')
-                config['floorplan'] = f'data:image/png;base64,{image_data}'
-        
+
+        # 파라미터 설정 로드
+        if os.path.exists(self.paths['parameters']):
+            with open(self.paths['parameters'], 'r') as f:
+                parameters_data = json.load(f)
+                config['parameters'] = parameters_data
+
+        # 생성 구성 로드
+        if os.path.exists(self.paths['gen_config']):
+            with open(self.paths['gen_config'], 'r') as f:
+                gen_config_data = json.load(f)
+                config['gen_config'] = gen_config_data
+
         # 벽 설정 로드
         if os.path.exists(self.paths['walls']):
             with open(self.paths['walls'], 'r') as f:
@@ -202,8 +220,9 @@ class ThermoMapServer:
         """라우트 설정"""
         self.app.route('/')(self.index)
         self.app.route('/api/states')(self.get_states)
-        self.app.route('/api/save-walls', methods=['POST'])(self.save_walls)
-        self.app.route('/api/save-sensors', methods=['POST'])(self.save_sensors)
+        self.app.route('/api/save-walls-and-sensors', methods=['POST'])(self.save_walls_and_sensors)
+        self.app.route('/api/save-interpolation-parameters', methods=['POST'])(self.save_interpolation_parameters)
+        self.app.route('/api/save-gen-config', methods=['POST'])(self.save_gen_config)
         self.app.route('/api/load-config')(self.load_heatmap_config)
         self.app.route('/local/<path:filename>')(self.serve_media)
         self.app.route('/api/generate-map', methods=['POST'])(self.generate_map)
@@ -218,18 +237,25 @@ class ThermoMapServer:
         states = self.sensor_manager.get_all_states()
         return jsonify(states)
     
-    def save_walls(self):
-        """벽 설정 저장"""
+    def save_walls_and_sensors(self):
+        """벽 및 센서 설정 저장"""
         data = request.get_json() or {}
-        self.config_manager.save_walls(data)
+        self.config_manager.save_walls(data.get("wallsData",""))
+        self.config_manager.save_sensors(data.get("sensorsData",""))
         return jsonify({'status': 'success'})
     
-    def save_sensors(self):
-        """센서 위치 저장"""
+    def save_interpolation_parameters(self):
+        """보간 파라미터 저장"""
         data = request.get_json() or {}
-        self.config_manager.save_sensors(data)
+        self.config_manager.save_parameters(data.get('interpolation_params', {}))
         return jsonify({'status': 'success'})
     
+    def save_gen_config(self):
+        """생성 구성 저장"""
+        data = request.get_json() or {}
+        self.config_manager.save_gen_config(data.get('gen_config', {}))
+        return jsonify({'status': 'success'})
+
     def load_heatmap_config(self):
         """히트맵 설정 로드"""
         try:

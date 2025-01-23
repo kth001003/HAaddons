@@ -13,9 +13,41 @@ document.addEventListener('DOMContentLoaded', async function() {
     let sensorManager;
     let currentStep = 1;
 
+    // 탭 전환 함수
+    function switchTab(tabId) {
+        // 모든 탭 컨텐츠 숨기기
+        document.querySelectorAll('#dashboard-content, #map-content, #settings-content').forEach(content => {
+            content.classList.add('hidden');
+        });
+        
+        // 모든 탭 버튼 비활성화 스타일
+        document.querySelectorAll('#dashboard-tab, #map-tab, #settings-tab').forEach(tab => {
+            tab.classList.remove('text-gray-900', 'border-b-2', 'border-blue-500');
+            tab.classList.add('text-gray-500');
+        });
+        
+        // 선택된 탭 컨텐츠 표시 및 버튼 활성화
+        const selectedContent = document.getElementById(`${tabId}-content`);
+        const selectedTab = document.getElementById(`${tabId}-tab`);
+        if (selectedContent && selectedTab) {
+            selectedContent.classList.remove('hidden');
+            selectedTab.classList.remove('text-gray-500');
+            selectedTab.classList.add('text-gray-900', 'border-b-2', 'border-blue-500');
+        }
+
+        // 지도 탭에서는 DrawingTool과 SensorManager 활성화
+        if (tabId === 'map') {
+            if (drawingTool) drawingTool.enable();
+            showStepControls(currentStep);
+        } else {
+            if (drawingTool) drawingTool.disable();
+            if (sensorManager) sensorManager.disable();
+        }
+    }
+
     // 단계 표시기 업데이트
     function updateStepIndicators(step) {
-        for (let i = 1; i <= 3; i++) {
+        for (let i = 1; i <= 2; i++) {
             const indicator = document.getElementById(`step${i}-indicator`);
             if (i < step) {
                 indicator.classList.remove('bg-gray-300', 'bg-blue-500');
@@ -37,22 +69,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         document.getElementById('step1-controls').classList.toggle('hidden', step !== 1);
         document.getElementById('step2-controls').classList.toggle('hidden', step !== 2);
-        document.getElementById('step3-controls').classList.toggle('hidden', step !== 3);
-
-        // 온도맵 표시/숨김
-        const thermalMapContainer = document.getElementById('thermal-map-container');
-        if (thermalMapContainer) {
-            thermalMapContainer.classList.toggle('hidden', step !== 3);
-        }
-        // 플로어플랜 이미지 표시/숨김
-        const floorplanImg = document.getElementById('floorplan-img');
-        if (floorplanImg) {
-            floorplanImg.classList.toggle('hidden', step !== 1);
-        }
-        const svgOverlayContainer = document.getElementById('svg-overlay-container');
-        if (svgOverlayContainer) {
-            svgOverlayContainer.classList.toggle('hidden', step == 3);
-        }
 
         // 단계별 기능 활성화/비활성화
         if (step === 1) {
@@ -68,22 +84,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         } else if (step === 2) {
             if (drawingTool) drawingTool.disable();
             if (sensorManager) sensorManager.enable();
-        } else {
-            if (drawingTool) drawingTool.disable();
-            if (sensorManager) sensorManager.disable();
-
         }
     }
 
-    // 단계 이동 전 확인
-    function confirmStepChange(targetStep) {
-        if (targetStep < currentStep) {
-            return confirm(`${targetStep}단계로 돌아가시겠습니까?\n주의: 현재 작업 중인 내용이 저장되지 않을 수 있습니다.`);
-        }
-        return true;
-    }
-
-    // 단계 이동 가능 여부 확인
+    // 단계 이동 가능 여부 확인 --> TODO: 벽, 센서 있는지 확인하는 함수로 변경
     function canMoveToStep(targetStep) {
         // 1단계는 언제나 이동 가능
         if (targetStep === 1) return true;
@@ -103,19 +107,32 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 다음 단계로 이동
     function goToStep(step) {
-        if (!canMoveToStep(step)) {
-            alert('이전 단계를 먼저 완료해주세요.');
-            return;
-        }
-
-        if (!confirmStepChange(step)) {
-            return;
-        }
-
+        saveWallsAndSensors()
         currentStep = step;
         updateStepIndicators(step);
         showStepControls(step);
-        if (step === 3) {generateHeatmap();}
+    }
+
+    // 벽 및 센서 저장
+    async function saveWallsAndSensors() {
+        try {
+            const wallsData = {
+                walls: svg.innerHTML
+            };
+            const sensorsData = {
+                sensors: sensorManager.getSensorConfig()
+            };
+            await fetch('./api/save-walls-and-sensors', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({wallsData,sensorsData})
+            });
+        } catch (error) {
+            console.error('벽 및 센서 저장 실패:', error);
+            alert('벽 저장에 실패했습니다.');
+        }
     }
 
     function setActiveTool(tool) {
@@ -144,27 +161,20 @@ document.addEventListener('DOMContentLoaded', async function() {
             const response = await fetch('./api/load-config');
             if (response.ok) {
                 const config = await response.json();
-                
-                // 벽 정보가 있으면 로드하고 2단계부터 시작
                 if (config.walls && config.walls.trim() !== '') {
-                    svg.innerHTML = config.walls;
-                    
-                    // 센서 정보가 있으면 3단계부터 시작
-                    if (config.sensors && config.sensors.length > 0 && 
-                        config.sensors.some(sensor => sensor.position)) {
-                        await sensorManager.loadSensors();
-                        goToStep(3);
-                    } else {
-                        goToStep(2);
-                    }
-                } else {
-                    goToStep(1);
+                    svg.innerHTML = config.walls;    
                 }
+                if (config.sensors && config.sensors.length > 0 && 
+                    config.sensors.some(sensor => sensor.position)) {
+                        await sensorManager.loadSensors();
+                }
+                if(config.parameters)
+                    loadInterpolationParameters(config.parameters)
+
             }
             drawingTool.saveState();
         } catch (error) {
             console.error('설정을 불러오는데 실패했습니다:', error);
-            goToStep(1);
         }
     }
 
@@ -193,8 +203,36 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     console.log('SVG attributes set');
     
-    // 열지도 생성 함수
-    function generateHeatmap() {
+    function saveGenConfig(){
+        const genConfig = {
+            gen_interval: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('generation-interval')).value)
+        }
+        
+        fetch('./api/save-gen-config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                gen_config: genConfig
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showMessage('구성을 저장했습니다.', 'success');
+            } else {
+                showMessage(data.error || '구성 저장에 실패했습니다.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showMessage('구성 저장 중 오류가 발생했습니다.', 'error');
+        });
+    }
+
+    // 파라미터 저장 함수
+    function saveInterpolationParameters() {
         // 보간 파라미터 수집
         const interpolationParams = {
             gaussian: {
@@ -213,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         };
 
-        fetch('./api/generate-map', {
+        fetch('./api/save-interpolation-parameters', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -224,40 +262,33 @@ document.addEventListener('DOMContentLoaded', async function() {
         })
         .then(response => response.json())
         .then(data => {
-            console.log('서버 응답:', data);  // 응답 데이터 로깅
-            
             if (data.status === 'success') {
-                // 열지도 이미지 표시
-                const thermalMapContainer = document.getElementById('thermal-map-container');
-                if (!thermalMapContainer) return;
-                
-                // hidden 클래스 제거
-                thermalMapContainer.classList.remove('hidden');
-                
-                // 새 이미지 생성 및 추가
-                const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
-                const timestamp = new Date().getTime();
-                
-                thermalMapImage.setAttribute('src', `/local/thermal_map.png?t=${timestamp}`);  // 캐시 방지를 위한 타임스탬프 추가
-                thermalMapImage.setAttribute('alt', '생성된 온도지도');
-
-                thermalMapImage.onload = function() {
-                    showMessage('열지도가 생성되었습니다.', 'success');
-                };
-                thermalMapImage.onerror = function() {
-                    console.error('이미지 로드 실패:', thermalMapImage.src);
-                    showMessage('열지도 이미지 로드에 실패했습니다.', 'error');
-                };
-                
-                thermalMapContainer.appendChild(thermalMapImage);
+                showMessage('파라미터를 저장했습니다.', 'success');
             } else {
-                showMessage(data.error || '열지도 생성에 실패했습니다.', 'error');
+                showMessage(data.error || '파라미터 저장에 실패했습니다.', 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            showMessage('열지도 생성 중 오류가 발생했습니다.', 'error');
+            showMessage('파라미터 저장 중 오류가 발생했습니다.', 'error');
         });
+    }
+
+    // 파라미터 로드 함수
+    async function loadInterpolationParameters(params) {
+        try {
+            document.getElementById('gaussian-sigma-factor').value = params?.gaussian?.sigma_factor ?? 8.0;
+            document.getElementById('rbf-function').value = params?.rbf?.function ?? 'gaussian';
+            document.getElementById('rbf-epsilon-factor').value = params?.rbf?.epsilon_factor ?? 0.5;
+            document.getElementById('kriging-variogram-model').value = params?.kriging?.variogram_model ?? 'gaussian';
+            document.getElementById('kriging-nlags').value = params?.kriging?.nlags ?? 6;
+            document.getElementById('kriging-weight').checked = params?.kriging?.weight ?? true;
+            document.getElementById('kriging-anisotropy-scaling').value = params?.kriging?.anisotropy_scaling ?? 1.0;
+            document.getElementById('kriging-anisotropy-angle').value = params?.kriging?.anisotropy_angle ?? 0;
+        } catch (error) {
+            console.error('Error:', error);
+            showMessage('파라미터 로드 중 오류가 발생했습니다.', 'error');
+        }
     }
 
     // 메시지 표시 함수
@@ -284,6 +315,11 @@ document.addEventListener('DOMContentLoaded', async function() {
         }, 3000);
     }
     
+    // 새 이미지 생성 및 추가
+    const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
+    const timestamp = new Date().getTime();    
+    thermalMapImage.setAttribute('src', `/local/thermal_map.png?t=${timestamp}`);  // 캐시 방지를 위한 타임스탬프 추가
+
     try {
         // DrawingTool 초기화
         drawingTool = new DrawingTool(svg);
@@ -293,14 +329,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         sensorManager = new SensorManager(svg);
         sensorManager.disable();
         
-        // 명시적으로 DrawingTool 활성화
-        drawingTool.enable();
-        drawingTool.setTool('line');
-        setActiveTool('line');
-        console.log('DrawingTool enabled and set to line tool');
-        
-        // 초기 단계 설정
-        goToStep(1);
+        // 탭 이벤트 리스너 등록
+        document.getElementById('dashboard-tab').addEventListener('click', () => switchTab('dashboard'));
+        document.getElementById('map-tab').addEventListener('click', () => switchTab('map'));
+        document.getElementById('settings-tab').addEventListener('click', () => switchTab('settings'));
+
+        // 초기 탭 설정
+        switchTab('dashboard');
         
         // 이벤트 리스너 등록
         // 단계 버튼 클릭 이벤트
@@ -392,61 +427,20 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         // 초기 데이터 로드
         loadConfig();
-        sensorManager.loadSensors();
 
-        // 벽 저장 및 다음 단계로 이동
-        const saveWallsBtn = document.getElementById('save-walls-btn');
-        if (saveWallsBtn) {
-            saveWallsBtn.addEventListener('click', async function() {
-                const data = {
-                    walls: svg.innerHTML
-                };
-
-                try {
-                    await fetch('./api/save-walls', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(data)
-                    });
-                    goToStep(2);
-                } catch (error) {
-                    console.error('저장 실패:', error);
-                    alert('벽 저장에 실패했습니다.');
-                }
+        // 파라미터 저장 버튼 이벤트
+        const saveInterpolationParametersBtn = document.getElementById('save-interpolation-parameters');
+        if (saveInterpolationParametersBtn) {
+            saveInterpolationParametersBtn.addEventListener('click', function() {
+                saveInterpolationParameters();
             });
         }
-
-        // 센서 저장 및 다음 단계로 이동
-        const saveSensorsBtn = document.getElementById('save-sensors-btn');
-        if (saveSensorsBtn) {
-            saveSensorsBtn.addEventListener('click', async function() {
-                const data = {
-                    sensors: sensorManager.getSensorConfig()
-                };
-
-                try {
-                    await fetch('./api/save-sensors', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(data)
-                    });
-                    goToStep(3);
-                } catch (error) {
-                    console.error('저장 실패:', error);
-                    alert('센서 저장에 실패했습니다.');
-                }
-            });
-        }
-
-        // 온도지도 생성 버튼 이벤트
-        const generateMapBtn = document.getElementById('generate-map');
-        if (generateMapBtn) {
-            generateMapBtn.addEventListener('click', function() {
-                generateHeatmap();
+        
+        // 파라미터 저장 버튼 이벤트
+        const saveGenConfigBtn = document.getElementById('save-gen-configs');
+        if (saveGenConfigBtn) {
+            saveGenConfigBtn.addEventListener('click', function() {
+                saveGenConfig();
             });
         }
         
