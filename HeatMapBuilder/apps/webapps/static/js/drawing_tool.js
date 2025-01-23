@@ -5,7 +5,7 @@ export class DrawingTool {
         this.svg = svgElement;
         this.isDrawing = false;
         this.currentTool = 'line';
-        this.lineWidth = 10;
+        this.lineWidth = 3;
         this.startPoint = null;
         this.enabled = false;
         this.isShiftPressed = false;
@@ -13,7 +13,7 @@ export class DrawingTool {
         this.snapDistance = 20;
         this.history = [''];  // 초기 빈 상태
         this.currentHistoryIndex = 0;
-        this.maxHistoryLength = 50; // 최대 실행취소 횟수
+        this.maxHistoryLength = 500; // 최대 실행취소 횟수
         this.areas = []; // 감지된 영역들을 저장
 
         // 점 이동 관련 속성 추가
@@ -193,6 +193,10 @@ export class DrawingTool {
 
     setLineWidth(width) {
         this.lineWidth = width;
+        this.svg.querySelectorAll('line').forEach(line => {
+            line.setAttribute('stroke-width', width);
+        });
+        this.saveState();
     }
 
     // 점 이동 시작

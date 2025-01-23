@@ -350,19 +350,35 @@ export class DrawingUtils {
             case 'line':
                 cursorSvg = `
                     <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
-                        <line x1='0' y1='12' x2='24' y2='12' stroke='black' stroke-width='3'/>
-                        <line x1='12' y1='0' x2='12' y2='24' stroke='black' stroke-width='3'/>
-                        <line x1='0' y1='12' x2='24' y2='12' stroke='white' stroke-width='1'/>
-                        <line x1='12' y1='0' x2='12' y2='24' stroke='white' stroke-width='1'/>
+                        <circle cx='1' cy='1' r='1' fill='black'/>
+                        <line x1='6' y1='6' x2='18' y2='18' stroke='black' stroke-width='2'/>
+                        <line x1='6' y1='6' x2='18' y2='18' stroke='white' stroke-width='1'/>
                     </svg>`;
                 break;
             case 'move-point':
-                return 'move';
+                cursorSvg = `
+                    <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
+                        <circle cx='1' cy='1' r='1' fill='black'/>
+                        <path d='M12 3l-1 1h2l-1-1z' fill='white'/>
+                        <path d='M12 21l-1-1h2l-1 1z' fill='white'/>
+                        <path d='M3 12l1-1v2l-1-1z' fill='white'/>
+                        <path d='M21 12l-1-1v2l1-1z' fill='white'/>
+                        <path d='M12 2l-2 2h4l-2-2z' fill='black'/>
+                        <path d='M12 22l-2-2h4l-2 2z' fill='black'/>
+                        <path d='M2 12l2-2v4l-2-2z' fill='black'/>
+                        <path d='M22 12l-2-2v4l2-2z' fill='black'/>
+                        <rect x='11' y='5' width='2' height='14' fill='white'/>
+                        <rect x='5' y='11' width='14' height='2' fill='white'/>
+                        <rect x='4' y='11' width='16' height='2' fill='black'/>
+                        <rect x='11' y='4' width='2' height='16' fill='black'/>
+                    </svg>`;
+                break;
             case 'eraser':
                 cursorSvg = `
                     <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
-                        <rect x='0' y='0' width='24' height='24' fill='transparent' stroke='black' stroke-width='2'/>
-                        <line x1='12' y1='12' x2='12' y2='12' stroke='white' stroke-width='4'/>
+                        <circle cx='1' cy='1' r='1' fill='black'/>
+                        <rect x='8' y='8' width='8' height='8' fill='none' stroke='black' stroke-width='1'/>
+                        <rect x='8' y='11' width='8' height='5' fill='black'/>
                     </svg>`;
                 break;
             default:
@@ -370,7 +386,7 @@ export class DrawingUtils {
         }
         
         const cursorUrl = `data:image/svg+xml;base64,${btoa(cursorSvg)}`;
-        return `url('${cursorUrl}') 12 12, crosshair`;
+        return `url('${cursorUrl}') 1 1, crosshair`;
     }
 
     // 자체 교차 검사 유틸리티

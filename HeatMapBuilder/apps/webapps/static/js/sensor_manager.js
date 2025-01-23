@@ -5,6 +5,15 @@ export class SensorManager {
         this.onSensorsUpdate = null;
         this.enabled = true;
 
+        // SVG viewBox 파싱
+        const viewBox = this.svg.getAttribute('viewBox');
+        if (viewBox) {
+            const [minX, minY, width, height] = viewBox.split(' ').map(Number);
+            this.viewBox = { minX, minY, width, height };
+        } else {
+            this.viewBox = { minX: 0, minY: 0, width: this.svg.clientWidth, height: this.svg.clientHeight };
+        }
+
         // 이벤트 핸들러 바인딩
         this.handleDragStart = this.handleDragStart.bind(this);
         this.handleDragOver = this.handleDragOver.bind(this);
@@ -129,12 +138,7 @@ export class SensorManager {
         const entityId = e.dataTransfer.getData('text/plain');
         if (!entityId) return;
 
-        const rect = this.svg.getBoundingClientRect();
-        const point = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
-
+        const point = this.clientToSVGPoint(e.clientX, e.clientY);
         this.updateSensorPosition(entityId, point);
     }
 
@@ -212,24 +216,18 @@ export class SensorManager {
         const handleMouseMove = (e) => {
             if (!isDragging) return;
             
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            
-            const newX = originalX + dx;
-            const newY = originalY + dy;
+            const point = this.clientToSVGPoint(e.clientX, e.clientY);
             
             // 위치 업데이트
-            circle.setAttribute('cx', String(newX));
-            circle.setAttribute('cy', String(newY));
-            text.setAttribute('x', String(newX));
-            text.setAttribute('y', String(newY - 10));
-            rect.setAttribute('x', String(newX - textBBox.width/2 - padding));
-            rect.setAttribute('y', String(newY - 24));
+            circle.setAttribute('cx', String(point.x));
+            circle.setAttribute('cy', String(point.y));
+            text.setAttribute('x', String(point.x));
+            text.setAttribute('y', String(point.y - 10));
+            rect.setAttribute('x', String(point.x - textBBox.width/2 - padding));
+            rect.setAttribute('y', String(point.y - 24));
 
             // 센서 위치 업데이트
-            sensor.position = { x: newX, y: newY };
-            point.x = newX;  // point 객체도 업데이트
-            point.y = newY;  // point 객체도 업데이트
+            sensor.position = { x: point.x, y: point.y };
         };
 
         const handleMouseUp = () => {
@@ -255,6 +253,30 @@ export class SensorManager {
         group.appendChild(circle);
         
         this.svg.appendChild(group);
+    }
+
+    // 클라이언트 좌표를 SVG 좌표로 변환
+    clientToSVGPoint(clientX, clientY) {
+        const rect = this.svg.getBoundingClientRect();
+        const scaleX = this.viewBox.width / rect.width;
+        const scaleY = this.viewBox.height / rect.height;
+
+        return {
+            x: (clientX - rect.left) * scaleX + this.viewBox.minX,
+            y: (clientY - rect.top) * scaleY + this.viewBox.minY
+        };
+    }
+
+    // SVG 좌표를 클라이언트 좌표로 변환
+    svgToClientPoint(svgX, svgY) {
+        const rect = this.svg.getBoundingClientRect();
+        const scaleX = rect.width / this.viewBox.width;
+        const scaleY = rect.height / this.viewBox.height;
+
+        return {
+            x: (svgX - this.viewBox.minX) * scaleX + rect.left,
+            y: (svgY - this.viewBox.minY) * scaleY + rect.top
+        };
     }
 
     // 현재 센서 데이터 반환

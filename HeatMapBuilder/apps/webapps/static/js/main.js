@@ -238,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
                 const timestamp = new Date().getTime();
                 
-                thermalMapImage.setAttribute('src', `/media/local/thermal_map.png?t=${timestamp}`);  // 캐시 방지를 위한 타임스탬프 추가
+                thermalMapImage.setAttribute('src', `/local/thermal_map.png?t=${timestamp}`);  // 캐시 방지를 위한 타임스탬프 추가
                 thermalMapImage.setAttribute('alt', '생성된 온도지도');
 
                 thermalMapImage.onload = function() {
