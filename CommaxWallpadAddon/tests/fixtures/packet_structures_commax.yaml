@@ -272,13 +272,11 @@ Gas:
         values:
           "on": "80"
           "off": "48"
-          "unknown": "50"
       "2":
         name: powerRepeat
         values:
           "on": "80"
           "off": "48"
-          "unknown": "50"
       "3": 
         name: empty
       "4": 
@@ -303,7 +301,8 @@ Outlet:
         name: commandType
         values: 
           "power": "01"
-        memo: ecomode 관련 명령 있을것으로 추정됨.
+          "auto": "02"
+        memo: ecomode 기준 설정 관련 명령 있을것으로 추정됨.
       "3":
         name: power
         values:
@@ -347,6 +346,8 @@ Outlet:
         values:
           "on": "01"
           "off": "00"
+          "on_with_auto": "11"
+          "off_with_auto": "10"
       "2":
         name: deviceId
         values:
@@ -376,6 +377,7 @@ Outlet:
           "ecomode": "FF"
       "7":
         name: checksum
+    scailing_factor: 0.1
 
 Fan:
   type: fan

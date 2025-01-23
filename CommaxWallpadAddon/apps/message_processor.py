@@ -181,6 +181,33 @@ class MessageProcessor:
                 # 필요한 바이트 리스트에 전원 위치 추가
                 required_bytes.append(int(state_power_pos))
                 
+            elif device_type == 'Outlet':
+                command_type_pos = command_field_positions.get('commandType', 2)
+                command_type = command_packet[int(command_type_pos)]
+
+                state_power_pos = state_field_positions.get('power',1)
+                command_power_pos = command_field_positions.get('power',2)
+                command_power_value = command_packet[int(command_power_pos)]
+
+                if command_type == int(command_structure[command_type_pos]['values']['power'], 16):
+                    #power off인경우
+                    if command_power_value == int(command_structure[str(command_field_positions.get('power', 3))]['values']['off'], 16):
+                        # off with or without auto
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['off'],state_structure[str(state_power_pos)]['values']['off_with_auto']]
+                    else:
+                        # on with or without auto
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on'],state_structure[str(state_power_pos)]['values']['on_with_auto']]
+
+                elif command_type == int(command_structure[command_type_pos]['values']['auto'], 16):
+                    #auto off인경우
+                    if command_power_value == int(command_structure[str(command_field_positions.get('power', 3))]['values']['off'], 16):
+                        # on or off without auto
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on'], state_structure[str(state_power_pos)]['values']['off']]
+                    else:
+                        # on or off with auto
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on_with_auto'], state_structure[str(state_power_pos)]['values']['off_with_auto']]
+                required_bytes.append(int(state_power_pos))
+
             elif device_type == 'Fan':
                 # 팬 상태 패킷 생성
                 command_type_pos = command_field_positions.get('commandType', 2)
@@ -400,7 +427,13 @@ class MessageProcessor:
                     power_value = command["structure"][str(field_positions["power"])]["values"]["on" if value == "ON" else "off"]
                     packet[int(field_positions["power"])] = int(power_value, 16)
                     self.logger.info(f'콘센트 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
-                #TODO: 절전모드 (대기전력차단모드) 추가
+                elif action == 'auto':
+                    command_type_value = command["structure"][str(field_positions["commandType"])]["values"]["auto"]
+                    packet[int(field_positions["commandType"])] = int(command_type_value, 16)
+                    power_value = command["structure"][str(field_positions["power"])]["values"]["on" if value == "ON" else "off"]
+                    packet[int(field_positions["power"])] = int(power_value, 16)
+                    self.logger.info(f'콘센트 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
+                #TODO: 자동대기전력차단모드 설정값변경 존재한다면 추가
             elif device == 'Gas':
                 # 가스밸브 차단 명령
                 if value == "PRESS" or value == "ON":

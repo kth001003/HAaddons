@@ -349,12 +349,16 @@ def test_generate_expected_state_packet(controller):
     command_str_light = "3101010000000033"
     # 테스트 명령 패킷 (가스차단기 차단 명령)
     command_str_gas = "1101800000000092"
-    
+    # 콘센트 2번 on 명령
+    command_str_outlet_power_on = "7A0201010000007E"
+    # 콘센트 2번 auto모드 on 명령
+    command_str_outlet_auto_on = "7A0202010000007F"
+
     # 조명 명령에 대한 예상 상태 패킷 생성 테스트
     result_light = controller.message_processor.generate_expected_state_packet(command_str_light)
     
     # 결과가 None이 아닌지 확인
-    assert result_light is not None, "예상 상태 패킷이 생성되지 않았습니다"
+    assert result_light is not None, "조명 예상 상태 패킷이 생성되지 않았습니다"
     
     # ExpectedStatePacket의 필수 필드들이 있는지 확인
     assert 'required_bytes' in result_light, "required_bytes 필드가 없습니다"
@@ -376,7 +380,7 @@ def test_generate_expected_state_packet(controller):
     result_gas = controller.message_processor.generate_expected_state_packet(command_str_gas)
     
     # 결과가 None이 아닌지 확인
-    assert result_gas is not None, "예상 상태 패킷이 생성되지 않았습니다"
+    assert result_gas is not None, "가스 예상 상태 패킷이 생성되지 않았습니다"
     
     # ExpectedStatePacket의 필수 필드들이 있는지 확인
     assert 'required_bytes' in result_gas, "required_bytes 필드가 없습니다"
@@ -392,6 +396,54 @@ def test_generate_expected_state_packet(controller):
     
     # possible_values 길이 확인
     assert len(result_gas['possible_values']) == 7, "possible_values의 길이가 7이 아닙니다"
+    
+    # 콘센트 파워 명령에 대한 예상 상태 패킷 생성 테스트
+    result_outlet_power = controller.message_processor.generate_expected_state_packet(command_str_outlet_auto_on)
+    
+    # 결과가 None이 아닌지 확인
+    assert result_outlet_power is not None, "콘센트 파워 예상 상태 패킷이 생성되지 않았습니다"
+    
+    # ExpectedStatePacket의 필수 필드들이 있는지 확인
+    assert 'required_bytes' in result_outlet_power, "required_bytes 필드가 없습니다"
+    assert 'possible_values' in result_outlet_power, "possible_values 필드가 없습니다"
+    
+    # 필드 타입 확인
+    assert isinstance(result_outlet_power['required_bytes'], list), "required_bytes가 리스트가 아닙니다"
+    assert isinstance(result_outlet_power['possible_values'], list), "possible_values가 리스트가 아닙니다"
+    
+    # 콘센트 파워 상태 패킷의 경우 예상되는 값들 확인
+    assert 0 in result_outlet_power['required_bytes'], "헤더 위치(0)가 required_bytes에 없습니다"
+    assert 1 in result_outlet_power['required_bytes'], "power 위치(1)가 required_bytes에 없습니다"
+    assert 2 in result_outlet_power['required_bytes'], "deviceId 위치(2)가 required_bytes에 없습니다"
+    
+    # possible_values 길이 확인
+    assert len(result_outlet_power['possible_values']) == 7, "possible_values의 길이가 7이 아닙니다"
+    assert len(result_outlet_power['possible_values'][1]) == 2, "power위치의 possible_values의 길이가 2가 아닙니다"
+        
+
+
+    # 콘센트 오토 명령에 대한 예상 상태 패킷 생성 테스트
+    result_outlet_auto = controller.message_processor.generate_expected_state_packet(command_str_outlet_power_on)
+    
+    # 결과가 None이 아닌지 확인
+    assert result_outlet_auto is not None, "콘센트 오토 예상 상태 패킷이 생성되지 않았습니다"
+    
+    # ExpectedStatePacket의 필수 필드들이 있는지 확인
+    assert 'required_bytes' in result_outlet_auto, "required_bytes 필드가 없습니다"
+    assert 'possible_values' in result_outlet_auto, "possible_values 필드가 없습니다"
+    
+    # 필드 타입 확인
+    assert isinstance(result_outlet_auto['required_bytes'], list), "required_bytes가 리스트가 아닙니다"
+    assert isinstance(result_outlet_auto['possible_values'], list), "possible_values가 리스트가 아닙니다"
+    
+    # 콘센트 오토 상태 패킷의 경우 예상되는 값들 확인
+    assert 0 in result_outlet_auto['required_bytes'], "헤더 위치(0)가 required_bytes에 없습니다"
+    assert 1 in result_outlet_auto['required_bytes'], "power 위치(1)가 required_bytes에 없습니다"
+    assert 2 in result_outlet_auto['required_bytes'], "deviceId 위치(2)가 required_bytes에 없습니다"
+    
+    # possible_values 길이 확인
+    assert len(result_outlet_auto['possible_values']) == 7, "possible_values의 길이가 7이 아닙니다"
+    assert len(result_outlet_auto['possible_values'][1]) == 2, "power위치의 possible_values의 길이가 2가 아닙니다"
 
 def test_load_devices_and_packets_structures_custom_vendor(config):
     """커스텀 벤더 설정 테스트"""

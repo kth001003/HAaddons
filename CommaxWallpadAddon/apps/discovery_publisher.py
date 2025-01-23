@@ -68,6 +68,20 @@ class DiscoveryPublisher:
                                     **self.availability
                                 }
                             ))
+                            # 자동전력차단모드 스위치 설정
+                            configs.append((
+                                f"{self.discovery_prefix}/switch/{device_id}_auto/config",
+                                {
+                                    "name": f"{device_name} {idx} Auto standby power cut-off",
+                                    "unique_id": f"commax_{device_id}_auto",
+                                    "state_topic": self.controller.STATE_TOPIC.format(device_id, "auto"),
+                                    "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/auto/command",
+                                    "payload_on": "ON",
+                                    "payload_off": "OFF",
+                                    **self.device_base_info,
+                                    **self.availability
+                                }
+                            ))
                             # # 절전모드 설정
                             # config_topic = f"{self.discovery_prefix}/switch/{device_id}_ecomode/config"
                             # payload = {
@@ -91,17 +105,6 @@ class DiscoveryPublisher:
                                     "unit_of_measurement": "W",
                                     "device_class": "power",
                                     "state_class": "measurement",
-                                    **self.device_base_info,
-                                    **self.availability
-                                }
-                            ))
-                            # 자동전력차단모드 binary 센서 설정
-                            configs.append((
-                                f"{self.discovery_prefix}/binary_sensor/{device_id}_auto/config",
-                                {
-                                    "name": f"{device_name} {idx} Auto standby power cut-off",
-                                    "unique_id": f"commax_{device_id}_auto",
-                                    "state_topic": self.controller.STATE_TOPIC.format(device_id, "auto"),
                                     **self.device_base_info,
                                     **self.availability
                                 }

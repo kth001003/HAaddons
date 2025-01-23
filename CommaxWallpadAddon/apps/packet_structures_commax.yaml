@@ -301,7 +301,8 @@ Outlet:
         name: commandType
         values: 
           "power": "01"
-        memo: ecomode 관련 명령 있을것으로 추정됨.
+          "auto": "02"
+        memo: ecomode 기준 설정 관련 명령 있을것으로 추정됨.
       "3":
         name: power
         values:
