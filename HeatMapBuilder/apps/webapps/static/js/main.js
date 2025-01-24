@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 단계 표시기 업데이트
     function updateStepIndicators(step) {
-        for (let i = 1; i < 2; i++) {
+        for (let i = 1; i <= 2; i++) {
             const indicator = document.getElementById(`step${i}-indicator`);
             if (i === step) {
                 indicator.classList.remove('bg-gray-300');
