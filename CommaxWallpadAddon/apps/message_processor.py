@@ -215,7 +215,7 @@ class MessageProcessor:
                     required_bytes.append(int(state_type_pos))
 
                     state_cutoffvalue_pos = state_field_positions.get('data3',6)
-                    possible_values[int(state_cutoffvalue_pos)] = [str(command_packet[int(command_cutoffvalue_pos)])]
+                    possible_values[int(state_cutoffvalue_pos)] = [byte_to_hex_str(command_packet[int(command_cutoffvalue_pos)])]
                     required_bytes.append(int(state_cutoffvalue_pos))
 
             elif device_type == 'Fan':
