@@ -192,21 +192,31 @@ class MessageProcessor:
                 if command_type == int(command_structure[command_type_pos]['values']['power'], 16):
                     #power off인경우
                     if command_power_value == int(command_structure[str(command_field_positions.get('power', 3))]['values']['off'], 16):
-                        # off with or without auto
-                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['off'],state_structure[str(state_power_pos)]['values']['off_with_auto']]
+                        # off with or without eco
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['off'],state_structure[str(state_power_pos)]['values']['off_with_eco']]
                     else:
-                        # on with or without auto
-                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on'],state_structure[str(state_power_pos)]['values']['on_with_auto']]
-
-                elif command_type == int(command_structure[command_type_pos]['values']['auto'], 16):
-                    #auto off인경우
+                        # on with or without eco
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on'],state_structure[str(state_power_pos)]['values']['on_with_eco']]
+                    required_bytes.append(int(state_power_pos))
+                elif command_type == int(command_structure[command_type_pos]['values']['ecomode'], 16):
+                    #eco off인경우
                     if command_power_value == int(command_structure[str(command_field_positions.get('power', 3))]['values']['off'], 16):
-                        # on or off without auto
+                        # on or off without eco
                         possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on'], state_structure[str(state_power_pos)]['values']['off']]
                     else:
-                        # on or off with auto
-                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on_with_auto'], state_structure[str(state_power_pos)]['values']['off_with_auto']]
-                required_bytes.append(int(state_power_pos))
+                        # on or off with eco
+                        possible_values[int(state_power_pos)] = [state_structure[str(state_power_pos)]['values']['on_with_eco'], state_structure[str(state_power_pos)]['values']['off_with_eco']]
+                    required_bytes.append(int(state_power_pos))
+                elif command_type == int(command_structure[command_type_pos]['values']['setCutoff'], 16):
+                    #setCutoff인경우
+                    command_cutoffvalue_pos = command_field_positions.get('cutoffValue',4)
+                    state_type_pos = state_field_positions.get('stateType',3)
+                    possible_values[int(state_type_pos)] = [state_structure[str(state_type_pos)]['values']['ecomode']]
+                    required_bytes.append(int(state_type_pos))
+
+                    state_cutoffvalue_pos = state_field_positions.get('data3',6)
+                    possible_values[int(state_cutoffvalue_pos)] = [byte_to_hex_str(command_packet[int(command_cutoffvalue_pos)])]
+                    required_bytes.append(int(state_cutoffvalue_pos))
 
             elif device_type == 'Fan':
                 # 팬 상태 패킷 생성
@@ -321,13 +331,13 @@ class MessageProcessor:
                                 power = byte_data[int(power_pos)]
                                 power_values = state_structure['structure'][power_pos]['values']
                                 power_hex = byte_to_hex_str(power)
-                                power_text = "ON" if power_hex in [power_values.get('on', '').upper(), power_values.get('on_with_auto', '').upper()] else "OFF"
-                                is_auto = True if power_hex in [power_values.get('on_with_auto', '').upper(), power_values.get('off_with_auto', '').upper()] else False
+                                power_text = "ON" if power_hex in [power_values.get('on', '').upper(), power_values.get('on_with_eco', '').upper()] else "OFF"
+                                is_eco = True if power_hex in [power_values.get('on_with_eco', '').upper(), power_values.get('off_with_eco', '').upper()] else False
                                 state_type_pos = field_positions.get('stateType', 3)
                                 state_type = byte_data[int(state_type_pos)]
                                 state_type_values = state_structure['structure'][state_type_pos]['values']
                                 state_type_hex = byte_to_hex_str(state_type)
-                                state_type_text = state_type_values.get(state_type_hex, 'wattage')
+                                state_type_text = 'wattage' if state_type_hex in [state_type_values.get('wattage','')] else 'ecomode'
                                 try:
                                     scaling_factor = float(state_structure.get("scailing_factor", 0.1))
                                     if scaling_factor == 0:
@@ -336,21 +346,19 @@ class MessageProcessor:
                                 except (ValueError, TypeError):
                                     self.logger.warning("outlet의 scailing factor를 해석할 수 없습니다. 기본값인 0.1로 대체합니다.")
                                     scaling_factor = 0.1
+                                consecutive_bytes = byte_data[4:7]
+                                try:
+                                    watt = int(consecutive_bytes.hex())
+                                except ValueError:
+                                    self.logger.error(f"콘센트 {device_id} 전력값/자동대기전력차단값 변환 중 오류 발생: {consecutive_bytes.hex()}")
+                                    watt = 0
                                 if state_type_text == 'wattage':
-                                    consecutive_bytes = byte_data[4:7]
-                                    try:
-                                        watt = int(consecutive_bytes.hex())
-                                    except ValueError:
-                                        self.logger.error(f"콘센트 {device_id} 전력값 변환 중 오류 발생: {consecutive_bytes.hex()}")
-                                        watt = 0
                                     self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 전력: {watt} x {scaling_factor}W')
-                                    await self.controller.state_updater.update_outlet(device_id, power_text, watt * scaling_factor, None, is_auto)
-                                #TODO: 절전모드 (대기전력차단모드) 로직을 알 수 없음..
-                                # elif state_type_text == 'ecomode':
-                                #     consecutive_bytes = byte_data[4:7]
-                                #     ecomode = consecutive_bytes.hex()
-                                #     self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 절전모드: {ecomode}')
-                                #     await self.controller.update_outlet(device_id, power_text, None, ecomode)
+                                    await self.controller.state_updater.update_outlet(device_id, power_text, watt * scaling_factor, None, is_eco)
+                                elif state_type_text == 'ecomode':
+                                    #TODO: ecomode에도 scailing factor 들어갈 가능성 있음....
+                                    self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 자동대기전력차단값: {watt} W')
+                                    await self.controller.state_updater.update_outlet(device_id, power_text, None, watt, is_eco)
 
                             elif device_name == 'Fan':
                                 power_pos = field_positions.get('power', 1)
@@ -427,13 +435,17 @@ class MessageProcessor:
                     power_value = command["structure"][str(field_positions["power"])]["values"]["on" if value == "ON" else "off"]
                     packet[int(field_positions["power"])] = int(power_value, 16)
                     self.logger.info(f'콘센트 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
-                elif action == 'auto':
-                    command_type_value = command["structure"][str(field_positions["commandType"])]["values"]["auto"]
+                elif action == 'ecomode':
+                    command_type_value = command["structure"][str(field_positions["commandType"])]["values"]["ecomode"]
                     packet[int(field_positions["commandType"])] = int(command_type_value, 16)
                     power_value = command["structure"][str(field_positions["power"])]["values"]["on" if value == "ON" else "off"]
                     packet[int(field_positions["power"])] = int(power_value, 16)
                     self.logger.info(f'콘센트 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
-                #TODO: 자동대기전력차단모드 설정값변경 존재한다면 추가
+                elif action == 'setCutoff':
+                    command_type_value = command["structure"][str(field_positions["commandType"])]["values"]["setCutoff"]
+                    packet[int(field_positions["commandType"])] = int(command_type_value, 16)
+                    packet[int(field_positions["cutoffValue"])] = int(value, 16)
+                    self.logger.info(f'콘센트 {device_id} {action} {value} 명령 생성 {packet.hex().upper()}')
             elif device == 'Gas':
                 # 가스밸브 차단 명령
                 if value == "PRESS" or value == "ON":

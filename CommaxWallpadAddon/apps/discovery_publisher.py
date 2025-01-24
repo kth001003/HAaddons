@@ -72,7 +72,8 @@ class DiscoveryPublisher:
                             configs.append((
                                 f"{self.discovery_prefix}/switch/{device_id}_auto/config",
                                 {
-                                    "name": f"{device_name} {idx} Auto standby power cut-off",
+                                    "name": f"{device_name} {idx} 자동대기전력차단",
+                                    "object_id": f"{device_name} {idx} Auto standby power cut-off",
                                     "unique_id": f"commax_{device_id}_auto",
                                     "state_topic": self.controller.STATE_TOPIC.format(device_id, "auto"),
                                     "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/auto/command",
@@ -82,24 +83,30 @@ class DiscoveryPublisher:
                                     **self.availability
                                 }
                             ))
-                            # # 절전모드 설정
-                            # config_topic = f"{self.discovery_prefix}/switch/{device_id}_ecomode/config"
-                            # payload = {
-                            #     "name": f"{device_name} {idx} Eco Mode",
-                            #     "unique_id": f"commax_{device_id}_ecomode",
-                            #     "state_topic": self.controller.STATE_TOPIC.format(device_id, "ecomode"),
-                            #     "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/ecomode/command",
-                            #     "payload_on": "ON",
-                            #     "payload_off": "OFF",
-                            #     "device_class": "switch",
-                            #     "device": self.device_base_info,
-                            #     **self.availability
-                            # }
+                            # 자동전력차단값 설정
+                            configs.append((
+                                f"{self.discovery_prefix}/number/{device_id}_cutoff_value/config",
+                                {
+                                    "name": f"{device_name} {idx} 자동대기전력차단값",
+                                    "object_id": f"{device_name} {idx} Auto standby power cut-off value",
+                                    "unique_id": f"commax_{device_id}_cutoff_value",
+                                    "state_topic": self.controller.STATE_TOPIC.format(device_id, "cutoff"),
+                                    "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/setCutoff/command",
+                                    "step":1,
+                                    "min":1,
+                                    "max":50,
+                                    "mode":"box",
+                                    "unit_of_measurement": "W",
+                                    **self.device_base_info,
+                                    **self.availability
+                                }
+                            ))
                             # 전력 센서 설정
                             configs.append((
                                 f"{self.discovery_prefix}/sensor/{device_id}_watt/config",
                                 {
-                                    "name": f"{device_name} {idx} Power",
+                                    "name": f"{device_name} {idx} 소비전력",
+                                    "object_id": f"{device_name} {idx} Power",
                                     "unique_id": f"commax_{device_id}_watt",
                                     "state_topic": self.controller.STATE_TOPIC.format(device_id, "watt"),
                                     "unit_of_measurement": "W",

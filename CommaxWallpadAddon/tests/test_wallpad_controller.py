@@ -195,6 +195,18 @@ async def test_process_ha_command_outlet(controller):
     await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '7A0101000000007C'
 
+    # 대기전력차단 ON
+    topics = ['commax', 'Outlet1', 'ecomode', 'command']
+    value = 'ON'
+    await controller.message_processor.process_ha_command(topics, value)
+    assert controller.QUEUE[-1]['sendcmd'] == '7A0102010000007E'
+
+    # 대기전력차단값 설정
+    topics = ['commax', 'Outlet1', 'setCutoff', 'command']
+    value = '80'
+    await controller.message_processor.process_ha_command(topics, value)
+    assert controller.QUEUE[-1]['sendcmd'] == '7A010300800000FE'
+
 @pytest.mark.asyncio
 async def test_process_ha_command_lightbreaker(controller):
     """조명차단기 명령 패킷 테스트"""
@@ -499,6 +511,28 @@ async def test_process_elfin_data_outlet(controller):
         # update_outlet이 올바른 인자와 함께 호출되었는지 확인
         mock_update.assert_called_once_with(1, "ON", 10.3, None, False)
 
+    # 콘센트 상태 패킷 (1번 콘센트, 전원 ON, 대가전력차단 off, 43W)
+    outlet_packet = "F90101210000435F"
+    
+    # update_outlet 메서드를 mock으로 대체
+    with patch.object(controller.state_updater, 'update_outlet') as mock_update:
+        # 패킷 처리
+        await controller.message_processor.process_elfin_data(outlet_packet)
+        
+        # update_outlet이 올바른 인자와 함께 호출되었는지 확인
+        mock_update.assert_called_once_with(1, "ON", None, 43, False)
+
+    # 콘센트 상태 패킷 (1번 콘센트, 전원 ON, 대가전력차단 on 43W)
+    outlet_packet = "F91101210000234F"
+    
+    # update_outlet 메서드를 mock으로 대체
+    with patch.object(controller.state_updater, 'update_outlet') as mock_update:
+        # 패킷 처리
+        await controller.message_processor.process_elfin_data(outlet_packet)
+        
+        # update_outlet이 올바른 인자와 함께 호출되었는지 확인
+        mock_update.assert_called_once_with(1, "ON", None, 23, True)
+
 @pytest.mark.asyncio
 async def test_process_elfin_data_ev(controller):
     """엘리베이터 상태 패킷 처리 테스트"""
@@ -630,7 +664,7 @@ async def test_state_updater_outlet():
         "10.3"
     )
     mock_publish.assert_any_call(
-        state_topic.format("Outlet2", "auto"),
+        state_topic.format("Outlet2", "ecomode"),
         "OFF"
     )
     
@@ -646,7 +680,7 @@ async def test_state_updater_outlet():
         "OFF"
     )
     mock_publish.assert_any_call(
-        state_topic.format("Outlet2", "auto"),
+        state_topic.format("Outlet2", "ecomode"),
         "OFF"
     )
 
