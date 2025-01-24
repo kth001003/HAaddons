@@ -87,7 +87,7 @@ class StateUpdater:
                 self.publish_mqtt(topic, '%.1f' % watt)
             if cutoff is not None:
                 topic = self.STATE_TOPIC.format(deviceID, 'cutoff')
-                self.publish_mqtt(topic, cutoff)
+                self.publish_mqtt(topic, str(cutoff))
 
         except Exception as e:
             raise Exception(f"콘센트 상태 업데이트 중 오류 발생: {str(e)}")
