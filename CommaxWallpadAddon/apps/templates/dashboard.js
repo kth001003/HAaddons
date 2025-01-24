@@ -209,7 +209,7 @@ class DeviceManager {
                         `;
                     }
                 }
-                deviceListDiv.innerHTML = html || '<p class="text-gray-500 dark:text-gray-400">연결된 기기가 없습니다.</p>';
+                deviceListDiv.innerHTML = html || '<p class="text-gray-500 dark:text-gray-400">연결된 기기가 없습니다. 기기를 검색하는 중일 수도 있습니다.</p>';
             })
             .catch(error => console.error('기기 목록 업데이트 실패:', error));
     }
