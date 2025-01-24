@@ -1,13 +1,15 @@
+import threading
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 import json
 import time
+from logging.handlers import RotatingFileHandler
+from time import sleep
 from flask import Flask, request, jsonify, render_template, send_from_directory
 import requests
 from typing import Optional, Dict, Any, List
 from thermal_map import ThermalMapGenerator
-import base64
+
 
 class ConfigManager:
     """설정 관리를 담당하는 클래스"""
@@ -225,7 +227,7 @@ class ThermoMapServer:
         self.app.route('/api/save-gen-config', methods=['POST'])(self.save_gen_config)
         self.app.route('/api/load-config')(self.load_heatmap_config)
         self.app.route('/local/<path:filename>')(self.serve_media)
-        self.app.route('/api/generate-map', methods=['POST'])(self.generate_map)
+        self.app.route('/api/generate-map')(self.generate_map)
     
     def index(self):
         """메인 페이지"""
@@ -278,10 +280,11 @@ class ThermoMapServer:
         """열지도 생성"""
         try:
             self.app.logger.info("열지도 생성 시작")
-            
-            data = request.get_json() or {}
-            interpolation_params = data.get('interpolation_params', {})
-            
+                        
+            # 보간 설정 로드
+            with open(self.config_manager.paths['parameters'], 'r') as f:
+                interpolation_params = json.load(f)
+
             # 벽 설정 로드
             with open(self.config_manager.paths['walls'], 'r') as f:
                 walls_data = json.load(f)
@@ -321,6 +324,88 @@ class ThermoMapServer:
             port = int(os.environ.get('PORT', 8099))
         self.app.run(host=host, port=port, debug=self.is_dev)
 
+class BackgroundTaskManager:
+    def __init__(self, app, config_manager, sensor_manager, logger):
+        self.app = app
+        self.config_manager = config_manager
+        self.sensor_manager = sensor_manager
+        self.logger = logger
+        self.thread = None
+        self.running = False
+
+    def start(self):
+        self.running = True
+        self.thread = threading.Thread(target=self.run)
+        self.thread.start()
+
+    def stop(self):
+        self.running = False
+        if self.thread is not None:
+            self.thread.join()
+
+    def run(self):
+        while self.running:
+            try:
+                with self.app.app_context():
+                    # 애플리케이션 컨텍스트 내에서 작업 실행
+                    self.logger.info("백그라운드 열지도 생성 시작")
+                    result = self.generate_map()
+                    self.logger.info(f"백그라운드 열지도 생성 완료: {result}")
+            except Exception as e:
+                self.logger.error(f"백그라운드 열지도 생성 실패: {str(e)}")
+            
+            time.sleep(60)  # 60초 간격으로 실행
+
+    def generate_map(self):
+        """열지도 생성 로직"""
+        try:
+            walls = self.load_walls()
+            sensors = self.load_sensors()
+            interpolation_params = self.load_params()
+
+            # 열지도 생성
+            thermal_map_path = os.path.join(self.config_manager.paths['media'], 'thermal_map.png')
+            generator = ThermalMapGenerator(
+                walls, sensors, self.sensor_manager.get_sensor_state, interpolation_params
+            )
+
+            if generator.generate(thermal_map_path):
+                return {'status': 'success', 'image_url': '/local/thermal_map.png'}
+            else:
+                raise Exception("열지도 생성 실패")
+        except Exception as e:
+            raise e
+
+    def load_walls(self):
+        """벽 설정 로드"""
+        with open(self.config_manager.paths['walls'], 'r') as f:
+            walls_data = json.load(f)
+            return walls_data.get('walls', '')
+
+    def load_sensors(self):
+        """센서 설정 로드"""
+        with open(self.config_manager.paths['sensors'], 'r') as f:
+            sensors_data = json.load(f)
+            return sensors_data.get('sensors', [])
+        
+    def load_params(self):
+        """보간 구성 로드"""
+        with open(self.config_manager.paths['parameters'], 'r') as f:
+            params_data = json.load(f)
+            return params_data or {}
+
 if __name__ == '__main__':
     server = ThermoMapServer()
-    server.run() 
+    background_task_manager = BackgroundTaskManager(
+        server.app,
+        server.config_manager,
+        server.sensor_manager,
+        server.app.logger
+    )
+
+    background_task_manager.start()
+
+    try:
+        server.run()
+    finally:
+        background_task_manager.stop()
