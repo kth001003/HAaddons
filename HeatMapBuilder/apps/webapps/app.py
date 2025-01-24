@@ -325,10 +325,12 @@ class ThermoMapServer:
         self.app.run(host=host, port=port, debug=self.is_dev)
 
 class BackgroundTaskManager:
-    def __init__(self, app, config_manager, sensor_manager, logger):
+    def __init__(self, app, logger):
         self.app = app
-        self.config_manager = config_manager
-        self.sensor_manager = sensor_manager
+        self.is_local = os.environ.get('SUPERVISOR_TOKEN') is None
+        
+        self.config_manager = ConfigManager(self.is_local)
+        self.sensor_manager = SensorManager(self.is_local, self.config_manager)
         self.logger = logger
         self.thread = None
         self.running = False
@@ -398,8 +400,6 @@ if __name__ == '__main__':
     server = ThermoMapServer()
     background_task_manager = BackgroundTaskManager(
         server.app,
-        server.config_manager,
-        server.sensor_manager,
         server.app.logger
     )
 
