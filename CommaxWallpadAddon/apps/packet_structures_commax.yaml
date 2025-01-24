@@ -301,15 +301,17 @@ Outlet:
         name: commandType
         values: 
           "power": "01"
-          "auto": "02"
-        memo: ecomode 기준 설정 관련 명령 있을것으로 추정됨.
+          "ecomode": "02"
+          "setCutoff": "03"
       "3":
         name: power
         values:
           "on": "01"
           "off": "00"
       "4": 
-        name: empty
+        name: cutoffValue
+        values:
+          "cutoffValue": "FF"
       "5": 
         name: empty
       "6": 
@@ -346,8 +348,8 @@ Outlet:
         values:
           "on": "01"
           "off": "00"
-          "on_with_auto": "11"
-          "off_with_auto": "10"
+          "on_with_eco": "11"
+          "off_with_eco": "10"
       "2":
         name: deviceId
         values:
@@ -357,13 +359,13 @@ Outlet:
         values: 
           "wattage": "11"
           "ecomode": "21"
-        memo: ecomode는 대기전력차단모드 상태로 추정됨
+        memo: ecomode는 대기전력차단모드 cutoff value
       "4":
         name: data1
         values: 
           "wattage": "FF"
           "ecomode": "FF"
-        memo: wattage의 경우 data1~3까지 그대로 읽어서 x 0.1W
+        memo: wattage의 경우 data1~3까지 그대로 읽어서 x scailing factor
       "5": 
         name: data2
         values: 

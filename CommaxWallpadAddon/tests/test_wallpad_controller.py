@@ -195,6 +195,18 @@ async def test_process_ha_command_outlet(controller):
     await controller.message_processor.process_ha_command(topics, value)
     assert controller.QUEUE[-1]['sendcmd'] == '7A0101000000007C'
 
+    # 대기전력차단 ON
+    topics = ['commax', 'Outlet1', 'ecomode', 'command']
+    value = 'ON'
+    await controller.message_processor.process_ha_command(topics, value)
+    assert controller.QUEUE[-1]['sendcmd'] == '7A0102010000007E'
+
+    # 대기전력차단값 설정
+    topics = ['commax', 'Outlet1', 'setCutoff', 'command']
+    value = '80'
+    await controller.message_processor.process_ha_command(topics, value)
+    assert controller.QUEUE[-1]['sendcmd'] == '7A010300800000FE'
+
 @pytest.mark.asyncio
 async def test_process_ha_command_lightbreaker(controller):
     """조명차단기 명령 패킷 테스트"""
@@ -630,7 +642,7 @@ async def test_state_updater_outlet():
         "10.3"
     )
     mock_publish.assert_any_call(
-        state_topic.format("Outlet2", "auto"),
+        state_topic.format("Outlet2", "ecomode"),
         "OFF"
     )
     
@@ -646,7 +658,7 @@ async def test_state_updater_outlet():
         "OFF"
     )
     mock_publish.assert_any_call(
-        state_topic.format("Outlet2", "auto"),
+        state_topic.format("Outlet2", "ecomode"),
         "OFF"
     )
 

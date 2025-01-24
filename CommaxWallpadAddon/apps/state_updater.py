@@ -69,20 +69,26 @@ class StateUpdater:
         except Exception as e:
             raise Exception(f"팬 상태 업데이트 중 오류 발생: {str(e)}")
 
-    async def update_outlet(self, idx: int, power_text: str, watt: Union[float,None], ecomode_text: Union[str,None], is_auto: Union[bool,None]) -> None:
+    async def update_outlet(self,
+                            idx: int, 
+                            power_text: str, 
+                            watt: Union[float,None], 
+                            cutoff: Union[int,None], 
+                            is_eco: Union[bool,None]) -> None:
         try:
             deviceID = 'Outlet' + str(idx)
             topic = self.STATE_TOPIC.format(deviceID, 'power')
             self.publish_mqtt(topic, power_text)
+            if is_eco is not None:
+                topic = self.STATE_TOPIC.format(deviceID, 'ecomode')
+                self.publish_mqtt(topic, 'ON' if is_eco else 'OFF')
             if watt is not None:
                 topic = self.STATE_TOPIC.format(deviceID, 'watt')
                 self.publish_mqtt(topic, '%.1f' % watt)
-            if ecomode_text is not None:
-                topic = self.STATE_TOPIC.format(deviceID, 'ecomode')
-                self.publish_mqtt(topic, ecomode_text)
-            if is_auto is not None:
-                topic = self.STATE_TOPIC.format(deviceID, 'auto')
-                self.publish_mqtt(topic, 'ON' if is_auto else 'OFF')
+            if cutoff is not None:
+                topic = self.STATE_TOPIC.format(deviceID, 'cutoff')
+                self.publish_mqtt(topic, cutoff)
+
         except Exception as e:
             raise Exception(f"콘센트 상태 업데이트 중 오류 발생: {str(e)}")
 
