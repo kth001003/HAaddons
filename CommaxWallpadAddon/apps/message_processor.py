@@ -337,7 +337,7 @@ class MessageProcessor:
                                 state_type = byte_data[int(state_type_pos)]
                                 state_type_values = state_structure['structure'][state_type_pos]['values']
                                 state_type_hex = byte_to_hex_str(state_type)
-                                state_type_text = state_type_values.get(state_type_hex, 'wattage')
+                                state_type_text = 'wattage' if state_type_hex in [state_type_values.get('wattage','')] else 'ecomode'
                                 try:
                                     scaling_factor = float(state_structure.get("scailing_factor", 0.1))
                                     if scaling_factor == 0:

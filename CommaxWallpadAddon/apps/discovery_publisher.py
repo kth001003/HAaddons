@@ -94,7 +94,8 @@ class DiscoveryPublisher:
                                     "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/setCutoff/command",
                                     "step":1,
                                     "min":1,
-                                    "max":99,
+                                    "max":50,
+                                    "mode":"box",
                                     "unit_of_measurement": "W",
                                     **self.device_base_info,
                                     **self.availability
