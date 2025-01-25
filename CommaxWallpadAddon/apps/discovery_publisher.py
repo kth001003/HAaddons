@@ -70,13 +70,13 @@ class DiscoveryPublisher:
                             ))
                             # 자동전력차단모드 스위치 설정
                             configs.append((
-                                f"{self.discovery_prefix}/switch/{device_id}_auto/config",
+                                f"{self.discovery_prefix}/switch/{device_id}_ecomode/config",
                                 {
                                     "name": f"{device_name} {idx} 자동대기전력차단",
                                     "object_id": f"{device_name} {idx} Auto standby power cut-off",
-                                    "unique_id": f"commax_{device_id}_auto",
-                                    "state_topic": self.controller.STATE_TOPIC.format(device_id, "auto"),
-                                    "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/auto/command",
+                                    "unique_id": f"commax_{device_id}_ecomode",
+                                    "state_topic": self.controller.STATE_TOPIC.format(device_id, "ecomode"),
+                                    "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/ecomode/command",
                                     "payload_on": "ON",
                                     "payload_off": "OFF",
                                     **self.device_base_info,
@@ -134,7 +134,8 @@ class DiscoveryPublisher:
                         configs.append((
                             f"{self.discovery_prefix}/light/{device_id}/config",
                             {
-                                "name": f"{device_name} {idx}",
+                                "name": f"조명 {idx}",
+                                "object_id": f"{device_name} {idx}",
                                 "unique_id": f"commax_{device_id}",
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                                 "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
@@ -148,7 +149,8 @@ class DiscoveryPublisher:
                         configs.append((
                             f"{self.discovery_prefix}/fan/{device_id}/config",
                             {
-                                "name": f"{device_name} {idx}",
+                                "name": f"환기장치 {idx}",
+                                "object_id": f"{device_name} {idx}",
                                 "unique_id": f"commax_{device_id}",
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                                 "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
@@ -165,7 +167,8 @@ class DiscoveryPublisher:
                         configs.append((
                             f"{self.discovery_prefix}/climate/{device_id}/config",
                             {
-                                "name": f"{device_name} {idx}",
+                                "name": f"난방 {idx}",
+                                "object_id": f"{device_name} {idx}",
                                 "unique_id": f"commax_{device_id}",
                                 "current_temperature_topic": self.controller.STATE_TOPIC.format(device_id, "curTemp"),
                                 "temperature_command_topic": f"{self.controller.HA_TOPIC}/{device_id}/setTemp/command",
@@ -199,7 +202,8 @@ class DiscoveryPublisher:
                         configs.append((
                             f"{self.discovery_prefix}/sensor/{device_id}_floor/config",
                             {
-                                "name": f"{device_name} {idx} Floor",
+                                "name": f"엘리베이터 {idx} 층",
+                                "object_id": f"{device_name} {idx} Floor",
                                 "unique_id": f"commax_{device_id}_floor",
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "floor"),
                                 **self.device_base_info,
@@ -210,7 +214,8 @@ class DiscoveryPublisher:
                         configs.append((
                             f"{self.discovery_prefix}/binary_sensor/{device_id}/config",
                             {
-                                "name": f"{device_name} {idx}",
+                                "name": f"가스밸브 {idx}",
+                                "object_id": f"{device_name} {idx}",
                                 "unique_id": f"commax_{device_id}",
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                                 "payload_on": "ON",
