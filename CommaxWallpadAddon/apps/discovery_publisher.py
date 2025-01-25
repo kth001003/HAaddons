@@ -58,6 +58,7 @@ class DiscoveryPublisher:
                                 f"{self.discovery_prefix}/switch/{device_id}/config",
                                 {
                                     "name": f"{device_name} {idx}",
+                                    "object_id": f"commax_{device_id}",
                                     "unique_id": f"commax_{device_id}",
                                     "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                                     "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
@@ -73,7 +74,7 @@ class DiscoveryPublisher:
                                 f"{self.discovery_prefix}/switch/{device_id}_ecomode/config",
                                 {
                                     "name": f"{device_name} {idx} 자동대기전력차단",
-                                    "object_id": f"{device_name} {idx} Auto standby power cut-off",
+                                    "object_id": f"commax_{device_id}_ecomode",
                                     "unique_id": f"commax_{device_id}_ecomode",
                                     "state_topic": self.controller.STATE_TOPIC.format(device_id, "ecomode"),
                                     "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/ecomode/command",
@@ -88,7 +89,7 @@ class DiscoveryPublisher:
                                 f"{self.discovery_prefix}/number/{device_id}_cutoff_value/config",
                                 {
                                     "name": f"{device_name} {idx} 자동대기전력차단값",
-                                    "object_id": f"{device_name} {idx} Auto standby power cut-off value",
+                                    "object_id": f"commax_{device_id}_cutoff_value",
                                     "unique_id": f"commax_{device_id}_cutoff_value",
                                     "state_topic": self.controller.STATE_TOPIC.format(device_id, "cutoff"),
                                     "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/setCutoff/command",
@@ -106,7 +107,7 @@ class DiscoveryPublisher:
                                 f"{self.discovery_prefix}/sensor/{device_id}_watt/config",
                                 {
                                     "name": f"{device_name} {idx} 소비전력",
-                                    "object_id": f"{device_name} {idx} Power",
+                                    "object_id": f"commax_{device_id}_watt",
                                     "unique_id": f"commax_{device_id}_watt",
                                     "state_topic": self.controller.STATE_TOPIC.format(device_id, "watt"),
                                     "unit_of_measurement": "W",
@@ -121,6 +122,7 @@ class DiscoveryPublisher:
                                 f"{self.discovery_prefix}/switch/{device_id}/config",
                                 {
                                     "name": f"{device_name} {idx}",
+                                    "object_id": f"commax_{device_id}",
                                     "unique_id": f"commax_{device_id}",
                                     "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                                     "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
@@ -135,7 +137,7 @@ class DiscoveryPublisher:
                             f"{self.discovery_prefix}/light/{device_id}/config",
                             {
                                 "name": f"조명 {idx}",
-                                "object_id": f"{device_name} {idx}",
+                                "object_id": f"commax_{device_id}",
                                 "unique_id": f"commax_{device_id}",
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                                 "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
@@ -150,7 +152,7 @@ class DiscoveryPublisher:
                             f"{self.discovery_prefix}/fan/{device_id}/config",
                             {
                                 "name": f"환기장치 {idx}",
-                                "object_id": f"{device_name} {idx}",
+                                "object_id": f"commax_{device_id}",
                                 "unique_id": f"commax_{device_id}",
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                                 "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/power/command",
@@ -168,7 +170,7 @@ class DiscoveryPublisher:
                             f"{self.discovery_prefix}/climate/{device_id}/config",
                             {
                                 "name": f"난방 {idx}",
-                                "object_id": f"{device_name} {idx}",
+                                "object_id": f"commax_{device_id}",
                                 "unique_id": f"commax_{device_id}",
                                 "current_temperature_topic": self.controller.STATE_TOPIC.format(device_id, "curTemp"),
                                 "temperature_command_topic": f"{self.controller.HA_TOPIC}/{device_id}/setTemp/command",
@@ -191,6 +193,7 @@ class DiscoveryPublisher:
                             f"{self.discovery_prefix}/button/{device_id}/config",
                             {
                                 "name": f"{device_name} {idx}",
+                                "object_id": f"commax_{device_id}",
                                 "unique_id": f"commax_{device_id}",
                                 "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/button/command",
                                 "payload_press": "PRESS",
@@ -203,7 +206,7 @@ class DiscoveryPublisher:
                             f"{self.discovery_prefix}/sensor/{device_id}_floor/config",
                             {
                                 "name": f"엘리베이터 {idx} 층",
-                                "object_id": f"{device_name} {idx} Floor",
+                                "object_id": f"commax_{device_id}_floor",
                                 "unique_id": f"commax_{device_id}_floor",
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "floor"),
                                 **self.device_base_info,
@@ -215,8 +218,8 @@ class DiscoveryPublisher:
                             f"{self.discovery_prefix}/binary_sensor/{device_id}/config",
                             {
                                 "name": f"가스밸브 {idx}",
-                                "object_id": f"{device_name} {idx}",
-                                "unique_id": f"commax_{device_id}",
+                                "object_id": f"commax_{device_id}_valve",
+                                "unique_id": f"commax_{device_id}_valve",
                                 "state_topic": self.controller.STATE_TOPIC.format(device_id, "power"),
                                 "payload_on": "ON",
                                 "payload_off": "OFF",
