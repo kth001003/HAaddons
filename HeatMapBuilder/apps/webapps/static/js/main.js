@@ -49,14 +49,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     function updateStepIndicators(step) {
         for (let i = 1; i <= 2; i++) {
             const indicator = document.getElementById(`step${i}-indicator`);
-            if (i < step) {
-                indicator.classList.remove('bg-gray-300', 'bg-blue-500');
-                indicator.classList.add('bg-green-500');
-            } else if (i === step) {
-                indicator.classList.remove('bg-gray-300', 'bg-green-500');
+            if (i === step) {
+                indicator.classList.remove('bg-gray-300');
                 indicator.classList.add('bg-blue-500');
             } else {
-                indicator.classList.remove('bg-blue-500', 'bg-green-500');
+                indicator.classList.remove('bg-blue-500');
                 indicator.classList.add('bg-gray-300');
             }
         }
