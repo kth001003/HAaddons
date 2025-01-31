@@ -171,6 +171,7 @@ class SensorManager:
         """모든 센서 상태 조회"""
         if self.is_local:
             mock_data = self.config_manager.get_mock_data()
+            logging.debug(f"가상 센서 상태 조회: {mock_data}")
             return mock_data.get('temperature_sensors', [])
         
         api = self.get_ha_api()
