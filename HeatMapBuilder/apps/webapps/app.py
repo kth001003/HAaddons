@@ -41,7 +41,7 @@ class ConfigManager:
                 'log': '/data/thermomap.log',
                 'config': '/data/options.json',
                 'gen_config': '/data/gen_config.json',
-                'media': '/homeassistant/www',
+                'media': '/homeassistant/www/thermap_map.png',
                 'parameters': '/data/parameters.json',
                 'walls': '/data/walls.json',
                 'sensors': '/data/sensors.json'
@@ -171,6 +171,7 @@ class SensorManager:
         """모든 센서 상태 조회"""
         if self.is_local:
             mock_data = self.config_manager.get_mock_data()
+            logging.debug(f"가상 센서 상태 조회: {mock_data}")
             return mock_data.get('temperature_sensors', [])
         
         api = self.get_ha_api()
@@ -296,7 +297,7 @@ class ThermoMapServer:
                 sensors = sensors_data.get('sensors', [])
             
             # 열지도 생성
-            thermal_map_path = os.path.join(self.config_manager.paths['media'], 'thermal_map.png')
+            thermal_map_path = self.config_manager.paths['media']
             generator = ThermalMapGenerator(
                 walls,
                 sensors,
@@ -366,7 +367,7 @@ class BackgroundTaskManager:
             interpolation_params = self.load_params()
 
             # 열지도 생성
-            thermal_map_path = os.path.join(self.config_manager.paths['media'], 'thermal_map.png')
+            thermal_map_path = self.config_manager.paths['media']
             generator = ThermalMapGenerator(
                 walls, sensors, self.sensor_manager.get_sensor_state, interpolation_params
             )

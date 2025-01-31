@@ -161,12 +161,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (config.walls && config.walls.trim() !== '') {
                     svg.innerHTML = config.walls;    
                 }
-                if (config.sensors && config.sensors.length > 0 && 
-                    config.sensors.some(sensor => sensor.position)) {
-                        await sensorManager.loadSensors();
-                }
                 if(config.parameters)
                     loadInterpolationParameters(config.parameters)
+                await sensorManager.loadSensors();
 
             }
             drawingTool.saveState();
@@ -317,6 +314,48 @@ document.addEventListener('DOMContentLoaded', async function() {
     const timestamp = new Date().getTime();    
     thermalMapImage.setAttribute('src', `/local/thermal_map.png?t=${timestamp}`);  // 캐시 방지를 위한 타임스탬프 추가
 
+    // 탭 이벤트 리스너 등록
+    document.getElementById('dashboard-tab').addEventListener('click', () => switchTab('dashboard'));
+    document.getElementById('map-tab').addEventListener('click', () => switchTab('map'));
+    document.getElementById('settings-tab').addEventListener('click', () => switchTab('settings'));
+
+    // 초기 탭 설정
+    switchTab('dashboard');
+    
+    // 이벤트 리스너 등록
+    // 단계 버튼 클릭 이벤트
+    document.querySelectorAll('.step-button').forEach(button => {
+        button.addEventListener('click', function() {
+            const targetStep = parseInt(this.dataset.step);
+            goToStep(targetStep);
+        });
+    });
+
+    // 저장 버튼 이벤트 리스너
+    document.getElementById('save-walls-sensors').addEventListener('click', function() {
+        saveWallsAndSensors();
+    });
+    
+    // 도구 버튼 이벤트 리스너
+    document.getElementById('line-tool').addEventListener('click', function() {
+        setActiveTool('line');
+        drawingTool.setTool('line');
+    });
+    
+    document.getElementById('move-point-tool').addEventListener('click', function() {
+        setActiveTool('move-point');
+        drawingTool.setTool('move-point');
+    });
+    
+    document.getElementById('eraser-tool').addEventListener('click', function() {
+        setActiveTool('eraser');
+        drawingTool.setTool('eraser');
+    });
+
+    // 초기화 버튼 이벤트 리스너
+    document.getElementById('clear-btn').addEventListener('click', function() {
+        drawingTool.clear();
+    });
     try {
         // DrawingTool 초기화
         drawingTool = new DrawingTool(svg);
@@ -326,43 +365,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         sensorManager = new SensorManager(svg);
         sensorManager.disable();
         
-        // 탭 이벤트 리스너 등록
-        document.getElementById('dashboard-tab').addEventListener('click', () => switchTab('dashboard'));
-        document.getElementById('map-tab').addEventListener('click', () => switchTab('map'));
-        document.getElementById('settings-tab').addEventListener('click', () => switchTab('settings'));
-
-        // 초기 탭 설정
-        switchTab('dashboard');
-        
-        // 이벤트 리스너 등록
-        // 단계 버튼 클릭 이벤트
-        document.querySelectorAll('.step-button').forEach(button => {
-            button.addEventListener('click', function() {
-                const targetStep = parseInt(this.dataset.step);
-                goToStep(targetStep);
-            });
-        });
-
-        // 도구 버튼 이벤트 리스너
-        document.getElementById('line-tool').addEventListener('click', function() {
-            setActiveTool('line');
-            drawingTool.setTool('line');
-        });
-        
-        document.getElementById('move-point-tool').addEventListener('click', function() {
-            setActiveTool('move-point');
-            drawingTool.setTool('move-point');
-        });
-        
-        document.getElementById('eraser-tool').addEventListener('click', function() {
-            setActiveTool('eraser');
-            drawingTool.setTool('eraser');
-        });
-
-        // 초기화 버튼 이벤트 리스너
-        document.getElementById('clear-btn').addEventListener('click', function() {
-            drawingTool.clear();
-        });
 
         // 선 두께 조절
         const lineWidthInput = /** @type {HTMLInputElement} */ (document.getElementById('line-width'));
@@ -424,6 +426,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         // 초기 데이터 로드
         loadConfig();
+        setInterval(async function() {
+            await sensorManager.loadSensors();
+        }, 60000);
 
         // 파라미터 저장 버튼 이벤트
         const saveInterpolationParametersBtn = document.getElementById('save-interpolation-parameters');
