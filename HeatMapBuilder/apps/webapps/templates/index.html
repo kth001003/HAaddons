@@ -174,8 +174,54 @@
                                 <option value="gaussian">Gaussian</option>
                                 <option value="spherical">Spherical</option>
                                 <option value="exponential">Exponential</option>
+                                <option value="hole-effect">Hole-Effect</option>
                                 <option value="linear">Linear</option>
+                                <option value="power">Power</option>
                             </select>
+                            <!-- 베리오그램 파라미터 -->
+                            <div id="variogram-parameters" class="mt-2">
+                                <!-- Gaussian, Spherical, Exponential, Hole-Effect 모델용 파라미터 -->
+                                <div id="standard-params" class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="block text-sm">Nugget</label>
+                                        <input type="number" id="kriging-nugget" class="w-full px-3 py-2 border rounded-md" value="5" min="0" max="100" step="1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Sill</label>
+                                        <input type="number" id="kriging-sill" class="w-full px-3 py-2 border rounded-md" value="20" min="1" max="200" step="1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Range</label>
+                                        <input type="number" id="kriging-range" class="w-full px-3 py-2 border rounded-md" value="10" min="1" max="100" step="1">
+                                    </div>
+                                </div>
+                                <!-- Linear 모델용 파라미터 -->
+                                <div id="linear-params" class="grid grid-cols-2 gap-2 hidden">
+                                    <div>
+                                        <label class="block text-sm">Slope</label>
+                                        <input type="number" id="kriging-slope" class="w-full px-3 py-2 border rounded-md" value="1" min="0.1" max="10" step="0.1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Nugget</label>
+                                        <input type="number" id="kriging-linear-nugget" class="w-full px-3 py-2 border rounded-md" value="0" min="0" max="100" step="1">
+                                    </div>
+                                </div>
+                                <!-- Power 모델용 파라미터 -->
+                                <div id="power-params" class="grid grid-cols-3 gap-2 hidden">
+                                    <div>
+                                        <label class="block text-sm">Scale</label>
+                                        <input type="number" id="kriging-scale" class="w-full px-3 py-2 border rounded-md" value="1" min="0.1" max="10" step="0.1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Exponent</label>
+                                        <input type="number" id="kriging-exponent" class="w-full px-3 py-2 border rounded-md" value="1.5" min="0.1" max="4" step="0.1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Nugget</label>
+                                        <input type="number" id="kriging-power-nugget" class="w-full px-3 py-2 border rounded-md" value="0" min="0" max="100" step="1">
+                                    </div>
+                                </div>
+                            </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm">Lag 수</label>
@@ -209,13 +255,172 @@
             <!-- 지도 생성 설정 -->
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-xl font-semibold mb-4">지도 생성 설정</h2>
-                <div class="space-y-4">
+                <div class="space-y-6">
                     <div>
                         <label class="block text-sm mb-1">생성 주기 (분)</label>
                         <input type="number" id="generation-interval" class="w-full px-3 py-2 border rounded-md" value="5" min="1" max="1440" step="1">
                     </div>
+
+                    <!-- Area 표시 설정 -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">Area 표시 설정</h3>
+                        
+                        <!-- 데이터 없는 Area 표시 설정 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">데이터 없는 Area 표시</label>
+                            <select id="empty-area-style" class="w-full px-3 py-2 border rounded-md">
+                                <option value="white">흰색</option>
+                                <option value="transparent">투명</option>
+                                <option value="hatched">빗금</option>
+                            </select>
+                        </div>
+
+                        <!-- Area 경계선 설정 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">Area 경계선 두께</label>
+                            <input type="number" id="area-border-width" class="w-full px-3 py-2 border rounded-md" value="2" min="0" max="10" step="0.5">
+                            <label class="block text-sm mt-2">Area 경계선 색상</label>
+                            <div class="flex space-x-2">
+                                <input type="color" id="area-border-color" class="h-10 w-20" value="#000000">
+                                <select id="area-border-color-preset" class="flex-1 px-3 py-2 border rounded-md">
+                                    <option value="#000000">검정</option>
+                                    <option value="#FF0000">빨강</option>
+                                    <option value="#00FF00">초록</option>
+                                    <option value="#0000FF">파랑</option>
+                                    <option value="#808080">회색</option>
+                                    <option value="#FFFFFF">흰색</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Plot 외곽선 설정 -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">Plot 외곽선 설정</h3>
+                        <div class="space-y-2">
+                            <label class="block text-sm">외곽선 두께</label>
+                            <input type="number" id="plot-border-width" class="w-full px-3 py-2 border rounded-md" value="0" min="0" max="10" step="0.5">
+                            <label class="block text-sm mt-2">외곽선 색상</label>
+                            <div class="flex space-x-2">
+                                <input type="color" id="plot-border-color" class="h-10 w-20" value="#000000">
+                                <select id="plot-border-color-preset" class="flex-1 px-3 py-2 border rounded-md">
+                                    <option value="#000000">검정</option>
+                                    <option value="#FF0000">빨강</option>
+                                    <option value="#00FF00">초록</option>
+                                    <option value="#0000FF">파랑</option>
+                                    <option value="#808080">회색</option>
+                                    <option value="#FFFFFF">흰색</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 센서 표시 설정 -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">센서 표시 설정</h3>
+                        <div class="space-y-2">
+                            <label class="block text-sm">센서 정보 표시</label>
+                            <select id="sensor-display-option" class="w-full px-3 py-2 border rounded-md">
+                                <option value="none">표시 안함</option>
+                                <option value="position">위치만</option>
+                                <option value="position_name">위치 + 센서이름</option>
+                                <option value="position_name_temp">위치 + 센서이름 + 온도</option>
+                                <option value="position_temp">위치 + 온도</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 컬러바 설정 -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">컬러바 설정</h3>
+                        
+                        <!-- 컬러바 표시 여부 -->
+                        <div class="flex items-center space-x-2">
+                            <input type="checkbox" id="colorbar-show-colorbar" class="rounded" checked>
+                            <label class="text-sm">컬러바 표시</label>
+                        </div>
+                        
+                        <!-- 컬러맵 선택 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">컬러맵</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <select id="colorbar-cmap" class="w-full px-3 py-2 border rounded-md">
+                                    <option value="RdYlBu_r">RdYlBu_r</option>
+                                    <option value="RdBu_r">RdBu_r</option>
+                                    <option value="coolwarm">Coolwarm</option>
+                                    <option value="bwr">BWR</option>
+                                    <option value="seismic">Seismic</option>
+                                    <option value="PiYG">PiYG</option>
+                                    <option value="PRGn">PRGn</option>
+                                    <option value="BrBG">BrBG</option>
+                                    <option value="PuOr">PuOr</option>
+                                    <option value="Spectral">Spectral</option>
+                                </select>
+                                <div id="colormap-preview" class="h-10 rounded-md border"></div>
+                            </div>
+                        </div>
+
+                        <!-- 방향 설정 -->
+                        <div>
+                            <label class="block text-sm">컬러바 방향</label>
+                            <select id="colorbar-orientation" class="w-full px-3 py-2 border rounded-md">
+                                <option value="vertical">수직</option>
+                                <option value="horizontal">수평</option>
+                            </select>
+                        </div>
+
+                        <!-- 크기 및 위치 설정 -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm">두께 (%)</label>
+                                <input type="number" id="colorbar-width" class="w-full px-3 py-2 border rounded-md" value="5" min="1" max="20" step="0.5">
+                            </div>
+                            <div>
+                                <label class="block text-sm">축방향 길이 (%)</label>
+                                <input type="number" id="colorbar-height" class="w-full px-3 py-2 border rounded-md" value="100" min="10" max="100" step="5">
+                            </div>
+                        </div>
+
+                        <!-- 위치 설정 -->
+                        <div>
+                            <label class="block text-sm">위치</label>
+                            <select id="colorbar-location" class="w-full px-3 py-2 border rounded-md">
+                                <option value="right">우측</option>
+                                <option value="upper right">우측 상단</option>
+                                <option value="upper left">좌측 상단</option>
+                                <option value="lower left">좌측 하단</option>
+                                <option value="lower right">우측 하단</option>
+                                <option value="center left">중앙 좌측</option>
+                                <option value="center right">중앙 우측</option>
+                                <option value="lower center">하단 중앙</option>
+                                <option value="upper center">상단 중앙</option>
+                                <option value="center">중앙</option>
+                            </select>
+                        </div>
+
+                        <!-- 레이블 설정 -->
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" id="colorbar-show-label" class="rounded" checked>
+                                <label class="text-sm">레이블 표시</label>
+                            </div>
+                            <input type="text" id="colorbar-label" class="w-full px-3 py-2 border rounded-md" value="온도 (°C)" placeholder="레이블 텍스트">
+                        </div>
+
+                        <!-- 폰트 및 눈금 크기 -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm">폰트 크기</label>
+                                <input type="number" id="colorbar-font-size" class="w-full px-3 py-2 border rounded-md" value="12" min="8" max="24" step="1">
+                            </div>
+                            <div>
+                                <label class="block text-sm">눈금 크기</label>
+                                <input type="number" id="colorbar-tick-size" class="w-full px-3 py-2 border rounded-md" value="10" min="6" max="20" step="1">
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <button id="save-gen-configs" class="w-full mt-3 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">
+                <button id="save-gen-configs" class="w-full mt-6 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">
                     설정 저장
                 </button>
             </div>

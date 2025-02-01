@@ -1,14 +1,16 @@
 // SVG 관련 유틸리티 함수들
 export class DrawingUtils {
+    
     // 이전에 사용된 색상들을 저장할 정적 배열
     static usedHues = [];
-
+    static tolerance = 0.2
+    static slopeTolerance = 0.3
     // 점 관련 유틸리티
-    static isPointEqual(p1, p2, tolerance = 0.5) {
-        return Math.abs(p1.x - p2.x) < tolerance && Math.abs(p1.y - p2.y) < tolerance;
+    static isPointEqual(p1, p2, tolerance = this.tolerance) {
+        return Math.abs(p1.x - p2.x) < this.tolerance && Math.abs(p1.y - p2.y) < this.tolerance;
     }
 
-    static isPointOnEndpoints(point, endpoints, tolerance = 0.1) {
+    static isPointOnEndpoints(point, endpoints, tolerance = this.tolerance) {
         return endpoints.some(endpoint => this.isPointEqual(point, endpoint, tolerance));
     }
 
@@ -159,7 +161,7 @@ export class DrawingUtils {
     }
 
     // 선분 기울기 관련 유틸리티
-    static hasSameSlope(x1, y1, x2, y2, x3, y3, x4, y4, tolerance = 0.1) {
+    static hasSameSlope(x1, y1, x2, y2, x3, y3, x4, y4, tolerance = this.slopeTolerance) {
         // 수직선 처리
         const isVertical1 = Math.abs(x2 - x1) < tolerance;
         const isVertical2 = Math.abs(x4 - x3) < tolerance;
@@ -478,7 +480,6 @@ export class DrawingUtils {
         const lineLength = this.calculateDistance(lineStart, lineEnd);
         
         // 부동소수점 오차를 고려한 비교
-        const tolerance = 0.1;
-        return Math.abs(d1 + d2 - lineLength) < tolerance;
+        return Math.abs(d1 + d2 - lineLength) < this.tolerance;
     }
 } 

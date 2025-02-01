@@ -292,23 +292,27 @@ class ThermoMapServer:
     def generate_map(self):
         """열지도 생성"""
         try:
-            self.app.logger.info("열지도 생성 시작")
-            
-            # 보간 설정, 벽 설정, 센서 설정 로드
-            walls = self._load_walls()
-            sensors = self._load_sensors()
-            interpolation_params = self._load_params()
-            
-            # 열지도 생성
-            thermal_map_path = os.path.join(self.config_manager.paths['media'], 'thermal_map.png')
+            # 벽 설정 로드
+            walls_data = self._load_walls()
+            # 센서 설정 로드
+            sensors_data = self._load_sensors()
+            # 보간 파라미터 로드
+            params_data = self._load_params()
+            # 생성 설정 로드
+            gen_config = self._load_gen_config()
+
+            # 열지도 생성기 초기화
             generator = ThermalMapGenerator(
-                walls,
-                sensors,
-                self.sensor_manager.get_sensor_state,
-                interpolation_params
+                walls_data=walls_data,
+                sensors_data=sensors_data,
+                get_sensor_state_func=self.sensor_manager.get_sensor_state,
+                interpolation_params=params_data,
+                gen_config=gen_config
             )
-            
-            if generator.generate(thermal_map_path):
+
+            # 열지도 생성
+            output_path = os.path.join(self.config_manager.paths['media'], 'thermal_map.png')
+            if generator.generate(output_path):
                 self.app.logger.info("열지도 생성 완료")
                 self.map_generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 return jsonify({
@@ -316,13 +320,17 @@ class ThermoMapServer:
                     'image_url': '/local/thermal_map.png'
                 })
             else:
-                error_msg = "열지도 생성에 실패했습니다."
-                self.app.logger.error(error_msg)
-                return jsonify({'error': error_msg}), 500
-        
+                return jsonify({
+                    'status': 'error',
+                    'error': '열지도 생성에 실패했습니다.'
+                })
+
         except Exception as e:
             self.app.logger.error(f"열지도 생성 실패: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            return jsonify({
+                'status': 'error',
+                'error': str(e)
+            })
 
     def _load_walls(self):
         """벽 설정 로드"""
@@ -341,6 +349,14 @@ class ThermoMapServer:
         with open(self.config_manager.paths['parameters'], 'r') as f:
             params_data = json.load(f)
             return params_data or {}
+    
+    def _load_gen_config(self):
+        """생성 설정 로드"""
+        try:
+            with open(self.config_manager.paths['gen_config'], 'r') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
     
     def check_map_time(self):
         """열지도 생성 시간 확인"""

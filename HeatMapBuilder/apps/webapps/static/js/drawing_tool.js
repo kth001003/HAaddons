@@ -38,7 +38,6 @@ export class DrawingTool {
         this.svg.addEventListener('mousedown', this.startDrawing);
         this.svg.addEventListener('mousemove', this.draw);
         this.svg.addEventListener('mouseup', this.endDrawing);
-        this.svg.addEventListener('mouseleave', this.endDrawing);
         this.svg.addEventListener("touchstart", this.touchHandler, true);
         this.svg.addEventListener("touchmove", this.touchHandler, true);
         this.svg.addEventListener("touchend", this.touchHandler, true);
@@ -300,9 +299,9 @@ export class DrawingTool {
 
     // 영역 감지 및 채우기 공통 메서드
     updateAreas() {
-        // 닫힌 영역 감지 및 채우기
         const lines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));
         const closedPaths = this.detectClosedArea(lines) || [];
+        const openPath = this.detectOpenArea(lines)|| [];
         
         console.log(`닫힌 영역 감지 결과: ${closedPaths.length}개`, closedPaths);
         
@@ -319,10 +318,12 @@ export class DrawingTool {
         for (const path of closedPaths) {
             this.fillArea(path);
         }
+        this.fillArea(openPath,true)
 
         // 길이가 0에 가까운 선분 제거
         this.removeTinyLines();
     }
+    
     touchHandler(event) {
         const touch = event.changedTouches[0];
         const simulatedEvent = new MouseEvent({
@@ -835,7 +836,7 @@ export class DrawingTool {
     }
 
     // 영역 채우기
-    fillArea(path) {
+    fillArea(path, is_exterior = false) {
         if (!path || path.length < 3) return;  // 최소 3개의 점이 필요
 
         // 유효하지 않은 좌표가 있는지 확인
@@ -862,12 +863,30 @@ export class DrawingTool {
 
         try {
             // SVG path 생성
-            const pathData = path.reduce((acc, point, i) => {
-                const command = i === 0 ? 'M' : 'L';
-                return `${acc} ${command} ${point.x} ${point.y}`;
-            }, '') + ' Z';
-            
+            let pathData;
             const areaElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            
+            if (is_exterior) {
+                areaElement.setAttribute('fill-rule', 'evenodd');
+                areaElement.classList.add('exterior');
+                // SVG 뷰포트의 크기 가져오기
+                const svgRect = this.svg.getBoundingClientRect();
+                const width = 1000;
+                const height = 1000;
+                
+                // 외부 사각형 경로와 내부 홀을 결합
+                pathData = `M 0 0 L ${width} 0 L ${width} ${height} L 0 ${height} Z ` + // 외부 사각형
+                          'M ' + path[0].x + ' ' + path[0].y + ' ' +  // 시작점
+                          path.slice(1).map(point => `L ${point.x} ${point.y}`).join(' ') +
+                          ' Z'; // 내부 홀
+            } else {
+                // 일반적인 내부 영역
+                pathData = path.reduce((acc, point, i) => {
+                    const command = i === 0 ? 'M' : 'L';
+                    return `${acc} ${command} ${point.x} ${point.y}`;
+                }, '') + ' Z';
+            }
+            
             areaElement.setAttribute('d', pathData);
             areaElement.setAttribute('fill', DrawingUtils.generatePastelColor());
             areaElement.setAttribute('fill-opacity', '0.3');
@@ -1001,6 +1020,116 @@ export class DrawingTool {
         return uniquePaths;
     }
 
+    detectOpenArea(lines) {
+        // 1. 그래프 구성: 노드와 엣지 생성 (기존 함수와 동일)
+        const nodes = new Map(); // key: "x,y" 형식의 문자열
+        lines.forEach((line) => {
+          const x1 = parseFloat(line.getAttribute('x1'));
+          const y1 = parseFloat(line.getAttribute('y1'));
+          const x2 = parseFloat(line.getAttribute('x2'));
+          const y2 = parseFloat(line.getAttribute('y2'));
+      
+          const point1 = `${x1},${y1}`;
+          const point2 = `${x2},${y2}`;
+      
+          if (!nodes.has(point1)) {
+            nodes.set(point1, { x: x1, y: y1, connections: new Set() });
+          }
+          if (!nodes.has(point2)) {
+            nodes.set(point2, { x: x2, y: y2, connections: new Set() });
+          }
+          nodes.get(point1).connections.add(point2);
+          nodes.get(point2).connections.add(point1);
+        });
+      
+        // 2. 각 노드에서 연결된 점들을 각도 순(반시계방향)으로 정렬한다.
+        //    (현재 노드에서 각 연결점으로 향하는 벡터의 각도를 이용)
+        for (const [key, node] of nodes) {
+          const sortedConnections = Array.from(node.connections).sort((a, b) => {
+            const [ax, ay] = a.split(',').map(Number);
+            const [bx, by] = b.split(',').map(Number);
+            const angleA = Math.atan2(ay - node.y, ax - node.x);
+            const angleB = Math.atan2(by - node.y, bx - node.x);
+            return angleA - angleB;
+          });
+          node.sortedConnections = sortedConnections;
+        }
+      
+        // 3. 모든 방향성 엣지를 생성한다.
+        //    각 무방향 엣지는 두 개의 방향성 엣지로 표현된다.
+        const directedEdges = new Set();
+        for (const [nodeKey, node] of nodes) {
+          for (const conn of node.connections) {
+            directedEdges.add(`${nodeKey}->${conn}`);
+          }
+        }
+      
+        // 4. 면(face) 추출: 각 방향성 엣지를 따라 면의 경계를 추적한다.
+        const visitedEdges = new Set();
+        const faces = [];
+      
+        // 면 추적 알고리즘:
+        // 시작 방향성 엣지(de)를 선택하고, 해당 엣지를 따라 면 경계를 추적한다.
+        // 각 정점에서는 "뒤쪽(reverse)" 방향에서 바로 다음에 오는 엣지를 선택한다.
+        for (const de of directedEdges) {
+          if (visitedEdges.has(de)) continue;
+          const face = [];
+          let currentDE = de;
+          while (true) {
+            visitedEdges.add(currentDE);
+            // currentDE 형식: "currentNode->nextNode"
+            const [currentNode, nextNode] = currentDE.split("->");
+            face.push(currentNode);
+      
+            // 현재 엣지의 반대 방향: nextNode -> currentNode
+            // nextNode에 도착했으므로, 이 정점에서 현재 엣지(반대 방향)의 위치를 찾고,
+            // 그 다음 연결된 엣지를 선택한다.
+            const nextNodeObj = nodes.get(nextNode);
+            const connections = nextNodeObj.sortedConnections;
+            // connections 배열에서 현재 정점(currentNode)의 위치(index)를 찾는다.
+            const reverseIndex = connections.findIndex(conn => conn === currentNode);
+            if (reverseIndex === -1) {
+              console.warn('정점 연결 오류:', nextNode, currentNode);
+              break;
+            }
+            // **면 추적 규칙:** 
+            // 정점에서, "현재 엣지(반대 방향)"의 바로 다음 연결선을 선택한다.
+            // (정렬된 연결 목록은 반시계 순이므로, 이 규칙에 따라 면의 경계를 따라가게 된다.)
+            const nextIndex = (reverseIndex + 1) % connections.length;
+            const newNextNode = connections[nextIndex];
+      
+            // 새 방향성 엣지: nextNode -> newNextNode
+            const newDE = `${nextNode}->${newNextNode}`;
+            currentDE = newDE;
+      
+            // 시작 엣지(de)로 돌아오면 면 경로 완성
+            if (currentDE === de) break;
+          }
+          faces.push(face);
+        }
+      
+        // 5. 각 면의 넓이(면적)를 계산하여, 가장 넓은 면을 외부 영역으로 판단한다.
+        //    DrawingUtils.calculateArea 는 폴리곤의 넓이를 계산하는 함수라고 가정한다.
+        let outerFace = null;
+        let maxArea = -Infinity;
+        for (const face of faces) {
+          // face: 각 점은 "x,y" 문자열이므로 좌표 객체로 변환한다.
+          const points = face.map(pt => {
+            const [x, y] = pt.split(',').map(Number);
+            return { x, y };
+          });
+          // 면의 넓이(절대값)를 계산
+          const area = Math.abs(DrawingUtils.calculateArea(points));
+          if (area > maxArea) {
+            maxArea = area;
+            outerFace = points;
+          }
+        }
+      
+        console.log(`총 면 개수: ${faces.length}, 외부 영역의 넓이: ${maxArea}`);
+        return outerFace;
+      }
+      
     // 이어진 선분 병합
     mergeLinesAfterErase() {
         const lines = Array.from(this.svg.querySelectorAll('line:not(.temp-line)'));

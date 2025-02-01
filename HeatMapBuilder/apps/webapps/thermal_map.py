@@ -16,10 +16,13 @@ import re
 from flask import current_app
 from pykrige.ok import OrdinaryKriging  #type: ignore
 import logging
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes #type: ignore
+from matplotlib.ticker import MaxNLocator #type: ignore
 
 class ThermalMapGenerator:
     def __init__(self, walls_data: str, sensors_data: List[Dict[str, Any]], get_sensor_state_func, 
-                 interpolation_params: Optional[Dict[str, Any]] = None):
+                 interpolation_params: Optional[Dict[str, Any]] = None,
+                 gen_config: Optional[Dict[str, Any]] = None):
         """
         온도맵 생성기를 초기화합니다.
         
@@ -28,6 +31,7 @@ class ThermalMapGenerator:
             sensors_data: 센서 위치 및 정보 목록
             get_sensor_state_func: 센서 상태를 조회하는 함수
             interpolation_params: 보간 파라미터 설정
+            gen_config: 지도 생성 설정 (컬러바 등)
         """
         # Flask 로거 설정
         if not current_app.logger.handlers:
@@ -45,6 +49,7 @@ class ThermalMapGenerator:
         self.padding = 50  # 여백 크기
         self.areas: List[Polygon] = []  # area 폴리곤 저장용
         self.area_sensors: Dict[int, List[Tuple[Point, float]]] = {}  # area별 센서 그룹
+        self.gen_config = gen_config or {}  # 지도 생성 설정
         
         # 보간 파라미터 기본값 설정
         self.interpolation_params = {
@@ -57,6 +62,7 @@ class ThermalMapGenerator:
             },
             'kriging': {
                 'variogram_model': 'gaussian',
+                'variogram_parameters': {'nugget': 5, 'sill': 20, 'range': 10},
                 'nlags': 20,
                 'weight': True,
                 'anisotropy_scaling': 1.0,
@@ -106,46 +112,124 @@ class ThermalMapGenerator:
         except Exception as e:
             current_app.logger.error(f"한글 폰트 설정 중 오류 발생: {str(e)}")
 
-    def _parse_svg_path(self, path_data: str) -> Optional[Polygon]:
-        """SVG path 데이터를 Polygon으로 변환합니다."""
+    # def _parse_svg_path(self, path_data: str) -> Optional[Polygon]:
+    #     """SVG path 데이터를 Polygon으로 변환합니다."""
+    #     try:
+    #         # SVG path 데이터 전처리
+    #         path_data = path_data.strip()
+    #         if not path_data:
+    #             return None
+            
+    #         # SVG path를 matplotlib path로 변환
+    #         path = svgpath2mpl.parse_path(path_data)
+    #         vertices = path.vertices
+            
+    #         # 점 개수 확인
+    #         if len(vertices) < 3:
+    #             current_app.logger.warning(f"점이 부족함 (최소 3개 필요): {len(vertices)}개")
+    #             return None
+            
+    #         # 첫 점과 마지막 점이 같은지 확인하고 처리
+    #         if not np.allclose(vertices[0], vertices[-1], rtol=1e-5, atol=1e-8):
+    #             vertices = np.vstack([vertices, vertices[0]])  # 첫 점을 마지막에 추가하여 폴리곤 닫기
+            
+    #         # 폴리곤 생성
+    #         try:
+    #             polygon = Polygon(vertices).buffer(0)  # buffer(0)로 자체 교차 해결
+    #             if not polygon.is_valid:
+    #                 current_app.logger.warning("유효하지 않은 폴리곤")
+    #                 return None
+                
+    #             # 면적이 너무 작은 폴리곤 필터링
+    #             if polygon.area < 1e-6:
+    #                 current_app.logger.warning("면적이 너무 작은 폴리곤")
+    #                 return None
+    #             return polygon
+                
+    #         except Exception as e:
+    #             current_app.logger.warning(f"폴리곤 생성 실패: {str(e)}")
+    #             return None
+            
+    #     except Exception as e:
+    #         current_app.logger.error(f"SVG path 파싱 오류: {str(e)}, path_data={path_data}")
+    #         return None
+
+    def _parse_svg_path(self, d: str) -> Optional[Polygon]:
+        """
+        SVG path의 d 속성을 파싱하여 Shapely Polygon 객체를 반환합니다.
+        여러 서브패스가 있다면, 첫 번째는 외부 윤곽(shell)으로,
+        나머지는 내부 구멍(hole)으로 처리합니다.
+        """
         try:
-            # SVG path 데이터 전처리
-            path_data = path_data.strip()
-            if not path_data:
+            # 대문자 명령어만 고려(M, L, Z)하는 간단한 파서 예제
+            # 커맨드와 숫자들을 분리
+            tokens = re.findall(r'([MLZmlz])|([-+]?\d*\.?\d+)', d)
+            # tokens: 각 튜플은 (command, None) 또는 (None, number) 형태로 추출됨
+            
+            # 경로들을 저장할 리스트: 각 경로는 (x, y) 좌표의 리스트
+            subpaths: List[List[Tuple[float, float]]] = []
+            current_path: List[Tuple[float, float]] = []
+            current_command = None
+            idx = 0
+            
+            while idx < len(tokens):
+                token = tokens[idx]
+                if token[0]:  # 명령어인 경우
+                    cmd = token[0].upper()
+                    current_command = cmd
+                    if cmd == 'M':
+                        # 새로운 서브패스 시작. 만약 기존에 좌표가 있다면 추가하고 새로 시작
+                        if current_path:
+                            subpaths.append(current_path)
+                        current_path = []
+                        idx += 1
+                        # M 다음에는 좌표쌍이 따라옴
+                        if idx + 1 < len(tokens) and tokens[idx][1] and tokens[idx+1][1]:
+                            x = float(tokens[idx][1])
+                            y = float(tokens[idx+1][1])
+                            current_path.append((x, y))
+                            idx += 2
+                        else:
+                            break
+                    elif cmd == 'L':
+                        # L 커맨드는 좌표쌍을 따른다.
+                        idx += 1
+                        if idx + 1 < len(tokens) and tokens[idx][1] and tokens[idx+1][1]:
+                            x = float(tokens[idx][1])
+                            y = float(tokens[idx+1][1])
+                            current_path.append((x, y))
+                            idx += 2
+                        else:
+                            break
+                    elif cmd == 'Z':
+                        # Z는 현재 경로 닫음을 의미
+                        # 닫힘 여부는 Polygon 생성 시 자동으로 처리되므로 그대로 둠
+                        idx += 1
+                    else:
+                        # 다른 커맨드는 무시
+                        idx += 1
+                else:
+                    # 숫자 토큰이 나온 경우 (정상적인 상황에서는 커맨드 다음이어야 함)
+                    idx += 1
+            
+            # 마지막 서브패스 추가
+            if current_path:
+                subpaths.append(current_path)
+            
+            if not subpaths:
                 return None
             
-            # SVG path를 matplotlib path로 변환
-            path = svgpath2mpl.parse_path(path_data)
-            vertices = path.vertices
+            # 첫 번째 서브패스는 외부 윤곽(shell), 나머지는 내부 구멍(hole)로 사용
+            shell = subpaths[0]
+            holes = subpaths[1:] if len(subpaths) > 1 else None
             
-            # 점 개수 확인
-            if len(vertices) < 3:
-                current_app.logger.warning(f"점이 부족함 (최소 3개 필요): {len(vertices)}개")
-                return None
-            
-            # 첫 점과 마지막 점이 같은지 확인하고 처리
-            if not np.allclose(vertices[0], vertices[-1], rtol=1e-5, atol=1e-8):
-                vertices = np.vstack([vertices, vertices[0]])  # 첫 점을 마지막에 추가하여 폴리곤 닫기
-            
-            # 폴리곤 생성
-            try:
-                polygon = Polygon(vertices).buffer(0)  # buffer(0)로 자체 교차 해결
-                if not polygon.is_valid:
-                    current_app.logger.warning("유효하지 않은 폴리곤")
-                    return None
-                
-                # 면적이 너무 작은 폴리곤 필터링
-                if polygon.area < 1e-6:
-                    current_app.logger.warning("면적이 너무 작은 폴리곤")
-                    return None
-                return polygon
-                
-            except Exception as e:
-                current_app.logger.warning(f"폴리곤 생성 실패: {str(e)}")
-                return None
-            
+            poly = Polygon(shell, holes)
+            if not poly.is_valid:
+                # 단순한 다각형일 경우, buffer(0)로 보정 시도
+                poly = poly.buffer(0)
+            return poly
         except Exception as e:
-            current_app.logger.error(f"SVG path 파싱 오류: {str(e)}, path_data={path_data}")
+            current_app.logger.error(f"SVG path 파싱 중 오류: {str(e)}")
             return None
 
     def _parse_areas(self) -> Tuple[List[Polygon], Optional[ET.Element]]:
@@ -166,7 +250,7 @@ class ThermalMapGenerator:
             paths = root.findall('.//{*}path')
             
             for i, path in enumerate(paths):
-                # path의 스타일과 클래스 확인
+                # path의 스타일과 클래스 확인 (필요에 따라 사용)
                 style = path.get('style', '')
                 class_name = path.get('class', '')
                 
@@ -455,7 +539,7 @@ class ThermalMapGenerator:
             # min_x, min_y, max_x, max_y = 0, 0, 1200, 1000
             min_x, min_y, max_x, max_y = 0, 0, 1000, 1000
             
-            # 격자 생성 (해상도 대폭 증가)
+            # 격자 생성
             grid_x, grid_y = np.mgrid[
                 min_x:max_x:150j,  # padding 제거
                 min_y:max_y:150j
@@ -477,11 +561,9 @@ class ThermalMapGenerator:
                 grid_z[area_mask] = area_temps
 
             # 플롯 생성
-            # fig = plt.figure(figsize=(12, 10))  # 전체 figure 크기
             fig = plt.figure(figsize=(10, 10))  # 전체 figure 크기
 
             # 메인 플롯 (열지도)
-            # main_ax = plt.subplot2grid((1, 20), (0, 0), colspan=17)  # 열지도용 axes
             main_ax = plt.subplot2grid((1, 20), (0, 0), colspan=20)  # 열지도용 axes
             main_ax.invert_yaxis()
 
@@ -489,66 +571,127 @@ class ThermalMapGenerator:
             temp_min = min(temperatures)
             temp_max = max(temperatures)
             temp_range = temp_max - temp_min
-            levels = np.linspace(temp_min - 0.3 * temp_range, temp_max + 0.3 * temp_range, 100)
+            levels = np.linspace(temp_min - 0.3 * temp_range, temp_max + 0.3 * temp_range, 200)
 
-            # 온도 데이터가 없는 area 표시 (흰색 배경에 빗금)
+            # 온도 데이터가 없는 area 표시
             for i, area in enumerate(self.areas):
                 if i not in self.area_sensors:
-                    for x, y in self._get_polygon_coords(area):
-                        main_ax.fill(x, y, facecolor='white', hatch='///', alpha=1.0)
+                    empty_area_style = self.gen_config.get('visualization', {}).get('empty_area', 'white')
+                    if empty_area_style == 'white':
+                        for x, y in self._get_polygon_coords(area):
+                            main_ax.fill(x, y, facecolor='white', alpha=1.0)
+                    elif empty_area_style == 'transparent':
+                        for x, y in self._get_polygon_coords(area):
+                            main_ax.fill(x, y, facecolor='none', alpha=0.0)
+                    elif empty_area_style == 'hatched':
+                        for x, y in self._get_polygon_coords(area):
+                            main_ax.fill(x, y, facecolor='white', hatch='///', alpha=1.0)
 
             # 온도 분포 그리기 (부드러운 그라데이션을 위한 설정)
             contour = main_ax.contourf(grid_x, grid_y, grid_z,
                                    levels=levels,
-                                   cmap='RdYlBu_r',
+                                   cmap=self.gen_config.get('colorbar', {}).get('cmap', 'RdYlBu_r'),
                                    extend='both',
                                    alpha=0.9)  # 약간의 투명도 추가
             
             # area 경계 그리기
-            for area in self.areas:
-                for x, y in self._get_polygon_coords(area):
-                    main_ax.plot(x, y, 'black', linewidth=2)
+            area_border_width = self.gen_config.get('visualization', {}).get('area_border_width', 2)
+            area_border_color = self.gen_config.get('visualization', {}).get('area_border_color', '#000000')
+            if area_border_width > 0:  # 선 두께가 0보다 큰 경우에만 그리기
+                for area in self.areas:
+                    for x, y in self._get_polygon_coords(area):
+                        main_ax.plot(x, y, color=area_border_color, linewidth=area_border_width)
 
-            # 센서 위치 표시
-            sensor_x = [p[0] for p in sensor_points]
-            sensor_y = [p[1] for p in sensor_points]
-            main_ax.scatter(sensor_x, sensor_y, c='red', s=10, zorder=5)
+            # plot 외곽선 그리기
+            plot_border_width = self.gen_config.get('visualization', {}).get('plot_border_width', 0)
+            plot_border_color = self.gen_config.get('visualization', {}).get('plot_border_color', '#000000')
+            if plot_border_width > 0:  # 선 두께가 0보다 큰 경우에만 그리기
+                for spine in ['top', 'bottom', 'left', 'right']:
+                    main_ax.spines[spine].set_linewidth(plot_border_width)
+                    main_ax.spines[spine].set_color(plot_border_color)
+                    main_ax.spines[spine].set_visible(True)
 
-            # 센서 온도값과 이름 표시
-            for i, (point, sensor) in enumerate(zip(sensor_points, self.sensors_data)):
-                if 'position' in sensor:
-                    try:
-                        state = self.get_sensor_state(sensor['entity_id'])
-                        temp = float(state['state'])
-                        name = state['attributes'].get('friendly_name', sensor['entity_id'].split('.')[-1])
-                        
-                        # 텍스트 위치 (센서 위치보다 약간 위로)
-                        text_x = point[0]
-                        text_y = point[1] - 10
-                        
-                        # 온도값과 이름 표시
-                        main_ax.text(text_x, text_y, f'{name}\n{temp:.1f}°C',
-                                 horizontalalignment='center',
-                                 verticalalignment='bottom',
-                                 fontsize=8,
-                                 bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
-                                 zorder=6)
-                    except Exception as e:
-                        current_app.logger.warning(f"센서 {sensor['entity_id']} 텍스트 표시 실패: {str(e)}")
-                        continue
+            # 센서 표시 설정
+            sensor_display = self.gen_config.get('visualization', {}).get('sensor_display', 'position_name_temp')
+            
+            if sensor_display != 'none':  # 'none'이 아닐 때만 센서 표시
+                # 센서 위치 표시
+                sensor_x = [p[0] for p in sensor_points]
+                sensor_y = [p[1] for p in sensor_points]
+                main_ax.scatter(sensor_x, sensor_y, c='red', s=10, zorder=5)
 
-            # # 컬러바 설정 (오른쪽 subplot 사용)
-            # cbar_ax = plt.subplot2grid((1, 20), (0, 17), colspan=1)  # 컬러바용 axes
-            # cbar = plt.colorbar(contour, cax=cbar_ax)
-            # cbar.set_label('온도 (°C)', fontsize=12)
-            # cbar.ax.tick_params(labelsize=10)
+                # 센서 정보 표시
+                for i, (point, sensor) in enumerate(zip(sensor_points, self.sensors_data)):
+                    if 'position' in sensor:
+                        try:
+                            state = self.get_sensor_state(sensor['entity_id'])
+                            temp = float(state['state'])
+                            name = state['attributes'].get('friendly_name', sensor['entity_id'].split('.')[-1])
+                            
+                            # 텍스트 위치 (센서 위치보다 약간 위로)
+                            text_x = point[0]
+                            text_y = point[1] - 10
+                            
+                            # 표시 옵션에 따른 텍스트 설정
+                            if sensor_display == 'position':
+                                continue  # 위치만 표시하는 경우 텍스트 표시 안 함
+                            elif sensor_display == 'position_name':
+                                text = f'{name}'
+                            elif sensor_display == 'position_name_temp':
+                                text = f'{name}\n{temp:.1f}°C'
+                            elif sensor_display == 'position_temp':
+                                text = f'{temp:.1f}°C'
+                            
+                            main_ax.text(text_x, text_y, text,
+                                     horizontalalignment='center',
+                                     verticalalignment='bottom',
+                                     fontsize=8,
+                                     bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
+                                     zorder=6)
+                        except Exception as e:
+                            current_app.logger.warning(f"센서 {sensor['entity_id']} 텍스트 표시 실패: {str(e)}")
+                            continue
+
+            # 컬러바 설정 적용
+            colorbar_config = self.gen_config.get('colorbar', {})
+            if colorbar_config and colorbar_config.get('show_colorbar', True):  # 컬러바 표시 여부 확인
+                # 컬러바 위치 및 크기 설정
+                width = colorbar_config.get('width', 5)  # % to ratio
+                height = colorbar_config.get('height', 100)  # % to ratio
+                location = colorbar_config.get('location', 'right')
+                orientation = colorbar_config.get('orientation', 'vertical')
+                
+                # orientation에 따라 width와 height 조정
+                if orientation == 'horizontal':
+                    # 가로 방향일 경우 width와 height를 교체
+                    width, height = height, width
+                
+                # 컬러바 생성
+                cax = inset_axes(main_ax,
+                 width=f'{width}%',
+                 height=f'{height}%',
+                 loc=location,
+                 borderpad=0)
+                cbar = fig.colorbar(contour, cax=cax, orientation=orientation)
+                
+                # 컬러바의 major locator를 정수로 설정
+                cbar.locator = MaxNLocator(integer=True)
+                cbar.update_ticks()
+                # 레이블 설정
+                if colorbar_config.get('show_label', True):
+                    label = colorbar_config.get('label', '온도 (°C)')
+                    font_size = colorbar_config.get('font_size', 12)
+                    cbar.set_label(label, fontsize=font_size)
+
+                # 눈금 크기 설정
+                tick_size = colorbar_config.get('tick_size', 10)
+                cbar.ax.tick_params(labelsize=tick_size)
 
             # 축 설정
             main_ax.set_aspect('equal')
             main_ax.axis('off')
 
             # 저장 (dpi 조정으로 1000x1000 크기 맞추기)
-            # width_inches = fig.get_size_inches()[0] * (17/20)  # 메인 플롯의 실제 너비
             width_inches = fig.get_size_inches()[0]  # 메인 플롯의 실제 너비
             dpi = 1000 / (width_inches)  # 1000px 위해 필요한 dpi 계산
             

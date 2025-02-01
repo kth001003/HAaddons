@@ -93,14 +93,12 @@ export class SensorManager {
 
         container.innerHTML = this.sensors.map(sensor => {
             const isPlaced = sensor.position !== undefined;
-            const draggableState = this.enabled && !isPlaced ? 'true' : 'false';
             const itemClass = isPlaced 
-                ? 'sensor-item p-3 bg-gray-100 border border-gray-200 rounded-md shadow-sm opacity-50 cursor-not-allowed flex justify-between items-center'
-                : `sensor-item p-3 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-move flex justify-between items-center`;
+                ? 'sensor-item p-3 bg-gray-100 border border-gray-200 rounded-md shadow-sm opacity-50 cursor-pointer flex justify-between items-center'
+                : 'sensor-item p-3 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-pointer flex justify-between items-center';
 
             return `
                 <div class="${itemClass}" 
-                    draggable="${draggableState}" 
                     data-entity-id="${sensor.entity_id}">
                     <span class="font-medium">${sensor.attributes.friendly_name || sensor.entity_id}</span>
                     <span class="text-gray-600 ml-2">${sensor.state}°C</span>
@@ -108,14 +106,43 @@ export class SensorManager {
             `;
         }).join('');
 
-        // 드래그 앤 드롭 이벤트 설정
+        // 클릭 이벤트 설정
         if (this.enabled) {
             container.querySelectorAll('.sensor-item').forEach(item => {
-                if (item.getAttribute('draggable') === 'true') {
-                    item.addEventListener('dragstart', this.handleDragStart);
-                }
+                item.addEventListener('click', (e) => this.handleSensorClick(e));
             });
         }
+    }
+
+    // 센서 클릭 핸들러
+    handleSensorClick(e) {
+        if (!this.enabled) return;
+        
+        const entityId = e.currentTarget.dataset.entityId;
+        const sensor = this.sensors.find(s => s.entity_id === entityId);
+        
+        if (!sensor) return;
+        
+        if (sensor.position) {
+            // 이미 배치된 센서라면 제거
+            sensor.position = undefined;
+            // SVG에서 센서 마커 제거
+            const marker = this.svg.querySelector(`g[data-entity-id="${entityId}"]`);
+            if (marker) marker.remove();
+        } else {
+            // 새로 배치할 센서라면 중앙에 배치
+            const viewBox = this.svg.getAttribute('viewBox');
+            const [minX, minY, width, height] = viewBox.split(' ').map(Number);
+            const centerPoint = {
+                x: minX + width / 2,
+                y: minY + height / 2
+            };
+            sensor.position = centerPoint;
+            this.updateSensorMarker(sensor, centerPoint);
+        }
+        
+        // UI 업데이트
+        this.updateSensorList();
     }
 
     // 드래그 앤 드롭 핸들러
@@ -154,46 +181,63 @@ export class SensorManager {
 
     // 센서 마커 업데이트
     updateSensorMarker(sensor, point) {
-        // 기존 센서 마커 그룹 제거
-        const oldGroup = this.svg.querySelector(`g[data-entity-id="${sensor.entity_id}"]`);
-        if (oldGroup) this.svg.removeChild(oldGroup);
+        // 기존 센서 마커 그룹 찾기
+        let group = this.svg.querySelector(`g[data-entity-id="${sensor.entity_id}"]`);
+        let circle, text, rect;
 
-        // 새로운 마커 그룹 생성
-        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        group.setAttribute('data-entity-id', sensor.entity_id);
-        
-        // 센서 점 생성
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        if (group) {
+            // 기존 요소들 찾기
+            circle = group.querySelector('circle');
+            text = group.querySelector('text');
+            rect = group.querySelector('rect');
+        } else {
+            // 새로운 마커 그룹 생성
+            group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            group.setAttribute('data-entity-id', sensor.entity_id);
+
+            // 새로운 요소들 생성
+            circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('r', '5');
+            circle.setAttribute('fill', 'red');
+            circle.style.cursor = 'move';
+
+            text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('fill', 'black');
+            text.setAttribute('font-size', '12');
+            text.style.cursor = 'move';
+            text.style.userSelect = 'none';
+
+            rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('fill', 'white');
+            rect.setAttribute('fill-opacity', '0.8');
+            rect.setAttribute('rx', '3');
+            rect.setAttribute('ry', '3');
+            rect.style.cursor = 'move';
+
+            // 그룹에 요소들 추가
+            group.appendChild(rect);
+            group.appendChild(text);
+            group.appendChild(circle);
+            
+            this.svg.appendChild(group);
+        }
+
+        // 위치 및 텍스트 업데이트
         circle.setAttribute('cx', String(point.x));
         circle.setAttribute('cy', String(point.y));
-        circle.setAttribute('r', '5');
-        circle.setAttribute('fill', 'red');
-        circle.style.cursor = 'move';
-
-        // 센서 이름 배경 생성
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        
         text.setAttribute('x', String(point.x));
         text.setAttribute('y', String(point.y - 10));
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('fill', 'black');
-        text.setAttribute('font-size', '12');
         text.textContent = sensor.attributes.friendly_name || sensor.entity_id;
-        text.style.cursor = 'move';
-        text.style.userSelect = 'none';
 
-        // 텍스트 배경을 위한 rect 생성
+        // 텍스트 배경 크기 계산 및 업데이트
         const textBBox = text.getBBox ? text.getBBox() : { width: 100, height: 14 };
         const padding = 4;
-        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         rect.setAttribute('x', String(point.x - textBBox.width/2 - padding));
         rect.setAttribute('y', String(point.y - 24));
         rect.setAttribute('width', String(textBBox.width + padding*2));
         rect.setAttribute('height', String(textBBox.height + padding));
-        rect.setAttribute('fill', 'white');
-        rect.setAttribute('fill-opacity', '0.8');
-        rect.setAttribute('rx', '3');
-        rect.setAttribute('ry', '3');
-        rect.style.cursor = 'move';
 
         // 드래그 이벤트 처리를 위한 변수들
         let isDragging = false;
@@ -216,18 +260,23 @@ export class SensorManager {
         const handleMouseMove = (e) => {
             if (!isDragging) return;
             
-            const point = this.clientToSVGPoint(e.clientX, e.clientY);
+            const newPoint = this.clientToSVGPoint(e.clientX, e.clientY);
             
             // 위치 업데이트
-            circle.setAttribute('cx', String(point.x));
-            circle.setAttribute('cy', String(point.y));
-            text.setAttribute('x', String(point.x));
-            text.setAttribute('y', String(point.y - 10));
-            rect.setAttribute('x', String(point.x - textBBox.width/2 - padding));
-            rect.setAttribute('y', String(point.y - 24));
+            circle.setAttribute('cx', String(newPoint.x));
+            circle.setAttribute('cy', String(newPoint.y));
+            text.setAttribute('x', String(newPoint.x));
+            text.setAttribute('y', String(newPoint.y - 10));
+
+            // 텍스트 배경 크기 계산 및 업데이트
+            const textBBox = text.getBBox ? text.getBBox() : { width: 100, height: 14 };
+            const padding = 4;
+            rect.setAttribute('x', String(newPoint.x - textBBox.width/2 - padding));
+            rect.setAttribute('y', String(newPoint.y - 24));
 
             // 센서 위치 업데이트
-            sensor.position = { x: point.x, y: point.y };
+            sensor.position = { x: newPoint.x, y: newPoint.y };
+            point = newPoint; // point 변수 업데이트
         };
 
         const handleMouseUp = () => {
@@ -239,20 +288,35 @@ export class SensorManager {
             originalY = point.y;
         };
 
-        // 이벤트 리스너 등록
-        [circle, text, rect].forEach(element => {
-            element.addEventListener('mousedown', handleMouseDown);
-        });
-        
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+        // 이벤트 핸들러 참조 저장을 위한 속성 추가
+        if (!group._eventHandlers) {
+            group._eventHandlers = {
+                mouseDown: handleMouseDown,
+                mouseMove: handleMouseMove,
+                mouseUp: handleMouseUp
+            };
+        } else {
+            // 기존 이벤트 리스너 제거
+            [circle, text, rect].forEach(element => {
+                element.removeEventListener('mousedown', group._eventHandlers.mouseDown);
+            });
+            document.removeEventListener('mousemove', group._eventHandlers.mouseMove);
+            document.removeEventListener('mouseup', group._eventHandlers.mouseUp);
+            
+            // 새로운 핸들러로 업데이트
+            group._eventHandlers = {
+                mouseDown: handleMouseDown,
+                mouseMove: handleMouseMove,
+                mouseUp: handleMouseUp
+            };
+        }
 
-        // 그룹에 요소들 추가
-        group.appendChild(rect);
-        group.appendChild(text);
-        group.appendChild(circle);
-        
-        this.svg.appendChild(group);
+        // 새로운 이벤트 리스너 등록
+        [circle, text, rect].forEach(element => {
+            element.addEventListener('mousedown', group._eventHandlers.mouseDown);
+        });
+        document.addEventListener('mousemove', group._eventHandlers.mouseMove);
+        document.addEventListener('mouseup', group._eventHandlers.mouseUp);
     }
 
     // 클라이언트 좌표를 SVG 좌표로 변환

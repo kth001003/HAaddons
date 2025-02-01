@@ -173,8 +173,35 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
                 if(config.parameters)
                     loadInterpolationParameters(config.parameters)
+                if(config.gen_config) {
+                    /** @type {HTMLInputElement} */ (document.getElementById('generation-interval')).value = config.gen_config.gen_interval ?? 5;
+                    
+                    // 시각화 설정 로드
+                    const visualization = config.gen_config.visualization || {};
+                    /** @type {HTMLSelectElement} */ (document.getElementById('empty-area-style')).value = visualization.empty_area ?? 'white';
+                    /** @type {HTMLInputElement} */ (document.getElementById('area-border-width')).value = visualization.area_border_width ?? 2;
+                    /** @type {HTMLInputElement} */ (document.getElementById('area-border-color')).value = visualization.area_border_color ?? '#000000';
+                    /** @type {HTMLInputElement} */ (document.getElementById('plot-border-width')).value = visualization.plot_border_width ?? 0;
+                    /** @type {HTMLInputElement} */ (document.getElementById('plot-border-color')).value = visualization.plot_border_color ?? '#000000';
+                    /** @type {HTMLSelectElement} */ (document.getElementById('sensor-display-option')).value = visualization.sensor_display ?? 'position_name_temp';
+                    
+                    // 컬러바 설정 로드
+                    const colorbar = config.gen_config.colorbar || {};
+                    /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value = colorbar.cmap ?? 'RdYlBu_r';
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-colorbar')).checked = colorbar.show_colorbar ?? true;
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-width')).value = colorbar.width ?? 5;
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-height')).value = colorbar.height ?? 100;
+                    /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-location')).value = colorbar.location ?? 'right';
+                    /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-orientation')).value = colorbar.orientation ?? 'vertical';
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-label')).checked = colorbar.show_label ?? true;
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value = colorbar.label ?? '온도 (°C)';
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-font-size')).value = colorbar.font_size ?? 12;
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-tick-size')).value = colorbar.tick_size ?? 10;
+                    
+                    // 컬러맵 프리뷰 업데이트
+                    updateColormapPreview();
+                }
                 await sensorManager.loadSensors();
-
             }
             drawingTool.saveState();
         } catch (error) {
@@ -209,7 +236,27 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     function saveGenConfig(){
         const genConfig = {
-            gen_interval: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('generation-interval')).value)
+            gen_interval: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('generation-interval')).value),
+            visualization: {
+                empty_area: /** @type {HTMLSelectElement} */ (document.getElementById('empty-area-style')).value,
+                area_border_width: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('area-border-width')).value),
+                area_border_color: /** @type {HTMLInputElement} */ (document.getElementById('area-border-color')).value,
+                plot_border_width: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('plot-border-width')).value),
+                plot_border_color: /** @type {HTMLInputElement} */ (document.getElementById('plot-border-color')).value,
+                sensor_display: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-display-option')).value
+            },
+            colorbar: {
+                cmap: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value,
+                show_colorbar: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-colorbar')).checked,
+                width: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-width')).value),
+                height: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-height')).value),
+                location: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-location')).value,
+                orientation: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-orientation')).value,
+                show_label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-label')).checked,
+                label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value,
+                font_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-font-size')).value),
+                tick_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-tick-size')).value)
+            }
         }
         
         fetch('./api/save-gen-config', {
@@ -255,6 +302,28 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         };
 
+        // 모델별 파라미터 설정
+        const model = interpolationParams.kriging.variogram_model;
+        if (model === 'linear') {
+            interpolationParams.kriging.variogram_parameters = {
+                slope: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-slope')).value),
+                nugget: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-linear-nugget')).value)
+            };
+        } else if (model === 'power') {
+            interpolationParams.kriging.variogram_parameters = {
+                scale: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-scale')).value),
+                exponent: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-exponent')).value),
+                nugget: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-power-nugget')).value)
+            };
+        } else {
+            // gaussian, spherical, exponential, hole-effect 모델
+            interpolationParams.kriging.variogram_parameters = {
+                nugget: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-nugget')).value),
+                sill: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-sill')).value),
+                range: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('kriging-range')).value)
+            };
+        }
+
         fetch('./api/save-interpolation-parameters', {
             method: 'POST',
             headers: {
@@ -281,18 +350,95 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 파라미터 로드 함수
     async function loadInterpolationParameters(params) {
         try {
-            document.getElementById('gaussian-sigma-factor').value = params?.gaussian?.sigma_factor ?? 8.0;
-            document.getElementById('rbf-function').value = params?.rbf?.function ?? 'gaussian';
-            document.getElementById('rbf-epsilon-factor').value = params?.rbf?.epsilon_factor ?? 0.5;
-            document.getElementById('kriging-variogram-model').value = params?.kriging?.variogram_model ?? 'gaussian';
-            document.getElementById('kriging-nlags').value = params?.kriging?.nlags ?? 6;
-            document.getElementById('kriging-weight').checked = params?.kriging?.weight ?? true;
-            document.getElementById('kriging-anisotropy-scaling').value = params?.kriging?.anisotropy_scaling ?? 1.0;
-            document.getElementById('kriging-anisotropy-angle').value = params?.kriging?.anisotropy_angle ?? 0;
+            /** @type {HTMLInputElement} */ (document.getElementById('gaussian-sigma-factor')).value = params?.gaussian?.sigma_factor ?? 8.0;
+            /** @type {HTMLSelectElement} */ (document.getElementById('rbf-function')).value = params?.rbf?.function ?? 'gaussian';
+            /** @type {HTMLInputElement} */ (document.getElementById('rbf-epsilon-factor')).value = params?.rbf?.epsilon_factor ?? 0.5;
+            
+            const model = params?.kriging?.variogram_model ?? 'gaussian';
+            /** @type {HTMLSelectElement} */ (document.getElementById('kriging-variogram-model')).value = model;
+            
+            // 모델별 파라미터 로드
+            if (model === 'linear') {
+                /** @type {HTMLInputElement} */ (document.getElementById('kriging-slope')).value = params?.kriging?.variogram_parameters?.slope ?? 1;
+                /** @type {HTMLInputElement} */ (document.getElementById('kriging-linear-nugget')).value = params?.kriging?.variogram_parameters?.nugget ?? 0;
+            } else if (model === 'power') {
+                /** @type {HTMLInputElement} */ (document.getElementById('kriging-scale')).value = params?.kriging?.variogram_parameters?.scale ?? 1;
+                /** @type {HTMLInputElement} */ (document.getElementById('kriging-exponent')).value = params?.kriging?.variogram_parameters?.exponent ?? 1.5;
+                /** @type {HTMLInputElement} */ (document.getElementById('kriging-power-nugget')).value = params?.kriging?.variogram_parameters?.nugget ?? 0;
+            } else {
+                /** @type {HTMLInputElement} */ (document.getElementById('kriging-nugget')).value = params?.kriging?.variogram_parameters?.nugget ?? 5;
+                /** @type {HTMLInputElement} */ (document.getElementById('kriging-sill')).value = params?.kriging?.variogram_parameters?.sill ?? 20;
+                /** @type {HTMLInputElement} */ (document.getElementById('kriging-range')).value = params?.kriging?.variogram_parameters?.range ?? 10;
+            }
+            
+            /** @type {HTMLInputElement} */ (document.getElementById('kriging-nlags')).value = params?.kriging?.nlags ?? 6;
+            /** @type {HTMLInputElement} */ (document.getElementById('kriging-weight')).checked = params?.kriging?.weight ?? true;
+            /** @type {HTMLInputElement} */ (document.getElementById('kriging-anisotropy-scaling')).value = params?.kriging?.anisotropy_scaling ?? 1.0;
+            /** @type {HTMLInputElement} */ (document.getElementById('kriging-anisotropy-angle')).value = params?.kriging?.anisotropy_angle ?? 0;
+
+            // 모델에 따른 파라미터 UI 표시/숨김 처리
+            updateVariogramParametersVisibility(model);
         } catch (error) {
             console.error('Error:', error);
             showMessage('파라미터 로드 중 오류가 발생했습니다.', 'error');
         }
+    }
+
+    // 베리오그램 파라미터 UI 표시/숨김 처리 함수
+    function updateVariogramParametersVisibility(model) {
+        const standardParams = document.getElementById('standard-params');
+        const linearParams = document.getElementById('linear-params');
+        const powerParams = document.getElementById('power-params');
+        
+        standardParams.classList.add('hidden');
+        linearParams.classList.add('hidden');
+        powerParams.classList.add('hidden');
+        
+        if (model === 'linear') {
+            linearParams.classList.remove('hidden');
+        } else if (model === 'power') {
+            powerParams.classList.remove('hidden');
+        } else {
+            standardParams.classList.remove('hidden');
+        }
+    }
+
+    // 베리오그램 모델 변경 이벤트 핸들러
+    const krigingVariogramModel = /** @type {HTMLSelectElement} */ (document.getElementById('kriging-variogram-model'));
+    if (krigingVariogramModel) {
+        krigingVariogramModel.addEventListener('change', function() {
+            const model = this.value;
+            
+            // 모델에 따른 기본값 설정
+            const defaultParams = {
+                'gaussian': { nugget: 5, sill: 20, range: 10 },
+                'spherical': { nugget: 0, sill: 10, range: 20 },
+                'exponential': { nugget: 0, sill: 15, range: 15 },
+                'hole-effect': { nugget: 0, sill: 10, range: 15 },
+                'linear': { slope: 1, nugget: 0 },
+                'power': { scale: 1, exponent: 1.5, nugget: 0 }
+            };
+            
+            // UI 업데이트
+            updateVariogramParametersVisibility(model);
+            
+            // 기본값 설정
+            const params = defaultParams[model];
+            if (params) {
+                if (model === 'linear') {
+                    /** @type {HTMLInputElement} */ (document.getElementById('kriging-slope')).value = params.slope;
+                    /** @type {HTMLInputElement} */ (document.getElementById('kriging-linear-nugget')).value = params.nugget;
+                } else if (model === 'power') {
+                    /** @type {HTMLInputElement} */ (document.getElementById('kriging-scale')).value = params.scale;
+                    /** @type {HTMLInputElement} */ (document.getElementById('kriging-exponent')).value = params.exponent;
+                    /** @type {HTMLInputElement} */ (document.getElementById('kriging-power-nugget')).value = params.nugget;
+                } else {
+                    /** @type {HTMLInputElement} */ (document.getElementById('kriging-nugget')).value = params.nugget;
+                    /** @type {HTMLInputElement} */ (document.getElementById('kriging-sill')).value = params.sill;
+                    /** @type {HTMLInputElement} */ (document.getElementById('kriging-range')).value = params.range;
+                }
+            }
+        });
     }
 
     // 메시지 표시 함수
@@ -516,4 +662,58 @@ document.addEventListener('DOMContentLoaded', async function() {
     } catch (error) {
         console.error('Initialization failed:', error);
     }
+
+    // 컬러맵 프리뷰 생성 함수
+    function updateColormapPreview() {
+        const cmap = /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value;
+        const preview = document.getElementById('colormap-preview');
+        
+        // 컬러맵별 그라데이션 색상 정의
+        const gradients = {
+            'RdYlBu_r': 'linear-gradient(to right, #313695, #74add1, #fed976, #feb24c, #f46d43, #a50026)',
+            'RdBu_r': 'linear-gradient(to right, #2166ac, #67a9cf, #f7f7f7, #ef8a62, #b2182b)',
+            'coolwarm': 'linear-gradient(to right, #3a4cc0, #b4c4e7, #f7f7f7, #eda1a1, #cd1719)',
+            'bwr': 'linear-gradient(to right, #0000ff, #ffffff, #ff0000)',
+            'seismic': 'linear-gradient(to right, #00004c, #0000ff, #ffffff, #ff0000, #4c0000)',
+            'PiYG': 'linear-gradient(to right, #8e0152, #de77ae, #f7f7f7, #7fbc41, #276419)',
+            'PRGn': 'linear-gradient(to right, #40004b, #9970ab, #f7f7f7, #5aae61, #00441b)',
+            'BrBG': 'linear-gradient(to right, #543005, #bf812d, #f7f7f7, #35978f, #003c30)',
+            'PuOr': 'linear-gradient(to right, #7f3b08, #f1a340, #f7f7f7, #998ec3, #40004b)',
+            'Spectral': 'linear-gradient(to right, #9e0142, #f46d43, #fee08b, #66c2a5, #5e4fa2)'
+        };
+        
+        if (preview) {
+            preview.style.background = gradients[cmap] || gradients['RdYlBu_r'];
+        }
+    }
+
+    // 컬러맵 변경 이벤트 리스너
+    const colormapSelect = document.getElementById('colorbar-cmap');
+    if (colormapSelect) {
+        colormapSelect.addEventListener('change', updateColormapPreview);
+        // 초기 프리뷰 생성
+        updateColormapPreview();
+    }
+
+    // 색상 프리셋 선택 이벤트 리스너
+    document.getElementById('area-border-color-preset').addEventListener('change', function() {
+        const color = /** @type {HTMLSelectElement} */ (this).value;
+        /** @type {HTMLInputElement} */ (document.getElementById('area-border-color')).value = color;
+    });
+
+    document.getElementById('plot-border-color-preset').addEventListener('change', function() {
+        const color = /** @type {HTMLSelectElement} */ (this).value;
+        /** @type {HTMLInputElement} */ (document.getElementById('plot-border-color')).value = color;
+    });
+
+    // 색상 선택 이벤트 리스너
+    document.getElementById('area-border-color').addEventListener('input', function() {
+        const color = /** @type {HTMLInputElement} */ (this).value;
+        /** @type {HTMLSelectElement} */ (document.getElementById('area-border-color-preset')).value = color;
+    });
+
+    document.getElementById('plot-border-color').addEventListener('input', function() {
+        const color = /** @type {HTMLInputElement} */ (this).value;
+        /** @type {HTMLSelectElement} */ (document.getElementById('plot-border-color-preset')).value = color;
+    });
 }); 
