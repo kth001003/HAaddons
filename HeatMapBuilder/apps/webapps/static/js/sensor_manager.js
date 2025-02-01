@@ -97,11 +97,27 @@ export class SensorManager {
                 ? 'sensor-item p-3 bg-gray-100 border border-gray-200 rounded-md shadow-sm opacity-50 cursor-pointer flex justify-between items-center'
                 : 'sensor-item p-3 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-pointer flex justify-between items-center';
 
+            const calibration = sensor.calibration || 0;
+            const calibratedTemp = parseFloat(sensor.state) + calibration;
+
             return `
-                <div class="${itemClass}" 
-                    data-entity-id="${sensor.entity_id}">
-                    <span class="font-medium">${sensor.attributes.friendly_name || sensor.entity_id}</span>
-                    <span class="text-gray-600 ml-2">${sensor.state}°C</span>
+                <div class="${itemClass}" data-entity-id="${sensor.entity_id}">
+                    <div class="flex-1">
+                        <span class="font-medium">${sensor.attributes.friendly_name || sensor.entity_id}</span>
+                        <div class="flex items-center mt-1">
+                            <span class="text-gray-600 mr-2">측정값: ${sensor.state}°C</span>
+                            <span class="text-blue-600">보정값: 
+                                <input type="number" 
+                                    class="calibration-input w-16 px-1 py-0.5 border border-gray-300 rounded"
+                                    value="${calibration}"
+                                    step="0.1"
+                                    data-entity-id="${sensor.entity_id}"
+                                    ${this.enabled ? '' : 'disabled'}
+                                > °C
+                            </span>
+                            <span class="text-green-600 ml-2">보정후: ${calibratedTemp.toFixed(1)}°C</span>
+                        </div>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -109,7 +125,28 @@ export class SensorManager {
         // 클릭 이벤트 설정
         if (this.enabled) {
             container.querySelectorAll('.sensor-item').forEach(item => {
-                item.addEventListener('click', (e) => this.handleSensorClick(e));
+                item.addEventListener('click', (e) => {
+                    // 입력 필드를 클릭한 경우 이벤트 전파 중지
+                    if (e.target.classList.contains('calibration-input')) {
+                        e.stopPropagation();
+                        return;
+                    }
+                    this.handleSensorClick(e);
+                });
+            });
+
+            // 보정값 입력 이벤트 설정
+            container.querySelectorAll('.calibration-input').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const entityId = e.target.dataset.entityId;
+                    const calibration = parseFloat(e.target.value) || 0;
+                    const sensor = this.sensors.find(s => s.entity_id === entityId);
+                    if (sensor) {
+                        sensor.calibration = calibration;
+                        this.updateSensorList();
+                    }
+                });
+                input.addEventListener('click', (e) => e.stopPropagation());
             });
         }
     }
@@ -352,7 +389,15 @@ export class SensorManager {
     getSensorConfig() {
         return this.sensors.map(sensor => ({
             entity_id: sensor.entity_id,
-            position: sensor.position || null
+            position: sensor.position || null,
+            calibration: sensor.calibration || 0
         }));
+    }
+
+    // 보정된 온도값 반환
+    getCalibratedTemperature(sensor) {
+        const rawTemp = parseFloat(sensor.state);
+        const calibration = sensor.calibration || 0;
+        return rawTemp + calibration;
     }
 } 

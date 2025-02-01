@@ -66,22 +66,22 @@ class ConfigManager:
     def save_walls(self, walls_data: Dict) -> None:
         """벽 설정 저장"""
         with open(self.paths['walls'], 'w') as f:
-            json.dump({'walls': walls_data.get('walls', '')}, f)
+            json.dump({'walls': walls_data.get('walls', '')}, f, indent=4)
     
     def save_sensors(self, sensors_data: Dict) -> None:
         """센서 위치 저장"""
         with open(self.paths['sensors'], 'w') as f:
-            json.dump({'sensors': sensors_data.get('sensors', [])}, f)
+            json.dump({'sensors': sensors_data.get('sensors', [])}, f, indent=4)
     
     def save_parameters(self, parameters_data: Dict) -> None:
         """보간파라메터 위치 저장"""
         with open(self.paths['parameters'], 'w') as f:
-            json.dump(parameters_data, f)
+            json.dump(parameters_data, f, indent=4)
     
     def save_gen_config(self, gen_config: Dict) -> None:
         """생성 구성 저장"""
         with open(self.paths['gen_config'], 'w') as f:
-            json.dump(gen_config, f)
+            json.dump(gen_config, f, indent=4)
     
     def load_gen_config(self) -> None:
         """생성 구성 로드"""

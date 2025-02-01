@@ -48,7 +48,7 @@ class ThermalMapGenerator:
         self.get_sensor_state = get_sensor_state_func
         self.padding = 50  # 여백 크기
         self.areas: List[Dict[str, Any]] = []  # area 폴리곤과 속성 저장용 (polygon, is_exterior)
-        self.area_sensors: Dict[int, List[Tuple[Point, float]]] = {}  # area별 센서 그룹
+        self.area_sensors: Dict[int, List[Tuple[Point, float, str]]] = {}  # area별 센서 그룹
         self.gen_config = gen_config or {}  # 지도 생성 설정
         
         # 보간 파라미터 기본값 설정
@@ -244,14 +244,50 @@ class ThermalMapGenerator:
             current_app.logger.error(traceback.format_exc())
             return [], None
 
-    def _assign_sensors_to_areas(self, points: List[List[float]], temperatures: List[float]):
+    def _collect_sensor_data(self) -> Tuple[List[List[float]], List[float], List[str]]:
+        """센서 데이터를 수집하여 좌표, 온도값, 센서ID 리스트를 반환합니다."""
+        points = []
+        temperatures = []
+        sensor_ids = []
+        
+        for sensor in self.sensors_data:
+            if 'position' not in sensor:
+                continue
+                
+            position = sensor['position']
+            if not position or 'x' not in position or 'y' not in position:
+                continue
+                
+            # 센서 상태 조회
+            state = self.get_sensor_state(sensor['entity_id'])
+            if not state or not isinstance(state, dict):
+                current_app.logger.warning(f"센서 {sensor['entity_id']} 상태 데이터가 유효하지 않음")
+                continue
+                
+            try:
+                # 온도값 파싱 및 보정값 적용
+                raw_temp = float(state.get('state', 0))  # 상태값을 state 키에서 가져옴
+                calibration = float(sensor.get('calibration', 0))  # 보정값이 없으면 0
+                temp = raw_temp + calibration  # 보정값 적용
+                
+                points.append([position['x'], position['y']])
+                temperatures.append(temp)
+                sensor_ids.append(sensor['entity_id'])
+                current_app.logger.debug(f"센서 {sensor['entity_id']}: 원본={raw_temp}°C, 보정값={calibration}°C, 보정후={temp}°C")
+            except (ValueError, TypeError, AttributeError) as e:
+                current_app.logger.error(f"센서 {sensor['entity_id']} 데이터 처리 중 오류: {str(e)}")
+                continue
+        
+        return points, temperatures, sensor_ids
+
+    def _assign_sensors_to_areas(self, points: List[List[float]], temperatures: List[float], sensor_ids: List[str]):
         """센서들을 해당하는 area에 할당합니다."""
         self.area_sensors.clear()
         
         # 각 area의 경계 버퍼 생성 (경계 근처의 센서를 포함하기 위해)
         buffered_areas = [(i, area['polygon'].buffer(1e-6)) for i, area in enumerate(self.areas)]
         
-        for i, (point_coords, temp) in enumerate(zip(points, temperatures)):
+        for i, (point_coords, temp, sensor_id) in enumerate(zip(points, temperatures, sensor_ids)):
             point = Point(point_coords[0], point_coords[1])
             assigned = False
             
@@ -260,8 +296,8 @@ class ThermalMapGenerator:
                 if area['polygon'].contains(point):
                     if area_idx not in self.area_sensors:
                         self.area_sensors[area_idx] = []
-                    self.area_sensors[area_idx].append((point, temp))
-                    current_app.logger.info(f"센서 {i} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
+                    self.area_sensors[area_idx].append((point, temp, sensor_id))
+                    current_app.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
                     assigned = True
                     break
             
@@ -271,8 +307,8 @@ class ThermalMapGenerator:
                     if buffered_area.contains(point):
                         if area_idx not in self.area_sensors:
                             self.area_sensors[area_idx] = []
-                        self.area_sensors[area_idx].append((point, temp))
-                        current_app.logger.info(f"센서 {i} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
+                        self.area_sensors[area_idx].append((point, temp, sensor_id))
+                        current_app.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
                         assigned = True
                         break
             
@@ -290,14 +326,14 @@ class ThermalMapGenerator:
                 if nearest_area_idx is not None:
                     if nearest_area_idx not in self.area_sensors:
                         self.area_sensors[nearest_area_idx] = []
-                    self.area_sensors[nearest_area_idx].append((point, temp))
-                    current_app.logger.warning(f"센서 {i} (temp={temp:.1f}°C)가 가장 가까운 Area {nearest_area_idx}에 할당됨 (거리: {min_distance:.2f})")
+                    self.area_sensors[nearest_area_idx].append((point, temp, sensor_id))
+                    current_app.logger.warning(f"센서 {sensor_id} (temp={temp:.1f}°C)가 가장 가까운 Area {nearest_area_idx}에 할당됨 (거리: {min_distance:.2f})")
                 else:
-                    current_app.logger.error(f"센서 {i} (temp={temp:.1f}°C)를 할당할 수 있는 area를 찾지 못함")
+                    current_app.logger.error(f"센서 {sensor_id} (temp={temp:.1f}°C)를 할당할 수 있는 area를 찾지 못함")
 
         # 할당 결과 출력
         for area_idx, sensors in self.area_sensors.items():
-            current_app.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, 온도: {[temp for _, temp in sensors]}")
+            current_app.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, 온도: {[temp for _, temp, _ in sensors]}")
 
     def _calculate_area_temperature(self, area_idx: int, area: Dict[str, Any], grid_points: np.ndarray, 
                                    grid_x: np.ndarray, grid_y: np.ndarray, min_x: float, max_x: float, 
@@ -314,8 +350,8 @@ class ThermalMapGenerator:
             
             # 센서가 있는 area
             sensors = self.area_sensors[area_idx]
-            sensor_locs = np.array([[p.x, p.y] for p, _ in sensors])
-            sensor_temps = np.array([t for _, t in sensors])
+            sensor_locs = np.array([[p.x, p.y] for p, _, _ in sensors])
+            sensor_temps = np.array([t for _, t, _ in sensors])
             mask_points = grid_points[area_mask.flatten()]
             
             # 가우시안 분포 계산 함수
@@ -428,51 +464,6 @@ class ThermalMapGenerator:
             current_app.logger.error(f"Area {area_idx} 온도 계산 중 오류: {str(e)}")
             return np.full_like(grid_x[area_mask], np.nan)
 
-    def _collect_sensor_data(self) -> Tuple[List[List[float]], List[float]]:
-        """센서 데이터를 수집하여 위치와 온도 값을 반환합니다."""
-        points = []
-        temperatures = []
-        
-        for sensor in self.sensors_data:
-            try:
-                if not sensor.get('position'):
-                    current_app.logger.debug(f"센서 위치 정보 없음: {sensor['entity_id']}")
-                    continue
-                
-                state = self.get_sensor_state(sensor['entity_id'])
-                current_app.logger.debug(f"센서 상태 데이터: {state}")
-                
-                # 온도 값 처리
-                temp = float(state['state'])
-                
-                # 위치 값 처리
-                position = sensor['position']
-                
-                # position 형식에 따른 처리
-                if isinstance(position, dict):
-                    if 'x' in position and 'y' in position:
-                        x = float(position['x'])
-                        y = float(position['y'])
-                        points.append([x, y])
-                        temperatures.append(temp)
-                    else:
-                        current_app.logger.warning(f"잘못된 딕셔너리 위치 형식: {position}")
-                        continue
-                elif isinstance(position, list) and len(position) == 2:
-                    x = float(position[0]) if isinstance(position[0], str) else position[0]
-                    y = float(position[1]) if isinstance(position[1], str) else position[1]
-                    points.append([x, y])
-                    temperatures.append(temp)
-                else:
-                    current_app.logger.warning(f"지원하지 않는 위치 형식: {position}")
-                    continue
-                
-            except (ValueError, KeyError, TypeError, IndexError) as e:
-                current_app.logger.warning(f"센서 데이터 변환 실패: {sensor.get('entity_id', 'unknown')} - {str(e)}")
-                continue
-
-        return points, temperatures
-
     def _get_polygon_coords(self, geom) -> List[Tuple[np.ndarray, np.ndarray]]:
         """폴리곤 또는 멀티폴리곤에서 좌표를 추출합니다."""
         coords = []
@@ -492,21 +483,20 @@ class ThermalMapGenerator:
                 return False
 
             # 센서 데이터 수집
-            sensor_points, temperatures = self._collect_sensor_data()
+            sensor_points, temperatures, sensor_ids = self._collect_sensor_data()
             if not sensor_points:
                 current_app.logger.error("유효한 센서 데이터가 없습니다")
                 return False
 
             # 센서를 area에 할당
-            self._assign_sensors_to_areas(sensor_points, temperatures)
+            self._assign_sensors_to_areas(sensor_points, temperatures, sensor_ids)
 
             # SVG 전체 크기 사용
-            # min_x, min_y, max_x, max_y = 0, 0, 1200, 1000
             min_x, min_y, max_x, max_y = 0, 0, 1000, 1000
             
             # 격자 생성
             grid_x, grid_y = np.mgrid[
-                min_x:max_x:150j,  # padding 제거
+                min_x:max_x:150j,
                 min_y:max_y:150j
             ]
 
@@ -587,36 +577,38 @@ class ThermalMapGenerator:
                 main_ax.scatter(sensor_x, sensor_y, c='red', s=10, zorder=5)
 
                 # 센서 정보 표시
-                for i, (point, sensor) in enumerate(zip(sensor_points, self.sensors_data)):
-                    if 'position' in sensor:
-                        try:
-                            state = self.get_sensor_state(sensor['entity_id'])
-                            temp = float(state['state'])
-                            name = state['attributes'].get('friendly_name', sensor['entity_id'].split('.')[-1])
-                            
-                            # 텍스트 위치 (센서 위치보다 약간 위로)
-                            text_x = point[0]
-                            text_y = point[1] - 10
-                            
-                            # 표시 옵션에 따른 텍스트 설정
-                            if sensor_display == 'position':
-                                continue  # 위치만 표시하는 경우 텍스트 표시 안 함
-                            elif sensor_display == 'position_name':
-                                text = f'{name}'
-                            elif sensor_display == 'position_name_temp':
-                                text = f'{name}\n{temp:.1f}°C'
-                            elif sensor_display == 'position_temp':
-                                text = f'{temp:.1f}°C'
-                            
-                            main_ax.text(text_x, text_y, text,
-                                     horizontalalignment='center',
-                                     verticalalignment='bottom',
-                                     fontsize=8,
-                                     bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
-                                     zorder=6)
-                        except Exception as e:
-                            current_app.logger.warning(f"센서 {sensor['entity_id']} 텍스트 표시 실패: {str(e)}")
+                for point, sensor_id in zip(sensor_points, sensor_ids):
+                    try:
+                        state = self.get_sensor_state(sensor_id)
+                        if not state or not isinstance(state, dict):
                             continue
+                            
+                        temp = float(state.get('state', 0))
+                        name = state.get('attributes', {}).get('friendly_name', sensor_id.split('.')[-1])
+                        
+                        # 텍스트 위치 (센서 위치보다 약간 위로)
+                        text_x = point[0]
+                        text_y = point[1] - 10
+                        
+                        # 표시 옵션에 따른 텍스트 설정
+                        if sensor_display == 'position':
+                            continue  # 위치만 표시하는 경우 텍스트 표시 안 함
+                        elif sensor_display == 'position_name':
+                            text = f'{name}'
+                        elif sensor_display == 'position_name_temp':
+                            text = f'{name}\n{temp:.1f}°C'
+                        elif sensor_display == 'position_temp':
+                            text = f'{temp:.1f}°C'
+                        
+                        main_ax.text(text_x, text_y, text,
+                                 horizontalalignment='center',
+                                 verticalalignment='bottom',
+                                 fontsize=8,
+                                 bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
+                                 zorder=6)
+                    except Exception as e:
+                        current_app.logger.warning(f"센서 {sensor_id} 텍스트 표시 실패: {str(e)}")
+                        continue
 
             # 컬러바 설정 적용
             colorbar_config = self.gen_config.get('colorbar', {})
