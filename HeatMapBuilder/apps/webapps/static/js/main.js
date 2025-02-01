@@ -78,12 +78,21 @@ document.addEventListener('DOMContentLoaded', async function() {
                 console.error('DrawingTool is not initialized');
             }
             if (sensorManager) sensorManager.disable();
+            showSensorPoints(false)
         } else if (step === 2) {
             if (drawingTool) drawingTool.disable();
             if (sensorManager) sensorManager.enable();
+            showSensorPoints(true)
         }
     }
-
+    // SVG 내의 포인트 표시 토글 함수
+    function showSensorPoints(toggle) {
+        const points = svg.querySelectorAll('g');
+        const display = toggle ? 'block' : 'none';
+        points.forEach(point => {
+            point.style.display = display;
+        });
+    }
     // 단계 이동 가능 여부 확인 --> TODO: 벽, 센서 있는지 확인하는 함수로 변경
     function canMoveToStep(targetStep) {
         // 1단계는 언제나 이동 가능
@@ -126,9 +135,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                 },
                 body: JSON.stringify({wallsData,sensorsData})
             });
+            showMessage('벽과 센서위치를 저장했습니다.', 'success')
         } catch (error) {
             console.error('벽 및 센서 저장 실패:', error);
-            alert('벽 저장에 실패했습니다.');
+            showMessage('벽 저장에 실패했습니다.', 'error')
         }
     }
 
@@ -311,8 +321,63 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 새 이미지 생성 및 추가
     const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
-    const timestamp = new Date().getTime();    
-    thermalMapImage.setAttribute('src', `/local/thermal_map.png?t=${timestamp}`);  // 캐시 방지를 위한 타임스탬프 추가
+    const mapGenerationTime = document.getElementById('map-generation-time');
+    
+    // 온도지도 새로고침 함수
+    async function refreshThermalMap() {
+        showMessage('온도지도 생성 중..')
+        try {
+            const response = await fetch('./api/generate-map');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const timestamp = new Date().getTime();
+                thermalMapImage.setAttribute('src', `${data.image_url}?t=${timestamp}`);
+                if (mapGenerationTime) {
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const hours = String(now.getHours()).padStart(2, '0');
+                    const minutes = String(now.getMinutes()).padStart(2, '0');
+                    const seconds = String(now.getSeconds()).padStart(2, '0');
+                    mapGenerationTime.textContent = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                }
+                showMessage('온도지도를 새로 생성했습니다.', 'success');
+            } else {
+                showMessage(data.error || '온도지도 생성에 실패했습니다.', 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showMessage('온도지도 생성 중 오류가 발생했습니다.', 'error');
+        }
+    }
+
+    // 맵 생성 시간 확인 및 자동 새로고침 함수
+    async function checkAndRefreshMap() {
+        try {
+            const response = await fetch('./api/check-map-time');
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.generation_time) {
+                const serverTime = new Date(data.generation_time).getTime();
+                const currentDisplayTime = mapGenerationTime ? new Date(mapGenerationTime.textContent).getTime() : 0;
+                
+                if (serverTime > currentDisplayTime) {
+                    const timestamp = new Date().getTime();
+                    thermalMapImage.setAttribute('src', `${data.image_url}?t=${timestamp}`);
+                    if (mapGenerationTime) {
+                        mapGenerationTime.textContent = data.generation_time;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('맵 시간 확인 중 오류:', error);
+        }
+    }
+
+    // 새로고침 버튼 이벤트 리스너
+    document.getElementById('generate-now').addEventListener('click', refreshThermalMap);
 
     // 탭 이벤트 리스너 등록
     document.getElementById('dashboard-tab').addEventListener('click', () => switchTab('dashboard'));
@@ -321,8 +386,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 초기 탭 설정
     switchTab('dashboard');
-    
-    // 이벤트 리스너 등록
+
     // 단계 버튼 클릭 이벤트
     document.querySelectorAll('.step-button').forEach(button => {
         button.addEventListener('click', function() {
@@ -356,6 +420,80 @@ document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('clear-btn').addEventListener('click', function() {
         drawingTool.clear();
     });
+
+    // 파라미터 저장 버튼 이벤트
+    const saveInterpolationParametersBtn = document.getElementById('save-interpolation-parameters');
+    if (saveInterpolationParametersBtn) {
+        saveInterpolationParametersBtn.addEventListener('click', function() {
+            saveInterpolationParameters();
+        });
+    }
+    
+    // 파라미터 저장 버튼 이벤트
+    const saveGenConfigBtn = document.getElementById('save-gen-configs');
+    if (saveGenConfigBtn) {
+        saveGenConfigBtn.addEventListener('click', function() {
+            saveGenConfig();
+        });
+    }
+    // Floor Plan 업로드 처리
+    const floorplanUpload = document.getElementById('floorplan-upload');
+    if (floorplanUpload) {
+        floorplanUpload.addEventListener('change', function(e) {
+            const input = /** @type {HTMLInputElement} */ (e.target);
+            const file = input.files?.[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const result = /** @type {string} */ (e.target?.result);
+                    floorplanImg.src = result;
+                    floorplanImg.onload = function() {
+                        // 이미지의 큰 쪽을 1000px에 맞추고 비율 유지
+                        const aspectRatio = floorplanImg.naturalWidth / floorplanImg.naturalHeight;
+                        let width, height;
+                        
+                        if (aspectRatio > 1) {
+                            // 가로가 더 긴 경우
+                            width = FIXED_SIZE;
+                            height = FIXED_SIZE / aspectRatio;
+                        } else {
+                            // 세로가 더 긴 경우
+                            height = FIXED_SIZE;
+                            width = FIXED_SIZE * aspectRatio;
+                        }
+                        
+                        // 이미지 크기 설정
+                        floorplanImg.style.width = `${width}px`;
+                        floorplanImg.style.height = `${height}px`;
+                        
+                        // SVG 크기는 1000x1000 유지
+                        svg.setAttribute('width', String(FIXED_SIZE));
+                        svg.setAttribute('height', String(FIXED_SIZE));
+                        svg.setAttribute('viewBox', `0 0 ${FIXED_SIZE} ${FIXED_SIZE}`);
+
+                        // 드로잉툴 초기화
+                        drawingTool.enable();
+                        drawingTool.setTool('line');
+                        setActiveTool('line');
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    // 선 두께 조절
+    const lineWidthInput = /** @type {HTMLInputElement} */ (document.getElementById('line-width'));
+    const lineWidthValue = document.getElementById('line-width-value');
+    
+    if (lineWidthInput && lineWidthValue) {
+        lineWidthInput.addEventListener('input', function() {
+            const width = parseInt(this.value);
+            lineWidthValue.textContent = `${width}px`;
+            drawingTool.setLineWidth(width);
+        });
+    }
+    
     try {
         // DrawingTool 초기화
         drawingTool = new DrawingTool(svg);
@@ -364,87 +502,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         // SensorManager 초기화
         sensorManager = new SensorManager(svg);
         sensorManager.disable();
-        
-
-        // 선 두께 조절
-        const lineWidthInput = /** @type {HTMLInputElement} */ (document.getElementById('line-width'));
-        const lineWidthValue = document.getElementById('line-width-value');
-        
-        if (lineWidthInput && lineWidthValue) {
-            lineWidthInput.addEventListener('input', function() {
-                const width = parseInt(this.value);
-                lineWidthValue.textContent = `${width}px`;
-                drawingTool.setLineWidth(width);
-            });
-        }
-
-        // Floor Plan 업로드 처리
-        const floorplanUpload = document.getElementById('floorplan-upload');
-        if (floorplanUpload) {
-            floorplanUpload.addEventListener('change', function(e) {
-                const input = /** @type {HTMLInputElement} */ (e.target);
-                const file = input.files?.[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const result = /** @type {string} */ (e.target?.result);
-                        floorplanImg.src = result;
-                        floorplanImg.onload = function() {
-                            // 이미지의 큰 쪽을 1000px에 맞추고 비율 유지
-                            const aspectRatio = floorplanImg.naturalWidth / floorplanImg.naturalHeight;
-                            let width, height;
-                            
-                            if (aspectRatio > 1) {
-                                // 가로가 더 긴 경우
-                                width = FIXED_SIZE;
-                                height = FIXED_SIZE / aspectRatio;
-                            } else {
-                                // 세로가 더 긴 경우
-                                height = FIXED_SIZE;
-                                width = FIXED_SIZE * aspectRatio;
-                            }
-                            
-                            // 이미지 크기 설정
-                            floorplanImg.style.width = `${width}px`;
-                            floorplanImg.style.height = `${height}px`;
-                            
-                            // SVG 크기는 1000x1000 유지
-                            svg.setAttribute('width', String(FIXED_SIZE));
-                            svg.setAttribute('height', String(FIXED_SIZE));
-                            svg.setAttribute('viewBox', `0 0 ${FIXED_SIZE} ${FIXED_SIZE}`);
-
-                            // 드로잉툴 초기화
-                            drawingTool.enable();
-                            drawingTool.setTool('line');
-                            setActiveTool('line');
-                        };
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-        }
 
         // 초기 데이터 로드
         loadConfig();
+        
+        // 센서는 1분마다 업데이트
         setInterval(async function() {
             await sensorManager.loadSensors();
         }, 60000);
-
-        // 파라미터 저장 버튼 이벤트
-        const saveInterpolationParametersBtn = document.getElementById('save-interpolation-parameters');
-        if (saveInterpolationParametersBtn) {
-            saveInterpolationParametersBtn.addEventListener('click', function() {
-                saveInterpolationParameters();
-            });
-        }
-        
-        // 파라미터 저장 버튼 이벤트
-        const saveGenConfigBtn = document.getElementById('save-gen-configs');
-        if (saveGenConfigBtn) {
-            saveGenConfigBtn.addEventListener('click', function() {
-                saveGenConfig();
-            });
-        }
+        // 맵 자동 새로고침 - 10초마다 확인
+        setInterval(checkAndRefreshMap, 10000);
         
     } catch (error) {
         console.error('Initialization failed:', error);

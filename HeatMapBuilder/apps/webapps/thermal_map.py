@@ -15,6 +15,7 @@ import matplotlib.font_manager as fm  #type: ignore
 import re
 from flask import current_app
 from pykrige.ok import OrdinaryKriging  #type: ignore
+import logging
 
 class ThermalMapGenerator:
     def __init__(self, walls_data: str, sensors_data: List[Dict[str, Any]], get_sensor_state_func, 
@@ -28,6 +29,16 @@ class ThermalMapGenerator:
             get_sensor_state_func: 센서 상태를 조회하는 함수
             interpolation_params: 보간 파라미터 설정
         """
+        # Flask 로거 설정
+        if not current_app.logger.handlers:
+            handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter(
+                '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
+            ))
+            current_app.logger.addHandler(handler)
+            # 기본 로거 비활성화
+            current_app.logger.propagate = False
+        
         self.walls_data = walls_data
         self.sensors_data = sensors_data
         self.get_sensor_state = get_sensor_state_func
@@ -35,14 +46,14 @@ class ThermalMapGenerator:
         self.areas: List[Polygon] = []  # area 폴리곤 저장용
         self.area_sensors: Dict[int, List[Tuple[Point, float]]] = {}  # area별 센서 그룹
         
-        # 보간 파라미터 설정
+        # 보간 파라미터 기본값 설정
         self.interpolation_params = {
             'gaussian': {
-                'sigma_factor': 8.0,  # area 크기 대비 sigma 비율
+                'sigma_factor': 8.0,
             },
             'rbf': {
                 'function': 'inverse',
-                'epsilon_factor': 1.5,  # area 크기 대비 epsilon 비율
+                'epsilon_factor': 1.5,
             },
             'kriging': {
                 'variogram_model': 'gaussian',
@@ -66,7 +77,7 @@ class ThermalMapGenerator:
         for method in ['gaussian', 'rbf', 'kriging']:
             if method in params:
                 self.interpolation_params[method].update(params[method])
-                current_app.logger.debug(f"{method} 파라미터 업데이트: {params[method]}")
+                # current_app.logger.debug(f"{method} 파라미터 업데이트: {params[method]}")
 
     def _setup_korean_font(self):
         """한글 폰트를 설정합니다."""
@@ -82,7 +93,7 @@ class ThermalMapGenerator:
                     fm.fontManager.addfont(font_path)
                     # 기본 폰트 설정
                     plt.rcParams['font.family'] = 'NanumGothic'  # 폰트 이름으로 직접 설정
-                    current_app.logger.info(f"한글 폰트 설정 완료: {font_path}")
+                    # current_app.logger.info(f"한글 폰트 설정 완료: {font_path}")
                     font_found = True
                     break
             
