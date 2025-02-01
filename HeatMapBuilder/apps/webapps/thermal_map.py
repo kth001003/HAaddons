@@ -47,7 +47,7 @@ class ThermalMapGenerator:
         self.sensors_data = sensors_data
         self.get_sensor_state = get_sensor_state_func
         self.padding = 50  # 여백 크기
-        self.areas: List[Polygon] = []  # area 폴리곤 저장용
+        self.areas: List[Dict[str, Any]] = []  # area 폴리곤과 속성 저장용 (polygon, is_exterior)
         self.area_sensors: Dict[int, List[Tuple[Point, float]]] = {}  # area별 센서 그룹
         self.gen_config = gen_config or {}  # 지도 생성 설정
         
@@ -111,49 +111,7 @@ class ThermalMapGenerator:
             
         except Exception as e:
             current_app.logger.error(f"한글 폰트 설정 중 오류 발생: {str(e)}")
-
-    # def _parse_svg_path(self, path_data: str) -> Optional[Polygon]:
-    #     """SVG path 데이터를 Polygon으로 변환합니다."""
-    #     try:
-    #         # SVG path 데이터 전처리
-    #         path_data = path_data.strip()
-    #         if not path_data:
-    #             return None
             
-    #         # SVG path를 matplotlib path로 변환
-    #         path = svgpath2mpl.parse_path(path_data)
-    #         vertices = path.vertices
-            
-    #         # 점 개수 확인
-    #         if len(vertices) < 3:
-    #             current_app.logger.warning(f"점이 부족함 (최소 3개 필요): {len(vertices)}개")
-    #             return None
-            
-    #         # 첫 점과 마지막 점이 같은지 확인하고 처리
-    #         if not np.allclose(vertices[0], vertices[-1], rtol=1e-5, atol=1e-8):
-    #             vertices = np.vstack([vertices, vertices[0]])  # 첫 점을 마지막에 추가하여 폴리곤 닫기
-            
-    #         # 폴리곤 생성
-    #         try:
-    #             polygon = Polygon(vertices).buffer(0)  # buffer(0)로 자체 교차 해결
-    #             if not polygon.is_valid:
-    #                 current_app.logger.warning("유효하지 않은 폴리곤")
-    #                 return None
-                
-    #             # 면적이 너무 작은 폴리곤 필터링
-    #             if polygon.area < 1e-6:
-    #                 current_app.logger.warning("면적이 너무 작은 폴리곤")
-    #                 return None
-    #             return polygon
-                
-    #         except Exception as e:
-    #             current_app.logger.warning(f"폴리곤 생성 실패: {str(e)}")
-    #             return None
-            
-    #     except Exception as e:
-    #         current_app.logger.error(f"SVG path 파싱 오류: {str(e)}, path_data={path_data}")
-    #         return None
-
     def _parse_svg_path(self, d: str) -> Optional[Polygon]:
         """
         SVG path의 d 속성을 파싱하여 Shapely Polygon 객체를 반환합니다.
@@ -232,8 +190,8 @@ class ThermalMapGenerator:
             current_app.logger.error(f"SVG path 파싱 중 오류: {str(e)}")
             return None
 
-    def _parse_areas(self) -> Tuple[List[Polygon], Optional[ET.Element]]:
-        """area 데이터를 파싱하여 Polygon 목록과 XML 요소를 반환합니다."""
+    def _parse_areas(self) -> Tuple[List[Dict[str, Any]], Optional[ET.Element]]:
+        """area 데이터를 파싱하여 Polygon과 속성 목록, XML 요소를 반환합니다."""
         try:
             svg_data = f'<svg>{self.walls_data}</svg>'
             
@@ -250,9 +208,12 @@ class ThermalMapGenerator:
             paths = root.findall('.//{*}path')
             
             for i, path in enumerate(paths):
-                # path의 스타일과 클래스 확인 (필요에 따라 사용)
+                # path의 스타일과 클래스 확인
                 style = path.get('style', '')
                 class_name = path.get('class', '')
+                
+                # exterior 클래스 여부 확인
+                is_exterior = 'exterior' in class_name.lower() if class_name else False
                 
                 d = path.get('d', '')
                 if not d:
@@ -266,7 +227,11 @@ class ThermalMapGenerator:
                 
                 polygon = self._parse_svg_path(d)
                 if polygon and polygon.is_valid:
-                    self.areas.append(polygon)
+                    self.areas.append({
+                        'polygon': polygon,
+                        'is_exterior': is_exterior
+                    })
+                    current_app.logger.debug(f"Path {i}: {'외부' if is_exterior else '내부'} 영역으로 파싱됨")
                 else:
                     current_app.logger.warning(f"Path {i}: 유효한 폴리곤 생성 실패")
 
@@ -284,7 +249,7 @@ class ThermalMapGenerator:
         self.area_sensors.clear()
         
         # 각 area의 경계 버퍼 생성 (경계 근처의 센서를 포함하기 위해)
-        buffered_areas = [(i, area.buffer(1e-6)) for i, area in enumerate(self.areas)]
+        buffered_areas = [(i, area['polygon'].buffer(1e-6)) for i, area in enumerate(self.areas)]
         
         for i, (point_coords, temp) in enumerate(zip(points, temperatures)):
             point = Point(point_coords[0], point_coords[1])
@@ -292,7 +257,7 @@ class ThermalMapGenerator:
             
             # 정확한 포함 관계 확인
             for area_idx, area in enumerate(self.areas):
-                if area.contains(point):
+                if area['polygon'].contains(point):
                     if area_idx not in self.area_sensors:
                         self.area_sensors[area_idx] = []
                     self.area_sensors[area_idx].append((point, temp))
@@ -317,7 +282,7 @@ class ThermalMapGenerator:
                 nearest_area_idx = None
                 
                 for area_idx, area in enumerate(self.areas):
-                    distance = area.distance(point)
+                    distance = area['polygon'].distance(point)
                     if distance < min_distance:
                         min_distance = distance
                         nearest_area_idx = area_idx
@@ -334,13 +299,13 @@ class ThermalMapGenerator:
         for area_idx, sensors in self.area_sensors.items():
             current_app.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, 온도: {[temp for _, temp in sensors]}")
 
-    def _calculate_area_temperature(self, area_idx: int, area: Polygon, grid_points: np.ndarray, 
+    def _calculate_area_temperature(self, area_idx: int, area: Dict[str, Any], grid_points: np.ndarray, 
                                    grid_x: np.ndarray, grid_y: np.ndarray, min_x: float, max_x: float, 
                                    min_y: float, max_y: float) -> np.ndarray:
         """특정 area의 온도 분포를 계산합니다."""
         try:
             # area 마스크 생성
-            area_mask = np.array([area.contains(Point(x, y)) for x, y in grid_points])
+            area_mask = np.array([area['polygon'].contains(Point(x, y)) for x, y in grid_points])
             area_mask = area_mask.reshape(grid_x.shape)
             temps = np.full_like(grid_x[area_mask], np.nan)
             
@@ -556,7 +521,7 @@ class ThermalMapGenerator:
                     min_x, max_x, min_y, max_y
                 )
                 # area 마스크 생성 및 결과 할당
-                area_mask = np.array([area.contains(Point(x, y)) for x, y in grid_points])
+                area_mask = np.array([area['polygon'].contains(Point(x, y)) for x, y in grid_points])
                 area_mask = area_mask.reshape(grid_x.shape)
                 grid_z[area_mask] = area_temps
 
@@ -578,14 +543,14 @@ class ThermalMapGenerator:
                 if i not in self.area_sensors:
                     empty_area_style = self.gen_config.get('visualization', {}).get('empty_area', 'white')
                     if empty_area_style == 'white':
-                        for x, y in self._get_polygon_coords(area):
-                            main_ax.fill(x, y, facecolor='white', alpha=1.0)
+                        for x, y in self._get_polygon_coords(area['polygon']):
+                            main_ax.fill(x, y, facecolor='white', alpha=1.0, edgecolor='none')
                     elif empty_area_style == 'transparent':
-                        for x, y in self._get_polygon_coords(area):
-                            main_ax.fill(x, y, facecolor='none', alpha=0.0)
+                        # transparent 스타일인 경우 해당 영역을 건너뜀
+                        continue
                     elif empty_area_style == 'hatched':
-                        for x, y in self._get_polygon_coords(area):
-                            main_ax.fill(x, y, facecolor='white', hatch='///', alpha=1.0)
+                        for x, y in self._get_polygon_coords(area['polygon']):
+                            main_ax.fill(x, y, facecolor='white', hatch='///', alpha=1.0, edgecolor='none')
 
             # 온도 분포 그리기 (부드러운 그라데이션을 위한 설정)
             contour = main_ax.contourf(grid_x, grid_y, grid_z,
@@ -599,8 +564,9 @@ class ThermalMapGenerator:
             area_border_color = self.gen_config.get('visualization', {}).get('area_border_color', '#000000')
             if area_border_width > 0:  # 선 두께가 0보다 큰 경우에만 그리기
                 for area in self.areas:
-                    for x, y in self._get_polygon_coords(area):
-                        main_ax.plot(x, y, color=area_border_color, linewidth=area_border_width)
+                    if not area['is_exterior']:
+                        for x, y in self._get_polygon_coords(area['polygon']):
+                            main_ax.plot(x, y, color=area_border_color, linewidth=area_border_width)
 
             # plot 외곽선 그리기
             plot_border_width = self.gen_config.get('visualization', {}).get('plot_border_width', 0)
@@ -699,8 +665,9 @@ class ThermalMapGenerator:
                        bbox_inches='tight',
                        pad_inches=0,
                        dpi=dpi,
-                       facecolor='white',
-                       transparent=False)
+                       facecolor='none',  # 배경색을 none으로 변경
+                       transparent=True,
+                       format='png')
             plt.close()
 
             return True

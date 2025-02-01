@@ -890,7 +890,7 @@ export class DrawingTool {
             areaElement.setAttribute('d', pathData);
             areaElement.setAttribute('fill', DrawingUtils.generatePastelColor());
             areaElement.setAttribute('fill-opacity', '0.3');
-            areaElement.setAttribute('class', 'area');
+            areaElement.classList.add('area');
             areaElement.setAttribute('stroke', 'none');  // 테두리 없음
             
             // 영역을 선 뒤에 삽입 (맨 뒤로)
