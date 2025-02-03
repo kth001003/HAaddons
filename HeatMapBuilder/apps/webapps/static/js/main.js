@@ -93,27 +93,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             point.style.display = display;
         });
     }
-    // 단계 이동 가능 여부 확인 --> TODO: 벽, 센서 있는지 확인하는 함수로 변경
-    function canMoveToStep(targetStep) {
-        // 1단계는 언제나 이동 가능
-        if (targetStep === 1) return true;
-
-        // 2단계로 이동하려면 벽이 그려져 있어야 함
-        if (targetStep === 2) {
-            return svg.innerHTML.includes('<line');
-        }
-
-        // 3단계로 이동하려면 센서가 배치되어 있어야 함
-        if (targetStep === 3) {
-            return sensorManager.getSensorConfig().some(sensor => sensor.position !== null);
-        }
-
-        return false;
-    }
 
     // 다음 단계로 이동
     function goToStep(step) {
-        saveWallsAndSensors()
         currentStep = step;
         updateStepIndicators(step);
         showStepControls(step);
@@ -122,8 +104,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 벽 및 센서 저장
     async function saveWallsAndSensors() {
         try {
+            // SVG에서 line 및 path 요소만 선택
+            const wallsElements = svg.querySelectorAll('line, path');
+            
+            // 선택된 요소들의 HTML 문자열 생성
+            let wallsHTML = '';
+            wallsElements.forEach(element => {
+                wallsHTML += element.outerHTML;
+            });
             const wallsData = {
-                walls: svg.innerHTML
+                walls: wallsHTML
             };
             const sensorsData = {
                 sensors: sensorManager.getSensorConfig()
@@ -162,20 +152,32 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     console.log('SVG element found:', svg);
 
-    // 저장된 설정 로드
     async function loadConfig() {
         try {
             const response = await fetch('./api/load-config');
             if (response.ok) {
                 const config = await response.json();
-                if (config.walls && config.walls.trim() !== '') {
-                    svg.innerHTML = config.walls;    
+                console.log("서버에서 받은 config:", config); // 서버 응답 확인
+                if (config.walls) {
+                    svg.innerHTML = config.walls
+                }
+                if (config.sensors) {
+                    config.sensors.forEach(savedSensor => {
+                        const sensor = sensorManager.sensors.find(s => s.entity_id === savedSensor.entity_id);
+                        if (sensor && savedSensor.position) {
+                             console.log("적용 전 센서:", sensor); // 적용 전 센서 객체 확인
+                            sensor.position = savedSensor.position;
+                             sensor.calibration = savedSensor.calibration || 0;
+                            console.log("적용 후 센서:", sensor); // 적용 후 센서 객체 확인
+                            sensorManager.updateSensorMarker(sensor, savedSensor.position);
+                        }
+                    });
                 }
                 if(config.parameters)
                     loadInterpolationParameters(config.parameters)
                 if(config.gen_config) {
                     /** @type {HTMLInputElement} */ (document.getElementById('generation-interval')).value = config.gen_config.gen_interval ?? 5;
-                    
+                  
                     // 시각화 설정 로드
                     const visualization = config.gen_config.visualization || {};
                     /** @type {HTMLSelectElement} */ (document.getElementById('empty-area-style')).value = visualization.empty_area ?? 'white';
@@ -203,7 +205,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     
                     // 컬러맵 프리뷰 업데이트
                     updateColormapPreview();
-                }
+              }
                 await sensorManager.loadSensors();
             }
             drawingTool.saveState();
@@ -211,6 +213,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.error('설정을 불러오는데 실패했습니다:', error);
         }
     }
+    
 
     // 플로어플랜 이미지 초기화
     const floorplanImg = /** @type {HTMLImageElement} */ (document.getElementById('floorplan-img'));
@@ -228,11 +231,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // SVG 크기를 1000x1000으로 고정
     const FIXED_SIZE = 1000;
-    svg.style.width = '100%';
-    svg.style.height = '100%';
-    
-    svg.setAttribute('width', String(FIXED_SIZE));
-    svg.setAttribute('height', String(FIXED_SIZE));
     svg.setAttribute('viewBox', `0 0 ${FIXED_SIZE} ${FIXED_SIZE}`);
     
     console.log('SVG attributes set');
@@ -475,7 +473,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
     const mapGenerationTime = document.getElementById('map-generation-time');
     const mapGenerationDuration = document.getElementById('map-generation-duration');
-    
+
     async function refreshThermalMap() {
         showMessage('온도지도 생성 중..')
         try {
@@ -616,11 +614,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                         // 이미지 크기 설정
                         floorplanImg.style.width = `${width}px`;
                         floorplanImg.style.height = `${height}px`;
-                        
-                        // SVG 크기는 1000x1000 유지
-                        svg.setAttribute('width', String(FIXED_SIZE));
-                        svg.setAttribute('height', String(FIXED_SIZE));
-                        svg.setAttribute('viewBox', `0 0 ${FIXED_SIZE} ${FIXED_SIZE}`);
 
                         // 드로잉툴 초기화
                         drawingTool.enable();
