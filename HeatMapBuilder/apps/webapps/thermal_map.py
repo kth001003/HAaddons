@@ -475,7 +475,20 @@ class ThermalMapGenerator:
         return coords
 
     def generate(self, output_path: str) -> bool:
+        """
+        온도맵을 생성하고 이미지 파일로 저장합니다.
+        
+        Args:
+            output_path: 출력 이미지 파일 경로
+            
+        Returns:
+            bool: 성공 여부
+        """
         try:
+            # 설정된 온도 범위 가져오기
+            min_temp = self.gen_config.get('colorbar', {}).get('min_temp', 0)
+            max_temp = self.gen_config.get('colorbar', {}).get('max_temp', 40)
+            
             # area 데이터 파싱
             areas, root = self._parse_areas()
             if not areas:
@@ -483,11 +496,17 @@ class ThermalMapGenerator:
                 return False
 
             # 센서 데이터 수집
-            sensor_points, temperatures, sensor_ids = self._collect_sensor_data()
+            sensor_points, raw_temps, sensor_ids = self._collect_sensor_data()
             if not sensor_points:
                 current_app.logger.error("유효한 센서 데이터가 없습니다")
                 return False
-
+            temperatures = raw_temps
+            # 온도값 범위 제한 적용
+            if min_temp is not None:
+                temperatures = [max(t, min_temp) for t in raw_temps]
+            if max_temp is not None:
+                temperatures = [min(t, max_temp) for t in raw_temps]
+                
             # 센서를 area에 할당
             self._assign_sensors_to_areas(sensor_points, temperatures, sensor_ids)
 
@@ -523,10 +542,9 @@ class ThermalMapGenerator:
             main_ax.invert_yaxis()
 
             # 온도 범위 설정
-            temp_min = min(temperatures)
-            temp_max = max(temperatures)
-            temp_range = temp_max - temp_min
-            levels = np.linspace(temp_min - 0.3 * temp_range, temp_max + 0.3 * temp_range, 200)
+            temp_range = min_temp - max_temp
+            steps = self.gen_config.get('colorbar', {}).get('temp_steps', 100)
+            levels = np.linspace(min_temp - 0.1 * temp_range, max_temp + 0.1 * temp_range, steps)
 
             # 온도 데이터가 없는 area 표시
             for i, area in enumerate(self.areas):
@@ -577,13 +595,12 @@ class ThermalMapGenerator:
                 main_ax.scatter(sensor_x, sensor_y, c='red', s=10, zorder=5)
 
                 # 센서 정보 표시
-                for point, sensor_id in zip(sensor_points, sensor_ids):
+                for point, temperature, sensor_id in zip(sensor_points, raw_temps, sensor_ids):
                     try:
                         state = self.get_sensor_state(sensor_id)
                         if not state or not isinstance(state, dict):
                             continue
-                            
-                        temp = float(state.get('state', 0))
+
                         name = state.get('attributes', {}).get('friendly_name', sensor_id.split('.')[-1])
                         
                         # 텍스트 위치 (센서 위치보다 약간 위로)
@@ -596,9 +613,9 @@ class ThermalMapGenerator:
                         elif sensor_display == 'position_name':
                             text = f'{name}'
                         elif sensor_display == 'position_name_temp':
-                            text = f'{name}\n{temp:.1f}°C'
+                            text = f'{name}\n{temperature:.1f}°C'
                         elif sensor_display == 'position_temp':
-                            text = f'{temp:.1f}°C'
+                            text = f'{temperature:.1f}°C'
                         
                         main_ax.text(text_x, text_y, text,
                                  horizontalalignment='center',
@@ -661,7 +678,6 @@ class ThermalMapGenerator:
                        transparent=True,
                        format='png')
             plt.close()
-
             return True
 
         except Exception as e:

@@ -197,6 +197,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value = colorbar.label ?? '온도 (°C)';
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-font-size')).value = colorbar.font_size ?? 12;
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-tick-size')).value = colorbar.tick_size ?? 10;
+                    /** @type {HTMLInputElement} */ (document.getElementById('min-temp')).value = colorbar.min_temp ?? 15;
+                    /** @type {HTMLInputElement} */ (document.getElementById('max-temp')).value = colorbar.max_temp ?? 35;
+                    /** @type {HTMLInputElement} */ (document.getElementById('temp-steps')).value = colorbar.temp_steps ?? 100;
                     
                     // 컬러맵 프리뷰 업데이트
                     updateColormapPreview();
@@ -248,14 +251,17 @@ document.addEventListener('DOMContentLoaded', async function() {
             colorbar: {
                 cmap: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value,
                 show_colorbar: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-colorbar')).checked,
-                width: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-width')).value),
-                height: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-height')).value),
+                width: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-width')).value),
+                height: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-height')).value),
                 location: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-location')).value,
                 orientation: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-orientation')).value,
                 show_label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-label')).checked,
                 label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value,
                 font_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-font-size')).value),
-                tick_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-tick-size')).value)
+                tick_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-tick-size')).value),
+                min_temp: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('min-temp')).value),
+                max_temp: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('max-temp')).value),
+                temp_steps: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('temp-steps')).value)
             }
         }
         
@@ -468,8 +474,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 새 이미지 생성 및 추가
     const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
     const mapGenerationTime = document.getElementById('map-generation-time');
+    const mapGenerationDuration = document.getElementById('map-generation-duration');
     
-    // 온도지도 새로고침 함수
     async function refreshThermalMap() {
         showMessage('온도지도 생성 중..')
         try {
@@ -480,14 +486,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const timestamp = new Date().getTime();
                 thermalMapImage.setAttribute('src', `${data.image_url}?t=${timestamp}`);
                 if (mapGenerationTime) {
-                    const now = new Date();
-                    const year = now.getFullYear();
-                    const month = String(now.getMonth() + 1).padStart(2, '0');
-                    const day = String(now.getDate()).padStart(2, '0');
-                    const hours = String(now.getHours()).padStart(2, '0');
-                    const minutes = String(now.getMinutes()).padStart(2, '0');
-                    const seconds = String(now.getSeconds()).padStart(2, '0');
-                    mapGenerationTime.textContent = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                    mapGenerationTime.textContent = data.time;
+                }
+                if (mapGenerationDuration){
+                    mapGenerationDuration.textContent = data.duration;
                 }
                 showMessage('온도지도를 새로 생성했습니다.', 'success');
             } else {
@@ -513,7 +515,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const timestamp = new Date().getTime();
                     thermalMapImage.setAttribute('src', `${data.image_url}?t=${timestamp}`);
                     if (mapGenerationTime) {
-                        mapGenerationTime.textContent = data.generation_time;
+                        mapGenerationTime.textContent = data.time;  // 시간 값 할당
+                    }
+                    if (mapGenerationDuration) {
+                        mapGenerationDuration.textContent = data.duration; // 지속 시간 값 할당
                     }
                 }
             }

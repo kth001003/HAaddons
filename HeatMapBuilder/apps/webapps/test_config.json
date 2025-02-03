@@ -3,6 +3,16 @@
     "mock_data": {
         "temperature_sensors": [
             {
+                "entity_id": "sensor.outside_temperature",
+                "state": "2.6",
+                "attributes": {
+                    "device_class": "temperature",
+                    "state_class": "measurement",
+                    "unit_of_measurement": "°C",
+                    "friendly_name": "실외 온도"
+                }
+            },
+            {
                 "entity_id": "sensor.living_room_temperature",
                 "state": "23.5",
                 "attributes": {

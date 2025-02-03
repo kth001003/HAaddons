@@ -204,7 +204,8 @@ class ThermoMapServer:
         self.is_dev = os.environ.get('FLASK_ENV') == 'development'
         self.is_local = is_local
         self.map_generation_time = ''
-        
+        self.map_generation_duration = ''
+
         self.config_manager = ConfigManager
         self.sensor_manager = SensorManager
         
@@ -218,7 +219,11 @@ class ThermoMapServer:
             self.app.jinja_env.auto_reload = True
             self.app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
         
-        # 로깅 설정
+        # Flask 기본 로깅 비활성화
+        self.app.logger.handlers.clear()
+        logging.getLogger('werkzeug').disabled = True
+        
+        # 커스텀 로깅 설정
         handler = RotatingFileHandler(
             self.config_manager.paths['log'],
             maxBytes=10000000,
@@ -245,7 +250,10 @@ class ThermoMapServer:
     def index(self):
         """메인 페이지"""
         cache_buster = int(time.time())
-        return render_template('index.html', cache_buster=cache_buster, map_generation_time=self.map_generation_time)
+        return render_template('index.html', 
+                               cache_buster=cache_buster, 
+                               map_generation_time=self.map_generation_time,
+                               map_generation_duration=self.map_generation_duration)
     
     def get_states(self):
         """센서 상태 정보"""
@@ -292,6 +300,7 @@ class ThermoMapServer:
     def generate_map(self):
         """열지도 생성"""
         try:
+            timestamp_start = time.time_ns()
             # 벽 설정 로드
             walls_data = self._load_walls()
             # 센서 설정 로드
@@ -315,9 +324,13 @@ class ThermoMapServer:
             if generator.generate(output_path):
                 self.app.logger.info("열지도 생성 완료")
                 self.map_generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                timestamp_end = time.time_ns()
+                self.map_generation_duration = f'{((timestamp_end - timestamp_start)/1000000000):.3f}s'
                 return jsonify({
                     'status': 'success',
-                    'image_url': '/local/thermal_map.png'
+                    'image_url': '/local/thermal_map.png',
+                    'time': self.map_generation_time,
+                    'duration': self.map_generation_duration
                 })
             else:
                 return jsonify({
@@ -363,10 +376,10 @@ class ThermoMapServer:
         try:
             map_path = os.path.join(self.config_manager.paths['media'], 'thermal_map.png')
             if os.path.exists(map_path):
-                modification_time = datetime.fromtimestamp(os.path.getmtime(map_path))
                 return jsonify({
                     'status': 'success',
-                    'generation_time': modification_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'time': self.map_generation_time,
+                    'duration': self.map_generation_duration,
                     'image_url': '/local/thermal_map.png'
                 })
             else:

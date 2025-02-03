@@ -18,6 +18,8 @@ export class SensorManager {
         this.handleDragStart = this.handleDragStart.bind(this);
         this.handleDragOver = this.handleDragOver.bind(this);
         this.handleDrop = this.handleDrop.bind(this);
+        this.handleCheckboxChange = this.handleCheckboxChange.bind(this);
+
 
         // SVG 이벤트 리스너 등록
         this.svg.addEventListener('dragover', this.handleDragOver);
@@ -40,7 +42,7 @@ export class SensorManager {
             // 센서 상태 로드
             const response = await fetch('./api/states');
             const states = await response.json();
-            this.sensors = states.filter(state => 
+            this.sensors = states.filter(state =>
                 state.attributes.device_class === 'temperature'
             );
 
@@ -48,7 +50,7 @@ export class SensorManager {
             const configResponse = await fetch('./api/load-config');
             if (configResponse.ok) {
                 const config = await configResponse.json();
-                
+
                 // 저장된 센서 위치 정보를 현재 센서 데이터에 적용
                 if (config.sensors) {
                     config.sensors.forEach(savedSensor => {
@@ -62,22 +64,25 @@ export class SensorManager {
             }
 
             this.updateSensorList();
+
         } catch (error) {
             console.error('센서 정보를 불러오는데 실패했습니다:', error);
-            // 에러 메시지를 UI에 표시
             const container = document.getElementById('sensor-container');
             if (container) {
-                container.innerHTML = `
+              container.innerHTML = `
                     <div class="p-4 bg-red-50 border border-red-200 rounded-md">
                         <p class="text-red-600">센서 정보를 불러오는데 실패했습니다.</p>
                         <p class="text-sm text-red-500 mt-1">${error.message}</p>
+                        <button id="retry-load-sensors" class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700">다시 로드</button>
                     </div>
                 `;
-            }
+             document.getElementById('retry-load-sensors').addEventListener('click', this.loadSensors.bind(this));
+    
+           }
         }
     }
 
-    // 센서 목록 UI 업데이트
+   // 센서 목록 UI 업데이트
     updateSensorList() {
         const container = document.getElementById('sensor-container');
         if (!container) return;
@@ -92,18 +97,23 @@ export class SensorManager {
         }
 
         container.innerHTML = this.sensors.map(sensor => {
-            const isPlaced = sensor.position !== undefined;
-            const itemClass = isPlaced 
-                ? 'sensor-item p-3 bg-gray-100 border border-gray-200 rounded-md shadow-sm opacity-50 cursor-pointer flex justify-between items-center'
-                : 'sensor-item p-3 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-pointer flex justify-between items-center';
-
+           const isPlaced = sensor.position !== undefined;
+            const itemClass = 'sensor-item p-3 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-pointer flex justify-between items-center';
             const calibration = sensor.calibration || 0;
             const calibratedTemp = parseFloat(sensor.state) + calibration;
 
             return `
                 <div class="${itemClass}" data-entity-id="${sensor.entity_id}">
                     <div class="flex-1">
-                        <span class="font-medium">${sensor.attributes.friendly_name || sensor.entity_id}</span>
+                         <div class="flex items-center">
+                            <input type="checkbox"
+                                class="sensor-checkbox mr-2"
+                                data-entity-id="${sensor.entity_id}"
+                                ${isPlaced ? 'checked' : ''}
+                                ${this.enabled ? '' : 'disabled'}
+                            >
+                            <span class="font-medium">${sensor.attributes.friendly_name || sensor.entity_id}</span>
+                        </div>
                         <div class="flex items-center mt-1">
                             <span class="text-gray-600 mr-2">측정값: ${sensor.state}°C</span>
                             <span class="text-blue-600">보정값: 
@@ -122,17 +132,10 @@ export class SensorManager {
             `;
         }).join('');
 
-        // 클릭 이벤트 설정
-        if (this.enabled) {
-            container.querySelectorAll('.sensor-item').forEach(item => {
-                item.addEventListener('click', (e) => {
-                    // 입력 필드를 클릭한 경우 이벤트 전파 중지
-                    if (e.target.classList.contains('calibration-input')) {
-                        e.stopPropagation();
-                        return;
-                    }
-                    this.handleSensorClick(e);
-                });
+        // 체크박스 이벤트 설정
+        if(this.enabled) {
+            container.querySelectorAll('.sensor-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', this.handleCheckboxChange);
             });
 
             // 보정값 입력 이벤트 설정
@@ -148,38 +151,40 @@ export class SensorManager {
                 });
                 input.addEventListener('click', (e) => e.stopPropagation());
             });
-        }
+         }
     }
 
-    // 센서 클릭 핸들러
-    handleSensorClick(e) {
-        if (!this.enabled) return;
-        
-        const entityId = e.currentTarget.dataset.entityId;
+    // 체크박스 변경 핸들러
+    handleCheckboxChange(e) {
+        if (!this.enabled) {
+            e.preventDefault(); // 체크박스 변경 막기
+            return;
+        }
+
+        const entityId = e.target.dataset.entityId;
         const sensor = this.sensors.find(s => s.entity_id === entityId);
-        
+
         if (!sensor) return;
-        
-        if (sensor.position) {
-            // 이미 배치된 센서라면 제거
+
+        if (e.target.checked) {
+            // 체크되었을 때, 센서 위치 설정
+             if (!sensor.position) {
+                const viewBox = this.svg.getAttribute('viewBox');
+                const [minX, minY, width, height] = viewBox.split(' ').map(Number);
+                const centerPoint = {
+                    x: minX + width / 2,
+                    y: minY + height / 2
+                };
+                 sensor.position = centerPoint;
+                this.updateSensorMarker(sensor, centerPoint);
+            }
+
+        } else {
+            // 체크 해제되었을 때, 센서 위치 제거
             sensor.position = undefined;
-            // SVG에서 센서 마커 제거
             const marker = this.svg.querySelector(`g[data-entity-id="${entityId}"]`);
             if (marker) marker.remove();
-        } else {
-            // 새로 배치할 센서라면 중앙에 배치
-            const viewBox = this.svg.getAttribute('viewBox');
-            const [minX, minY, width, height] = viewBox.split(' ').map(Number);
-            const centerPoint = {
-                x: minX + width / 2,
-                y: minY + height / 2
-            };
-            sensor.position = centerPoint;
-            this.updateSensorMarker(sensor, centerPoint);
         }
-        
-        // UI 업데이트
-        this.updateSensorList();
     }
 
     // 드래그 앤 드롭 핸들러
@@ -198,12 +203,16 @@ export class SensorManager {
     handleDrop(e) {
         if (!this.enabled) return;
         e.preventDefault();
-        
+       
         const entityId = e.dataTransfer.getData('text/plain');
         if (!entityId) return;
-
-        const point = this.clientToSVGPoint(e.clientX, e.clientY);
-        this.updateSensorPosition(entityId, point);
+       
+        const sensor = this.sensors.find(s => s.entity_id === entityId);
+        if(sensor){
+            const point = this.clientToSVGPoint(e.clientX, e.clientY);
+            this.updateSensorPosition(entityId, point);
+        }
+       
     }
 
     // 센서 위치 업데이트
@@ -216,7 +225,8 @@ export class SensorManager {
         }
     }
 
-    // 센서 마커 업데이트
+
+   // 센서 마커 업데이트
     updateSensorMarker(sensor, point) {
         // 기존 센서 마커 그룹 찾기
         let group = this.svg.querySelector(`g[data-entity-id="${sensor.entity_id}"]`);
@@ -256,14 +266,14 @@ export class SensorManager {
             group.appendChild(rect);
             group.appendChild(text);
             group.appendChild(circle);
-            
+
             this.svg.appendChild(group);
         }
 
         // 위치 및 텍스트 업데이트
         circle.setAttribute('cx', String(point.x));
         circle.setAttribute('cy', String(point.y));
-        
+
         text.setAttribute('x', String(point.x));
         text.setAttribute('y', String(point.y - 10));
         text.textContent = sensor.attributes.friendly_name || sensor.entity_id;
@@ -280,91 +290,108 @@ export class SensorManager {
         let isDragging = false;
         let startX = 0;
         let startY = 0;
+        let offsetX = 0;
+        let offsetY = 0;
+        let dragStartPoint = { x: 0, y: 0 }; // 드래그 시작 위치
         let originalX = point.x;
         let originalY = point.y;
 
+
         // 마우스 이벤트 핸들러
-        const handleMouseDown = (e) => {
-            if (!this.enabled) return;
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
+       const handleMouseDown = (e) => {
+           if (!this.enabled) return;
+           isDragging = true;
+           startX = e.clientX;
+           startY = e.clientY;
+
+            // 드래그 시작 시점의 SVG 좌표
+           dragStartPoint = this.clientToSVGPoint(e.clientX, e.clientY);
+
+             // 현재 센서의 위치와 드래그 시작 위치의 오프셋 계산
+           offsetX = dragStartPoint.x - point.x;
+           offsetY = dragStartPoint.y - point.y;
+
             originalX = point.x;
             originalY = point.y;
-            group.style.pointerEvents = 'none';
-        };
+           group.style.pointerEvents = 'none';
+       };
 
         const handleMouseMove = (e) => {
-            if (!isDragging) return;
-            
-            const newPoint = this.clientToSVGPoint(e.clientX, e.clientY);
-            
+             if (!isDragging) return;
+
+            // 마우스 이동 시점의 SVG 좌표
+            const currentSVGPoint = this.clientToSVGPoint(e.clientX, e.clientY);
+
+           // 오프셋을 적용하여 새로운 위치 계산
+            const newPoint = {
+                x: currentSVGPoint.x - offsetX,
+                y: currentSVGPoint.y - offsetY
+            };
+
             // 위치 업데이트
-            circle.setAttribute('cx', String(newPoint.x));
-            circle.setAttribute('cy', String(newPoint.y));
-            text.setAttribute('x', String(newPoint.x));
-            text.setAttribute('y', String(newPoint.y - 10));
+            if (point.x !== parseFloat(circle.getAttribute('cx')) || point.y !== parseFloat(circle.getAttribute('cy'))){
+                circle.setAttribute('cx', String(point.x));
+                circle.setAttribute('cy', String(point.y));
 
-            // 텍스트 배경 크기 계산 및 업데이트
-            const textBBox = text.getBBox ? text.getBBox() : { width: 100, height: 14 };
-            const padding = 4;
-            rect.setAttribute('x', String(newPoint.x - textBBox.width/2 - padding));
-            rect.setAttribute('y', String(newPoint.y - 24));
+                text.setAttribute('x', String(point.x));
+                text.setAttribute('y', String(point.y - 10));
+                // 텍스트 배경 크기 계산 및 업데이트
+                const textBBox = text.getBBox ? text.getBBox() : { width: 100, height: 14 };
+                const padding = 4;
+                rect.setAttribute('x', String(point.x - textBBox.width/2 - padding));
+                rect.setAttribute('y', String(point.y - 24));
+            }
+            if(text.textContent !== (sensor.attributes.friendly_name || sensor.entity_id))
+            text.textContent = sensor.attributes.friendly_name || sensor.entity_id;
 
-            // 센서 위치 업데이트
-            sensor.position = { x: newPoint.x, y: newPoint.y };
+           // 센서 위치 업데이트
+            sensor.position = newPoint;
             point = newPoint; // point 변수 업데이트
         };
+
 
         const handleMouseUp = () => {
             if (!isDragging) return;
             isDragging = false;
             group.style.pointerEvents = 'auto';
-            // 드래그가 끝난 후 originalX, originalY 값을 현재 위치로 업데이트
+           // 드래그가 끝난 후 originalX, originalY 값을 현재 위치로 업데이트
             originalX = point.x;
             originalY = point.y;
         };
 
         // 이벤트 핸들러 참조 저장을 위한 속성 추가
-        if (!group._eventHandlers) {
-            group._eventHandlers = {
-                mouseDown: handleMouseDown,
-                mouseMove: handleMouseMove,
-                mouseUp: handleMouseUp
-            };
-        } else {
+        if (group._eventHandlers) {
             // 기존 이벤트 리스너 제거
-            [circle, text, rect].forEach(element => {
-                element.removeEventListener('mousedown', group._eventHandlers.mouseDown);
-            });
-            document.removeEventListener('mousemove', group._eventHandlers.mouseMove);
-            document.removeEventListener('mouseup', group._eventHandlers.mouseUp);
-            
-            // 새로운 핸들러로 업데이트
-            group._eventHandlers = {
-                mouseDown: handleMouseDown,
-                mouseMove: handleMouseMove,
-                mouseUp: handleMouseUp
-            };
-        }
-
-        // 새로운 이벤트 리스너 등록
+             [circle, text, rect].forEach(element => {
+                  element.removeEventListener('mousedown', group._eventHandlers.mouseDown);
+              });
+             document.removeEventListener('mousemove', group._eventHandlers.mouseMove);
+             document.removeEventListener('mouseup', group._eventHandlers.mouseUp);
+          }
+          // 새로운 핸들러 등록
+          group._eventHandlers = {
+              mouseDown: handleMouseDown,
+             mouseMove: handleMouseMove,
+              mouseUp: handleMouseUp
+          };
+     
         [circle, text, rect].forEach(element => {
-            element.addEventListener('mousedown', group._eventHandlers.mouseDown);
-        });
-        document.addEventListener('mousemove', group._eventHandlers.mouseMove);
-        document.addEventListener('mouseup', group._eventHandlers.mouseUp);
+              element.addEventListener('mousedown', group._eventHandlers.mouseDown);
+          });
+          document.addEventListener('mousemove', group._eventHandlers.mouseMove);
+          document.addEventListener('mouseup', group._eventHandlers.mouseUp);
     }
-
     // 클라이언트 좌표를 SVG 좌표로 변환
     clientToSVGPoint(clientX, clientY) {
         const rect = this.svg.getBoundingClientRect();
-        const scaleX = this.viewBox.width / rect.width;
-        const scaleY = this.viewBox.height / rect.height;
+        // 비율 1:1이라고 가정..
+        const scale = Math.max(this.viewBox.width,this.viewBox.height)/Math.min(rect.width,rect.height)
+        // const scaleX = this.viewBox.width / rect.width;
+        // const scaleY = this.viewBox.height / rect.height;
 
         return {
-            x: (clientX - rect.left) * scaleX + this.viewBox.minX,
-            y: (clientY - rect.top) * scaleY + this.viewBox.minY
+            x: (clientX - rect.left) * scale + this.viewBox.minX,
+            y: (clientY - rect.top) * scale + this.viewBox.minY
         };
     }
 
@@ -400,4 +427,4 @@ export class SensorManager {
         const calibration = sensor.calibration || 0;
         return rawTemp + calibration;
     }
-} 
+}
