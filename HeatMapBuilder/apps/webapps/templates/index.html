@@ -8,8 +8,8 @@
 <body class="bg-gray-100">
     <!-- 헤더 -->
     <header class="bg-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 py-6">
-            <h1 class="text-3xl font-bold text-gray-900">온도지도 생성기</h1>
+        <div class="max-w-7xl mx-auto px-4 py-2">
+            <h1 class="font-bold text-gray-900">온도지도 생성기</h1>
         </div>
     </header>
 
@@ -17,9 +17,9 @@
     <nav class="bg-white shadow-sm">
         <div class="max-w-7xl mx-auto px-4">
             <div class="flex space-x-8">
-                <button id="dashboard-tab" class="px-3 py-4 text-sm font-medium text-gray-900 border-b-2 border-blue-500">대시보드</button>
-                <button id="map-tab" class="px-3 py-4 text-sm font-medium text-gray-500 hover:text-gray-700">지도 및 센서 배치</button>
-                <button id="settings-tab" class="px-3 py-4 text-sm font-medium text-gray-500 hover:text-gray-700">설정</button>
+                <button id="dashboard-tab" class="px-3 py-2 text-sm font-medium text-gray-900 border-b-2 border-blue-500">대시보드</button>
+                <button id="map-tab" class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">지도 및 센서 배치</button>
+                <button id="settings-tab" class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">설정</button>
             </div>
         </div>
     </nav>
@@ -30,20 +30,32 @@
     <!-- 메인 컨텐츠 -->
     <main class="max-w-7xl mx-auto px-4 py-6">
         <!-- 대시보드 탭 -->
-        <div id="dashboard-content" class="space-y-6">
-            <div id="thermal-map-container" class="bg-white rounded-lg shadow-md p-6">
-                <h2 class="text-xl font-semibold mb-4">현재 온도지도</h2>
-                <div class="aspect-w-1 aspect-h-1">
-                    <img id="thermal-map-img" alt="생성된 온도지도" class="object-contain w-full h-full">
+        <div id="dashboard-content" class="space-y-6 h-[calc(100vh-8rem)]">
+            <div id="thermal-map-container" class="bg-white rounded-lg shadow-md p-6 h-full">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">현재 온도지도</h2>
+                    <div class="flex items-center space-x-4">
+                        <span id="map-generation-time" class="text-sm text-gray-600">{{map_generation_time}}</span>
+                        <span id="map-generation-duration" class="text-sm text-gray-600">{{map_generation_duration}}</span>
+                        <button id="generate-now" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            지금 새로생성
+                        </button>
+                    </div>
+                </div>
+                <div class="h-[calc(100%-2rem)]">
+                    <img id="thermal-map-img" src={{img_url}} alt="생성된 온도지도" class="object-contain w-full h-full">
                 </div>
             </div>
         </div>
 
         <!-- 지도 및 센서 배치 탭 -->
-        <div id="map-content" class="hidden space-y-6">
-            <div class="grid grid-cols-4 gap-6">
+        <div id="map-content" class="hidden flex flex-col h-[calc(100vh-8rem)]">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1 overflow-hidden">
                 <!-- 왼쪽 컨트롤 패널 -->
-                <div class="col-span-1 space-y-6">
+                <div class="md:col-span-1 space-y-6 overflow-y-auto order-2 md:order-1">
                     <!-- 단계 표시 -->
                     <div class="bg-white rounded-lg shadow-md p-4">
                         <div class="space-y-2">
@@ -57,7 +69,7 @@
                             </button>
                         </div>
                     </div>
-
+        
                     <!-- 벽 그리기 컨트롤 -->
                     <div id="step1-controls" class="bg-white rounded-lg shadow-md p-4">
                         <h3 class="text-lg font-semibold mb-4">벽 그리기</h3>
@@ -94,26 +106,26 @@
                             </div>
                         </div>
                     </div>
-
+        
                     <!-- 센서 배치 컨트롤 -->
-                    <div id="step2-controls" class="hidden bg-white rounded-lg shadow-md p-4">
+                    <div id="step2-controls" class="hidden bg-white rounded-lg shadow-md p-4 max-h-[400px] overflow-y-auto">
                         <h3 class="text-lg font-semibold mb-4">센서 배치</h3>
-                        <div id="sensor-container" class="space-y-2 mb-4 max-h-[400px] overflow-y-auto"></div>
+                        <div id="sensor-container" class="space-y-2"></div>
                     </div>
-
+        
                     <!-- 저장 버튼 -->
                     <button id="save-walls-sensors" class="w-full px-3 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600">
                         저장
                     </button>
                 </div>
-
+        
                 <!-- 오른쪽 캔버스 영역 -->
-                <div class="col-span-3">
-                    <div id="floorplan-container" class="bg-white rounded-lg shadow-md p-4">
-                        <div class="relative aspect-square">
+                <div class="md:col-span-3 overflow-hidden order-1 md:order-2">
+                    <div id="floorplan-container" class="bg-white rounded-lg shadow-md p-4 h-full">
+                        <div class="relative h-full">
                             <img id="floorplan-img" class="absolute max-w-full max-h-full object-contain pointer-events-none">
                             <div class="absolute inset-0 bg-white opacity-50 pointer-events-none"></div>
-                            <div id="svg-overlay-container" class="absolute inset-0 flex items-center justify-center">
+                            <div id="svg-overlay-container" class="absolute inset-0 flex items-center justify-center h-full">
                                 <svg id="svg-overlay" class="w-full h-full" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet"></svg>
                             </div>
                         </div>
@@ -124,6 +136,7 @@
 
         <!-- 설정 탭 -->
         <div id="settings-content" class="hidden space-y-6">
+            
             <!-- 보간 설정 -->
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-xl font-semibold mb-4">보간 설정</h2>
@@ -132,7 +145,16 @@
                     <div class="space-y-4">
                         <h3 class="text-lg font-medium">가우시안 분포 설정</h3>
                         <div class="space-y-2">
-                            <label class="block text-sm">Sigma 비율</label>
+                            <label class="block text-sm">Sigma 비율
+                                <div class="group relative inline-block">
+                                    <button class="bg-gray-500 text-white px-2 rounded">
+                                        ?
+                                    </button>
+                                    <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                        Sigma 값은 가우시안 함수의 폭을 결정합니다. 높은 값은 넓고 부드러운 분포를, 낮은 값은 좁고 뾰족한 분포를 생성합니다. 온도 지도의 부드러움 정도를 조절합니다.
+                                    </div>
+                                </div>
+                            </label>
                             <input type="number" id="gaussian-sigma-factor" class="w-full px-3 py-2 border rounded-md" value="8.0" min="0.1" max="20" step="0.1">
                         </div>
                     </div>
@@ -141,7 +163,20 @@
                     <div class="space-y-4">
                         <h3 class="text-lg font-medium">RBF 설정</h3>
                         <div class="space-y-2">
-                            <label class="block text-sm">함수</label>
+                            <label class="block text-sm">함수
+                                <div class="group relative inline-block">
+                                    <button class="bg-gray-500 text-white px-2 rounded">
+                                        ?
+                                    </button>
+                                    <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                        <p class="mb-1"><b>Gaussian:</b> 가우시안 함수는 부드러운 보간 결과를 제공하며, 넓은 영역에 걸쳐 영향을 미칩니다.</p>
+                                        <p class="mb-1"><b>Multiquadric:</b> 멀티쿼드릭 함수는 먼 거리의 데이터에도 영향을 주며, 더 복잡한 형태의 보간에 적합합니다.</p>
+                                        <p class="mb-1"><b>Inverse:</b> 인버스 함수는 거리가 가까울수록 큰 영향을 주며, 지역적인 특징을 강조합니다.</p>
+                                         <p class="mb-1"><b>Quintic:</b> 퀸틱 함수는 매우 부드러운 보간 결과를 생성하며, 고차 다항식에 기반하여 복잡한 패턴을 처리합니다.</p>
+                                        <p><b>Thin Plate:</b> 얇은 판 함수는 수학적으로 안정적인 보간을 제공하며, 자연스러운 형태를 보간하는 데 적합합니다.</p>
+                                    </div>
+                                </div>
+                            </label>
                             <select id="rbf-function" class="w-full px-3 py-2 border rounded-md">
                                 <option value="gaussian">Gaussian</option>
                                 <option value="multiquadric">Multiquadric</option>
@@ -149,7 +184,16 @@
                                 <option value="quintic">Quintic</option>
                                 <option value="thin_plate">Thin Plate</option>
                             </select>
-                            <label class="block text-sm mt-2">Epsilon 비율</label>
+                            <label class="block text-sm mt-2">Epsilon 비율
+                                <div class="group relative inline-block">
+                                    <button class="bg-gray-500 text-white px-2 rounded">
+                                      ?
+                                    </button>
+                                    <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                        Epsilon 값은 RBF 함수의 형태를 결정하는 중요한 파라미터입니다. Gaussian, Multiquadric, Inverse 함수 등에 영향을 미치며, 값의 변화에 따라 보간 결과가 크게 달라질 수 있습니다.
+                                    </div>
+                                </div>
+                            </label>
                             <input type="number" id="rbf-epsilon-factor" class="w-full px-3 py-2 border rounded-md" value="0.5" min="0.1" max="10" step="0.1">
                         </div>
                     </div>
@@ -158,26 +202,186 @@
                     <div class="space-y-4">
                         <h3 class="text-lg font-medium">크리깅 설정</h3>
                         <div class="space-y-2">
-                            <label class="block text-sm">베리오그램 모델</label>
+                           <label class="block text-sm">베리오그램 모델
+                                <div class="group relative inline-block">
+                                    <button class="bg-gray-500 text-white px-2 rounded">
+                                        ?
+                                    </button>
+                                    <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                        <p class="mb-1"><b>Gaussian:</b> 가우시안 모델은 부드러운 형태의 베리오그램으로, 데이터 간의 상관 관계가 점진적으로 감소하는 경향을 모델링합니다.</p>
+                                        <p class="mb-1"><b>Spherical:</b> 구형 모델은 특정 거리까지 상관 관계가 증가하다가 특정 범위(range)에서 상관 관계가 사라지는 모델입니다.</p>
+                                        <p class="mb-1"><b>Exponential:</b> 지수 모델은 가우시안 모델과 유사하지만, 좀 더 완만한 감소를 보이는 베리오그램 형태를 가집니다.</p>
+                                        <p class="mb-1"><b>Hole-Effect:</b> 홀 효과 모델은 주기적인 패턴이 있는 데이터에 적합하며, 특정 거리에서 상관 관계가 다시 증가했다가 감소하는 형태를 가집니다.</p>
+                                          <p class="mb-1"><b>Linear:</b> 선형 모델은 거리에 비례하여 상관 관계가 감소하는 모델로, 단순한 형태의 공간적 의존성을 나타냅니다.</p>
+                                          <p><b>Power:</b> 파워 모델은 초기에는 상관 관계가 빠르게 감소하지만, 거리가 멀어질수록 감소율이 줄어드는 형태입니다.</p>
+                                    </div>
+                                </div>
+                            </label>
                             <select id="kriging-variogram-model" class="w-full px-3 py-2 border rounded-md">
                                 <option value="gaussian">Gaussian</option>
                                 <option value="spherical">Spherical</option>
                                 <option value="exponential">Exponential</option>
+                                <option value="hole-effect">Hole-Effect</option>
                                 <option value="linear">Linear</option>
+                                <option value="power">Power</option>
                             </select>
+                            <!-- 베리오그램 파라미터 -->
+                            <div id="variogram-parameters" class="mt-2">
+                                <!-- Gaussian, Spherical, Exponential, Hole-Effect 모델용 파라미터 -->
+                                <div id="standard-params" class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="block text-sm">
+                                            Nugget
+                                            <div class="group relative inline-block">
+                                                <span class="tooltip-trigger group-hover:w-auto group-hover:h-auto group-focus-within:w-auto group-focus-within:h-auto w-0 h-0 overflow-hidden transition-all duration-200">
+                                                   <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                </span>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    Nugget 효과는 측정 오차 또는 미세 변동성을 나타냅니다. 0이 아닌 값은 데이터의 불확실성을 모델에 반영하여, 보간 결과에 노이즈를 추가하는 효과를 줍니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="kriging-nugget" class="w-full px-3 py-2 border rounded-md" value="5" min="0" max="100" step="1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Sill
+                                            <div class="group relative inline-block">
+                                                <span class="tooltip-trigger group-hover:w-auto group-hover:h-auto group-focus-within:w-auto group-focus-within:h-auto w-0 h-0 overflow-hidden transition-all duration-200">
+                                                   <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                </span>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    Sill은 베리오그램이 도달하는 최대 값으로, 데이터의 전체 분산을 나타냅니다.  온도 값의 변동 범위에 영향을 줍니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="kriging-sill" class="w-full px-3 py-2 border rounded-md" value="20" min="1" max="200" step="1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Range
+                                            <div class="group relative inline-block">
+                                                <span class="tooltip-trigger group-hover:w-auto group-hover:h-auto group-focus-within:w-auto group-focus-within:h-auto w-0 h-0 overflow-hidden transition-all duration-200">
+                                                   <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                </span>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    Range는 공간적 자기상관이 미치는 최대 거리입니다. 이 거리 내에서는 데이터 간의 상관성이 있다고 가정하며, 지도 생성 시 주변 데이터의 영향 범위를 결정합니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="kriging-range" class="w-full px-3 py-2 border rounded-md" value="10" min="1" max="100" step="1">
+                                    </div>
+                                </div>
+                                <!-- Linear 모델용 파라미터 -->
+                                <div id="linear-params" class="grid grid-cols-2 gap-2 hidden">
+                                    <div>
+                                        <label class="block text-sm">Slope
+                                            <div class="group relative inline-block">
+                                                <span class="tooltip-trigger group-hover:w-auto group-hover:h-auto group-focus-within:w-auto group-focus-within:h-auto w-0 h-0 overflow-hidden transition-all duration-200">
+                                                   <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                </span>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    Slope는 거리에 따른 베리오그램 값의 증가 기울기를 결정합니다. 높은 Slope 값은 거리가 멀어질수록 더 빠르게 상관성이 감소함을 의미합니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="kriging-slope" class="w-full px-3 py-2 border rounded-md" value="1" min="0.1" max="10" step="0.1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Nugget
+                                            <div class="group relative inline-block">
+                                                <span class="tooltip-trigger group-hover:w-auto group-hover:h-auto group-focus-within:w-auto group-focus-within:h-auto w-0 h-0 overflow-hidden transition-all duration-200">
+                                                   <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                </span>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    Nugget 효과는 Linear 모델에서도 측정 오차 또는 미세 변동성을 나타냅니다. 0이 아닌 값은 데이터의 불확실성을 모델에 반영합니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="kriging-linear-nugget" class="w-full px-3 py-2 border rounded-md" value="0" min="0" max="100" step="1">
+                                    </div>
+                                </div>
+                                <!-- Power 모델용 파라미터 -->
+                                <div id="power-params" class="grid grid-cols-3 gap-2 hidden">
+                                    <div>
+                                        <label class="block text-sm">Scale
+                                            <div class="group relative inline-block">
+                                                <span class="tooltip-trigger group-hover:w-auto group-hover:h-auto group-focus-within:w-auto group-focus-within:h-auto w-0 h-0 overflow-hidden transition-all duration-200">
+                                                   <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                </span>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    Scale은 Power 모델의 전체적인 크기를 조정합니다. 데이터 값의 스케일에 맞춰 조정할 수 있습니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="kriging-scale" class="w-full px-3 py-2 border rounded-md" value="1" min="0.1" max="10" step="0.1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Exponent
+                                            <div class="group relative inline-block">
+                                                <span class="tooltip-trigger group-hover:w-auto group-hover:h-auto group-focus-within:w-auto group-focus-within:h-auto w-0 h-0 overflow-hidden transition-all duration-200">
+                                                   <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                </span>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    Exponent는 거리의 영향을 받는 정도를 조절합니다. 1에 가까울수록 선형적인 감소, 2에 가까울수록 이차 함수적인 감소를 보입니다. 공간 데이터의 특성에 맞게 조정합니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="kriging-exponent" class="w-full px-3 py-2 border rounded-md" value="1.5" min="0.1" max="4" step="0.1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">Nugget
+                                             <div class="group relative inline-block">
+                                                <span class="tooltip-trigger group-hover:w-auto group-hover:h-auto group-focus-within:w-auto group-focus-within:h-auto w-0 h-0 overflow-hidden transition-all duration-200">
+                                                   <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                </span>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    Power 모델에서도 Nugget 효과는 측정 오차 또는 미세 변동성을 반영합니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="kriging-power-nugget" class="w-full px-3 py-2 border rounded-md" value="0" min="0" max="100" step="1">
+                                    </div>
+                                </div>
+                            </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm">Lag 수</label>
+                                    <label class="block text-sm">Lag 수
+                                        <div class="group relative inline-block">
+                                            <button class="bg-gray-500 text-white px-2 rounded">
+                                              ?
+                                            </button>
+                                            <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                Lag 수는 베리오그램 계산 시 거리를 나누는 구간의 수입니다. Lag 수가 많을수록 베리오그램이 더 자세하게 계산되지만, 계산량이 늘어날 수 있습니다.
+                                            </div>
+                                        </div>
+                                    </label>
                                     <input type="number" id="kriging-nlags" class="w-full px-3 py-2 border rounded-md" value="6" min="1" max="50" step="1">
                                 </div>
                                 <div>
-                                    <label class="block text-sm">이방성 스케일</label>
+                                    <label class="block text-sm">이방성 스케일
+                                        <div class="group relative inline-block">
+                                            <button class="bg-gray-500 text-white px-2 rounded">
+                                              ?
+                                            </button>
+                                            <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                이방성 스케일은 특정 방향으로의 공간적 상관 관계의 크기를 조절합니다. 1보다 큰 값은 해당 방향으로 더 넓은 범위에 영향을 미치도록 합니다.
+                                            </div>
+                                        </div>
+                                    </label>
                                     <input type="number" id="kriging-anisotropy-scaling" class="w-full px-3 py-2 border rounded-md" value="1.0" min="0.1" max="50" step="0.1">
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm">이방성 각도</label>
+                                    <label class="block text-sm">이방성 각도
+                                        <div class="group relative inline-block">
+                                            <button class="bg-gray-500 text-white px-2 rounded">
+                                              ?
+                                            </button>
+                                            <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                이방성 각도는 공간적 상관 관계가 가장 크게 나타나는 방향을 각도로 지정합니다. 0도는 동쪽, 90도는 북쪽입니다.  데이터의 공간적 패턴에 맞춰 조정할 수 있습니다.
+                                            </div>
+                                        </div>
+                                    </label>
                                     <input type="number" id="kriging-anisotropy-angle" class="w-full px-3 py-2 border rounded-md" value="0.0" min="0" max="360" step="1">
                                 </div>
                                 <div class="flex items-center">
@@ -198,13 +402,247 @@
             <!-- 지도 생성 설정 -->
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-xl font-semibold mb-4">지도 생성 설정</h2>
-                <div class="space-y-4">
+                <div class="space-y-6">
                     <div>
                         <label class="block text-sm mb-1">생성 주기 (분)</label>
                         <input type="number" id="generation-interval" class="w-full px-3 py-2 border rounded-md" value="5" min="1" max="1440" step="1">
                     </div>
+                    <!-- 이미지 형식 -->
+                    <div class="space-y-2">
+                        <label class="block text-sm">이미지 형식</label>
+                        <select id="format" class="w-full px-3 py-2 border rounded-md" value="png">
+                            <option value="png">png</option>
+                            <option value="jpg">jpg</option>
+                        </select>
+                    </div>
+                    <!-- 이미지 이름 -->
+                    <div>
+                        <label class="block text-sm mb-1">파일 이름</label>
+                        <input type="text" id="file-name" class="w-full px-3 py-2 border rounded-md" value="thermal_map">
+                    </div>
+
+                    <!-- 표시 온도 범위 설정 -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">표시 온도 범위</h3>
+                        <span class="group relative inline-block">
+                            <button class="bg-gray-500 text-white px-2 rounded">
+                              ?
+                            </button>
+                            <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                표시할 온도의 범위를 설정합니다. 범위를 벗어난 센서 값은 최대, 최소값으로 처리됩니다. 단계 수: 최저-최고 온도 사이를 단계 수로 나눠 표현합니다. 단계가 많을 수록 부드러운 색상변화로 표현됩니다.
+                            </div>
+                        </span>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm">최저 온도 (°C)</label>
+                                <input type="number" id="min-temp" class="w-full px-3 py-2 border rounded-md" value="15" min="-50" max="50" step="0.5">
+                            </div>
+                            <div>
+                                <label class="block text-sm">최고 온도 (°C)</label>
+                                <input type="number" id="max-temp" class="w-full px-3 py-2 border rounded-md" value="35" min="-50" max="50" step="0.5">
+                            </div>
+                             <div>
+                                <label class="block text-sm">단계 수</label>
+                                <input type="number" id="temp-steps" class="w-full px-3 py-2 border rounded-md" value="100" min="10" max="1000" step="1">
+                            </div>
+                        </div>
+                    </div>
+                        
+                    <!-- Area 표시 설정 -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">Area 표시 설정</h3>
+                        
+                        <!-- 데이터 없는 Area 표시 설정 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">데이터 없는 Area 표시</label>
+                            <select id="empty-area-style" class="w-full px-3 py-2 border rounded-md">
+                                <option value="white">흰색</option>
+                                <option value="transparent">투명</option>
+                                <option value="hatched">빗금</option>
+                            </select>
+                        </div>
+
+                        <!-- Area 경계선 설정 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">Area 경계선 두께</label>
+                            <input type="number" id="area-border-width" class="w-full px-3 py-2 border rounded-md" value="2" min="0" max="10" step="0.5">
+                            <label class="block text-sm mt-2">Area 경계선 색상</label>
+                            <div class="flex space-x-2">
+                                <input type="color" id="area-border-color" class="h-10 w-20" value="#000000">
+                                <select id="area-border-color-preset" class="flex-1 px-3 py-2 border rounded-md">
+                                    <option value="#000000">검정</option>
+                                    <option value="#FF0000">빨강</option>
+                                    <option value="#00FF00">초록</option>
+                                    <option value="#0000FF">파랑</option>
+                                    <option value="#808080">회색</option>
+                                    <option value="#FFFFFF">흰색</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Plot 외곽선 설정 -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">Plot 외곽선 설정</h3>
+                        <div class="space-y-2">
+                            <label class="block text-sm">외곽선 두께
+                                <div class="group relative inline-block">
+                                    <button class="bg-gray-500 text-white px-2 rounded">
+                                      ?
+                                    </button>
+                                    <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                        이미지의 테두리를 그립니다.
+                                    </div>
+                                </div>
+                            </label>
+                            <input type="number" id="plot-border-width" class="w-full px-3 py-2 border rounded-md" value="0" min="0" max="10" step="0.5">
+                            <label class="block text-sm mt-2">외곽선 색상</label>
+                             <div class="flex space-x-2">
+                                <input type="color" id="plot-border-color" class="h-10 w-20" value="#000000">
+                                <select id="plot-border-color-preset" class="flex-1 px-3 py-2 border rounded-md">
+                                    <option value="#000000">검정</option>
+                                    <option value="#FF0000">빨강</option>
+                                    <option value="#00FF00">초록</option>
+                                    <option value="#0000FF">파랑</option>
+                                    <option value="#808080">회색</option>
+                                    <option value="#FFFFFF">흰색</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 센서 표시 설정 -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">센서 표시 설정</h3>
+                        <div class="space-y-2">
+                            <label class="block text-sm">센서 정보 표시
+                                <div class="group relative inline-block">
+                                    <button class="bg-gray-500 text-white px-2 rounded">
+                                      ?
+                                    </button>
+                                    <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                        센서 표시여부와 이름, 온도 표시 여부를 결정합니다.
+                                    </div>
+                                </div>
+                            </label>
+                            <select id="sensor-display-option" class="w-full px-3 py-2 border rounded-md">
+                                <option value="none">표시 안함</option>
+                                <option value="position">위치만</option>
+                                <option value="position_name">위치 + 센서이름</option>
+                                <option value="position_name_temp">위치 + 센서이름 + 온도</option>
+                                <option value="position_temp">위치 + 온도</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 컬러바 설정 -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium">컬러바 설정</h3>
+                        
+                        <!-- 컬러바 표시 여부 -->
+                        <div class="flex items-center space-x-2">
+                            <input type="checkbox" id="colorbar-show-colorbar" class="rounded" checked>
+                            <label class="text-sm">컬러바 표시</label>
+                        </div>
+
+                        <!-- 컬러맵 선택 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">컬러맵</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <select id="colorbar-cmap" class="w-full px-3 py-2 border rounded-md">
+                                    <option value="RdYlBu_r">RdYlBu_r</option>
+                                    <option value="RdBu_r">RdBu_r</option>
+                                    <option value="coolwarm">Coolwarm</option>
+                                    <option value="bwr">BWR</option>
+                                    <option value="seismic">Seismic</option>
+                                    <option value="PiYG">PiYG</option>
+                                    <option value="PRGn">PRGn</option>
+                                    <option value="BrBG">BrBG</option>
+                                    <option value="PuOr">PuOr</option>
+                                    <option value="Spectral">Spectral</option>
+                                    <option value="Spectral_r">Spectral_r</option>
+                                </select>
+                                <div id="colormap-preview" class="h-10 rounded-md border"></div>
+                            </div>
+                        </div>
+
+                        <!-- 방향 설정 -->
+                        <div>
+                            <label class="block text-sm">컬러바 방향</label>
+                            <select id="colorbar-orientation" class="w-full px-3 py-2 border rounded-md">
+                                <option value="vertical">수직</option>
+                                <option value="horizontal">수평</option>
+                            </select>
+                        </div>
+
+                        <!-- 크기 및 위치 설정 -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm">두께 (%)</label>
+                                <input type="number" id="colorbar-width" class="w-full px-3 py-2 border rounded-md" value="5" min="1" max="20" step="0.5">
+                            </div>
+                            <div>
+                                <label class="block text-sm">축방향 길이 (%)</label>
+                                <input type="number" id="colorbar-height" class="w-full px-3 py-2 border rounded-md" value="100" min="10" max="100" step="5">
+                            </div>
+                        </div>
+
+                        <!-- 위치 설정 -->
+                        <div>
+                            <label class="block text-sm">위치</label>
+                            <select id="colorbar-location" class="w-full px-3 py-2 border rounded-md">
+                                <option value="right">우측</option>
+                                <option value="upper right">우측 상단</option>
+                                <option value="upper left">좌측 상단</option>
+                                <option value="lower left">좌측 하단</option>
+                                <option value="lower right">우측 하단</option>
+                                <option value="center left">중앙 좌측</option>
+                                <option value="center right">중앙 우측</option>
+                                <option value="lower center">하단 중앙</option>
+                                <option value="upper center">상단 중앙</option>
+                                <option value="center">중앙</option>
+                            </select>
+                        </div>
+                        <!-- 패딩 -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm">여백
+                                    <div class="group relative inline-block">
+                                        <button class="bg-gray-500 text-white px-2 rounded">
+                                          ?
+                                        </button>
+                                        <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                            이미지의 외곽으로부터 설정한 값 만큼 여백을 두고 컬러바를 표시합니다. 음수인경우 이미지 밖에 컬러바가 표시됩니다.
+                                        </div>
+                                    </div>
+                                </label>
+                                <input type="number" id="colorbar-borderpad" class="w-full px-3 py-2 border rounded-md" value="0" min="-50" max="50" step="1">
+                            </div>
+                        </div>
+
+                        <!-- 레이블 설정 -->
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" id="colorbar-show-label" class="rounded" checked>
+                                <label class="text-sm">레이블 표시</label>
+                            </div>
+                            <input type="text" id="colorbar-label" class="w-full px-3 py-2 border rounded-md" value="온도 (°C)" placeholder="레이블 텍스트">
+                        </div>
+
+                        <!-- 폰트 및 눈금 크기 -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm">폰트 크기</label>
+                                <input type="number" id="colorbar-font-size" class="w-full px-3 py-2 border rounded-md" value="12" min="8" max="24" step="1">
+                            </div>
+                            <div>
+                                <label class="block text-sm">눈금 크기</label>
+                                <input type="number" id="colorbar-tick-size" class="w-full px-3 py-2 border rounded-md" value="10" min="6" max="20" step="1">
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <button id="save-gen-configs" class="w-full mt-3 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">
+                <button id="save-gen-configs" class="w-full mt-6 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">
                     설정 저장
                 </button>
             </div>
