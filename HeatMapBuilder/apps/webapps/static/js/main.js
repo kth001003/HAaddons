@@ -643,29 +643,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             drawingTool.setLineWidth(width);
         });
     }
-    
-    try {
-        // DrawingTool 초기화
-        drawingTool = new DrawingTool(svg);
-        console.log('DrawingTool initialized');
-        
-        // SensorManager 초기화
-        sensorManager = new SensorManager(svg);
-        sensorManager.disable();
-
-        // 초기 데이터 로드
-        loadConfig();
-        
-        // 센서는 1분마다 업데이트
-        setInterval(async function() {
-            await sensorManager.loadSensors();
-        }, 60000);
-        // 맵 자동 새로고침 - 10초마다 확인
-        setInterval(checkAndRefreshMap, 10000);
-        
-    } catch (error) {
-        console.error('Initialization failed:', error);
-    }
 
     // 컬러맵 프리뷰 생성 함수
     function updateColormapPreview() {
@@ -721,4 +698,27 @@ document.addEventListener('DOMContentLoaded', async function() {
         const color = /** @type {HTMLInputElement} */ (this).value;
         /** @type {HTMLSelectElement} */ (document.getElementById('plot-border-color-preset')).value = color;
     });
+    
+    try {
+        // DrawingTool 초기화
+        drawingTool = new DrawingTool(svg);
+        console.log('DrawingTool initialized');
+        
+        // SensorManager 초기화
+        sensorManager = new SensorManager(svg);
+        sensorManager.disable();
+
+        // 초기 데이터 로드
+        loadConfig();
+        
+        // 센서는 1분마다 업데이트
+        setInterval(async function() {
+            await sensorManager.refreshSensors();
+        }, 60000);
+        // 맵 자동 새로고침 - 10초마다 확인
+        setInterval(checkAndRefreshMap, 10000);
+        
+    } catch (error) {
+        console.error('Initialization failed:', error);
+    }
 }); 

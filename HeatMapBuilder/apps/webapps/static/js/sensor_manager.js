@@ -78,8 +78,27 @@ export class SensorManager {
             console.error('센서 정보를 불러오는데 실패했습니다:', error);
               this.displayError(`센서 정보를 불러오는데 실패했습니다: ${error.message}`);
         }
-      }
-
+    }
+    async refreshSensors() {
+        try {
+            // 센서 상태 로드
+            const response = await fetch('./api/states');
+            const states = await response.json();
+            const newSensors = states.filter(state =>
+                state.attributes.device_class === 'temperature'
+            );
+            this.sensors.forEach(sensor => {
+                const newSensor = newSensors.find(newSensor => newSensor.entity_id === sensor.entity_id);
+                if (newSensor) {
+                    sensor.state = newSensor.state;
+                }
+            });
+            this.updateSensorList();
+        } catch (error) {
+            console.error('센서 정보를 불러오는데 실패했습니다:', error);
+              this.displayError(`센서 정보를 불러오는데 실패했습니다: ${error.message}`);
+        }
+    }
     displayError(message) {
         const container = document.getElementById('sensor-container');
         if (container) {
