@@ -477,11 +477,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 새 이미지 생성 및 추가
     const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
-    const mapGenerationTime = document.getElementById('map-generation-time');
-    const mapGenerationDuration = document.getElementById('map-generation-duration');
+    const mapGenerationTime = /** @type {HTMLImageElement} */ document.getElementById('map-generation-time');
+    const mapGenerationDuration = /** @type {HTMLImageElement} */ document.getElementById('map-generation-duration');
+    const generationNowButton = /** @type {HTMLImageElement} */ document.getElementById('generate-now');
 
     async function refreshThermalMap() {
         showMessage('온도지도 생성 중..')
+        document.getElementById('generate-now').children[0].classList.add('animate-spin');
         try {
             const response = await fetch('./api/generate-map');
             const data = await response.json();
@@ -502,7 +504,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         } catch (error) {
             console.error('Error:', error);
             showMessage('온도지도 생성 중 오류가 발생했습니다.', 'error');
-        }
+        }        
+        document.getElementById('generate-now').children[0].classList.remove('animate-spin');
     }
 
     // 맵 생성 시간 확인 및 자동 새로고침 함수
