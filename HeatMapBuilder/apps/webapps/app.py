@@ -19,7 +19,11 @@ class ConfigManager:
         self.is_local = is_local
         self.paths = self._init_paths()
         self.config = CONFIG
-        self.gen_config = {"gen_interval": 5}
+        self.gen_config = {}
+        self.load_gen_config()
+        self.output_file = f'{self.gen_config.get("file_name","thermal_map")}.{self.gen_config.get("format","PNG")}'
+        self.output_path = os.path.join(self.paths['media'], self.output_file )
+
         try:
             os.makedirs(self.paths['media'], exist_ok=True)
         except Exception as e:
@@ -83,12 +87,14 @@ class ConfigManager:
         with open(self.paths['gen_config'], 'w') as f:
             json.dump(gen_config, f, indent=4)
     
-    def load_gen_config(self) -> None:
+    def load_gen_config(self) -> Dict:
         """생성 구성 로드"""
-        if os.path.exists(self.paths['gen_config']):
+        try:
             with open(self.paths['gen_config'], 'r') as f:
-                gen_config_data = json.load(f)
-                self.gen_config = gen_config_data
+                self.gen_config = json.load(f)
+                return self.gen_config
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
 
     def load_heatmap_config(self) -> Dict:
         """히트맵 설정 로드"""
@@ -251,6 +257,7 @@ class ThermoMapServer:
         """메인 페이지"""
         cache_buster = int(time.time())
         return render_template('index.html', 
+                               img_url=f'/local/{self.config_manager.output_file}?{cache_buster}',
                                cache_buster=cache_buster, 
                                map_generation_time=self.map_generation_time,
                                map_generation_duration=self.map_generation_duration)
@@ -308,7 +315,7 @@ class ThermoMapServer:
             # 보간 파라미터 로드
             params_data = self._load_params()
             # 생성 설정 로드
-            gen_config = self._load_gen_config()
+            gen_config = self.config_manager.load_gen_config()
 
             # 열지도 생성기 초기화
             generator = ThermalMapGenerator(
@@ -318,17 +325,15 @@ class ThermoMapServer:
                 interpolation_params=params_data,
                 gen_config=gen_config
             )
-
             # 열지도 생성
-            output_path = os.path.join(self.config_manager.paths['media'], 'thermal_map.png')
-            if generator.generate(output_path):
+            if generator.generate(self.config_manager.output_path):
                 self.app.logger.info("열지도 생성 완료")
                 self.map_generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 timestamp_end = time.time_ns()
                 self.map_generation_duration = f'{((timestamp_end - timestamp_start)/1000000000):.3f}s'
                 return jsonify({
                     'status': 'success',
-                    'image_url': '/local/thermal_map.png',
+                    'image_url': f'/local/{self.config_manager.output_file}',
                     'time': self.map_generation_time,
                     'duration': self.map_generation_duration
                 })
@@ -362,14 +367,6 @@ class ThermoMapServer:
         with open(self.config_manager.paths['parameters'], 'r') as f:
             params_data = json.load(f)
             return params_data or {}
-    
-    def _load_gen_config(self):
-        """생성 설정 로드"""
-        try:
-            with open(self.config_manager.paths['gen_config'], 'r') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
     
     def check_map_time(self):
         """열지도 생성 시간 확인"""

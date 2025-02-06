@@ -631,11 +631,11 @@ class ThermalMapGenerator:
             colorbar_config = self.gen_config.get('colorbar', {})
             if colorbar_config and colorbar_config.get('show_colorbar', True):  # 컬러바 표시 여부 확인
                 # 컬러바 위치 및 크기 설정
-                width = colorbar_config.get('width', 5)  # % to ratio
-                height = colorbar_config.get('height', 100)  # % to ratio
+                width = colorbar_config.get('width', 5)
+                height = colorbar_config.get('height', 100)
                 location = colorbar_config.get('location', 'right')
                 orientation = colorbar_config.get('orientation', 'vertical')
-                
+                borderpad = colorbar_config.get('borderpad',0)
                 # orientation에 따라 width와 height 조정
                 if orientation == 'horizontal':
                     # 가로 방향일 경우 width와 height를 교체
@@ -646,7 +646,7 @@ class ThermalMapGenerator:
                  width=f'{width}%',
                  height=f'{height}%',
                  loc=location,
-                 borderpad=0)
+                 borderpad=borderpad)
                 cbar = fig.colorbar(contour, cax=cax, orientation=orientation)
                 
                 # 컬러바의 major locator를 정수로 설정
@@ -670,13 +670,14 @@ class ThermalMapGenerator:
             width_inches = fig.get_size_inches()[0]  # 메인 플롯의 실제 너비
             dpi = 1000 / (width_inches)  # 1000px 위해 필요한 dpi 계산
             
+            format = self.gen_config.get('format', 'png')
             plt.savefig(output_path,
                        bbox_inches='tight',
                        pad_inches=0,
                        dpi=dpi,
                        facecolor='none',  # 배경색을 none으로 변경
                        transparent=True,
-                       format='png')
+                       format=format)
             plt.close()
             return True
 

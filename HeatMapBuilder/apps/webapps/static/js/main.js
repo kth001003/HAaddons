@@ -177,6 +177,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                     loadInterpolationParameters(config.parameters)
                 if(config.gen_config) {
                     /** @type {HTMLInputElement} */ (document.getElementById('generation-interval')).value = config.gen_config.gen_interval ?? 5;
+                    /** @type {HTMLInputElement} */ (document.getElementById('format')).value = config.gen_config.format ?? 'png';
+                    /** @type {HTMLInputElement} */ (document.getElementById('file-name')).value = config.gen_config.file_name ?? 'thermal_map';
                   
                     // 시각화 설정 로드
                     const visualization = config.gen_config.visualization || {};
@@ -194,6 +196,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-width')).value = colorbar.width ?? 5;
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-height')).value = colorbar.height ?? 100;
                     /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-location')).value = colorbar.location ?? 'right';
+                    /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-borderpad')).value = colorbar.borderpad ?? '0';
                     /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-orientation')).value = colorbar.orientation ?? 'vertical';
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-label')).checked = colorbar.show_label ?? true;
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value = colorbar.label ?? '온도 (°C)';
@@ -238,6 +241,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     function saveGenConfig(){
         const genConfig = {
             gen_interval: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('generation-interval')).value),
+            format: /** @type {HTMLInputElement} */ (document.getElementById('format')).value,
+            file_name: /** @type {HTMLInputElement} */ (document.getElementById('file-name')).value,
             visualization: {
                 empty_area: /** @type {HTMLSelectElement} */ (document.getElementById('empty-area-style')).value,
                 area_border_width: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('area-border-width')).value),
@@ -252,6 +257,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 width: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-width')).value),
                 height: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-height')).value),
                 location: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-location')).value,
+                borderpad: parseFloat(/** @type {HTMLSelectElement} */ (document.getElementById('colorbar-borderpad')).value),
                 orientation: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-orientation')).value,
                 show_label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-label')).checked,
                 label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value,
@@ -677,7 +683,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             'PRGn': 'linear-gradient(to right, #40004b, #9970ab, #f7f7f7, #5aae61, #00441b)',
             'BrBG': 'linear-gradient(to right, #543005, #bf812d, #f7f7f7, #35978f, #003c30)',
             'PuOr': 'linear-gradient(to right, #7f3b08, #f1a340, #f7f7f7, #998ec3, #40004b)',
-            'Spectral': 'linear-gradient(to right, #9e0142, #f46d43, #fee08b, #66c2a5, #5e4fa2)'
+            'Spectral': 'linear-gradient(to right, #9e0142, #f46d43, #fee08b, #66c2a5, #5e4fa2)',
+            'Spectral_r': 'linear-gradient(to right, #5e4fa2, #66c2a5, #fee08b, #f46d43, #9e0142)'
         };
         
         if (preview) {

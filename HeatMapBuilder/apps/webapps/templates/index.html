@@ -46,7 +46,7 @@
                     </div>
                 </div>
                 <div class="h-[calc(100%-2rem)]">
-                    <img id="thermal-map-img" src="/local/thermal_map.png" alt="생성된 온도지도" class="object-contain w-full h-full">
+                    <img id="thermal-map-img" src={{img_url}} alt="생성된 온도지도" class="object-contain w-full h-full">
                 </div>
             </div>
         </div>
@@ -407,6 +407,19 @@
                         <label class="block text-sm mb-1">생성 주기 (분)</label>
                         <input type="number" id="generation-interval" class="w-full px-3 py-2 border rounded-md" value="5" min="1" max="1440" step="1">
                     </div>
+                    <!-- 이미지 형식 -->
+                    <div class="space-y-2">
+                        <label class="block text-sm">이미지 형식</label>
+                        <select id="format" class="w-full px-3 py-2 border rounded-md" value="png">
+                            <option value="png">png</option>
+                            <option value="jpg">jpg</option>
+                        </select>
+                    </div>
+                    <!-- 이미지 이름 -->
+                    <div>
+                        <label class="block text-sm mb-1">파일 이름</label>
+                        <input type="text" id="file-name" class="w-full px-3 py-2 border rounded-md" value="thermal_map">
+                    </div>
 
                     <!-- 표시 온도 범위 설정 -->
                     <div class="space-y-4">
@@ -472,7 +485,16 @@
                     <div class="space-y-4">
                         <h3 class="text-lg font-medium">Plot 외곽선 설정</h3>
                         <div class="space-y-2">
-                            <label class="block text-sm">외곽선 두께</label>
+                            <label class="block text-sm">외곽선 두께
+                                <div class="group relative inline-block">
+                                    <button class="bg-gray-500 text-white px-2 rounded">
+                                      ?
+                                    </button>
+                                    <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                        이미지의 테두리를 그립니다.
+                                    </div>
+                                </div>
+                            </label>
                             <input type="number" id="plot-border-width" class="w-full px-3 py-2 border rounded-md" value="0" min="0" max="10" step="0.5">
                             <label class="block text-sm mt-2">외곽선 색상</label>
                              <div class="flex space-x-2">
@@ -493,7 +515,16 @@
                     <div class="space-y-4">
                         <h3 class="text-lg font-medium">센서 표시 설정</h3>
                         <div class="space-y-2">
-                            <label class="block text-sm">센서 정보 표시</label>
+                            <label class="block text-sm">센서 정보 표시
+                                <div class="group relative inline-block">
+                                    <button class="bg-gray-500 text-white px-2 rounded">
+                                      ?
+                                    </button>
+                                    <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                        센서 표시여부와 이름, 온도 표시 여부를 결정합니다.
+                                    </div>
+                                </div>
+                            </label>
                             <select id="sensor-display-option" class="w-full px-3 py-2 border rounded-md">
                                 <option value="none">표시 안함</option>
                                 <option value="position">위치만</option>
@@ -529,6 +560,7 @@
                                     <option value="BrBG">BrBG</option>
                                     <option value="PuOr">PuOr</option>
                                     <option value="Spectral">Spectral</option>
+                                    <option value="Spectral_r">Spectral_r</option>
                                 </select>
                                 <div id="colormap-preview" class="h-10 rounded-md border"></div>
                             </div>
@@ -570,6 +602,22 @@
                                 <option value="upper center">상단 중앙</option>
                                 <option value="center">중앙</option>
                             </select>
+                        </div>
+                        <!-- 패딩 -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm">여백
+                                    <div class="group relative inline-block">
+                                        <button class="bg-gray-500 text-white px-2 rounded">
+                                          ?
+                                        </button>
+                                        <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                            이미지의 외곽으로부터 설정한 값 만큼 여백을 두고 컬러바를 표시합니다. 음수인경우 이미지 밖에 컬러바가 표시됩니다.
+                                        </div>
+                                    </div>
+                                </label>
+                                <input type="number" id="colorbar-borderpad" class="w-full px-3 py-2 border rounded-md" value="0" min="-50" max="50" step="1">
+                            </div>
                         </div>
 
                         <!-- 레이블 설정 -->
