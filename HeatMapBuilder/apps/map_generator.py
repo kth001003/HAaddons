@@ -1,5 +1,4 @@
 import os
-import json
 import numpy as np  #type: ignore
 import matplotlib.pyplot as plt #type: ignore
 from scipy.interpolate import griddata, Rbf  #type: ignore
@@ -9,81 +8,35 @@ from io import StringIO
 from typing import List, Dict, Tuple, Any, Optional
 from shapely.geometry import LineString, Point, Polygon, MultiPolygon  #type: ignore
 from shapely.ops import unary_union  #type: ignore
-import svgpath2mpl  #type: ignore
 import matplotlib.path as mpath  #type: ignore
 import matplotlib.font_manager as fm  #type: ignore
 import re
 from flask import current_app
 from pykrige.ok import OrdinaryKriging  #type: ignore
-import logging
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes #type: ignore
 from matplotlib.ticker import MaxNLocator #type: ignore
 
-class ThermalMapGenerator:
-    def __init__(self, walls_data: str, sensors_data: List[Dict[str, Any]], get_sensor_state_func, 
-                 interpolation_params: Optional[Dict[str, Any]] = None,
-                 gen_config: Optional[Dict[str, Any]] = None):
+class MapGenerator:
+    def __init__(self, ConfigManager, SensorManager):
         """
         온도맵 생성기를 초기화합니다.
-        
-        Args:
-            walls_data: SVG 형식의 벽 데이터
-            sensors_data: 센서 위치 및 정보 목록
-            get_sensor_state_func: 센서 상태를 조회하는 함수
-            interpolation_params: 보간 파라미터 설정
-            gen_config: 지도 생성 설정 (컬러바 등)
         """
-        # Flask 로거 설정
-        if not current_app.logger.handlers:
-            handler = logging.StreamHandler()
-            handler.setFormatter(logging.Formatter(
-                '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-            ))
-            current_app.logger.addHandler(handler)
-            # 기본 로거 비활성화
-            current_app.logger.propagate = False
+        self.config_manager = ConfigManager
+        self.sensor_manager = SensorManager
+
+        self.configs = self.config_manager.load_heatmap_config()
+        self.walls_data = self.configs.get['walls','']
+        self.sensors_data = self.configs.get['sensors',[]]
+        self.get_sensor_state = self.sensor_manager.get_sensor_state
+        self.parameters = self.configs.get['parameters',{}]
+        self.gen_config = self.configs.get['gen_config',{}] # 지도 생성 설정
         
-        self.walls_data = walls_data
-        self.sensors_data = sensors_data
-        self.get_sensor_state = get_sensor_state_func
-        self.padding = 50  # 여백 크기
         self.areas: List[Dict[str, Any]] = []  # area 폴리곤과 속성 저장용 (polygon, is_exterior)
         self.area_sensors: Dict[int, List[Tuple[Point, float, str]]] = {}  # area별 센서 그룹
-        self.gen_config = gen_config or {}  # 지도 생성 설정
-        
-        # 보간 파라미터 기본값 설정
-        self.interpolation_params = {
-            'gaussian': {
-                'sigma_factor': 8.0,
-            },
-            'rbf': {
-                'function': 'inverse',
-                'epsilon_factor': 1.5,
-            },
-            'kriging': {
-                'variogram_model': 'gaussian',
-                'variogram_parameters': {'nugget': 5, 'sill': 20, 'range': 10},
-                'nlags': 20,
-                'weight': True,
-                'anisotropy_scaling': 1.0,
-                'anisotropy_angle': 0.0
-            }
-        }
-        
-        # 사용자 정의 파라미터로 업데이트
-        if interpolation_params:
-            self._update_interpolation_params(interpolation_params)
-        
+
         # 한글 폰트 설정
         self._setup_korean_font()
         current_app.logger.info("ThermalMapGenerator 초기화됨")
-
-    def _update_interpolation_params(self, params: Dict[str, Any]):
-        """보간 파라미터를 업데이트합니다."""
-        for method in ['gaussian', 'rbf', 'kriging']:
-            if method in params:
-                self.interpolation_params[method].update(params[method])
-                # current_app.logger.debug(f"{method} 파라미터 업데이트: {params[method]}")
 
     def _setup_korean_font(self):
         """한글 폰트를 설정합니다."""
@@ -373,7 +326,7 @@ class ThermalMapGenerator:
             area_height = max_y - min_y
             
             # 가우시안 sigma 계산
-            sigma = min(area_width, area_height) / self.interpolation_params['gaussian']['sigma_factor']
+            sigma = min(area_width, area_height) / self.parameters['gaussian']['sigma_factor']
             
             if sensor_count == 1:  # 단일 센서: 가우시안 분포
                 current_app.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - 가우시안 분포 적용")
@@ -384,8 +337,8 @@ class ThermalMapGenerator:
                     current_app.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - RBF 보간 시도")
                     # RBF 보간기 설정
                     rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
-                            function=self.interpolation_params['rbf']['function'],
-                            epsilon=min(area_width, area_height) / self.interpolation_params['rbf']['epsilon_factor'])
+                            function=self.parameters['rbf']['function'],
+                            epsilon=min(area_width, area_height) / self.parameters['rbf']['epsilon_factor'])
                     
                     # RBF 예측 수행
                     temps = rbf(mask_points[:, 0], mask_points[:, 1])
@@ -419,7 +372,7 @@ class ThermalMapGenerator:
                         unique_sensor_locs[:, 0],
                         unique_sensor_locs[:, 1],
                         unique_sensor_temps,
-                        **self.interpolation_params['kriging']
+                        **self.parameters['kriging']
                     )
                     
                     # 크리깅 예측 수행
@@ -437,8 +390,8 @@ class ThermalMapGenerator:
                     try:
                         # RBF 보간 시도
                         rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
-                                function=self.interpolation_params['rbf']['function'],
-                                epsilon=min(area_width, area_height) / self.interpolation_params['rbf']['epsilon_factor'])
+                                function=self.parameters['rbf']['function'],
+                                epsilon=min(area_width, area_height) / self.parameters['rbf']['epsilon_factor'])
                         temps = rbf(mask_points[:, 0], mask_points[:, 1])
                         
                         # 예측값 범위 제한

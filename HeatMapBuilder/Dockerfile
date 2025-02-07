@@ -42,13 +42,13 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir \
         "flask==3.1.0" \
         "numpy==2.2.1" \
-        "pillow==11.1.0" \
+        # "pillow==11.1.0" \
         "requests==2.32.3" \
-        "websockets==14.1" \
+        # "websockets==14.1" \
         "scipy==1.15.1" \
         "matplotlib==3.10.0" \
         "shapely==2.0.6" \
-        "svgpath2mpl==1.0.0" \
+        # "svgpath2mpl==1.0.0" \
         "pykrige==1.7.2" 
 
 # 실행 권한 설정
@@ -61,5 +61,5 @@ RUN pip install watchdog
 ENV FLASK_ENV=development
 ENV FLASK_DEBUG=1
 
-# CMD [ "/apps/run.sh" ] 
-CMD ["python3","/apps/webapps/app.py"]
+CMD [ "/apps/run.sh" ] 
+# CMD ["python3","/apps/app.py"]
