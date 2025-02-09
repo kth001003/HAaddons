@@ -69,9 +69,15 @@ class SensorManager:
             return []
         
         response = requests.get(f"{api['base_url']}/states", headers=api['headers'])
-        states = response.json()
+        try:
+            states = response.json()
+        except Exception as e:
+            self.logger.error(f"센서 상태 조회 실패: {str(e)}")
+            return []
+        
         return [
             state for state in states
             if state.get('attributes', {}).get('device_class') == 'temperature' and
                state.get('attributes', {}).get('state_class') == 'measurement'
         ]
+
