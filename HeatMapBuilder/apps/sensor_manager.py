@@ -19,6 +19,9 @@ class SensorManager:
                 'headers': {'Content-Type': 'application/json'}
             }
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            self.logger.error("Supervisor Token이 설정되지 않았습니다")
+            return None
         return {
             'base_url': 'http://supervisor/core/api',
             'headers': {
