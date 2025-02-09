@@ -50,4 +50,4 @@ RUN pip install watchdog
 WORKDIR /apps
 ENV PYTHONPATH=/apps
 
-CMD ["sh", "run.sh"]
+CMD ["/apps/run.sh"]
