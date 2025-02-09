@@ -1,4 +1,3 @@
-import logging
 import os
 import requests
 from typing import Optional, Dict, Any, List
@@ -6,10 +5,12 @@ from typing import Optional, Dict, Any, List
 class SensorManager:
     """센서 상태 관리를 담당하는 클래스"""
     
-    def __init__(self, is_local: bool, config_manager, logger):
+    def __init__(self, is_local: bool, config_manager, logger, supervisor_token):
         self.is_local = is_local
         self.config_manager = config_manager
         self.logger = logger
+        self.supervisor_token = supervisor_token
+
     
     def get_ha_api(self) -> Optional[Dict[str, Any]]:
         """Home Assistant API 설정"""
@@ -19,13 +20,14 @@ class SensorManager:
                 'headers': {'Content-Type': 'application/json'}
             }
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        self.logger.debug(f"Supervisor Token: {supervisor_token}")
         if not supervisor_token:
             self.logger.error("Supervisor Token이 설정되지 않았습니다")
             return None
         return {
             'base_url': 'http://supervisor/core/api',
             'headers': {
-                'Authorization': f'Bearer {supervisor_token}',
+                'Authorization': f'Bearer {self.supervisor_token}',
                 'Content-Type': 'application/json'
             }
         }
