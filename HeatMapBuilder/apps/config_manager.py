@@ -8,9 +8,9 @@ class ConfigManager:
     
     def __init__(self, is_local: bool, CONFIG):
         self.is_local = is_local
-        self.CONFIG = CONFIG
+        self.CONFIG = CONFIG #아직 안쓰임임
         self.paths = self._init_paths()
-        self.db = JsonDB(self.paths['maps'])  # 맵 데이터베이스 초기화
+        self.db = JsonDB(self.paths['maps'])
         
     def _init_paths(self) -> Dict[str, str]:
         """경로 초기화"""

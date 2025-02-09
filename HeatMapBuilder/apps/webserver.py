@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, render_template, send_from_directory, redirect
+from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
 import json
 import logging
 import time
@@ -21,7 +21,7 @@ class WebServer:
         self.config_manager = ConfigManager
         self.sensor_manager = SensorManager
         self.map_generator = MapGenerator
-        self.current_map_id = None 
+        self.current_map_id = None
         
         self._init_app()
         self._setup_routes()
@@ -57,6 +57,7 @@ class WebServer:
         self.app.route('/api/maps/<map_id>', methods=['PUT'])(self.update_map)
         self.app.route('/api/maps/<map_id>', methods=['DELETE'])(self.delete_map)
         self.app.route('/api/maps/<map_id>/switch', methods=['POST'])(self.switch_map)
+        self.app.route('/stream/<map_id>')(self.stream_map)  # MJPEG 스트리밍 추가
     
     def maps_page(self):
         """맵 선택 페이지"""
@@ -72,7 +73,8 @@ class WebServer:
                             img_url=f'/local/{self.current_map_id}/{self.config_manager.get_output_filename(self.current_map_id)}?{cache_buster}',
                             cache_buster=cache_buster, 
                             map_generation_time=self.map_generator.generation_time,
-                            map_generation_duration=self.map_generator.generation_duration)
+                            map_generation_duration=self.map_generator.generation_duration,
+                            map_id=self.current_map_id)
 
     
     def get_states(self):
@@ -318,6 +320,21 @@ class WebServer:
         except Exception as e:
             self.logger.error(f"맵 전환 실패: {str(e)}")
             return jsonify({'error': str(e)}), 500
+
+    def stream_map(self, map_id):
+        """맵의 MJPEG 스트림을 제공합니다."""
+        def generate():
+            while True:
+                _, _, image_path = self.config_manager.get_output_info(map_id)
+                if os.path.exists(image_path):
+                    with open(image_path, 'rb') as f:
+                        frame = f.read()
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                time.sleep(1)  # 1초마다 이미지 업데이트
+
+        return Response(generate(),
+                      mimetype='multipart/x-mixed-replace; boundary=frame')
 
     def run(self, host='0.0.0.0', port=None):
         """서버 실행"""

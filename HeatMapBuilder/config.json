@@ -19,12 +19,15 @@
   "auth_api": true,
   "homeassistant_api": true,
   "options": {
+    "log_level": "info"
   },
   "schema": {
+    "log_level": "list(debug|info|warning|error|fatal)"
   },
   "ingress": true,
   "ingress_port": 8099,
   "ports": {
-    "8099/tcp": null
+    "8099/tcp": "for Web UI",
+    "8554/tcp": "for RTSP Stream"
   }
 }

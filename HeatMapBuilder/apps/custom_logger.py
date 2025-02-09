@@ -2,7 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 class CustomLogger:
-    def __init__(self, log_file='app.log', debug=False):
+    def __init__(self, log_file='app.log', log_level='info'):
         self.logger = logging.getLogger('CustomLogger')
         
         # 기존 핸들러 제거
@@ -10,8 +10,9 @@ class CustomLogger:
             self.logger.handlers.clear()
         
         # 로그 레벨 설정
-        self.logger.setLevel(logging.DEBUG if debug else logging.INFO)
+        self.logger.setLevel(log_level)
         
+
         # 파일 핸들러 추가
         try:
             handler = RotatingFileHandler(log_file, maxBytes=10000000, backupCount=5, encoding='utf-8')

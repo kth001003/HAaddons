@@ -2,15 +2,12 @@ import threading
 import json
 import time
 import os
-import sys
-
 
 from map_generator import MapGenerator
 from config_manager import ConfigManager
 from sensor_manager import SensorManager
 from custom_logger import CustomLogger
 from webserver import WebServer
-
 
 class BackgroundTaskManager:
     def __init__(self, app, logger, config_manager, sensor_manager, map_generator):
@@ -97,15 +94,14 @@ if __name__ == '__main__':
     except:
         is_local = True
         CONFIG = {"img_generation_interval_in_minutes": 5}
-
     config_manager = ConfigManager(is_local, CONFIG)
-    
-    # 로그 디렉토리 생성
+    log_level = str(CONFIG.get('log_level', 'info')).upper()
+    # 로그 디렉토리 생성 
     log_dir = os.path.dirname(config_manager.paths['log'])
     os.makedirs(log_dir, exist_ok=True)
-    
+
     # 로거 초기화 (디버그 모드 활성화)
-    logger = CustomLogger(log_file=config_manager.paths['log'], debug=True)
+    logger = CustomLogger(log_file=config_manager.paths['log'], log_level=str(log_level))
     logger.info("애플리케이션 시작")
     
     try:
