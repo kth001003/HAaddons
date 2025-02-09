@@ -14,22 +14,27 @@ import re
 from pykrige.ok import OrdinaryKriging  #type: ignore
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes #type: ignore
 from matplotlib.ticker import MaxNLocator #type: ignore
+import time
+from datetime import datetime
 
 class MapGenerator:
-    def __init__(self, ConfigManager, SensorManager, logger):
+    def __init__(self, config_manager, sensor_manager, logger):
         """
         온도맵 생성기를 초기화합니다.
         """
         self.logger = logger
-        self.config_manager = ConfigManager
-        self.sensor_manager = SensorManager
+        self.config_manager = config_manager
+        self.sensor_manager = sensor_manager
+        self.generation_time = ''
+        self.generation_duration = ''
+        self.current_map_id = None
 
-        self.configs = self.config_manager.load_heatmap_config()
-        self.walls_data = self.configs.get('walls','')
-        self.sensors_data = self.configs.get('sensors',[])
+        self.configs = {}
+        self.walls_data = ''
+        self.sensors_data = []
         self.get_sensor_state = self.sensor_manager.get_sensor_state
-        self.parameters = self.configs.get('parameters',{})
-        self.gen_config = self.configs.get('gen_config',{})
+        self.parameters = {}
+        self.gen_config = {}
         
         self.areas: List[Dict[str, Any]] = []  # area 폴리곤과 속성 저장용 (polygon, is_exterior)
         self.area_sensors: Dict[int, List[Tuple[Point, float, str]]] = {}  # area별 센서 그룹
@@ -202,17 +207,20 @@ class MapGenerator:
         points = []
         temperatures = []
         sensor_ids = []
-        
+        self.logger.debug(f"센서 데이터: {self.sensors_data}")
         for sensor in self.sensors_data:
             if 'position' not in sensor:
+                self.logger.warning(f"{sensor['entity_id']} 센서에 position 데이터가 없습니다")
                 continue
                 
             position = sensor['position']
             if not position or 'x' not in position or 'y' not in position:
+                self.logger.warning(f"{sensor['entity_id']} 센서에 position 데이터가 유효하지 않음")
                 continue
                 
             # 센서 상태 조회
             state = self.get_sensor_state(sensor['entity_id'])
+            self.logger.debug(f"{sensor['entity_id']} 센서 상태: {state}")
             if not state or not isinstance(state, dict):
                 self.logger.warning(f"센서 {sensor['entity_id']} 상태 데이터가 유효하지 않음")
                 continue
@@ -427,6 +435,26 @@ class MapGenerator:
                 coords.append((np.array(polygon.exterior.xy[0]), np.array(polygon.exterior.xy[1])))
         return coords
 
+    def load_map_config(self, map_id: str):
+        """맵 설정 로드"""
+        self.current_map_id = map_id
+        self.configs = self.config_manager.db.get_map(map_id)
+        self.walls_data = self.configs.get('walls', '')
+        self.sensors_data = self.configs.get('sensors', [])  # 기본값을 빈 리스트로 변경
+        self.parameters = self.configs.get('parameters', {})
+        self.gen_config = self.configs.get('gen_config', {})
+
+    def save_generation_time(self):
+        """생성 시간 저장"""
+        if not self.current_map_id:
+            return
+        map_data = self.config_manager.db.get_map(self.current_map_id)
+        map_data['last_generation'] = {
+            'timestamp': datetime.now().isoformat(),
+            'duration': self.generation_duration
+        }
+        self.config_manager.db.save(self.current_map_id, map_data)
+
     def generate(self, output_path: str) -> bool:
         """
         온도맵을 생성하고 이미지 파일로 저장합니다.
@@ -438,6 +466,15 @@ class MapGenerator:
             bool: 성공 여부
         """
         try:
+            if not self.current_map_id:
+                self.logger.error("현재 선택된 맵이 없습니다")
+                return False
+            # walls_data와 sensors_data 유효성 검사
+            if not self.walls_data or len(self.sensors_data) == 0:
+                self.logger.error("벽 데이터 또는 센서 데이터가 없습니다")
+                return False
+            timestamp_start = time.time_ns()
+
             # 설정된 온도 범위 가져오기
             min_temp = self.gen_config.get('colorbar', {}).get('min_temp', 0)
             max_temp = self.gen_config.get('colorbar', {}).get('max_temp', 40)
@@ -623,7 +660,7 @@ class MapGenerator:
             width_inches = fig.get_size_inches()[0]  # 메인 플롯의 실제 너비
             dpi = 1000 / (width_inches)  # 1000px 위해 필요한 dpi 계산
             
-            format = self.gen_config.get('format', 'png')
+            format = self.config_manager.get_output_format(self.current_map_id)
             plt.savefig(output_path,
                        bbox_inches='tight',
                        pad_inches=0,
@@ -632,6 +669,14 @@ class MapGenerator:
                        transparent=True,
                        format=format)
             plt.close()
+            
+            # 생성 시간 정보 업데이트
+            timestamp_end = time.time_ns()
+            self.generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            self.generation_duration = f'{((timestamp_end - timestamp_start)/1000000000):.3f}s'
+            
+            self.save_generation_time()
+            
             return True
 
         except Exception as e:

@@ -3,13 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <title>HeatMap Builder</title>
+    <link href=".{{ url_for('static', filename='css/main.css') }}" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
     <!-- 헤더 -->
     <header class="bg-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 py-2">
+        <div class="max-w-7xl mx-auto px-4 py-2 flex justify-between items-center">
             <h1 class="font-bold text-gray-900">온도지도 생성기</h1>
+            <a href="/" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path>
+                </svg>
+                맵 선택으로
+            </a>
         </div>
     </header>
 
@@ -17,7 +24,7 @@
     <nav class="bg-white shadow-sm">
         <div class="max-w-7xl mx-auto px-4">
             <div class="flex space-x-8">
-                <button id="dashboard-tab" class="px-3 py-2 text-sm font-medium text-gray-900 border-b-2 border-blue-500">대시보드</button>
+                <button id="dashboard-tab" class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">대시보드</button>
                 <button id="map-tab" class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">지도 및 센서 배치</button>
                 <button id="settings-tab" class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">설정</button>
             </div>
@@ -25,12 +32,13 @@
     </nav>
 
     <!-- 메시지 컨테이너 -->
-    <div id="message-container" class="fixed w-full top-0 left-1/2 transform -translate-x-1/2 mt-3 z-50"></div>
+    <div id="message-container" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-auto min-w-[200px] max-w-[90%] mx-auto"></div>
 
     <!-- 메인 컨텐츠 -->
     <main class="max-w-7xl mx-auto px-4 py-6">
+
         <!-- 대시보드 탭 -->
-        <div id="dashboard-content" class="space-y-6 h-[calc(100vh-8rem)]">
+        <div id="dashboard-content" class="hidden space-y-6 h-[calc(100vh-8rem)]">
             <div id="thermal-map-container" class="bg-white rounded-lg shadow-md p-6 h-full">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-semibold">현재 온도지도</h2>
@@ -46,7 +54,7 @@
                     </div>
                 </div>
                 <div class="h-[calc(100%-2rem)]">
-                    <img id="thermal-map-img" src={{img_url}} alt="생성된 온도지도" class="object-contain w-full h-full">
+                    <img id="thermal-map-img" src="{{ img_url }}" alt="생성된 온도지도" class="object-contain w-full h-full">
                 </div>
             </div>
         </div>

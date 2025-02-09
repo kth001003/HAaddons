@@ -1,122 +1,74 @@
 import os
-import logging
 import json
-from typing import Dict
+from typing import Dict, Tuple
+from jsonDB import JsonDB
 
 class ConfigManager:
     """설정 관리를 담당하는 클래스"""
     
     def __init__(self, is_local: bool, CONFIG):
         self.is_local = is_local
+        self.CONFIG = CONFIG
         self.paths = self._init_paths()
-        self.config = CONFIG
-        self.gen_config = {}
-        self.load_gen_config()
-        self.output_file = f'{self.gen_config.get("file_name","thermal_map")}.{self.gen_config.get("format","PNG")}'
-        self.output_path = os.path.join(self.paths['media'], self.output_file )
-
-        try:
-            os.makedirs(self.paths['media'], exist_ok=True)
-        except Exception as e:
-            logging.error(f"미디어 디렉토리 생성 실패: {str(e)}")
+        self.db = JsonDB(self.paths['maps'])  # 맵 데이터베이스 초기화
         
     def _init_paths(self) -> Dict[str, str]:
         """경로 초기화"""
-        base_dir = os.path.dirname(__file__)
-        
+        base_path = '/data'
+        media_path = os.path.join('/config', 'www', 'HeatMapBuilder')
         if self.is_local:
-            return {
-                'log': os.path.join(base_dir,'webapps', 'thermomap.log'),
-                'config': os.path.join(base_dir,'webapps', 'test_config.json'),
-                'db': os.path.join(base_dir,'webapps', 'media', 'heatMapBuilder.json'),
-                'media': os.path.join(base_dir,'webapps', 'media'),
-                'gen_config': os.path.join(base_dir,'webapps', 'media', 'gen_config.json'),
-                'parameters': os.path.join(base_dir,'webapps', 'media', 'parameters.json'),
-                'walls': os.path.join(base_dir,'webapps', 'media', 'walls.json'),
-                'sensors': os.path.join(base_dir,'webapps', 'media', 'sensors.json')
-            }
-        else:
-            return {
-                'log': '/data/thermomap.log',
-                'config': '/data/options.json',
-                'db': '/data/heatMapBuilder.json',
-                'gen_config': '/data/gen_config.json',
-                'media': '/homeassistant/www',
-                'parameters': '/data/parameters.json',
-                'walls': '/data/walls.json',
-                'sensors': '/data/sensors.json'
-            }
-    
+            base_path = os.path.join('local','temp')
+            media_path = os.path.join(base_path,'HeatMapBuilder')
+
+        paths = {
+            'maps': os.path.join(base_path, 'maps.json'),  # 맵 데이터베이스 파일
+            'log': os.path.join(base_path, 'thermomap.log'),
+            'config': os.path.join(base_path, 'options.json'),
+            'media': media_path
+        }
+
+        # 필요한 디렉토리 생성
+        for path in paths.values():
+            if path.endswith(('.json', '.log')):
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+            else:
+                os.makedirs(path, exist_ok=True)
+
+        return paths
+
     def load_mock_config(self) -> Dict:
         """mock 설정 로드"""
-        with open(self.paths['config'], 'r') as f:
-            return json.load(f)
-    
+        try:
+            with open(os.path.join('local','test_config.json'), 'r') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {'mock_data': {}}
+
     def get_mock_data(self) -> Dict:
         """개발 환경용 mock 데이터 반환"""
         config = self.load_mock_config()
         return config.get('mock_data', {})
-    
-    def save_walls(self, walls_data: Dict) -> None:
-        """벽 설정 저장"""
-        with open(self.paths['walls'], 'w') as f:
-            json.dump({'walls': walls_data.get('walls', '')}, f, indent=4)
-    
-    def save_sensors(self, sensors_data: Dict) -> None:
-        """센서 위치 저장"""
-        with open(self.paths['sensors'], 'w') as f:
-            json.dump({'sensors': sensors_data.get('sensors', [])}, f, indent=4)
-    
-    def save_parameters(self, parameters_data: Dict) -> None:
-        """보간파라메터 위치 저장"""
-        with open(self.paths['parameters'], 'w') as f:
-            json.dump(parameters_data, f, indent=4)
-    
-    def save_gen_config(self, gen_config: Dict) -> None:
-        """생성 구성 저장"""
-        with open(self.paths['gen_config'], 'w') as f:
-            json.dump(gen_config, f, indent=4)
-    
-    def load_gen_config(self) -> Dict:
-        """생성 구성 로드"""
-        try:
-            with open(self.paths['gen_config'], 'r') as f:
-                self.gen_config = json.load(f)
-                return self.gen_config
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
 
-    def load_heatmap_config(self) -> Dict:
-        """히트맵 설정 로드"""
-        config = {
-            'parameters':{},
-            'walls': '',
-            'sensors': [],
-            'gen_configs': {}
-        }
+    def get_output_filename(self, map_id: str) -> str:
+        """맵의 출력 파일 이름을 반환"""
+        gen_config = self.db.get_map(map_id).get('gen_config', {})
+        return f"{gen_config.get('file_name', 'thermal_map')}.{gen_config.get('format', 'png')}"
 
-        # 파라미터 설정 로드
-        if os.path.exists(self.paths['parameters']):
-            with open(self.paths['parameters'], 'r') as f:
-                parameters_data = json.load(f)
-                config['parameters'] = parameters_data
+    def get_output_format(self, map_id: str) -> str:
+        """맵의 출력 파일 포맷을 반환"""
+        gen_config = self.db.get_map(map_id).get('gen_config', {})
+        return gen_config.get('format', 'png')
 
-        # 생성 구성 로드
-        if os.path.exists(self.paths['gen_config']):
-            with open(self.paths['gen_config'], 'r') as f:
-                gen_config_data = json.load(f)
-                config['gen_config'] = gen_config_data
+    def get_output_path(self, map_id: str) -> str:
+        """맵의 출력 파일 전체 경로를 반환"""
+        os.makedirs(os.path.join(self.paths['media'], map_id), exist_ok=True)
+        return os.path.join(self.paths['media'], map_id, self.get_output_filename(map_id))
 
-        # 벽 설정 로드
-        if os.path.exists(self.paths['walls']):
-            with open(self.paths['walls'], 'r') as f:
-                walls_data = json.load(f)
-                config['walls'] = walls_data.get('walls', '')
-        
-        # 센서 설정 로드
-        if os.path.exists(self.paths['sensors']):
-            with open(self.paths['sensors'], 'r') as f:
-                sensors_data = json.load(f)
-                config['sensors'] = sensors_data.get('sensors', [])
-        
-        return config
+    def get_output_info(self, map_id: str) -> Tuple[str, str, str]:
+        """맵의 출력 파일 정보(파일명, 포맷, 경로)를 한번에 반환"""
+        gen_config = self.db.get_map(map_id).get('gen_config', {})
+        format = gen_config.get('format', 'png')
+        filename = f"{gen_config.get('file_name', 'thermal_map')}.{format}"
+        os.makedirs(os.path.join(self.paths['media'], map_id), exist_ok=True)
+        path = os.path.join(self.paths['media'], map_id, filename)
+        return filename, format, path

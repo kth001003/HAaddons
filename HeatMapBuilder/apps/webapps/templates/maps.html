@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>열지도 생성기 - 맵 선택</title>
+    <link href=".{{ url_for('static', filename='css/main.css') }}" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold">맵 선택</h1>
+            <button class="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" onclick="showModal('createMapModal')">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                새 맵 생성
+            </button>
+        </div>
+
+        <!-- 맵 목록 -->
+        <div id="map-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- 맵 카드들이 여기에 동적으로 추가됩니다 -->
+        </div>
+
+        <!-- 맵 생성 모달 -->
+        <div id="createMapModal" class="modal fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+                <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                    <h5 class="text-xl font-semibold">새 맵 생성</h5>
+                    <button type="button" class="text-gray-400 hover:text-gray-500" onclick="hideModal('createMapModal')">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <form id="createMapForm">
+                        <div class="mb-4">
+                            <label for="mapName" class="block text-sm font-medium text-gray-700 mb-1">맵 이름</label>
+                            <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" id="mapName" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="flex justify-end gap-2 p-4 border-t border-gray-200">
+                    <button type="button" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" onclick="hideModal('createMapModal')">취소</button>
+                    <button type="button" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" id="confirmCreateMap">생성</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 맵 삭제 확인 모달 -->
+        <div id="deleteMapModal" class="modal fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+                <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                    <h5 class="text-xl font-semibold">맵 삭제</h5>
+                    <button type="button" class="text-gray-400 hover:text-gray-500" onclick="hideModal('deleteMapModal')">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <p class="text-gray-700">정말로 이 맵을 삭제하시겠습니까?</p>
+                </div>
+                <div class="flex justify-end gap-2 p-4 border-t border-gray-200">
+                    <button type="button" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" onclick="hideModal('deleteMapModal')">취소</button>
+                    <button type="button" class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500" id="confirmDeleteMap">삭제</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 메시지 컨테이너 -->
+        <div id="message-container" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 전역 변수
+            let currentMapId = null;
+            let isLoading = false;
+            const mapList = document.getElementById('map-list');
+            const mapNameInput = document.getElementById('mapName');
+            const confirmCreateMapBtn = document.getElementById('confirmCreateMap');
+            const confirmDeleteMapBtn = document.getElementById('confirmDeleteMap');
+
+            // 모달 제어 함수
+            window.showModal = function(modalId) {
+                document.getElementById(modalId).classList.remove('hidden');
+            }
+
+            window.hideModal = function(modalId) {
+                document.getElementById(modalId).classList.add('hidden');
+                if (modalId === 'createMapModal') {
+                    mapNameInput.value = '';
+                }
+            }
+
+            // 로딩 상태 설정 함수
+            function setLoading(loading) {
+                isLoading = loading;
+                const buttons = document.querySelectorAll('button');
+                buttons.forEach(btn => {
+                    if (loading) {
+                        btn.classList.add('loading');
+                        if (!btn.dataset.originalText) {
+                            btn.dataset.originalText = btn.innerHTML;
+                            btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 처리중...`;
+                        }
+                    } else {
+                        btn.classList.remove('loading');
+                        if (btn.dataset.originalText) {
+                            btn.innerHTML = btn.dataset.originalText;
+                            delete btn.dataset.originalText;
+                        }
+                    }
+                });
+            }
+
+            // API 요청 처리 함수
+            async function apiRequest(url, options = {}) {
+                try {
+                    setLoading(true);
+                    const response = await fetch(url, {
+                        ...options,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...options.headers
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || '요청 처리 중 오류가 발생했습니다.');
+                    }
+                    
+                    return data;
+                } catch (error) {
+                    throw error;
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            // 메시지 표시 함수
+            function showMessage(message, type = 'info') {
+                const messageContainer = document.getElementById('message-container');
+                const messageElement = document.createElement('div');
+                messageElement.className = `alert alert-${type}`;
+                messageElement.innerHTML = `
+                    <span>${message}</span>
+                    <button type="button" class="ml-4 hover:text-gray-200" onclick="this.parentElement.remove()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                `;
+                
+                messageContainer.innerHTML = '';
+                messageContainer.appendChild(messageElement);
+                
+                setTimeout(() => {
+                    messageElement.remove();
+                }, 3000);
+            }
+
+            // 맵 목록 로드
+            async function loadMaps() {
+                try {
+                    const maps = await apiRequest('./api/maps');
+                    
+                    mapList.innerHTML = '';
+                    maps.forEach(map => {
+                        const col = document.createElement('div');
+                        col.innerHTML = `
+                            <div class="map-card bg-white rounded-lg shadow-md overflow-hidden">
+                                <div class="p-4">
+                                    <div class="flex justify-between items-start">
+                                        <h5 class="text-lg font-semibold">${map.name}</h5>
+                                        <button class="text-red-500 hover:text-red-600 p-1 delete-map" data-map-id="${map.id}">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <div class="mt-4 bg-gray-50 rounded-lg overflow-hidden relative pb-[100%]">
+                                        <div class="absolute inset-0 p-4" id="preview-${map.id}">
+                                            ${map.walls ? `<svg viewBox="0 0 1000 1000" class="w-full h-full">${map.walls}</svg>` : '<div class="w-full h-full flex items-center justify-center text-gray-400">미리보기 없음</div>'}
+                                        </div>
+                                    </div>
+                                    <p class="text-sm text-gray-500 mt-2">
+                                        <span class="block">생성: ${new Date(map.created_at).toLocaleString()}</span>
+                                        <span class="block">수정: ${new Date(map.updated_at).toLocaleString()}</span>
+                                    </p>
+                                </div>
+                                <div class="px-4 py-3 bg-gray-50">
+                                    <button class="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 switch-map" data-map-id="${map.id}">
+                                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                                        </svg>
+                                        선택
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        mapList.appendChild(col);
+                    });
+
+                    setupEventListeners();
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                }
+            }
+
+            // 이벤트 리스너 설정
+            function setupEventListeners() {
+                // 맵 삭제 이벤트 리스너
+                document.querySelectorAll('.delete-map').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        currentMapId = e.currentTarget.dataset.mapId;
+                        showModal('deleteMapModal');
+                    });
+                });
+
+                // 맵 선택 이벤트 리스너
+                document.querySelectorAll('.switch-map').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const mapId = e.currentTarget.dataset.mapId;
+                        try {
+                            await apiRequest(`./api/maps/${mapId}/switch`, {
+                                method: 'POST'
+                            });
+                            showMessage('맵이 선택되었습니다.', 'success');
+                            setTimeout(() => {
+                                window.location.href = '/map';
+                            }, 500);
+                        } catch (error) {
+                            showMessage(error.message, 'error');
+                        }
+                    });
+                });
+            }
+
+            // 맵 생성
+            confirmCreateMapBtn.addEventListener('click', async () => {
+                const mapName = mapNameInput.value.trim();
+                if (!mapName) {
+                    showMessage('맵 이름을 입력해주세요.', 'error');
+                    return;
+                }
+
+                try {
+                    await apiRequest('./api/maps', {
+                        method: 'POST',
+                        body: JSON.stringify({ name: mapName })
+                    });
+                    
+                    hideModal('createMapModal');
+                    showMessage('새 맵이 생성되었습니다.', 'success');
+                    await loadMaps();
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                }
+            });
+
+            // 맵 삭제
+            confirmDeleteMapBtn.addEventListener('click', async () => {
+                if (!currentMapId) return;
+
+                try {
+                    await apiRequest(`./api/maps/${currentMapId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    hideModal('deleteMapModal');
+                    showMessage('맵이 삭제되었습니다.', 'success');
+                    await loadMaps();
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                }
+            });
+
+            // ESC 키로 모달 닫기
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    document.querySelectorAll('.modal').forEach(modal => {
+                        if (!modal.classList.contains('hidden')) {
+                            hideModal(modal.id);
+                        }
+                    });
+                }
+            });
+
+            // 모달 외부 클릭으로 닫기
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        hideModal(this.id);
+                    }
+                });
+            });
+
+            // 초기 맵 목록 로드
+            loadMaps();
+        });
+    </script>
+</body>
+</html> 

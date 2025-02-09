@@ -11,4 +11,5 @@ __pycache__/
 Thumbs.db
 jsconfig.json
 venv/
-HeatMapBuilder/apps/webapps/media/
+HeatMapBuilder/apps/local/
+HeatMapBuilder/tailwindcss.exe

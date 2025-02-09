@@ -13,37 +13,35 @@ document.addEventListener('DOMContentLoaded', async function() {
     let sensorManager;
     let currentStep = 1;
 
-    // 탭 전환 함수
-    function switchTab(tabId) {
-        // 모든 탭 컨텐츠 숨기기
-        document.querySelectorAll('#dashboard-content, #map-content, #settings-content').forEach(content => {
-            content.classList.add('hidden');
-        });
-        
-        // 모든 탭 버튼 비활성화 스타일
-        document.querySelectorAll('#dashboard-tab, #map-tab, #settings-tab').forEach(tab => {
-            tab.classList.remove('text-gray-900', 'border-b-2', 'border-blue-500');
-            tab.classList.add('text-gray-500');
-        });
-        
-        // 선택된 탭 컨텐츠 표시 및 버튼 활성화
-        const selectedContent = document.getElementById(`${tabId}-content`);
-        const selectedTab = document.getElementById(`${tabId}-tab`);
-        if (selectedContent && selectedTab) {
-            selectedContent.classList.remove('hidden');
-            selectedTab.classList.remove('text-gray-500');
-            selectedTab.classList.add('text-gray-900', 'border-b-2', 'border-blue-500');
-        }
+    // 탭 관리
+    const tabs = {
+        dashboard: document.getElementById('dashboard-content'),
+        map: document.getElementById('map-content'),
+        settings: document.getElementById('settings-content')
+    };
 
-        // 지도 탭에서는 DrawingTool과 SensorManager 활성화
-        if (tabId === 'map') {
-            if (drawingTool) drawingTool.enable();
-            showStepControls(currentStep);
-        } else {
-            if (drawingTool) drawingTool.disable();
-            if (sensorManager) sensorManager.disable();
-        }
+    const tabButtons = {
+        dashboard: document.getElementById('dashboard-tab'),
+        map: document.getElementById('map-tab'),
+        settings: document.getElementById('settings-tab')
+    };
+
+    function switchTab(tabName) {
+        Object.values(tabs).forEach(tab => tab.classList.add('hidden'));
+        Object.values(tabButtons).forEach(btn => {
+            btn.classList.remove('text-gray-900', 'border-b-2', 'border-blue-500');
+            btn.classList.add('text-gray-500');
+        });
+
+        tabs[tabName].classList.remove('hidden');
+        tabButtons[tabName].classList.remove('text-gray-500');
+        tabButtons[tabName].classList.add('text-gray-900', 'border-b-2', 'border-blue-500');
     }
+
+    Object.keys(tabButtons).forEach(tabName => {
+        tabButtons[tabName].addEventListener('click', () => switchTab(tabName));
+    });
+
 
     // 단계 표시기 업데이트
     function updateStepIndicators(step) {
@@ -112,12 +110,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             wallsElements.forEach(element => {
                 wallsHTML += element.outerHTML;
             });
-            const wallsData = {
-                walls: wallsHTML
-            };
-            const sensorsData = {
-                sensors: sensorManager.getSensorConfig()
-            };
+            const wallsData = wallsHTML;
+            const sensorsData = sensorManager.getSensors();
             await fetch('./api/save-walls-and-sensors', {
                 method: 'POST',
                 headers: {
@@ -454,22 +448,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 메시지 표시 함수
     function showMessage(message, type = 'info') {
         const messageContainer = document.getElementById('message-container');
-        if (!messageContainer) return;
-
         const messageElement = document.createElement('div');
-        messageElement.className = `alert alert-${type} fixed top-4 left-1/2 transform -translate-x-1/2 
-            px-4 py-2 rounded-lg shadow-lg z-50 ${type === 'error' ? 'bg-red-100 text-red-700' : 
-            type === 'success' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`;
+        messageElement.className = `px-4 py-2 rounded-lg shadow-md mx-auto max-w-lg text-center ${
+            type === 'error' ? 'bg-red-500 text-white' :
+            type === 'success' ? 'bg-green-500 text-white' :
+            'bg-blue-500 text-white'
+        }`;
         messageElement.textContent = message;
         
-        // 기존 메시지 제거
-        while (messageContainer.firstChild) {
-            messageContainer.removeChild(messageContainer.firstChild);
-        }
-        
+        messageContainer.innerHTML = '';
         messageContainer.appendChild(messageElement);
         
-        // 3초 후 메시지 자동 제거
         setTimeout(() => {
             messageElement.remove();
         }, 3000);
@@ -479,7 +468,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
     const mapGenerationTime = /** @type {HTMLImageElement} */ document.getElementById('map-generation-time');
     const mapGenerationDuration = /** @type {HTMLImageElement} */ document.getElementById('map-generation-duration');
-    const generationNowButton = /** @type {HTMLImageElement} */ document.getElementById('generate-now');
 
     async function refreshThermalMap() {
         showMessage('온도지도 생성 중..')
@@ -536,11 +524,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 새로고침 버튼 이벤트 리스너
     document.getElementById('generate-now').addEventListener('click', refreshThermalMap);
-
-    // 탭 이벤트 리스너 등록
-    document.getElementById('dashboard-tab').addEventListener('click', () => switchTab('dashboard'));
-    document.getElementById('map-tab').addEventListener('click', () => switchTab('map'));
-    document.getElementById('settings-tab').addEventListener('click', () => switchTab('settings'));
 
     // 초기 탭 설정
     switchTab('dashboard');
@@ -705,6 +688,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     try {
         // DrawingTool 초기화
         drawingTool = new DrawingTool(svg);
+        drawingTool.enable();
         console.log('DrawingTool initialized');
         
         // SensorManager 초기화

@@ -1,8 +1,0 @@
-numpy>=1.21.0
-matplotlib>=3.4.0
-scipy>=1.7.0
-shapely>=2.0.0
-Flask>=2.0.0
-requests>=2.26.0 
-svgpath2mpl>=1.0.0 
-pykrige==1.7.2 
