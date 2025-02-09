@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 import threading
 import uuid
+from PIL import Image # type: ignore
+import io
 
 class WebServer:
     """열지도 웹 서버 클래스"""
@@ -36,12 +38,19 @@ class WebServer:
         self.app.logger.handlers.clear()
         logging.getLogger('werkzeug').disabled = True
         
+        # 404 에러 핸들러 등록
+        self.app.register_error_handler(404, self.handle_404_error)
     
+    def handle_404_error(self, error):
+        """404 에러 처리"""
+        return render_template('404.html'), 404
+
     def _setup_routes(self):
         """라우트 설정"""
-        self.app.route('/')(self.maps_page)  # 맵 선택 페이지를 기본 페이지로
-        self.app.route('/map')(self.index)  # 메인 페이지는 /map으로 이동
+        self.app.route('/')(self.maps_page)
+        self.app.route('/map')(self.map_edit)
         self.app.route('/api/states')(self.get_states)
+
         self.app.route('/api/save-walls-and-sensors', methods=['POST'])(self.save_walls_and_sensors)
         self.app.route('/api/save-interpolation-parameters', methods=['POST'])(self.save_interpolation_parameters)
         self.app.route('/api/save-gen-config', methods=['POST'])(self.save_gen_config)
@@ -50,23 +59,38 @@ class WebServer:
         self.app.route('/api/generate-map', methods=['GET'])(self.generate_map)
         self.app.route('/api/check-map-time', methods=['GET'])(self.check_map_time)
         
-        # 맵 관리 API 추가
         self.app.route('/api/maps', methods=['GET'])(self.get_maps)
         self.app.route('/api/maps', methods=['POST'])(self.create_map)
         self.app.route('/api/maps/<map_id>', methods=['GET'])(self.get_map)
         self.app.route('/api/maps/<map_id>', methods=['PUT'])(self.update_map)
         self.app.route('/api/maps/<map_id>', methods=['DELETE'])(self.delete_map)
-        self.app.route('/api/maps/<map_id>/switch', methods=['POST'])(self.switch_map)
-        self.app.route('/stream/<map_id>')(self.stream_map)  # MJPEG 스트리밍 추가
-    
+        self.app.route('/stream/<map_id>')(self.stream_map)    
+
     def maps_page(self):
         """맵 선택 페이지"""
         return render_template('maps.html')
 
-    def index(self):
-        """메인 페이지"""
+    def map_edit(self):
+        """맵 편집 페이지"""
+        map_id = request.args.get('id')
+        
+        if not map_id:
+            return render_template('404.html', error_message='맵 ID가 필요합니다'), 404
+        
+        try:
+            map_data = self.config_manager.db.get_map(map_id)
+            if not map_data:
+                return render_template('404.html', error_message='요청하신 맵을 찾을 수 없습니다'), 404
+            
+            # 현재 맵 ID 설정 및 설정 업데이트
+            self.current_map_id = map_id
+            self.map_generator.load_map_config(map_id)
+        except Exception as e:
+            self.logger.error(f"맵 전환 실패: {str(e)}")
+            return render_template('404.html', error_message='맵 로딩 중 오류가 발생했습니다'), 404
+            
         if not self.current_map_id:
-            return redirect('/')  # 맵이 선택되지 않은 경우 맵 선택 페이지로 리다이렉트
+            return render_template('404.html', error_message='선택된 맵이 없습니다'), 404
             
         cache_buster = int(time.time())
         return render_template('index.html', 
@@ -303,34 +327,32 @@ class WebServer:
             return jsonify({'status': 'success'})
         return jsonify({'error': '맵을 찾을 수 없습니다.'}), 404
 
-    def switch_map(self, map_id):
-        """현재 맵 전환"""
-        try:
-            map_data = self.config_manager.db.get_map(map_id)
-            if not map_data:
-                return jsonify({'error': '맵을 찾을 수 없습니다.'}), 404
-            
-            # 현재 맵 ID 설정
-            self.current_map_id = map_id
-            # MapGenerator 설정 업데이트
-            self.map_generator.load_map_config(map_id)
-            # 생성 설정 업데이트
-            
-            return jsonify({'status': 'success'})
-        except Exception as e:
-            self.logger.error(f"맵 전환 실패: {str(e)}")
-            return jsonify({'error': str(e)}), 500
-
     def stream_map(self, map_id):
         """맵의 MJPEG 스트림을 제공합니다."""
         def generate():
             while True:
                 _, _, image_path = self.config_manager.get_output_info(map_id)
                 if os.path.exists(image_path):
-                    with open(image_path, 'rb') as f:
-                        frame = f.read()
+                    try:
+                        # PIL을 사용하여 이미지를 JPEG로 변환
+                        img = Image.open(image_path)
+                        # RGBA를 RGB로 변환
+                        if img.mode == 'RGBA':
+                            # 흰색 배경에 이미지 합성
+                            background = Image.new('RGB', img.size, (255, 255, 255))
+                            background.paste(img, mask=img.split()[3])  # 알파 채널을 마스크로 사용
+                            img = background
+                        elif img.mode != 'RGB':
+                            img = img.convert('RGB')
+                            
+                        img_byte_arr = io.BytesIO()
+                        img.save(img_byte_arr, format='JPEG', quality=100)
+                        frame = img_byte_arr.getvalue()
+                        
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                    except Exception as e:
+                        self.logger.error(f"이미지 변환 중 오류 발생: {str(e)}")
                 time.sleep(1)  # 1초마다 이미지 업데이트
 
         return Response(generate(),

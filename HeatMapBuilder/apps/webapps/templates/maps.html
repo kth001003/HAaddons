@@ -226,19 +226,9 @@
 
                 // 맵 선택 이벤트 리스너
                 document.querySelectorAll('.switch-map').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
+                    btn.addEventListener('click', (e) => {
                         const mapId = e.currentTarget.dataset.mapId;
-                        try {
-                            await apiRequest(`./api/maps/${mapId}/switch`, {
-                                method: 'POST'
-                            });
-                            showMessage('맵이 선택되었습니다.', 'success');
-                            setTimeout(() => {
-                                window.location.href = '/map';
-                            }, 500);
-                        } catch (error) {
-                            showMessage(error.message, 'error');
-                        }
+                        window.location.href = `./map?id=${mapId}`;
                     });
                 });
             }

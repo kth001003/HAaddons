@@ -31,7 +31,7 @@ RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo &
 RUN python -m pip install \
         "flask==3.1.0" \
         "numpy==2.2.1" \
-        # "pillow==11.1.0" \
+        "pillow==11.1.0" \
         "requests==2.32.3" \
         # "websockets==14.1" \
         "scipy==1.15.1" \
