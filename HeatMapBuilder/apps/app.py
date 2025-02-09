@@ -49,7 +49,7 @@ class BackgroundTaskManager:
                         
                         # 생성 간격이 지났는지 확인
                         if current_time - last_gen_time >= gen_interval:
-                            self.logger.info(f"맵 {map_id} 열지도 생성 시작")
+                            self.logger.debug(f"맵 {map_id} 열지도 생성 시작")
                             
                             # 현재 맵으로 설정
                             self.config_manager.current_map_id = map_id
