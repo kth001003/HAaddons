@@ -70,11 +70,13 @@ class SensorManager:
             return []
         
 
-        response = requests.get(f"{api['base_url']}/states", headers=api['headers'])
         try:
+            response = requests.get(f"{api['base_url']}/states", headers=api['headers'])
+            response.raise_for_status()
             states = response.json()
         except Exception as e:
             self.logger.error(f"센서 상태 조회 실패: {str(e)}")
+            self.logger.error(f"응답 내용: {response.text}")
             return []
         
         self.logger.debug(f"API로 센서 상태 조회 성공: {states}")
