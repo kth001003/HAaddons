@@ -3,7 +3,7 @@ import json
 import time
 
 
-from HeatMapBuilder.apps.map_generator import MapGenerator
+from map_generator import MapGenerator
 from config_manager import ConfigManager
 from sensor_manager import SensorManager
 from custom_logger import CustomLogger
@@ -61,10 +61,11 @@ if __name__ == '__main__':
     except:
         is_local = True
         CONFIG = {"img_generation_interval_in_minutes": 5}
+
     config_manager = ConfigManager(is_local, CONFIG)
-    sensor_manager = SensorManager(is_local, config_manager)
-    map_generator = MapGenerator(config_manager,sensor_manager)
     logger = CustomLogger(log_file=config_manager.paths['log'])
+    sensor_manager = SensorManager(is_local, config_manager, logger)
+    map_generator = MapGenerator(config_manager,sensor_manager, logger)
     server = WebServer(is_local,
                        config_manager,
                        sensor_manager,

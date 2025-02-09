@@ -26,27 +26,26 @@ class ConfigManager:
         
         if self.is_local:
             return {
-                'log': os.path.join(base_dir, 'thermomap.log'),
-                'config': os.path.join(base_dir, 'test_config.json'),
-                'media': os.path.join(base_dir, 'media'),
-                'gen_config': os.path.join(base_dir, 'media', 'gen_config.json'),
-                'parameters': os.path.join(base_dir, 'media', 'parameters.json'),
-                'walls': os.path.join(base_dir, 'media', 'walls.json'),
-                'sensors': os.path.join(base_dir, 'media', 'sensors.json')
+                'log': os.path.join(base_dir,'webapps', 'thermomap.log'),
+                'config': os.path.join(base_dir,'webapps', 'test_config.json'),
+                'db': os.path.join(base_dir,'webapps', 'media', 'heatMapBuilder.json'),
+                'media': os.path.join(base_dir,'webapps', 'media'),
+                'gen_config': os.path.join(base_dir,'webapps', 'media', 'gen_config.json'),
+                'parameters': os.path.join(base_dir,'webapps', 'media', 'parameters.json'),
+                'walls': os.path.join(base_dir,'webapps', 'media', 'walls.json'),
+                'sensors': os.path.join(base_dir,'webapps', 'media', 'sensors.json')
             }
         else:
             return {
                 'log': '/data/thermomap.log',
                 'config': '/data/options.json',
+                'db': '/data/heatMapBuilder.json',
                 'gen_config': '/data/gen_config.json',
                 'media': '/homeassistant/www',
                 'parameters': '/data/parameters.json',
                 'walls': '/data/walls.json',
                 'sensors': '/data/sensors.json'
             }
-    
-    def _create_media_directory(self):
-        """미디어 디렉토리 생성"""
     
     def load_mock_config(self) -> Dict:
         """mock 설정 로드"""

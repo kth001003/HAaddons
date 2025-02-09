@@ -10,7 +10,9 @@ class WebServer:
     """열지도 웹 서버 클래스"""
     
     def __init__(self, is_local, ConfigManager, SensorManager, MapGenerator, Logger):
-        self.app = Flask(__name__)
+        self.app = Flask(__name__,
+                         template_folder=os.path.join('webapps', 'templates'),
+                         static_folder=os.path.join('webapps', 'static'))
         self.is_local = is_local
         self.map_generation_time = ''
         self.map_generation_duration = ''

@@ -11,32 +11,32 @@ from shapely.ops import unary_union  #type: ignore
 import matplotlib.path as mpath  #type: ignore
 import matplotlib.font_manager as fm  #type: ignore
 import re
-from flask import current_app
 from pykrige.ok import OrdinaryKriging  #type: ignore
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes #type: ignore
 from matplotlib.ticker import MaxNLocator #type: ignore
 
 class MapGenerator:
-    def __init__(self, ConfigManager, SensorManager):
+    def __init__(self, ConfigManager, SensorManager, logger):
         """
         온도맵 생성기를 초기화합니다.
         """
+        self.logger = logger
         self.config_manager = ConfigManager
         self.sensor_manager = SensorManager
 
         self.configs = self.config_manager.load_heatmap_config()
-        self.walls_data = self.configs.get['walls','']
-        self.sensors_data = self.configs.get['sensors',[]]
+        self.walls_data = self.configs.get('walls','')
+        self.sensors_data = self.configs.get('sensors',[])
         self.get_sensor_state = self.sensor_manager.get_sensor_state
-        self.parameters = self.configs.get['parameters',{}]
-        self.gen_config = self.configs.get['gen_config',{}] # 지도 생성 설정
+        self.parameters = self.configs.get('parameters',{})
+        self.gen_config = self.configs.get('gen_config',{})
         
         self.areas: List[Dict[str, Any]] = []  # area 폴리곤과 속성 저장용 (polygon, is_exterior)
         self.area_sensors: Dict[int, List[Tuple[Point, float, str]]] = {}  # area별 센서 그룹
 
         # 한글 폰트 설정
         self._setup_korean_font()
-        current_app.logger.info("ThermalMapGenerator 초기화됨")
+        self.logger.info("ThermalMapGenerator 초기화됨")
 
     def _setup_korean_font(self):
         """한글 폰트를 설정합니다."""
@@ -52,18 +52,18 @@ class MapGenerator:
                     fm.fontManager.addfont(font_path)
                     # 기본 폰트 설정
                     plt.rcParams['font.family'] = 'NanumGothic'  # 폰트 이름으로 직접 설정
-                    # current_app.logger.info(f"한글 폰트 설정 완료: {font_path}")
+                    # self.logger.info(f"한글 폰트 설정 완료: {font_path}")
                     font_found = True
                     break
             
             if not font_found:
-                current_app.logger.warning("한글 폰트를 찾을 수 없습니다. 기본 폰트를 사용합니다.")
+                self.logger.warning("한글 폰트를 찾을 수 없습니다. 기본 폰트를 사용합니다.")
                 
             # 마이너스 기호 깨짐 방지
             plt.rcParams['axes.unicode_minus'] = False
             
         except Exception as e:
-            current_app.logger.error(f"한글 폰트 설정 중 오류 발생: {str(e)}")
+            self.logger.error(f"한글 폰트 설정 중 오류 발생: {str(e)}")
             
     def _parse_svg_path(self, d: str) -> Optional[Polygon]:
         """
@@ -140,7 +140,7 @@ class MapGenerator:
                 poly = poly.buffer(0)
             return poly
         except Exception as e:
-            current_app.logger.error(f"SVG path 파싱 중 오류: {str(e)}")
+            self.logger.error(f"SVG path 파싱 중 오류: {str(e)}")
             return None
 
     def _parse_areas(self) -> Tuple[List[Dict[str, Any]], Optional[ET.Element]]:
@@ -155,7 +155,7 @@ class MapGenerator:
             
             # SVG 변환 행렬 확인
             transform = root.get('transform', '')
-            current_app.logger.debug(f"SVG transform: {transform}")
+            self.logger.debug(f"SVG transform: {transform}")
             
             # path 요소 찾기
             paths = root.findall('.//{*}path')
@@ -170,13 +170,13 @@ class MapGenerator:
                 
                 d = path.get('d', '')
                 if not d:
-                    current_app.logger.warning(f"Path {i}: 'd' 속성 없음")
+                    self.logger.warning(f"Path {i}: 'd' 속성 없음")
                     continue
                 
                 # path별 transform 확인
                 path_transform = path.get('transform', '')
                 if path_transform:
-                    current_app.logger.debug(f"Path {i} transform: {path_transform}")
+                    self.logger.debug(f"Path {i} transform: {path_transform}")
                 
                 polygon = self._parse_svg_path(d)
                 if polygon and polygon.is_valid:
@@ -184,17 +184,17 @@ class MapGenerator:
                         'polygon': polygon,
                         'is_exterior': is_exterior
                     })
-                    current_app.logger.debug(f"Path {i}: {'외부' if is_exterior else '내부'} 영역으로 파싱됨")
+                    self.logger.debug(f"Path {i}: {'외부' if is_exterior else '내부'} 영역으로 파싱됨")
                 else:
-                    current_app.logger.warning(f"Path {i}: 유효한 폴리곤 생성 실패")
+                    self.logger.warning(f"Path {i}: 유효한 폴리곤 생성 실패")
 
-            current_app.logger.info(f"총 {len(self.areas)}개의 area 파싱됨 (전체 path 중 {len(paths)}개)")
+            self.logger.info(f"총 {len(self.areas)}개의 area 파싱됨 (전체 path 중 {len(paths)}개)")
             return self.areas, root
             
         except Exception as e:
-            current_app.logger.error(f"Area 파싱 중 오류 발생: {str(e)}")
+            self.logger.error(f"Area 파싱 중 오류 발생: {str(e)}")
             import traceback
-            current_app.logger.error(traceback.format_exc())
+            self.logger.error(traceback.format_exc())
             return [], None
 
     def _collect_sensor_data(self) -> Tuple[List[List[float]], List[float], List[str]]:
@@ -214,7 +214,7 @@ class MapGenerator:
             # 센서 상태 조회
             state = self.get_sensor_state(sensor['entity_id'])
             if not state or not isinstance(state, dict):
-                current_app.logger.warning(f"센서 {sensor['entity_id']} 상태 데이터가 유효하지 않음")
+                self.logger.warning(f"센서 {sensor['entity_id']} 상태 데이터가 유효하지 않음")
                 continue
                 
             try:
@@ -226,9 +226,9 @@ class MapGenerator:
                 points.append([position['x'], position['y']])
                 temperatures.append(temp)
                 sensor_ids.append(sensor['entity_id'])
-                current_app.logger.debug(f"센서 {sensor['entity_id']}: 원본={raw_temp}°C, 보정값={calibration}°C, 보정후={temp}°C")
+                self.logger.debug(f"센서 {sensor['entity_id']}: 원본={raw_temp}°C, 보정값={calibration}°C, 보정후={temp}°C")
             except (ValueError, TypeError, AttributeError) as e:
-                current_app.logger.error(f"센서 {sensor['entity_id']} 데이터 처리 중 오류: {str(e)}")
+                self.logger.error(f"센서 {sensor['entity_id']} 데이터 처리 중 오류: {str(e)}")
                 continue
         
         return points, temperatures, sensor_ids
@@ -250,7 +250,7 @@ class MapGenerator:
                     if area_idx not in self.area_sensors:
                         self.area_sensors[area_idx] = []
                     self.area_sensors[area_idx].append((point, temp, sensor_id))
-                    current_app.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
+                    self.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
                     assigned = True
                     break
             
@@ -261,7 +261,7 @@ class MapGenerator:
                         if area_idx not in self.area_sensors:
                             self.area_sensors[area_idx] = []
                         self.area_sensors[area_idx].append((point, temp, sensor_id))
-                        current_app.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
+                        self.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
                         assigned = True
                         break
             
@@ -280,13 +280,13 @@ class MapGenerator:
                     if nearest_area_idx not in self.area_sensors:
                         self.area_sensors[nearest_area_idx] = []
                     self.area_sensors[nearest_area_idx].append((point, temp, sensor_id))
-                    current_app.logger.warning(f"센서 {sensor_id} (temp={temp:.1f}°C)가 가장 가까운 Area {nearest_area_idx}에 할당됨 (거리: {min_distance:.2f})")
+                    self.logger.warning(f"센서 {sensor_id} (temp={temp:.1f}°C)가 가장 가까운 Area {nearest_area_idx}에 할당됨 (거리: {min_distance:.2f})")
                 else:
-                    current_app.logger.error(f"센서 {sensor_id} (temp={temp:.1f}°C)를 할당할 수 있는 area를 찾지 못함")
+                    self.logger.error(f"센서 {sensor_id} (temp={temp:.1f}°C)를 할당할 수 있는 area를 찾지 못함")
 
         # 할당 결과 출력
         for area_idx, sensors in self.area_sensors.items():
-            current_app.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, 온도: {[temp for _, temp, _ in sensors]}")
+            self.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, 온도: {[temp for _, temp, _ in sensors]}")
 
     def _calculate_area_temperature(self, area_idx: int, area: Dict[str, Any], grid_points: np.ndarray, 
                                    grid_x: np.ndarray, grid_y: np.ndarray, min_x: float, max_x: float, 
@@ -329,12 +329,12 @@ class MapGenerator:
             sigma = min(area_width, area_height) / self.parameters['gaussian']['sigma_factor']
             
             if sensor_count == 1:  # 단일 센서: 가우시안 분포
-                current_app.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - 가우시안 분포 적용")
+                self.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - 가우시안 분포 적용")
                 temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
                 
             elif sensor_count <= 3:  # 2~3개 센서: RBF -> 가우시안
                 try:
-                    current_app.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - RBF 보간 시도")
+                    self.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - RBF 보간 시도")
                     # RBF 보간기 설정
                     rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
                             function=self.parameters['rbf']['function'],
@@ -348,10 +348,10 @@ class MapGenerator:
                     margin = 0.1 * (temp_max - temp_min)  # 10% 마진
                     temps = np.clip(temps, temp_min - margin, temp_max + margin)
                     
-                    current_app.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
+                    self.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
                     
                 except Exception as rbf_error:
-                    current_app.logger.warning(f"Area {area_idx} RBF 보간 실패, 가우시안 분포로 대체: {str(rbf_error)}")
+                    self.logger.warning(f"Area {area_idx} RBF 보간 실패, 가우시안 분포로 대체: {str(rbf_error)}")
                     temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
                 
             else:  # 4개 이상: 크리깅 -> RBF -> 가우시안
@@ -383,10 +383,10 @@ class MapGenerator:
                     margin = 0.5 * (temp_max - temp_min)  # 50% 마진
                     temps = np.clip(temps, temp_min - margin, temp_max + margin)
                     
-                    current_app.logger.debug(f"Area {area_idx}: 크리깅 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
+                    self.logger.debug(f"Area {area_idx}: 크리깅 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
                     
                 except Exception as kriging_error:
-                    current_app.logger.warning(f"Area {area_idx} 크리깅 보간 실패, RBF 시도: {str(kriging_error)}")
+                    self.logger.warning(f"Area {area_idx} 크리깅 보간 실패, RBF 시도: {str(kriging_error)}")
                     try:
                         # RBF 보간 시도
                         rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
@@ -399,22 +399,22 @@ class MapGenerator:
                         margin = 0.1 * (temp_max - temp_min)
                         temps = np.clip(temps, temp_min - margin, temp_max + margin)
                         
-                        current_app.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
+                        self.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
                         
                     except Exception as rbf_error:
-                        current_app.logger.warning(f"Area {area_idx} RBF 보간도 실패, 가우시안 분포로 대체: {str(rbf_error)}")
+                        self.logger.warning(f"Area {area_idx} RBF 보간도 실패, 가우시안 분포로 대체: {str(rbf_error)}")
                         temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
             
             # NaN 처리
             if np.any(np.isnan(temps)):
-                current_app.logger.debug(f"Area {area_idx}: NaN 값을 nearest로 채우기")
+                self.logger.debug(f"Area {area_idx}: NaN 값을 nearest로 채우기")
                 nearest_temps = griddata(sensor_locs, sensor_temps, mask_points, method='nearest')
                 temps[np.isnan(temps)] = nearest_temps[np.isnan(temps)]
             
             return temps
             
         except Exception as e:
-            current_app.logger.error(f"Area {area_idx} 온도 계산 중 오류: {str(e)}")
+            self.logger.error(f"Area {area_idx} 온도 계산 중 오류: {str(e)}")
             return np.full_like(grid_x[area_mask], np.nan)
 
     def _get_polygon_coords(self, geom) -> List[Tuple[np.ndarray, np.ndarray]]:
@@ -445,13 +445,13 @@ class MapGenerator:
             # area 데이터 파싱
             areas, root = self._parse_areas()
             if not areas:
-                current_app.logger.error("유효한 area를 찾을 수 없습니다")
+                self.logger.error("유효한 area를 찾을 수 없습니다")
                 return False
 
             # 센서 데이터 수집
             sensor_points, raw_temps, sensor_ids = self._collect_sensor_data()
             if not sensor_points:
-                current_app.logger.error("유효한 센서 데이터가 없습니다")
+                self.logger.error("유효한 센서 데이터가 없습니다")
                 return False
             temperatures = raw_temps
             # 온도값 범위 제한 적용
@@ -577,7 +577,7 @@ class MapGenerator:
                                  bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
                                  zorder=6)
                     except Exception as e:
-                        current_app.logger.warning(f"센서 {sensor_id} 텍스트 표시 실패: {str(e)}")
+                        self.logger.warning(f"센서 {sensor_id} 텍스트 표시 실패: {str(e)}")
                         continue
 
             # 컬러바 설정 적용
@@ -635,7 +635,7 @@ class MapGenerator:
             return True
 
         except Exception as e:
-            current_app.logger.error(f"온도맵 생성 중 오류 발생: {str(e)}")
+            self.logger.error(f"온도맵 생성 중 오류 발생: {str(e)}")
             import traceback
-            current_app.logger.error(traceback.format_exc())
+            self.logger.error(traceback.format_exc())
             return False 

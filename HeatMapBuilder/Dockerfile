@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
 RUN cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
     echo "Asia/Seoul" > /etc/timezone
 
-WORKDIR /
+
 #Auto update on rebuild
 RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
     cp -r /tmp/repo/HeatMapBuilder/apps /apps && \
@@ -37,9 +37,10 @@ RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo &
 # COPY apps /apps
 
 
-# pip 업그레이드 및 Python 패키지 설치
-RUN python -m pip install --no-cache-dir --upgrade pip && \
-    python -m pip install --no-cache-dir \
+# # pip 업그레이드 및 Python 패키지 설치
+# RUN python -m pip install --no-cache-dir --upgrade pip && \
+#     python -m pip install --no-cache-dir \
+RUN python -m pip install \
         "flask==3.1.0" \
         "numpy==2.2.1" \
         # "pillow==11.1.0" \
@@ -61,5 +62,7 @@ RUN pip install watchdog
 ENV FLASK_ENV=development
 ENV FLASK_DEBUG=1
 
-CMD [ "/apps/run.sh" ] 
-# CMD ["python3","/apps/app.py"]
+WORKDIR /apps
+
+# CMD [ "/apps/run.sh" ] 
+CMD ["python3","/apps/app.py"]
