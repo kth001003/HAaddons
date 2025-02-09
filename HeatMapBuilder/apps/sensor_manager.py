@@ -66,8 +66,10 @@ class SensorManager:
         
         api = self.get_ha_api()
         if not api:
+            self.logger.error("Home Assistant API 설정을 가져올 수 없습니다")
             return []
         
+
         response = requests.get(f"{api['base_url']}/states", headers=api['headers'])
         try:
             states = response.json()
@@ -75,9 +77,11 @@ class SensorManager:
             self.logger.error(f"센서 상태 조회 실패: {str(e)}")
             return []
         
+        self.logger.debug(f"API로 센서 상태 조회 성공: {states}")
         return [
             state for state in states
             if state.get('attributes', {}).get('device_class') == 'temperature' and
                state.get('attributes', {}).get('state_class') == 'measurement'
         ]
+
 

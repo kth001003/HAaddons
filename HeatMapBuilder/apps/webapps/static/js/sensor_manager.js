@@ -50,6 +50,7 @@ export class SensorManager {
             // 센서 상태 로드
             const response = await fetch('./api/states');
             const states = await response.json();
+            console.log("SensorManager - 서버에서 받은 states:", states);
             this.sensors = states.filter(state =>
                 state.attributes.device_class === 'temperature'
             );
@@ -57,7 +58,6 @@ export class SensorManager {
             const configResponse = await fetch('./api/load-config');
             if (configResponse.ok) {
                 const config = await configResponse.json();
-                console.log("SensorManager - 서버에서 받은 config:", config);
       
                 // 저장된 센서 위치 정보를 현재 센서 데이터에 적용
                 if (config.sensors) {

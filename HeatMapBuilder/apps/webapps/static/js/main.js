@@ -151,7 +151,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             const response = await fetch('./api/load-config');
             if (response.ok) {
                 const config = await response.json();
-                console.log("서버에서 받은 config:", config); // 서버 응답 확인
                 if (config.walls) {
                     svg.innerHTML = config.walls
                 }
