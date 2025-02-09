@@ -1,5 +1,5 @@
-# ARG BUILD_ARCH
-ARG BUILD_ARCH=amd64
+ARG BUILD_ARCH
+# ARG BUILD_ARCH=amd64
 
 FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
 
@@ -28,9 +28,9 @@ RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo &
 # COPY apps /apps
 
 # # pip 업그레이드 및 Python 패키지 설치
-# RUN python -m pip install --no-cache-dir --upgrade pip && \
-#     python -m pip install --no-cache-dir \
-RUN python -m pip install \
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip install --no-cache-dir \
+# RUN python -m pip install \
         "flask==3.1.0" \
         "numpy==2.2.1" \
         # "pillow==11.1.0" \
@@ -51,8 +51,5 @@ RUN pip install watchdog
 
 WORKDIR /apps
 ENV PYTHONPATH=/apps
-
-#기본 db 복사
-COPY default_maps.json /data/maps.json
 
 CMD ["sh", "run.sh"]
