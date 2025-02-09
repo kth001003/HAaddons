@@ -27,7 +27,6 @@
   "ingress": true,
   "ingress_port": 8099,
   "ports": {
-    "8099/tcp": "for Web UI",
-    "8554/tcp": "for RTSP Stream"
+    "8099/tcp": "for Web UI"
   }
 }
