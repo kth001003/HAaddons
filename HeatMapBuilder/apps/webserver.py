@@ -212,9 +212,67 @@ class WebServer:
         """새로운 맵 생성"""
         data = request.get_json() or {}
         map_id = str(uuid.uuid4())
-        data['created_at'] = datetime.now().isoformat()
-        data['updated_at'] = datetime.now().isoformat()
-        self.config_manager.db.save(map_id, data)
+        
+        # 기본 설정값
+        default_config = {
+            "name": data.get("name", "untitled"),
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "walls": "",
+            "sensors": [],
+            "parameters": {
+                "gaussian": {
+                    "sigma_factor": 8
+                },
+                "rbf": {
+                    "function": "inverse",
+                    "epsilon_factor": 0.5
+                },
+                "kriging": {
+                    "variogram_model": "power",
+                    "nlags": 6,
+                    "weight": True,
+                    "anisotropy_scaling": 1,
+                    "anisotropy_angle": 0,
+                    "variogram_parameters": {
+                        "scale": 1,
+                        "exponent": 1.5,
+                        "nugget": 0
+                    }
+                }
+            },
+            "gen_config": {
+                "gen_interval": 5,
+                "format": "png",
+                "file_name": "thermal_map",
+                "visualization": {
+                    "empty_area": "white",
+                    "area_border_width": 7,
+                    "area_border_color": "#000000",
+                    "plot_border_width": 0,
+                    "plot_border_color": "#000000",
+                    "sensor_display": "position_temp"
+                },
+                "colorbar": {
+                    "cmap": "RdYlBu_r",
+                    "show_colorbar": True,
+                    "width": 5,
+                    "height": 80,
+                    "location": "right",
+                    "borderpad": 0,
+                    "orientation": "vertical",
+                    "show_label": True,
+                    "label": "온도 (°C)",
+                    "font_size": 10,
+                    "tick_size": 8,
+                    "min_temp": 0,
+                    "max_temp": 30,
+                    "temp_steps": 100
+                }
+            }
+        }
+
+        self.config_manager.db.save(map_id, default_config)
         return jsonify({'id': map_id})
 
     def get_map(self, map_id):

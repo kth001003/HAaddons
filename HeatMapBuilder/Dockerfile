@@ -52,4 +52,7 @@ RUN pip install watchdog
 WORKDIR /apps
 ENV PYTHONPATH=/apps
 
+#기본 db 복사
+COPY default_maps.json /data/maps.json
+
 CMD ["sh", "run.sh"]
