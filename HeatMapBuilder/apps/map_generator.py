@@ -60,7 +60,6 @@ class MapGenerator:
                     fm.fontManager.addfont(font_path)
                     # 기본 폰트 설정
                     plt.rcParams['font.family'] = 'NanumGothic'  # 폰트 이름으로 직접 설정
-                    # self.logger.info(f"한글 폰트 설정 완료: {font_path}")
                     font_found = True
                     break
             
@@ -196,7 +195,7 @@ class MapGenerator:
                 else:
                     self.logger.warning(f"Path {i}: 유효한 폴리곤 생성 실패")
 
-            self.logger.info(f"총 {len(self.areas)}개의 area 파싱됨 (전체 path 중 {len(paths)}개)")
+            self.logger.debug(f"총 {len(self.areas)}개의 area 파싱됨 (전체 path 중 {len(paths)}개)")
             return self.areas, root
             
         except Exception as e:
@@ -213,7 +212,6 @@ class MapGenerator:
         self.logger.debug(f"센서 데이터: {self.sensors_data}")
         for sensor in self.sensors_data:
             if 'position' not in sensor:
-                self.logger.warning(f"{sensor['entity_id']} 센서에 position 데이터가 없습니다")
                 continue
                 
             position = sensor['position']
@@ -261,7 +259,7 @@ class MapGenerator:
                     if area_idx not in self.area_sensors:
                         self.area_sensors[area_idx] = []
                     self.area_sensors[area_idx].append((point, temp, sensor_id))
-                    self.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
+                    self.logger.debug(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
                     assigned = True
                     break
             
@@ -272,7 +270,7 @@ class MapGenerator:
                         if area_idx not in self.area_sensors:
                             self.area_sensors[area_idx] = []
                         self.area_sensors[area_idx].append((point, temp, sensor_id))
-                        self.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
+                        self.logger.debug(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
                         assigned = True
                         break
             
@@ -443,7 +441,7 @@ class MapGenerator:
         self.current_map_id = map_id
         self.configs = self.config_manager.db.get_map(map_id)
         self.walls_data = self.configs.get('walls', '')
-        self.sensors_data = self.configs.get('sensors', [])  # 기본값을 빈 리스트로 변경
+        self.sensors_data = self.configs.get('sensors', [])
         self.parameters = self.configs.get('parameters', {})
         self.gen_config = self.configs.get('gen_config', {})
 
@@ -538,24 +536,72 @@ class MapGenerator:
                 # 배경 설정
                 bg_color = sensor_info_bg.get('color', '#FFFFFF')
                 bg_opacity = sensor_info_bg.get('opacity', 70) / 100
+                bg_padding = sensor_info_bg.get('padding', 5)
+                bg_border_radius = sensor_info_bg.get('border_radius', 4)
+                bg_border_width = sensor_info_bg.get('border_width', 1)
+                bg_border_color = sensor_info_bg.get('border_color', '#000000')
+                bg_position = sensor_info_bg.get('position', 'right')
+                bg_distance = sensor_info_bg.get('distance', 10)
+
+                # 텍스트 위치 계산
+                text_x, text_y = point[0], point[1]
+                if bg_position == 'right':
+                    text_x = point[0] + marker_size/2 + bg_distance
+                    text_y = point[1]
+                elif bg_position == 'left':
+                    text_x = point[0] - marker_size/2 - bg_distance
+                    text_y = point[1]
+                elif bg_position == 'top':
+                    text_x = point[0]
+                    text_y = point[1] - marker_size/2 - bg_distance
+                elif bg_position == 'bottom':
+                    text_x = point[0]
+                    text_y = point[1] + marker_size/2 + bg_distance
+                elif bg_position == 'top-right':
+                    text_x = point[0] + marker_size/2 + bg_distance/1.4
+                    text_y = point[1] - marker_size/2 - bg_distance/1.4
+                elif bg_position == 'top-left':
+                    text_x = point[0] - marker_size/2 - bg_distance/1.4
+                    text_y = point[1] - marker_size/2 - bg_distance/1.4
+                elif bg_position == 'bottom-right':
+                    text_x = point[0] + marker_size/2 + bg_distance/1.4
+                    text_y = point[1] + marker_size/2 + bg_distance/1.4
+                elif bg_position == 'bottom-left':
+                    text_x = point[0] - marker_size/2 - bg_distance/1.4
+                    text_y = point[1] + marker_size/2 + bg_distance/1.4
+
+                # 텍스트 정렬 설정
+                halign = 'center'
+                valign = 'center'
+                if 'right' in bg_position:
+                    halign = 'left'
+                elif 'left' in bg_position:
+                    halign = 'right'
+                if 'top' in bg_position:
+                    valign = 'bottom'
+                elif 'bottom' in bg_position:
+                    valign = 'top'
 
                 # 텍스트 추가
-                plt.text(point[0], point[1] - marker_size - 5, text,
-                        horizontalalignment='center',
-                        verticalalignment='bottom',
+                plt.text(text_x, text_y, text,
+                        horizontalalignment=halign,
+                        verticalalignment=valign,
                         fontsize=font_size,
                         color=font_color,
-                        bbox=dict(facecolor=bg_color,
-                                alpha=bg_opacity,
-                                edgecolor='none',
-                                pad=4,
-                                boxstyle='round,pad=0.5'),
+                        bbox=dict(
+                            facecolor=bg_color,
+                            alpha=bg_opacity,
+                            edgecolor=bg_border_color if bg_border_width > 0 else 'none',
+                            linewidth=bg_border_width,
+                            pad=bg_padding,
+                            boxstyle=f'round,pad={bg_padding/10},rounding_size={bg_border_radius}'
+                        ),
                         zorder=6)
 
         except Exception as e:
             self.logger.error(f"센서 마커 생성 중 오류 발생: {str(e)}")
 
-    def generate(self, output_path: str) -> bool:
+    def generate(self, map_id: str, output_path: str) -> bool:
         """
         온도맵을 생성하고 이미지 파일로 저장합니다.
         
@@ -566,13 +612,17 @@ class MapGenerator:
             bool: 성공 여부
         """
         try:
+            self.current_map_id = map_id
             if not self.current_map_id:
                 self.logger.error("현재 선택된 맵이 없습니다")
                 return False
+            self.load_map_config(self.current_map_id)
+
             # walls_data와 sensors_data 유효성 검사
             if not self.walls_data or len(self.sensors_data) == 0:
                 self.logger.error("벽 데이터 또는 센서 데이터가 없습니다")
                 return False
+            
             timestamp_start = time.time_ns()
 
             # 설정된 온도 범위 가져오기

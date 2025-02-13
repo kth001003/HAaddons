@@ -42,27 +42,31 @@ class BackgroundTaskManager:
                         # 맵의 생성 설정 가져오기
                         gen_config = map_data.get('gen_config', {})
                         gen_interval = gen_config.get('gen_interval', 5) * 60  # 기본값 5분
-
+                        map_name = map_data.get('name', '')
                         # 마지막 생성 시간 확인
                         last_gen_time = self.map_timers.get(map_id, 0)
                         
                         # 생성 간격이 지났는지 확인
                         if current_time - last_gen_time >= gen_interval:
-                            self.logger.debug(f"맵 {map_id} 열지도 생성 시작")
+                            walls = map_data.get('walls', '')
+                            sensors = map_data.get('sensors', [])
+                            if not walls or not sensors: # 벽 또는 센서 데이터가 없으면 건너뜀
+                                continue 
+
+                            self.logger.info(f"백그라운드 맵 생성 시작 {map_name} ({map_id})")
                             
                             # 현재 맵으로 설정
                             self.config_manager.current_map_id = map_id
-                            self.map_generator.load_map_config(map_id)
                             
                             # 열지도 생성
                             if self.generate_map(map_id):
-                                self.logger.info(f"맵 {map_id} 열지도 생성 완료 (소요시간: {self.map_generator.generation_duration})")
+                                self.logger.info(f"백그라운드 맵 생성 완료 {map_name} ({map_id}) (소요시간: {self.map_generator.generation_duration})")
                                 # 생성 시간 업데이트
                                 self.map_timers[map_id] = current_time
                             else:
-                                self.logger.error(f"맵 {map_id} 열지도 생성 실패")
+                                self.logger.error(f"백그라운드 맵 생성 실패 {map_name} ({map_id})")
                     except Exception as e:
-                        self.logger.error(f"맵 {map_id} 열지도 생성 중 오류 발생: {str(e)}")
+                        self.logger.error(f"백그라운드 맵 생성 중 오류 발생: {str(e)}")
 
                 # 최소 1분 대기
                 time.sleep(60)
@@ -75,7 +79,7 @@ class BackgroundTaskManager:
         if self.map_lock.acquire(blocking=False):  # 락 획득 시도
             try:
                 _output_path = self.config_manager.get_output_path(map_id)
-                return self.map_generator.generate(_output_path)
+                return self.map_generator.generate(map_id, _output_path)
             except Exception as e:
                 self.logger.error(f"열지도 생성 실패: {str(e)}")
                 raise e

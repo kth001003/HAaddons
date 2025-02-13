@@ -865,7 +865,6 @@ export class DrawingTool {
             // SVG path 생성
             let pathData;
             const areaElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            
             if (is_exterior) {
                 areaElement.setAttribute('fill-rule', 'evenodd');
                 areaElement.classList.add('exterior');

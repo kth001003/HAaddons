@@ -84,7 +84,6 @@ class WebServer:
             
             # 현재 맵 ID 설정 및 설정 업데이트
             self.current_map_id = map_id
-            self.map_generator.load_map_config(map_id)
         except Exception as e:
             self.logger.error(f"맵 전환 실패: {str(e)}")
             return render_template('404.html', error_message='맵 로딩 중 오류가 발생했습니다'), 404
@@ -182,7 +181,7 @@ class WebServer:
             # 열지도 생성
             output_filename, _, output_path = self.config_manager.get_output_info(self.current_map_id)
                 
-            if self.map_generator.generate(output_path):
+            if self.map_generator.generate(self.current_map_id,output_path):
                 self.app.logger.info("열지도 생성 완료")
 
                 return jsonify({
@@ -283,7 +282,30 @@ class WebServer:
                     "area_border_color": "#000000",
                     "plot_border_width": 0,
                     "plot_border_color": "#000000",
-                    "sensor_display": "position_temp"
+                    "sensor_display": "position_temp",
+                    "sensor_info_bg": {
+                        "color": "#FFFFFF",
+                        "opacity": 70,
+                        "padding": 5,
+                        "border_radius": 4,
+                        "border_width": 1,
+                        "border_color": "#000000",
+                        "position": "right",
+                        "distance": 10
+                    },
+                    "sensor_marker": {
+                        "style": "circle",
+                        "size": 10,
+                        "color": "#FF0000"
+                    },
+                    "sensor_name": {
+                        "font_size": 12,
+                        "color": "#000000"
+                    },
+                    "sensor_temp": {
+                        "font_size": 12,
+                        "color": "#000000"
+                    }
                 },
                 "colorbar": {
                     "cmap": "RdYlBu_r",
@@ -329,9 +351,21 @@ class WebServer:
 
     def delete_map(self, map_id):
         """맵 삭제"""
-        if self.config_manager.db.delete(map_id):
-            return jsonify({'status': 'success'})
-        return jsonify({'error': '맵을 찾을 수 없습니다.'}), 404
+        try:
+            # 맵 디렉토리 경로 가져오기
+            map_dir = os.path.join(self.config_manager.paths['media'], map_id)
+            
+            # 데이터베이스에서 맵 삭제
+            if self.config_manager.db.delete(map_id):
+                # 맵 디렉토리가 존재하면 삭제
+                if os.path.exists(map_dir):
+                    import shutil
+                    shutil.rmtree(map_dir)
+                return jsonify({'status': 'success'})
+            return jsonify({'error': '맵을 찾을 수 없습니다.'}), 404
+        except Exception as e:
+            self.logger.error(f"맵 삭제 중 오류 발생: {str(e)}")
+            return jsonify({'error': f'맵 삭제 중 오류가 발생했습니다: {str(e)}'}), 500
 
     def stream_map(self, map_id):
         """맵의 MJPEG 스트림을 제공합니다."""
@@ -373,4 +407,4 @@ class WebServer:
         """서버 실행"""
         if port is None:
             port = int(os.environ.get('PORT', 8099))
-        self.app.run(host=host, port=port, debug=True)
+        self.app.run(host=host, port=port, debug=False)

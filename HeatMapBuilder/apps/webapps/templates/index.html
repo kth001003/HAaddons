@@ -65,7 +65,13 @@
                 </div>
                 {% else %}
                 <div class="flex justify-center items-center h-full">
-                    <span class="text-gray-500 text-lg font-medium">생성된 온도지도가 없습니다</span>
+                    <div class="text-gray-500 text-lg font-medium">생성된 온도지도가 없습니다</div>
+                    <button id="generate-now" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        지금 생성
+                    </button>
                 </div>
                 {% endif %}
             </div>
@@ -555,8 +561,10 @@
                         </div>
 
                         <!-- 센서 정보 배경 설정 -->
-                        <div class="space-y-2">
-                            <label class="block text-sm">센서 정보 배경</label>
+                        <div class="space-y-4">
+                            <h4 class="text-lg font-medium">센서 정보 배경 설정</h4>
+                            
+                            <!-- 배경색 및 투명도 -->
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm">배경색</label>
@@ -575,11 +583,89 @@
                                     <input type="number" id="sensor-info-bg-opacity" class="w-full px-3 py-2 border rounded-md" value="70" min="0" max="100" step="5">
                                 </div>
                             </div>
+
+                            <!-- 배경 박스 스타일 -->
+                            <div class="space-y-4">
+                                <h5 class="text-sm font-medium">배경 박스 스타일</h5>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm">내부 여백 (px)
+                                            <div class="group relative inline-block">
+                                                <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    배경 박스 내부의 텍스트와 박스 경계 사이의 여백을 설정합니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="sensor-info-padding" class="w-full px-3 py-2 border rounded-md" value="5" min="0" max="50" step="1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">모서리 둥글기 (px)</label>
+                                        <input type="number" id="sensor-info-border-radius" class="w-full px-3 py-2 border rounded-md" value="4" min="0" max="20" step="1">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm">테두리 두께 (px)</label>
+                                        <input type="number" id="sensor-info-border-width" class="w-full px-3 py-2 border rounded-md" value="1" min="0" max="10" step="1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">테두리 색상</label>
+                                        <div class="flex space-x-2">
+                                            <input type="color" id="sensor-info-border-color" class="h-10 w-20" value="#000000">
+                                            <select id="sensor-info-border-color-preset" class="flex-1 px-3 py-2 border rounded-md">
+                                                <option value="#000000">검정</option>
+                                                <option value="#FFFFFF">흰색</option>
+                                                <option value="#808080">회색</option>
+                                                <option value="transparent">투명</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 마커와 배경 박스 관계 설정 -->
+                            <div class="space-y-2">
+                                <label class="block text-sm">마커와 배경 박스 관계</label>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm">방향
+                                            <div class="group relative inline-block">
+                                                <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    센서 마커를 기준으로 배경 박스가 표시될 방향을 설정합니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <select id="sensor-info-position" class="w-full px-3 py-2 border rounded-md">
+                                            <option value="top">위</option>
+                                            <option value="right" selected>오른쪽</option>
+                                            <option value="bottom">아래</option>
+                                            <option value="left">왼쪽</option>
+                                            <option value="top-right">오른쪽 위</option>
+                                            <option value="top-left">왼쪽 위</option>
+                                            <option value="bottom-right">오른쪽 아래</option>
+                                            <option value="bottom-left">왼쪽 아래</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm">거리 (px)
+                                            <div class="group relative inline-block">
+                                                <button class="bg-gray-500 text-white px-2 rounded">?</button>
+                                                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-2 py-1 rounded w-[300px] whitespace-normal z-20">
+                                                    센서 마커와 배경 박스 사이의 거리를 설정합니다.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <input type="number" id="sensor-info-distance" class="w-full px-3 py-2 border rounded-md" value="10" min="0" max="100" step="1">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- 위치 표시 설정 -->
-                        <div class="space-y-2">
-                            <label class="block text-sm">위치 표시 설정</label>
+                        <div class="space-y-4">
+                            <h4 class="text-lg font-medium">위치 표시 설정</h4>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm">점 모양</label>
@@ -611,8 +697,8 @@
                         </div>
 
                         <!-- 센서 이름 설정 -->
-                        <div class="space-y-2">
-                            <label class="block text-sm">센서 이름 설정</label>
+                        <div class="space-y-4">
+                            <h4 class="text-lg font-medium">센서 이름 설정</h4>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm">폰트 크기</label>
@@ -633,8 +719,8 @@
                         </div>
 
                         <!-- 온도 표시 설정 -->
-                        <div class="space-y-2">
-                            <label class="block text-sm">온도 표시 설정</label>
+                        <div class="space-y-4">
+                            <h4 class="text-lg font-medium">온도 표시 설정</h4>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm">폰트 크기</label>

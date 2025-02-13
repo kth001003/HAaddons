@@ -1,9 +1,8 @@
+// 14:12
 // @ts-ignore
-const random = Math.random();
+import { DrawingTool } from './drawing_tool.js';
 // @ts-ignore
-import { DrawingTool } from './drawing_tool.js?cache_buster=${random}';
-// @ts-ignore
-import { SensorManager } from './sensor_manager.js?cache_buster=${random}'; 
+import { SensorManager } from './sensor_manager.js'; 
 
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM Content Loaded');
@@ -103,7 +102,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     async function saveWallsAndSensors() {
         try {
             // SVG에서 line 및 path 요소만 선택
-            const wallsElements = svg.querySelectorAll('line, path');
+            const wallsElements = svg.querySelectorAll('line, path.area');
             
             // 선택된 요소들의 HTML 문자열 생성
             let wallsHTML = '';
@@ -117,7 +116,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({wallsData,sensorsData})
+                body: JSON.stringify({wallsData, sensorsData})
             });
             showMessage('벽과 센서위치를 저장했습니다.', 'success')
         } catch (error) {
@@ -186,6 +185,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const sensorInfoBg = visualization.sensor_info_bg || {};
                     /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-color')).value = sensorInfoBg.color ?? '#FFFFFF';
                     /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-opacity')).value = sensorInfoBg.opacity ?? 70;
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-padding')).value = sensorInfoBg.padding ?? 5;
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-border-radius')).value = sensorInfoBg.border_radius ?? 4;
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-border-width')).value = sensorInfoBg.border_width ?? 1;
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-border-color')).value = sensorInfoBg.border_color ?? '#000000';
+                    /** @type {HTMLSelectElement} */ (document.getElementById('sensor-info-position')).value = sensorInfoBg.position ?? 'right';
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-distance')).value = sensorInfoBg.distance ?? 10;
                     
                     // 위치 표시 설정 로드
                     const sensorMarker = visualization.sensor_marker || {};
@@ -267,7 +272,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // 센서 정보 배경 설정
                 sensor_info_bg: {
                     color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-color')).value,
-                    opacity: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-opacity')).value)
+                    opacity: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-opacity')).value),
+                    padding: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-info-padding')).value),
+                    border_radius: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-info-border-radius')).value),
+                    border_width: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-info-border-width')).value),
+                    border_color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-border-color')).value,
+                    position: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-info-position')).value,
+                    distance: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-info-distance')).value)
                 },
                 // 위치 표시 설정
                 sensor_marker: {
@@ -509,10 +520,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     const thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
     const mapGenerationTime = /** @type {HTMLImageElement} */ document.getElementById('map-generation-time');
     const mapGenerationDuration = /** @type {HTMLImageElement} */ document.getElementById('map-generation-duration');
-
+    const mapGenerationButton = /** @type {HTMLButtonElement} */ document.getElementById('generate-now');
     async function refreshThermalMap() {
+        if (!mapGenerationButton) {
+            // 맵 생성 안된 상태
+            return;
+        }
         showMessage('온도지도 생성 중..')
-        document.getElementById('generate-now').children[0].classList.add('animate-spin');
+        mapGenerationButton.children[0].classList.add('animate-spin');
         try {
             const response = await fetch('./api/generate-map');
             const data = await response.json();
@@ -534,11 +549,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.error('Error:', error);
             showMessage('온도지도 생성 중 오류가 발생했습니다.', 'error');
         }        
-        document.getElementById('generate-now').children[0].classList.remove('animate-spin');
+        mapGenerationButton.children[0].classList.remove('animate-spin');
     }
 
     // 맵 생성 시간 확인 및 자동 새로고침 함수
     async function checkAndRefreshMap() {
+        if (!mapGenerationButton) {
+            // 맵 생성 안된 상태
+            return;
+        }
         try {
             const response = await fetch('./api/check-map-time');
             const data = await response.json();
@@ -564,7 +583,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     // 새로고침 버튼 이벤트 리스너
-    document.getElementById('generate-now').addEventListener('click', refreshThermalMap);
+    if (mapGenerationButton) {
+        mapGenerationButton.addEventListener('click', refreshThermalMap);
+    }
 
     // 초기 탭 설정
     switchTab('dashboard');
