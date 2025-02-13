@@ -105,7 +105,6 @@ if __name__ == '__main__':
     logger.info("애플리케이션 시작")
 
     supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
-    logger.debug(f"app.py - Supervisor Token: {supervisor_token}")
     try:
         sensor_manager = SensorManager(is_local, config_manager, logger, supervisor_token)
         map_generator = MapGenerator(config_manager, sensor_manager, logger)

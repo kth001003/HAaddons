@@ -94,7 +94,7 @@ class WebServer:
             
         cache_buster = int(time.time())
         return render_template('index.html', 
-                            img_url=f'/local/{self.current_map_id}/{self.config_manager.get_output_filename(self.current_map_id)}?{cache_buster}',
+                            img_url=f'/local/HeatMapBuilder/{self.current_map_id}/{self.config_manager.get_output_filename(self.current_map_id)}?{cache_buster}',
                             cache_buster=cache_buster, 
                             map_generation_time=self.map_generator.generation_time,
                             map_generation_duration=self.map_generator.generation_duration,
@@ -181,7 +181,7 @@ class WebServer:
 
                 return jsonify({
                     'status': 'success',
-                    'image_url': f'/local/{self.current_map_id}/{output_filename}',
+                    'image_url': f'/local/HeatMapBuilder/{self.current_map_id}/{output_filename}',
                     'time': self.map_generator.generation_time,
                     'duration': self.map_generator.generation_duration
                 })
@@ -215,7 +215,7 @@ class WebServer:
                     'status': 'success',
                     'time': last_generation.get('time', ''),
                     'duration': last_generation.get('duration', ''),
-                    'image_url': f'/local/{self.current_map_id}/{output_filename}'
+                    'image_url': f'/local/HeatMapBuilder/{self.current_map_id}/{output_filename}'
                 })
             else:
 
@@ -331,7 +331,8 @@ class WebServer:
         """맵의 MJPEG 스트림을 제공합니다."""
         def generate():
             while True:
-                _, _, image_path = self.config_manager.get_output_info(map_id)
+                image_filename, _, _ = self.config_manager.get_output_info(map_id)
+                image_path = f"/local/HeatMapBuilder/{map_id}/{image_filename}"
                 if os.path.exists(image_path):
                     try:
                         # PIL을 사용하여 이미지를 JPEG로 변환

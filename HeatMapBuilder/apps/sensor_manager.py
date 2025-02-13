@@ -19,10 +19,8 @@ class SensorManager:
                 'base_url': 'mock_url',
                 'headers': {'Content-Type': 'application/json'}
             }
-        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
-        self.logger.debug(f"Supervisor Token: {supervisor_token}")
-        if not supervisor_token:
-            self.logger.error("Supervisor Token이 설정되지 않았습니다")
+        if not self.supervisor_token:
+            self.logger.error("Supervisor Token is not configured")
             return None
         return {
             'base_url': 'http://supervisor/core/api',
@@ -84,7 +82,7 @@ class SensorManager:
             self.logger.error(f"응답 내용: {response.text}")
             return []
         
-        self.logger.debug(f"API로 센서 상태 조회 성공: {states}")
+        # self.logger.debug(f"API로 센서 상태 조회 성공: {states}")
         return [
             state for state in states
             if state.get('attributes', {}).get('device_class') == 'temperature' and
