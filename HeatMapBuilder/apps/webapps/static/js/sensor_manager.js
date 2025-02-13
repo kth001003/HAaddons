@@ -271,54 +271,177 @@ export class SensorManager {
     }
 
     createSensorMarkerGroup(sensor) {
-            const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            group.setAttribute('data-entity-id', sensor.entity_id);
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.setAttribute('data-entity-id', sensor.entity_id);
+        group.setAttribute('draggable', 'true');
 
-            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('r', String(this.MARKER_RADIUS));
-            circle.setAttribute('fill', this.MARKER_FILL);
-            circle.style.cursor = 'move';
+        // 배경 사각형 생성
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('rx', '3');
+        rect.setAttribute('ry', '3');
+        const config = /** @type {{
+            sensor_display: string,
+            sensor_info_bg: { color: string, opacity: number },
+            sensor_marker: { style: string, size: number, color: string },
+            sensor_name: { font_size: number, color: string },
+            sensor_temp: { font_size: number, color: string }
+        }} */ (this.getVisualizationConfig());
+        rect.setAttribute('fill', config.sensor_info_bg.color);
+        rect.setAttribute('fill-opacity', String(config.sensor_info_bg.opacity / 100));
 
-            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('fill', this.TEXT_FILL);
-            text.setAttribute('font-size', this.TEXT_SIZE);
-            text.style.cursor = 'move';
-            text.style.userSelect = 'none';
+        // 센서 위치 마커 생성
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        const markerConfig = config.sensor_marker;
+        circle.setAttribute('r', String(markerConfig.size));
+        circle.setAttribute('fill', markerConfig.color);
 
-            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            rect.setAttribute('fill', this.RECT_FILL);
-            rect.setAttribute('fill-opacity', this.RECT_OPACITY);
-            rect.setAttribute('rx', this.RECT_RADIUS);
-            rect.setAttribute('ry', this.RECT_RADIUS);
-            rect.style.cursor = 'move';
+        // 텍스트 생성
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'middle');
 
-            group.appendChild(rect);
-            group.appendChild(text);
-            group.appendChild(circle);
-            this.svg.appendChild(group);
+        group.appendChild(rect);
+        group.appendChild(circle);
+        group.appendChild(text);
 
-            return group;
+        this.svg.appendChild(group);
+        return group;
+    }
+
+    getVisualizationConfig() {
+        const genConfigElement = document.getElementById('save-gen-configs');
+        if (!genConfigElement) return {};
+        
+        return {
+            sensor_display: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-display-option'))?.value ?? 'position_temp',
+            sensor_info_bg: {
+                color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-color'))?.value ?? '#FFFFFF',
+                opacity: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-opacity'))?.value ?? '70')
+            },
+            sensor_marker: {
+                style: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-marker-style'))?.value ?? 'circle',
+                size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-size'))?.value ?? '10'),
+                color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-color'))?.value ?? '#FF0000'
+            },
+            sensor_name: {
+                font_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-name-font-size'))?.value ?? '12'),
+                color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-name-color'))?.value ?? '#000000'
+            },
+            sensor_temp: {
+                font_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-font-size'))?.value ?? '12'),
+                color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-color'))?.value ?? '#000000'
+            }
+        };
+    }
+
+    createMarkerPath(style, size, x, y) {
+        switch (style) {
+            case 'circle':
+                return `M ${x} ${y} m -${size} 0 a ${size} ${size} 0 1 0 ${size*2} 0 a ${size} ${size} 0 1 0 -${size*2} 0`;
+            case 'square':
+                return `M ${x-size} ${y-size} h ${size*2} v ${size*2} h -${size*2} z`;
+            case 'triangle':
+                return `M ${x} ${y-size} l ${size} ${size*1.732} h -${size*2} z`;
+            case 'star':
+                const outerPoints = [];
+                const innerPoints = [];
+                for (let i = 0; i < 5; i++) {
+                    const outerAngle = (i * 72 - 90) * Math.PI / 180;
+                    const innerAngle = (i * 72 - 90 + 36) * Math.PI / 180;
+                    outerPoints.push(`${x + size * Math.cos(outerAngle)} ${y + size * Math.sin(outerAngle)}`);
+                    innerPoints.push(`${x + size * 0.4 * Math.cos(innerAngle)} ${y + size * 0.4 * Math.sin(innerAngle)}`);
+                }
+                const points = [];
+                for (let i = 0; i < 5; i++) {
+                    points.push(outerPoints[i], innerPoints[i]);
+                }
+                return `M ${points[0]} L ${points.slice(1).join(' L ')} Z`;
+            case 'cross':
+                return `M ${x-size} ${y} h ${size*2} M ${x} ${y-size} v ${size*2}`;
+            default:
+                return `M ${x} ${y} m -${size} 0 a ${size} ${size} 0 1 0 ${size*2} 0 a ${size} ${size} 0 1 0 -${size*2} 0`;
         }
-    updateMarkerPosition(group,sensor,point) {
+    }
+
+    updateMarkerPosition(group, sensor, point) {
         const circle = group.querySelector('circle');
         const text = group.querySelector('text');
         const rect = group.querySelector('rect');
-        if (point.x !== parseFloat(circle.getAttribute('cx')) || point.y !== parseFloat(circle.getAttribute('cy'))){
-            circle.setAttribute('cx', String(point.x));
-            circle.setAttribute('cy', String(point.y));
+        const config = /** @type {{
+            sensor_display: string,
+            sensor_info_bg: { color: string, opacity: number },
+            sensor_marker: { style: string, size: number, color: string },
+            sensor_name: { font_size: number, color: string },
+            sensor_temp: { font_size: number, color: string }
+        }} */ (this.getVisualizationConfig());
 
-            text.setAttribute('x', String(point.x));
-            text.setAttribute('y', String(point.y - 10));
-            // 텍스트 배경 크기 계산 및 업데이트
-            const textBBox = text.getBBox ? text.getBBox() : { width: 100, height: 14 };
-            const padding = 4;
-            rect.setAttribute('x', String(point.x - textBBox.width/2 - padding));
-            rect.setAttribute('y', String(point.y - 24));
+        // 마커 스타일 업데이트
+        const markerConfig = config.sensor_marker;
+        const markerSize = markerConfig.size;
+        const markerStyle = markerConfig.style;
+        const markerColor = markerConfig.color;
+
+        // 기존 마커 제거
+        const oldPath = group.querySelector('path');
+        if (oldPath) {
+            oldPath.remove();
         }
-          if(text.textContent !== (sensor.attributes.friendly_name || sensor.entity_id))
-            text.textContent = sensor.attributes.friendly_name || sensor.entity_id;
+        if (circle) {
+            circle.remove();
+        }
 
+        // 새 마커 생성
+        const markerPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        markerPath.setAttribute('d', this.createMarkerPath(markerStyle, markerSize, point.x, point.y));
+        markerPath.setAttribute('fill', markerStyle === 'cross' ? 'none' : markerColor);
+        markerPath.setAttribute('stroke', markerColor);
+        markerPath.setAttribute('stroke-width', markerStyle === 'cross' ? '2' : '0');
+        group.appendChild(markerPath);
+
+        // 텍스트 내용 설정
+        let displayText = '';
+        const displayOption = config.sensor_display;
+        const calibratedTemp = this.getCalibratedTemperature(sensor);
+        
+        if (displayOption.includes('name')) {
+            displayText += sensor.attributes.friendly_name || sensor.entity_id;
+        }
+        if (displayOption.includes('temp')) {
+            if (displayText) displayText += '\n';
+            displayText += `${calibratedTemp.toFixed(1)}°C`;
+        }
+
+        // 텍스트 스타일 업데이트
+        text.textContent = displayText;
+        text.setAttribute('x', String(point.x));
+        text.setAttribute('y', String(point.y - markerSize - 5));
+        
+        // 이름과 온도의 폰트 크기와 색상 설정
+        if (displayOption.includes('name')) {
+            const nameConfig = config.sensor_name;
+            text.setAttribute('font-size', String(nameConfig.font_size));
+            text.setAttribute('fill', nameConfig.color);
+        }
+        if (displayOption.includes('temp')) {
+            const tempConfig = config.sensor_temp;
+            const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+            tspan.textContent = `${calibratedTemp.toFixed(1)}°C`;
+            tspan.setAttribute('x', String(point.x));
+            tspan.setAttribute('dy', String(tempConfig.font_size));
+            tspan.setAttribute('font-size', String(tempConfig.font_size));
+            tspan.setAttribute('fill', tempConfig.color);
+            text.appendChild(tspan);
+        }
+
+        // 배경 사각형 업데이트
+        const textBBox = text.getBBox();
+        const padding = 4;
+        rect.setAttribute('x', String(point.x - textBBox.width/2 - padding));
+        rect.setAttribute('y', String(point.y - textBBox.height - markerSize - padding * 2));
+        rect.setAttribute('width', String(textBBox.width + padding * 2));
+        rect.setAttribute('height', String(textBBox.height + padding * 2));
+        rect.setAttribute('fill', config.sensor_info_bg.color);
+        rect.setAttribute('fill-opacity', String(config.sensor_info_bg.opacity / 100));
     }
 
     setupDragEvents(group, sensor, point) {

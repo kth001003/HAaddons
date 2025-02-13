@@ -1,6 +1,9 @@
 import os
 import numpy as np  #type: ignore
 import matplotlib.pyplot as plt #type: ignore
+from matplotlib.patches import Circle, Rectangle, Polygon #type: ignore
+from matplotlib.lines import Line2D #type: ignore
+import matplotlib.patches as patches #type: ignore
 from scipy.interpolate import griddata, Rbf  #type: ignore
 from scipy.spatial import Voronoi  #type: ignore
 import xml.etree.ElementTree as ET
@@ -455,6 +458,103 @@ class MapGenerator:
         }
         self.config_manager.db.save(self.current_map_id, map_data)
 
+    def _create_sensor_marker(self, point, temperature, sensor_id, state):
+        """센서 마커를 생성합니다."""
+        try:
+            # 센서 표시 설정 가져오기
+            sensor_display = self.gen_config.get('visualization', {}).get('sensor_display', 'position_temp')
+            sensor_info_bg = self.gen_config.get('visualization', {}).get('sensor_info_bg', {})
+            sensor_marker = self.gen_config.get('visualization', {}).get('sensor_marker', {})
+            sensor_name = self.gen_config.get('visualization', {}).get('sensor_name', {})
+            sensor_temp = self.gen_config.get('visualization', {}).get('sensor_temp', {})
+
+            # 마커 스타일 설정
+            marker_style = sensor_marker.get('style', 'circle')
+            marker_size = sensor_marker.get('size', 10)
+            marker_color = sensor_marker.get('color', '#FF0000')
+
+            # 마커 생성
+            if marker_style == 'circle':
+                marker = Circle((point[0], point[1]), marker_size/2)
+                marker.set_facecolor(marker_color)
+                marker.set_zorder(5)
+            elif marker_style == 'square':
+                marker = Rectangle((point[0]-marker_size/2, point[1]-marker_size/2), marker_size, marker_size)
+                marker.set_facecolor(marker_color)
+                marker.set_zorder(5)
+            elif marker_style == 'triangle':
+                vertices = np.array([
+                    [point[0], point[1]-marker_size/2],
+                    [point[0]+marker_size/2, point[1]+marker_size/2],
+                    [point[0]-marker_size/2, point[1]+marker_size/2]
+                ])
+                marker = patches.Polygon(vertices, fc=marker_color)
+                marker.set_zorder(5)
+            elif marker_style == 'star':
+                vertices = []
+                for i in range(5):
+                    angle = (i * 72 - 90) * np.pi / 180
+                    vertices.append([point[0] + marker_size * np.cos(angle),
+                                   point[1] + marker_size * np.sin(angle)])
+                    inner_angle = ((i * 72 + 36) - 90) * np.pi / 180
+                    vertices.append([point[0] + marker_size * 0.4 * np.cos(inner_angle),
+                                   point[1] + marker_size * 0.4 * np.sin(inner_angle)])
+                marker = patches.Polygon(np.array(vertices), fc=marker_color)
+                marker.set_zorder(5)
+            elif marker_style == 'cross':
+                marker = Line2D([point[0]-marker_size/2, point[0]+marker_size/2],
+                              [point[1], point[1]], color=marker_color)
+                marker.set_zorder(5)
+                marker2 = Line2D([point[0], point[0]],
+                               [point[1]-marker_size/2, point[1]+marker_size/2],
+                               color=marker_color)
+                marker2.set_zorder(5)
+                plt.gca().add_artist(marker2)
+            else:
+                marker = Circle((point[0], point[1]), marker_size/2)
+                marker.set_facecolor(marker_color)
+                marker.set_zorder(5)
+
+            plt.gca().add_artist(marker)
+
+            # 텍스트 표시 설정
+            if sensor_display != 'none' and sensor_display != 'position':
+                name = state.get('attributes', {}).get('friendly_name', sensor_id.split('.')[-1])
+                text = ''
+                
+                if 'name' in sensor_display:
+                    text = name
+                    font_size = sensor_name.get('font_size', 12)
+                    font_color = sensor_name.get('color', '#000000')
+                
+                if 'temp' in sensor_display:
+                    if text:
+                        text += '\n'
+                    text += f'{temperature:.1f}°C'
+                    if 'name' not in sensor_display:
+                        font_size = sensor_temp.get('font_size', 12)
+                        font_color = sensor_temp.get('color', '#000000')
+
+                # 배경 설정
+                bg_color = sensor_info_bg.get('color', '#FFFFFF')
+                bg_opacity = sensor_info_bg.get('opacity', 70) / 100
+
+                # 텍스트 추가
+                plt.text(point[0], point[1] - marker_size - 5, text,
+                        horizontalalignment='center',
+                        verticalalignment='bottom',
+                        fontsize=font_size,
+                        color=font_color,
+                        bbox=dict(facecolor=bg_color,
+                                alpha=bg_opacity,
+                                edgecolor='none',
+                                pad=4,
+                                boxstyle='round,pad=0.5'),
+                        zorder=6)
+
+        except Exception as e:
+            self.logger.error(f"센서 마커 생성 중 오류 발생: {str(e)}")
+
     def generate(self, output_path: str) -> bool:
         """
         온도맵을 생성하고 이미지 파일로 저장합니다.
@@ -580,41 +680,14 @@ class MapGenerator:
             
             if sensor_display != 'none':  # 'none'이 아닐 때만 센서 표시
                 # 센서 위치 표시
-                sensor_x = [p[0] for p in sensor_points]
-                sensor_y = [p[1] for p in sensor_points]
-                main_ax.scatter(sensor_x, sensor_y, c='red', s=10, zorder=5)
-
-                # 센서 정보 표시
                 for point, temperature, sensor_id in zip(sensor_points, raw_temps, sensor_ids):
                     try:
                         state = self.get_sensor_state(sensor_id)
                         if not state or not isinstance(state, dict):
                             continue
-
-                        name = state.get('attributes', {}).get('friendly_name', sensor_id.split('.')[-1])
-                        
-                        # 텍스트 위치 (센서 위치보다 약간 위로)
-                        text_x = point[0]
-                        text_y = point[1] - 10
-                        
-                        # 표시 옵션에 따른 텍스트 설정
-                        if sensor_display == 'position':
-                            continue  # 위치만 표시하는 경우 텍스트 표시 안 함
-                        elif sensor_display == 'position_name':
-                            text = f'{name}'
-                        elif sensor_display == 'position_name_temp':
-                            text = f'{name}\n{temperature:.1f}°C'
-                        elif sensor_display == 'position_temp':
-                            text = f'{temperature:.1f}°C'
-                        
-                        main_ax.text(text_x, text_y, text,
-                                 horizontalalignment='center',
-                                 verticalalignment='bottom',
-                                 fontsize=8,
-                                 bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1),
-                                 zorder=6)
+                        self._create_sensor_marker([point[0], point[1]], temperature, sensor_id, state)
                     except Exception as e:
-                        self.logger.warning(f"센서 {sensor_id} 텍스트 표시 실패: {str(e)}")
+                        self.logger.warning(f"센서 {sensor_id} 표시 실패: {str(e)}")
                         continue
 
             # 컬러바 설정 적용

@@ -40,6 +40,7 @@
         <!-- 대시보드 탭 -->
         <div id="dashboard-content" class="hidden space-y-6 h-[calc(100vh-8rem)]">
             <div id="thermal-map-container" class="bg-white rounded-lg shadow-md p-6 h-full">
+                {% if is_map_generated %}
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-semibold">현재 온도지도</h2>
                     <div class="flex items-center space-x-4">
@@ -62,6 +63,11 @@
                 <div class="h-[calc(100%-2rem)]">
                     <img id="thermal-map-img" src="{{ img_url }}" alt="생성된 온도지도" class="object-contain w-full h-full">
                 </div>
+                {% else %}
+                <div class="flex justify-center items-center h-full">
+                    <span class="text-gray-500 text-lg font-medium">생성된 온도지도가 없습니다</span>
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -546,6 +552,106 @@
                                 <option value="position_name_temp">위치 + 센서이름 + 온도</option>
                                 <option value="position_temp" selected>위치 + 온도</option>
                             </select>
+                        </div>
+
+                        <!-- 센서 정보 배경 설정 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">센서 정보 배경</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm">배경색</label>
+                                    <div class="flex space-x-2">
+                                        <input type="color" id="sensor-info-bg-color" class="h-10 w-20" value="#FFFFFF">
+                                        <select id="sensor-info-bg-color-preset" class="flex-1 px-3 py-2 border rounded-md">
+                                            <option value="#FFFFFF">흰색</option>
+                                            <option value="#000000">검정</option>
+                                            <option value="#808080">회색</option>
+                                            <option value="transparent">투명</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm">투명도 (%)</label>
+                                    <input type="number" id="sensor-info-bg-opacity" class="w-full px-3 py-2 border rounded-md" value="70" min="0" max="100" step="5">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 위치 표시 설정 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">위치 표시 설정</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm">점 모양</label>
+                                    <select id="sensor-marker-style" class="w-full px-3 py-2 border rounded-md">
+                                        <option value="circle" selected>원형</option>
+                                        <option value="square">사각형</option>
+                                        <option value="triangle">삼각형</option>
+                                        <option value="star">별</option>
+                                        <option value="cross">십자</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm">점 크기</label>
+                                    <input type="number" id="sensor-marker-size" class="w-full px-3 py-2 border rounded-md" value="10" min="1" max="30" step="1">
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <label class="block text-sm">점 색상</label>
+                                <div class="flex space-x-2 flex-1">
+                                    <input type="color" id="sensor-marker-color" class="h-10 w-20" value="#FF0000">
+                                    <select id="sensor-marker-color-preset" class="flex-1 px-3 py-2 border rounded-md">
+                                        <option value="#FF0000">빨강</option>
+                                        <option value="#000000">검정</option>
+                                        <option value="#FFFFFF">흰색</option>
+                                        <option value="#808080">회색</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 센서 이름 설정 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">센서 이름 설정</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm">폰트 크기</label>
+                                    <input type="number" id="sensor-name-font-size" class="w-full px-3 py-2 border rounded-md" value="12" min="8" max="24" step="1">
+                                </div>
+                                <div>
+                                    <label class="block text-sm">폰트 색상</label>
+                                    <div class="flex space-x-2">
+                                        <input type="color" id="sensor-name-color" class="h-10 w-20" value="#000000">
+                                        <select id="sensor-name-color-preset" class="flex-1 px-3 py-2 border rounded-md">
+                                            <option value="#000000">검정</option>
+                                            <option value="#FFFFFF">흰색</option>
+                                            <option value="#808080">회색</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 온도 표시 설정 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm">온도 표시 설정</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm">폰트 크기</label>
+                                    <input type="number" id="sensor-temp-font-size" class="w-full px-3 py-2 border rounded-md" value="12" min="8" max="24" step="1">
+                                </div>
+                                <div>
+                                    <label class="block text-sm">폰트 색상</label>
+                                    <div class="flex space-x-2">
+                                        <input type="color" id="sensor-temp-color" class="h-10 w-20" value="#000000">
+                                        <select id="sensor-temp-color-preset" class="flex-1 px-3 py-2 border rounded-md">
+                                            <option value="#000000">검정</option>
+                                            <option value="#FFFFFF">흰색</option>
+                                            <option value="#808080">회색</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

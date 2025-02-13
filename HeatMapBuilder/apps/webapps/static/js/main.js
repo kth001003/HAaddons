@@ -182,6 +182,27 @@ document.addEventListener('DOMContentLoaded', async function() {
                     /** @type {HTMLInputElement} */ (document.getElementById('plot-border-color')).value = visualization.plot_border_color ?? '#000000';
                     /** @type {HTMLSelectElement} */ (document.getElementById('sensor-display-option')).value = visualization.sensor_display ?? 'position_name_temp';
                     
+                    // 센서 정보 배경 설정 로드
+                    const sensorInfoBg = visualization.sensor_info_bg || {};
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-color')).value = sensorInfoBg.color ?? '#FFFFFF';
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-opacity')).value = sensorInfoBg.opacity ?? 70;
+                    
+                    // 위치 표시 설정 로드
+                    const sensorMarker = visualization.sensor_marker || {};
+                    /** @type {HTMLSelectElement} */ (document.getElementById('sensor-marker-style')).value = sensorMarker.style ?? 'circle';
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-size')).value = sensorMarker.size ?? 10;
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-color')).value = sensorMarker.color ?? '#FF0000';
+                    
+                    // 센서 이름 설정 로드
+                    const sensorName = visualization.sensor_name || {};
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-name-font-size')).value = sensorName.font_size ?? 12;
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-name-color')).value = sensorName.color ?? '#000000';
+                    
+                    // 온도 표시 설정 로드
+                    const sensorTemp = visualization.sensor_temp || {};
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-font-size')).value = sensorTemp.font_size ?? 12;
+                    /** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-color')).value = sensorTemp.color ?? '#000000';
+                    
                     // 컬러바 설정 로드
                     const colorbar = config.gen_config.colorbar || {};
                     /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value = colorbar.cmap ?? 'RdYlBu_r';
@@ -242,7 +263,28 @@ document.addEventListener('DOMContentLoaded', async function() {
                 area_border_color: /** @type {HTMLInputElement} */ (document.getElementById('area-border-color')).value,
                 plot_border_width: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('plot-border-width')).value),
                 plot_border_color: /** @type {HTMLInputElement} */ (document.getElementById('plot-border-color')).value,
-                sensor_display: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-display-option')).value
+                sensor_display: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-display-option')).value,
+                // 센서 정보 배경 설정
+                sensor_info_bg: {
+                    color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-color')).value,
+                    opacity: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-opacity')).value)
+                },
+                // 위치 표시 설정
+                sensor_marker: {
+                    style: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-marker-style')).value,
+                    size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-size')).value),
+                    color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-color')).value
+                },
+                // 센서 이름 설정
+                sensor_name: {
+                    font_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-name-font-size')).value),
+                    color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-name-color')).value
+                },
+                // 온도 표시 설정
+                sensor_temp: {
+                    font_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-font-size')).value),
+                    color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-color')).value
+                }
             },
             colorbar: {
                 cmap: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value,
@@ -684,6 +726,74 @@ document.addEventListener('DOMContentLoaded', async function() {
         /** @type {HTMLSelectElement} */ (document.getElementById('plot-border-color-preset')).value = color;
     });
     
+    // 색상 선택기와 프리셋 선택기 동기화
+    function setupColorSync(colorId, presetId) {
+        const colorPicker = /** @type {HTMLInputElement} */ (document.getElementById(colorId));
+        const presetSelect = /** @type {HTMLSelectElement} */ (document.getElementById(presetId));
+        
+        if (colorPicker && presetSelect) {
+            colorPicker.addEventListener('input', function(e) {
+                presetSelect.value = /** @type {HTMLInputElement} */ (e.target).value;
+            });
+            
+            presetSelect.addEventListener('change', function(e) {
+                colorPicker.value = /** @type {HTMLSelectElement} */ (e.target).value;
+            });
+        }
+    }
+
+    // 색상 선택기 동기화 설정
+    setupColorSync('sensor-info-bg-color', 'sensor-info-bg-color-preset');
+    setupColorSync('sensor-marker-color', 'sensor-marker-color-preset');
+    setupColorSync('sensor-name-color', 'sensor-name-color-preset');
+    setupColorSync('sensor-temp-color', 'sensor-temp-color-preset');
+    setupColorSync('area-border-color', 'area-border-color-preset');
+    setupColorSync('plot-border-color', 'plot-border-color-preset');
+
+    // 센서 표시 설정 변경 시 실시간 업데이트
+    function setupSensorDisplayUpdate() {
+        const sensorDisplaySettings = [
+            'sensor-display-option',
+            'sensor-info-bg-color', 'sensor-info-bg-color-preset', 'sensor-info-bg-opacity',
+            'sensor-marker-style', 'sensor-marker-size', 'sensor-marker-color', 'sensor-marker-color-preset',
+            'sensor-name-font-size', 'sensor-name-color', 'sensor-name-color-preset',
+            'sensor-temp-font-size', 'sensor-temp-color', 'sensor-temp-color-preset'
+        ];
+
+        sensorDisplaySettings.forEach(settingId => {
+            const element = /** @type {HTMLInputElement | HTMLSelectElement} */ (document.getElementById(settingId));
+            if (element) {
+                element.addEventListener('change', function() {
+                    if (sensorManager) {
+                        const sensors = sensorManager.getSensors();
+                        sensors.forEach(sensor => {
+                            if (sensor.position) {
+                                sensorManager.updateSensorMarker(sensor, sensor.position);
+                            }
+                        });
+                    }
+                });
+
+                // input 이벤트도 처리 (실시간 색상 변경을 위해)
+                if ('type' in element && (element.type === 'color' || element.type === 'range' || element.type === 'number')) {
+                    element.addEventListener('input', function() {
+                        if (sensorManager) {
+                            const sensors = sensorManager.getSensors();
+                            sensors.forEach(sensor => {
+                                if (sensor.position) {
+                                    sensorManager.updateSensorMarker(sensor, sensor.position);
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    // 센서 표시 설정 업데이트 설정
+    setupSensorDisplayUpdate();
+
     try {
         // DrawingTool 초기화
         drawingTool = new DrawingTool(svg);

@@ -12,11 +12,10 @@ import io
 class WebServer:
     """열지도 웹 서버 클래스"""
     
-    def __init__(self, is_local, ConfigManager, SensorManager, MapGenerator, Logger):
+    def __init__(self, ConfigManager, SensorManager, MapGenerator, Logger):
         self.app = Flask(__name__,
                          template_folder=os.path.join('webapps', 'templates'),
                          static_folder=os.path.join('webapps', 'static'))
-        self.is_local = is_local
         self.logger = Logger
         self.map_lock = threading.Lock()  # 락 메커니즘 추가
 
@@ -56,6 +55,7 @@ class WebServer:
         self.app.route('/api/save-gen-config', methods=['POST'])(self.save_gen_config)
         self.app.route('/api/load-config')(self.load_heatmap_config)
         self.app.route('/local/<path:filename>')(self.serve_media)
+        self.app.route('/local/HeatMapBuilder/<path:filename>')(self.serve_media)
         self.app.route('/api/generate-map', methods=['GET'])(self.generate_map)
         self.app.route('/api/check-map-time', methods=['GET'])(self.check_map_time)
         
@@ -91,13 +91,15 @@ class WebServer:
             
         if not self.current_map_id:
             return render_template('404.html', error_message='선택된 맵이 없습니다'), 404
-            
+        
+        last_generation_info = self.config_manager.db.get_map(self.current_map_id).get('last_generation', {})
         cache_buster = int(time.time())
         return render_template('index.html', 
                             img_url=f'/local/HeatMapBuilder/{self.current_map_id}/{self.config_manager.get_output_filename(self.current_map_id)}?{cache_buster}',
-                            cache_buster=cache_buster, 
-                            map_generation_time=self.map_generator.generation_time,
-                            map_generation_duration=self.map_generator.generation_duration,
+                            cache_buster=cache_buster,
+                            is_map_generated= True if last_generation_info.get('timestamp') else False,
+                            map_generation_time=last_generation_info.get('timestamp', ''),
+                            map_generation_duration=last_generation_info.get('duration', ''),
                             map_id=self.current_map_id)
 
     
@@ -152,8 +154,12 @@ class WebServer:
         """미디어 파일 제공"""
         self.app.logger.debug(f"미디어 파일 요청: {filename}")
         media_path = self.config_manager.paths['media']
-        if os.path.exists(os.path.join(media_path, filename)):
-            return send_from_directory(media_path, filename)
+        full_path = os.path.join(media_path, filename)
+        directory = os.path.dirname(full_path)
+        base_filename = os.path.basename(full_path)
+        
+        if os.path.exists(full_path):
+            return send_from_directory(directory, base_filename)
         else:
             self.app.logger.error(f"파일을 찾을 수 없음: {filename}")
             return "File not found", 404
@@ -329,14 +335,18 @@ class WebServer:
 
     def stream_map(self, map_id):
         """맵의 MJPEG 스트림을 제공합니다."""
+        # 맵 ID 검증
+        map_data = self.config_manager.db.get_map(map_id)
+        if not map_data:
+            return render_template('404.html', error_message=f'맵 ID {map_id}를 찾을 수 없습니다.'), 404
+            
         def generate():
             while True:
-                image_filename, _, _ = self.config_manager.get_output_info(map_id)
-                image_path = f"/local/HeatMapBuilder/{map_id}/{image_filename}"
-                if os.path.exists(image_path):
+                image_filename, _, output_path = self.config_manager.get_output_info(map_id)
+                if os.path.exists(output_path):
                     try:
                         # PIL을 사용하여 이미지를 JPEG로 변환
-                        img = Image.open(image_path)
+                        img = Image.open(output_path)
                         # RGBA를 RGB로 변환
                         if img.mode == 'RGBA':
                             # 흰색 배경에 이미지 합성

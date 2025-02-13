@@ -51,3 +51,4 @@ WORKDIR /apps
 ENV PYTHONPATH=/apps
 
 CMD ["/apps/run.sh"]
+# CMD ["python3","/apps/app.py"]

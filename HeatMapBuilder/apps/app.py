@@ -10,8 +10,7 @@ from custom_logger import CustomLogger
 from webserver import WebServer
 
 class BackgroundTaskManager:
-    def __init__(self, app, logger, config_manager, sensor_manager, map_generator):
-        self.app = app
+    def __init__(self, logger, config_manager, sensor_manager, map_generator):
         self.config_manager = config_manager
         self.sensor_manager = sensor_manager
         self.map_generator = map_generator
@@ -108,18 +107,8 @@ if __name__ == '__main__':
     try:
         sensor_manager = SensorManager(is_local, config_manager, logger, supervisor_token)
         map_generator = MapGenerator(config_manager, sensor_manager, logger)
-        server = WebServer(is_local,
-                        config_manager,
-                        sensor_manager,
-                        map_generator,
-                        logger)
-        background_task_manager = BackgroundTaskManager(
-            server.app,
-            logger,
-            config_manager,
-            sensor_manager,
-            map_generator
-        )
+        server = WebServer(config_manager,sensor_manager,map_generator,logger)
+        background_task_manager = BackgroundTaskManager(logger,config_manager,sensor_manager,map_generator)
 
         background_task_manager.start()
         logger.info("백그라운드 작업 시작됨")
