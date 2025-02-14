@@ -15,7 +15,7 @@ class ConfigManager:
     def _init_paths(self) -> Dict[str, str]:
         """경로 초기화"""
         base_path = '/data'
-        media_path = os.path.join('/config', 'www', 'HeatMapBuilder')
+        media_path = os.path.join('/homeassistant', 'www', 'HeatMapBuilder')
         if self.is_local:
             base_path = os.path.join('local','temp')
             media_path = os.path.join(base_path,'HeatMapBuilder')
