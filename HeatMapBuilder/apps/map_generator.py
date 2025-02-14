@@ -209,7 +209,7 @@ class MapGenerator:
         points = []
         temperatures = []
         sensor_ids = []
-        self.logger.debug(f"센서 데이터: {self.sensors_data}")
+        self.logger.debug(f"저장된 센서 데이터: {self.sensors_data}")
         for sensor in self.sensors_data:
             if 'position' not in sensor:
                 continue
@@ -221,7 +221,6 @@ class MapGenerator:
                 
             # 센서 상태 조회
             state = self.get_sensor_state(sensor['entity_id'])
-            self.logger.debug(f"{sensor['entity_id']} 센서 상태: {state}")
             if not state or not isinstance(state, dict):
                 self.logger.warning(f"센서 {sensor['entity_id']} 상태 데이터가 유효하지 않음")
                 continue
@@ -259,7 +258,7 @@ class MapGenerator:
                     if area_idx not in self.area_sensors:
                         self.area_sensors[area_idx] = []
                     self.area_sensors[area_idx].append((point, temp, sensor_id))
-                    self.logger.debug(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
+                    # self.logger.debug(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
                     assigned = True
                     break
             
@@ -270,7 +269,7 @@ class MapGenerator:
                         if area_idx not in self.area_sensors:
                             self.area_sensors[area_idx] = []
                         self.area_sensors[area_idx].append((point, temp, sensor_id))
-                        self.logger.debug(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
+                        # self.logger.debug(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
                         assigned = True
                         break
             
@@ -289,13 +288,13 @@ class MapGenerator:
                     if nearest_area_idx not in self.area_sensors:
                         self.area_sensors[nearest_area_idx] = []
                     self.area_sensors[nearest_area_idx].append((point, temp, sensor_id))
-                    self.logger.warning(f"센서 {sensor_id} (temp={temp:.1f}°C)가 가장 가까운 Area {nearest_area_idx}에 할당됨 (거리: {min_distance:.2f})")
+                    # self.logger.warning(f"센서 {sensor_id} (temp={temp:.1f}°C)가 가장 가까운 Area {nearest_area_idx}에 할당됨 (거리: {min_distance:.2f})")
                 else:
                     self.logger.error(f"센서 {sensor_id} (temp={temp:.1f}°C)를 할당할 수 있는 area를 찾지 못함")
 
         # 할당 결과 출력
         for area_idx, sensors in self.area_sensors.items():
-            self.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, 온도: {[temp for _, temp, _ in sensors]}")
+            self.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, {[f'{sensor_id}:{temp:.1f}' for _, temp, sensor_id in sensors]}")
 
     def _calculate_area_temperature(self, area_idx: int, area: Dict[str, Any], grid_points: np.ndarray, 
                                    grid_x: np.ndarray, grid_y: np.ndarray, min_x: float, max_x: float, 
@@ -612,6 +611,19 @@ class MapGenerator:
             bool: 성공 여부
         """
         try:
+            # 출력 디렉토리 확인 및 생성
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not os.path.exists(output_dir):
+                try:
+                    parent_dir = os.path.dirname(output_dir)
+                    if parent_dir and not os.path.exists(parent_dir):
+                        self.logger.info(f"상위 디렉토리가 없습니다. 전체 경로를 생성합니다: {output_dir}")
+                    os.makedirs(output_dir, exist_ok=True)
+                    self.logger.info(f"출력 디렉토리 생성 완료: {output_dir}")
+                except Exception as dir_error:
+                    self.logger.error(f"출력 디렉토리 생성 실패 ({output_dir}): {str(dir_error)}")
+                    return False
+
             self.current_map_id = map_id
             if not self.current_map_id:
                 self.logger.error("현재 선택된 맵이 없습니다")

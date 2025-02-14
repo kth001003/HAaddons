@@ -50,7 +50,6 @@ class SensorManager:
                 self.logger.error("Home Assistant API 설정을 가져올 수 없습니다")
                 return {'state': '0', 'entity_id': entity_id}
             
-            self.logger.info(f"센서 상태 조회 중: {entity_id}")
             response = requests.get(
                 f"{api['base_url']}/states/{entity_id}",
                 headers=api['headers']
