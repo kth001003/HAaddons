@@ -99,6 +99,7 @@ class WebServer:
                             is_map_generated= True if last_generation_info.get('timestamp') else False,
                             map_generation_time=last_generation_info.get('timestamp', ''),
                             map_generation_duration=last_generation_info.get('duration', ''),
+                            map_name=map_data.get('name', ''),
                             map_id=self.current_map_id)
 
     
@@ -373,7 +374,7 @@ class WebServer:
         map_data = self.config_manager.db.get_map(map_id)
         if not map_data:
             return render_template('404.html', error_message=f'맵 ID {map_id}를 찾을 수 없습니다.'), 404
-            
+        self.logger.info(f"맵 {map_data.get('name', '')} ({map_id}) 스트리밍 시작")
         def generate():
             while True:
                 image_filename, _, output_path = self.config_manager.get_output_info(map_id)
