@@ -4,6 +4,11 @@ export class SensorManager {
         this.sensors = [];
         this.onSensorsUpdate = null;
         this.enabled = true;
+        this.filters = {
+            device_class: 'temperature',
+            unit_of_measurement: '',
+            label: ''
+        };
 
         // SVG viewBox 파싱
         const viewBox = this.svg.getAttribute('viewBox');
@@ -51,9 +56,19 @@ export class SensorManager {
             const response = await fetch('./api/states');
             const states = await response.json();
             console.log("SensorManager - 서버에서 받은 states:", states);
-            this.sensors = states.filter(state =>
-                state.attributes.device_class === 'temperature'
-            );
+
+            this.sensors = states.filter(state => {
+                const matchDeviceClass = !this.filters.device_class || 
+                    state.attributes.device_class === this.filters.device_class;
+                const matchUnit = !this.filters.unit_of_measurement || 
+                    state.attributes.unit_of_measurement === this.filters.unit_of_measurement;
+                const matchLabel = !this.filters.label || 
+                    (state.attributes.friendly_name && 
+                     state.attributes.friendly_name.toLowerCase().includes(this.filters.label.toLowerCase()));
+                
+                return matchDeviceClass && matchUnit && matchLabel;
+            });
+
             // 저장된 설정 로드
             const configResponse = await fetch('./api/load-config');
             if (configResponse.ok) {
@@ -126,8 +141,62 @@ export class SensorManager {
             return;
         }
 
-        container.innerHTML = this.sensors.map(sensor => this.createSensorListItem(sensor)).join('');
+        // 필터 UI 추가
+        const filterUI = `
+            <div class="mb-4 space-y-3 border-b pb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Device Class</label>
+                    <select id="filter-device-class" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">전체</option>
+                        <option value="temperature" selected>Temperature</option>
+                        <option value="humidity">Humidity</option>
+                        <option value="pressure">Pressure</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Unit of Measurement</label>
+                    <select id="filter-unit" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">전체</option>
+                        <option value="°C">°C</option>
+                        <option value="%">%</option>
+                        <option value="hPa">hPa</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">센서 이름 검색</label>
+                    <input type="text" id="filter-label" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="센서 이름을 입력하세요">
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = filterUI + this.sensors.map(sensor => this.createSensorListItem(sensor)).join('');
         
+        // 필터 이벤트 리스너 설정
+        const deviceClassFilter = /** @type {HTMLSelectElement} */ (document.getElementById('filter-device-class'));
+        const unitFilter = /** @type {HTMLSelectElement} */ (document.getElementById('filter-unit'));
+        const labelFilter = /** @type {HTMLInputElement} */ (document.getElementById('filter-label'));
+
+        if (deviceClassFilter) {
+            deviceClassFilter.value = this.filters.device_class;
+            deviceClassFilter.addEventListener('change', (e) => {
+                this.updateFilters({ device_class: /** @type {HTMLSelectElement} */ (e.target).value });
+            });
+        }
+
+        if (unitFilter) {
+            unitFilter.value = this.filters.unit_of_measurement;
+            unitFilter.addEventListener('change', (e) => {
+                this.updateFilters({ unit_of_measurement: /** @type {HTMLSelectElement} */ (e.target).value });
+            });
+        }
+
+        if (labelFilter) {
+            labelFilter.value = this.filters.label;
+            labelFilter.addEventListener('input', (e) => {
+                this.updateFilters({ label: /** @type {HTMLInputElement} */ (e.target).value });
+            });
+        }
+
         // 체크박스 이벤트 설정
         if(this.enabled) {
             container.querySelectorAll('.sensor-checkbox').forEach(checkbox => {
@@ -564,5 +633,11 @@ export class SensorManager {
         const rawTemp = parseFloat(sensor.state);
         const calibration = sensor.calibration || 0;
         return rawTemp + calibration;
+    }
+
+    // 필터 설정 업데이트
+    updateFilters(newFilters) {
+        this.filters = { ...this.filters, ...newFilters };
+        this.loadSensors();  // 필터가 변경될 때마다 센서 목록 다시 로드
     }
 }

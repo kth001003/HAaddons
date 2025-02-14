@@ -639,6 +639,21 @@ document.addEventListener('DOMContentLoaded', async function() {
             saveGenConfig();
         });
     }
+
+    // 이미지 주소 복사 버튼 이벤트
+    const copyImageUrlBtn = document.getElementById('copy-image-url');
+    if (copyImageUrlBtn) {
+        copyImageUrlBtn.addEventListener('click', function() {
+            let url = new URL(this.dataset.url, window.location.href).href;
+            url = url.split('?')[0];
+            navigator.clipboard.writeText(url).then(() => {
+                showMessage('이미지 주소가 복사되었습니다.', 'success');
+            }).catch(() => {
+                showMessage('이미지 주소 복사에 실패했습니다.', 'error');
+            });
+        });
+    }
+
     // Floor Plan 업로드 처리
     const floorplanUpload = document.getElementById('floorplan-upload');
     if (floorplanUpload) {

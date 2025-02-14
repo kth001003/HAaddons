@@ -49,12 +49,12 @@
                     <div class="flex items-center space-x-4">
                         <span id="map-generation-time" class="text-sm text-gray-600">{{map_generation_time}}</span>
                         <span id="map-generation-duration" class="text-sm text-gray-600">{{map_generation_duration}}</span>
-                        <a href="./stream/{{map_id}}" target="_blank" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center">
+                        <button id="copy-image-url" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center" data-url="{{ img_url }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                             </svg>
-                            실시간 보기
-                        </a>
+                            이미지 주소 복사
+                        </button>
                         <button id="generate-now" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -139,6 +139,31 @@
                     <!-- 센서 배치 컨트롤 -->
                     <div id="step2-controls" class="hidden bg-white rounded-lg shadow-md p-4 max-h-[400px] overflow-y-auto">
                         <h3 class="text-lg font-semibold mb-4">센서 배치</h3>
+                        <!-- 센서 필터 -->
+                        <div class="mb-4 space-y-3 border-b pb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">센서 종류</label>
+                                <select id="filter-device-class" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="">전체</option>
+                                    <option value="temperature" selected>온도</option>
+                                    <option value="humidity">습도</option>
+                                    <option value="pressure">기압</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">측정 단위</label>
+                                <select id="filter-unit" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="">전체</option>
+                                    <option value="°C">°C</option>
+                                    <option value="%">%</option>
+                                    <option value="hPa">hPa</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">센서 이름 검색</label>
+                                <input type="text" id="filter-label" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="센서 이름을 입력하세요">
+                            </div>
+                        </div>
                         <div id="sensor-container" class="space-y-2"></div>
                     </div>
         
