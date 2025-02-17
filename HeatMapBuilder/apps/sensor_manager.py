@@ -135,6 +135,14 @@ class SensorManager:
         result = await self._send_websocket_message("config/entity_registry/list")
         return result if result is not None else []
 
+    async def get_label_registry(self) -> List[Dict]:
+        """Label Registry 조회"""
+        if self.is_local:
+            return []
+            
+        result = await self._send_websocket_message("config/label_registry/list")
+        return result if result is not None else []
+
     async def get_sensor_state(self, entity_id: str) -> Dict[str, Any]:
         """센서 상태 조회"""
         try:

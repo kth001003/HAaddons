@@ -5,8 +5,7 @@ export class SensorManager {
         this.onSensorsUpdate = null;
         this.enabled = true;
         this.filters = {
-            device_class: 'temperature',
-            unit_of_measurement: '',
+            device_class: '',
             label: ''
         };
 
@@ -48,7 +47,11 @@ export class SensorManager {
         this.enabled = false;
         this.updateSensorList();
     }
-
+    async loadLabelRegistry() {
+        const response = await fetch('./api/get_label_registry');
+        const labelRegistry = await response.json();
+        console.log("SensorManager - 서버에서 받은 labelRegistry:", labelRegistry);
+    }
     // 센서 데이터 로드
     async loadSensors() {
         try {
@@ -60,13 +63,12 @@ export class SensorManager {
             this.sensors = states.filter(state => {
                 const matchDeviceClass = !this.filters.device_class || 
                     state.attributes.device_class === this.filters.device_class;
-                const matchUnit = !this.filters.unit_of_measurement || 
-                    state.attributes.unit_of_measurement === this.filters.unit_of_measurement;
                 const matchLabel = !this.filters.label || 
-                    (state.attributes.friendly_name && 
-                     state.attributes.friendly_name.toLowerCase().includes(this.filters.label.toLowerCase()));
+                    (state.labels && state.labels.some(label => 
+                        label.toLowerCase().includes(this.filters.label.toLowerCase())
+                    ));
                 
-                return matchDeviceClass && matchUnit && matchLabel;
+                return matchDeviceClass && matchLabel;
             });
 
             // 저장된 설정 로드
@@ -145,20 +147,12 @@ export class SensorManager {
         
         // 필터 이벤트 리스너 설정
         const deviceClassFilter = /** @type {HTMLSelectElement} */ (document.getElementById('filter-device-class'));
-        const unitFilter = /** @type {HTMLSelectElement} */ (document.getElementById('filter-unit'));
         const labelFilter = /** @type {HTMLInputElement} */ (document.getElementById('filter-label'));
 
         if (deviceClassFilter) {
             deviceClassFilter.value = this.filters.device_class;
             deviceClassFilter.addEventListener('change', (e) => {
                 this.updateFilters({ device_class: /** @type {HTMLSelectElement} */ (e.target).value });
-            });
-        }
-
-        if (unitFilter) {
-            unitFilter.value = this.filters.unit_of_measurement;
-            unitFilter.addEventListener('change', (e) => {
-                this.updateFilters({ unit_of_measurement: /** @type {HTMLSelectElement} */ (e.target).value });
             });
         }
 

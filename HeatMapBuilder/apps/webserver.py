@@ -62,6 +62,10 @@ class WebServer:
         @self.app.route('/api/states')
         async def get_states():
             return await self.get_states()
+        
+        @self.app.route('/api/get_label_registry')
+        async def get_label_registry():
+            return await self.get_label_registry()
 
         @self.app.route('/api/save-walls-and-sensors', methods=['POST'])
         async def save_walls_and_sensors():
@@ -89,7 +93,46 @@ class WebServer:
 
         @self.app.route('/api/generate-map', methods=['GET'])
         async def generate_map():
-            return await self.generate_map()
+            """열지도 생성 API"""
+            if not self.current_map_id:
+                return jsonify({
+                    'status': 'error',
+                    'error': '현재 선택된 맵이 없습니다.'
+                }), 400
+
+            if not self.map_lock.acquire(blocking=False):
+                return jsonify({
+                    'status': 'error',
+                    'error': '다른 프로세스가 열지도를 생성 중입니다. 잠시 후 다시 시도해주세요.'
+                })
+
+            try:
+                # 열지도 생성
+                output_filename, _, output_path = self.config_manager.get_output_info(self.current_map_id)
+                    
+                if await self.map_generator.generate(self.current_map_id,output_path):
+                    self.app.logger.info("열지도 생성 완료")
+
+                    return jsonify({
+                        'status': 'success',
+                        'image_url': f'/local/HeatMapBuilder/{self.current_map_id}/{output_filename}',
+                        'time': self.map_generator.generation_time,
+                        'duration': self.map_generator.generation_duration
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'error': '열지도 생성에 실패했습니다.'
+                    })
+
+            except Exception as e:
+                self.app.logger.error(f"열지도 생성 실패: {str(e)}")
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                })
+            finally:
+                self.map_lock.release()  # 락 해제
 
         @self.app.route('/api/check-map-time', methods=['GET'])
         async def check_map_time():
@@ -161,6 +204,11 @@ class WebServer:
         states = await self.sensor_manager.get_all_states()
         return jsonify(states)
     
+    async def get_label_registry(self):
+        """라벨 레지스트리 정보"""
+        label_registry = await self.sensor_manager.get_label_registry()
+        return jsonify(label_registry)
+
     async def save_walls_and_sensors(self):
         """벽 및 센서 설정 저장"""
         data = await request.get_json() or {}
@@ -216,48 +264,6 @@ class WebServer:
         else:
             self.app.logger.error(f"파일을 찾을 수 없음: {filename}")
             return "File not found", 404
-    
-    async def generate_map(self):
-        """열지도 생성"""
-        if not self.current_map_id:
-            return jsonify({
-                'status': 'error',
-                'error': '현재 선택된 맵이 없습니다.'
-            }), 400
-
-        if not self.map_lock.acquire(blocking=False):
-            return jsonify({
-                'status': 'error',
-                'error': '다른 프로세스가 열지도를 생성 중입니다. 잠시 후 다시 시도해주세요.'
-            })
-
-        try:
-            # 열지도 생성
-            output_filename, _, output_path = self.config_manager.get_output_info(self.current_map_id)
-                
-            if self.map_generator.generate(self.current_map_id,output_path):
-                self.app.logger.info("열지도 생성 완료")
-
-                return jsonify({
-                    'status': 'success',
-                    'image_url': f'/local/HeatMapBuilder/{self.current_map_id}/{output_filename}',
-                    'time': self.map_generator.generation_time,
-                    'duration': self.map_generator.generation_duration
-                })
-            else:
-                return jsonify({
-                    'status': 'error',
-                    'error': '열지도 생성에 실패했습니다.'
-                })
-
-        except Exception as e:
-            self.app.logger.error(f"열지도 생성 실패: {str(e)}")
-            return jsonify({
-                'status': 'error',
-                'error': str(e)
-            })
-        finally:
-            self.map_lock.release()  # 락 해제
     
     async def check_map_time(self):
         """열지도 생성 시간 확인"""
