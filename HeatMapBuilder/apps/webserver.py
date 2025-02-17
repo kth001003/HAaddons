@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
+# from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
 import json
 import logging
 import time
@@ -8,12 +8,14 @@ import threading
 import uuid
 from PIL import Image # type: ignore
 import io
+import asyncio
+from quart import Quart, jsonify, request, render_template, Response, send_from_directory # type: ignore
 
 class WebServer:
     """열지도 웹 서버 클래스"""
     
     def __init__(self, ConfigManager, SensorManager, MapGenerator, Logger):
-        self.app = Flask(__name__,
+        self.app = Quart(__name__,
                          template_folder=os.path.join('webapps', 'templates'),
                          static_folder=os.path.join('webapps', 'static'))
         self.logger = Logger
@@ -103,9 +105,9 @@ class WebServer:
                             map_id=self.current_map_id)
 
     
-    def get_states(self):
+    async def get_states(self):
         """센서 상태 정보"""
-        states = self.sensor_manager.get_all_states()
+        states = await self.sensor_manager.get_all_states()
         return jsonify(states)
     
     def save_walls_and_sensors(self):
