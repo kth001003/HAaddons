@@ -18,29 +18,42 @@ class SensorManager:
         if self.is_local:
             return None
             
+        websocket = None
         try:
             uri = "ws://supervisor/core/api/websocket"
-            async with websockets.connect(uri) as websocket:
-                # 인증 단계
-                auth_required = await websocket.recv()
-                self.logger.debug(f"Auth required message: {auth_required}")
+            websocket = await websockets.connect(uri)
+            
+            # 인증 단계
+            auth_required = await websocket.recv()
+            auth_required_data = json.loads(auth_required)
+            if auth_required_data.get('type') != 'auth_required':
+                self.logger.error("예상치 못한 초기 메시지 타입")
+                await websocket.close()
+                return None
+            
+            self.logger.debug(f"Auth required message: {auth_required}")
+            
+            auth_message = {
+                "type": "auth",
+                "access_token": self.supervisor_token
+            }
+            await websocket.send(json.dumps(auth_message))
+            
+            auth_response = await websocket.recv()
+            auth_response_data = json.loads(auth_response)
+            self.logger.debug(f"Auth response: {auth_response}")
+            
+            if auth_response_data.get('type') == 'auth_ok':
+                return websocket
+            else:
+                self.logger.error("WebSocket 인증 실패")
+                await websocket.close()
+                return None
                 
-                auth_message = {
-                    "type": "auth",
-                    "access_token": self.supervisor_token
-                }
-                await websocket.send(json.dumps(auth_message))
-                
-                auth_response = await websocket.recv()
-                self.logger.debug(f"Auth response: {auth_response}")
-                
-                if json.loads(auth_response)["type"] == "auth_ok":
-                    return websocket
-                else:
-                    self.logger.error("WebSocket 인증 실패")
-                    return None
         except Exception as e:
             self.logger.error(f"WebSocket 연결 실패: {str(e)}")
+            if websocket:
+                await websocket.close()
             return None
 
     async def get_entity_registry(self) -> List[Dict]:
@@ -60,18 +73,25 @@ class SensorManager:
             self.message_id += 1
             
             await websocket.send(json.dumps(message))
-            response = await websocket.recv()
-            await websocket.close()
             
-            result = json.loads(response)
-            if result.get("success"):
-                return result.get("result", [])
-            else:
-                self.logger.error(f"Entity Registry 조회 실패: {result}")
-                return []
+            # 응답 대기 및 처리
+            while True:
+                response = await websocket.recv()
+                response_data = json.loads(response)
                 
+                # 응답의 id가 요청한 id와 일치하는지 확인
+                if response_data.get('id') == message['id']:
+                    await websocket.close()
+                    if response_data.get('success'):
+                        return response_data.get('result', [])
+                    else:
+                        self.logger.error(f"Entity Registry 조회 실패: {response_data}")
+                        return []
+                        
         except Exception as e:
             self.logger.error(f"Entity Registry 조회 중 오류 발생: {str(e)}")
+            if websocket is not None:
+                await websocket.close()
             return []
 
     def get_ha_api(self) -> Optional[Dict[str, Any]]:

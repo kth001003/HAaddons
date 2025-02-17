@@ -10,6 +10,9 @@ from PIL import Image # type: ignore
 import io
 import asyncio
 from quart import Quart, jsonify, request, render_template, Response, send_from_directory # type: ignore
+import hypercorn.asyncio # type: ignore
+import hypercorn.config # type: ignore
+
 
 class WebServer:
     """열지도 웹 서버 클래스"""
@@ -42,60 +45,108 @@ class WebServer:
         # 404 에러 핸들러 등록
         self.app.register_error_handler(404, self.handle_404_error)
     
-    def handle_404_error(self, error):
+    async def handle_404_error(self, error):
         """404 에러 처리"""
-        return render_template('404.html'), 404
+        return await render_template('404.html'), 404
 
     def _setup_routes(self):
         """라우트 설정"""
-        self.app.route('/')(self.maps_page)
-        self.app.route('/map')(self.map_edit)
-        self.app.route('/api/states')(self.get_states)
+        @self.app.route('/')
+        async def maps_page():
+            return await self.maps_page()
 
-        self.app.route('/api/save-walls-and-sensors', methods=['POST'])(self.save_walls_and_sensors)
-        self.app.route('/api/save-interpolation-parameters', methods=['POST'])(self.save_interpolation_parameters)
-        self.app.route('/api/save-gen-config', methods=['POST'])(self.save_gen_config)
-        self.app.route('/api/load-config')(self.load_heatmap_config)
-        self.app.route('/local/<path:filename>')(self.serve_media)
-        self.app.route('/local/HeatMapBuilder/<path:filename>')(self.serve_media)
-        self.app.route('/api/generate-map', methods=['GET'])(self.generate_map)
-        self.app.route('/api/check-map-time', methods=['GET'])(self.check_map_time)
-        
-        self.app.route('/api/maps', methods=['GET'])(self.get_maps)
-        self.app.route('/api/maps', methods=['POST'])(self.create_map)
-        self.app.route('/api/maps/<map_id>', methods=['GET'])(self.get_map)
-        self.app.route('/api/maps/<map_id>', methods=['PUT'])(self.update_map)
-        self.app.route('/api/maps/<map_id>', methods=['DELETE'])(self.delete_map)
-        self.app.route('/stream/<map_id>')(self.stream_map)    
+        @self.app.route('/map')
+        async def map_edit():
+            return await self.map_edit()
 
-    def maps_page(self):
+        @self.app.route('/api/states')
+        async def get_states():
+            return await self.get_states()
+
+        @self.app.route('/api/save-walls-and-sensors', methods=['POST'])
+        async def save_walls_and_sensors():
+            return await self.save_walls_and_sensors()
+
+        @self.app.route('/api/save-interpolation-parameters', methods=['POST'])
+        async def save_interpolation_parameters():
+            return await self.save_interpolation_parameters()
+
+        @self.app.route('/api/save-gen-config', methods=['POST'])
+        async def save_gen_config():
+            return await self.save_gen_config()
+
+        @self.app.route('/api/load-config')
+        async def load_heatmap_config():
+            return await self.load_heatmap_config()
+
+        @self.app.route('/local/<path:filename>')
+        async def serve_media(filename):
+            return await self.serve_media(filename)
+
+        @self.app.route('/local/HeatMapBuilder/<path:filename>')
+        async def serve_heatmap_media(filename):
+            return await self.serve_media(filename)
+
+        @self.app.route('/api/generate-map', methods=['GET'])
+        async def generate_map():
+            return await self.generate_map()
+
+        @self.app.route('/api/check-map-time', methods=['GET'])
+        async def check_map_time():
+            return await self.check_map_time()
+
+        @self.app.route('/api/maps', methods=['GET'])
+        async def get_maps():
+            return await self.get_maps()
+
+        @self.app.route('/api/maps', methods=['POST'])
+        async def create_map():
+            return await self.create_map()
+
+        @self.app.route('/api/maps/<map_id>', methods=['GET'])
+        async def get_map(map_id):
+            return await self.get_map(map_id)
+
+        @self.app.route('/api/maps/<map_id>', methods=['PUT'])
+        async def update_map(map_id):
+            return await self.update_map(map_id)
+
+        @self.app.route('/api/maps/<map_id>', methods=['DELETE'])
+        async def delete_map(map_id):
+            return await self.delete_map(map_id)
+
+        # @self.app.route('/stream/<map_id>')
+        # async def stream_map(map_id):
+        #     return await self.stream_map(map_id)
+
+    async def maps_page(self):
         """맵 선택 페이지"""
-        return render_template('maps.html')
+        return await render_template('maps.html')
 
-    def map_edit(self):
+    async def map_edit(self):
         """맵 편집 페이지"""
         map_id = request.args.get('id')
         
         if not map_id:
-            return render_template('404.html', error_message='맵 ID가 필요합니다'), 404
+            return await render_template('404.html', error_message='맵 ID가 필요합니다'), 404
         
         try:
             map_data = self.config_manager.db.get_map(map_id)
             if not map_data:
-                return render_template('404.html', error_message='요청하신 맵을 찾을 수 없습니다'), 404
+                return await render_template('404.html', error_message='요청하신 맵을 찾을 수 없습니다'), 404
             
             # 현재 맵 ID 설정 및 설정 업데이트
             self.current_map_id = map_id
         except Exception as e:
             self.logger.error(f"맵 전환 실패: {str(e)}")
-            return render_template('404.html', error_message='맵 로딩 중 오류가 발생했습니다'), 404
+            return await render_template('404.html', error_message='맵 로딩 중 오류가 발생했습니다'), 404
             
         if not self.current_map_id:
-            return render_template('404.html', error_message='선택된 맵이 없습니다'), 404
+            return await render_template('404.html', error_message='선택된 맵이 없습니다'), 404
         
         last_generation_info = self.config_manager.db.get_map(self.current_map_id).get('last_generation', {})
         cache_buster = int(time.time())
-        return render_template('index.html', 
+        return await render_template('index.html', 
                             img_url=f'/local/HeatMapBuilder/{self.current_map_id}/{self.config_manager.get_output_filename(self.current_map_id)}?{cache_buster}',
                             cache_buster=cache_buster,
                             is_map_generated= True if last_generation_info.get('timestamp') else False,
@@ -110,9 +161,9 @@ class WebServer:
         states = await self.sensor_manager.get_all_states()
         return jsonify(states)
     
-    def save_walls_and_sensors(self):
+    async def save_walls_and_sensors(self):
         """벽 및 센서 설정 저장"""
-        data = request.get_json() or {}
+        data = await request.get_json() or {}
         if not self.current_map_id:
             return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
         map_data = self.config_manager.db.get_map(self.current_map_id)
@@ -121,9 +172,9 @@ class WebServer:
         self.config_manager.db.save(self.current_map_id, map_data)
         return jsonify({'status': 'success'})
     
-    def save_interpolation_parameters(self):
+    async def save_interpolation_parameters(self):
         """보간 파라미터 저장"""
-        data = request.get_json() or {}
+        data = await request.get_json() or {}
         if not self.current_map_id:
             return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
         map_data = self.config_manager.db.get_map(self.current_map_id)
@@ -131,9 +182,9 @@ class WebServer:
         self.config_manager.db.save(self.current_map_id, map_data)
         return jsonify({'status': 'success'})
     
-    def save_gen_config(self):
+    async def save_gen_config(self):
         """생성 구성 저장"""
-        data = request.get_json() or {}
+        data = await request.get_json() or {}
         if not self.current_map_id:
             return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
         gen_config = data.get('gen_config', {})
@@ -142,7 +193,7 @@ class WebServer:
         self.config_manager.db.save(self.current_map_id, map_data)
         return jsonify({'status': 'success'})
 
-    def load_heatmap_config(self):
+    async def load_heatmap_config(self):
         """히트맵 설정 로드"""
         try:
             if not self.current_map_id:
@@ -152,7 +203,7 @@ class WebServer:
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
-    def serve_media(self, filename):
+    async def serve_media(self, filename):
         """미디어 파일 제공"""
         self.app.logger.debug(f"미디어 파일 요청: {filename}")
         media_path = self.config_manager.paths['media']
@@ -161,12 +212,12 @@ class WebServer:
         base_filename = os.path.basename(full_path)
         
         if os.path.exists(full_path):
-            return send_from_directory(directory, base_filename)
+            return await send_from_directory(directory, base_filename)
         else:
             self.app.logger.error(f"파일을 찾을 수 없음: {filename}")
             return "File not found", 404
     
-    def generate_map(self):
+    async def generate_map(self):
         """열지도 생성"""
         if not self.current_map_id:
             return jsonify({
@@ -208,7 +259,7 @@ class WebServer:
         finally:
             self.map_lock.release()  # 락 해제
     
-    def check_map_time(self):
+    async def check_map_time(self):
         """열지도 생성 시간 확인"""
         try:
             if not self.current_map_id:
@@ -226,7 +277,6 @@ class WebServer:
                     'image_url': f'/local/HeatMapBuilder/{self.current_map_id}/{output_filename}'
                 })
             else:
-
                 return jsonify({
                     'status': 'error',
                     'error': '온도 지도가 아직 생성되지 않았습니다.'
@@ -237,14 +287,14 @@ class WebServer:
                 'error': str(e)
             })
     
-    def get_maps(self):
+    async def get_maps(self):
         """모든 맵 목록을 반환"""
         maps = self.config_manager.db.get_all_maps()
         return jsonify(maps)
 
-    def create_map(self):
+    async def create_map(self):
         """새로운 맵 생성"""
-        data = request.get_json() or {}
+        data = await request.get_json() or {}
         map_id = str(uuid.uuid4())
         
         # 기본 설정값
@@ -332,7 +382,7 @@ class WebServer:
         self.config_manager.db.save(map_id, default_config)
         return jsonify({'id': map_id})
 
-    def get_map(self, map_id):
+    async def get_map(self, map_id):
         """특정 맵의 상세 정보 조회"""
         try:
             map_data = self.config_manager.db.get_map(map_id)
@@ -343,16 +393,15 @@ class WebServer:
             self.logger.error(f"맵 조회 실패: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
-    def update_map(self):
+    async def update_map(self, map_id):
         """맵 정보 업데이트"""
-        data = request.get_json() or {}
-        map_id = data.get('id')
+        data = await request.get_json() or {}
         if not map_id:
             return jsonify({'error': '맵 ID가 필요합니다.'}), 400
         self.config_manager.db.save(map_id, data)
         return jsonify({'status': 'success'})
 
-    def delete_map(self, map_id):
+    async def delete_map(self, map_id):
         """맵 삭제"""
         try:
             # 맵 디렉토리 경로 가져오기
@@ -370,44 +419,50 @@ class WebServer:
             self.logger.error(f"맵 삭제 중 오류 발생: {str(e)}")
             return jsonify({'error': f'맵 삭제 중 오류가 발생했습니다: {str(e)}'}), 500
 
-    def stream_map(self, map_id):
-        """맵의 MJPEG 스트림을 제공합니다."""
-        # 맵 ID 검증
-        map_data = self.config_manager.db.get_map(map_id)
-        if not map_data:
-            return render_template('404.html', error_message=f'맵 ID {map_id}를 찾을 수 없습니다.'), 404
-        self.logger.info(f"맵 {map_data.get('name', '')} ({map_id}) 스트리밍 시작")
-        def generate():
-            while True:
-                image_filename, _, output_path = self.config_manager.get_output_info(map_id)
-                if os.path.exists(output_path):
-                    try:
-                        # PIL을 사용하여 이미지를 JPEG로 변환
-                        img = Image.open(output_path)
-                        # RGBA를 RGB로 변환
-                        if img.mode == 'RGBA':
-                            # 흰색 배경에 이미지 합성
-                            background = Image.new('RGB', img.size, (255, 255, 255))
-                            background.paste(img, mask=img.split()[3])  # 알파 채널을 마스크로 사용
-                            img = background
-                        elif img.mode != 'RGB':
-                            img = img.convert('RGB')
+    # async def stream_map(self, map_id):
+    #     """맵의 MJPEG 스트림을 제공합니다."""
+    #     # 맵 ID 검증
+    #     map_data = self.config_manager.db.get_map(map_id)
+    #     if not map_data:
+    #         return await render_template('404.html', error_message=f'맵 ID {map_id}를 찾을 수 없습니다.'), 404
+    #     self.logger.info(f"맵 {map_data.get('name', '')} ({map_id}) 스트리밍 시작")
+        
+    #     async def generate():
+    #         while True:
+    #             image_filename, _, output_path = self.config_manager.get_output_info(map_id)
+    #             if os.path.exists(output_path):
+    #                 try:
+    #                     # PIL을 사용하여 이미지를 JPEG로 변환
+    #                     img = Image.open(output_path)
+    #                     # RGBA를 RGB로 변환
+    #                     if img.mode == 'RGBA':
+    #                         # 흰색 배경에 이미지 합성
+    #                         background = Image.new('RGB', img.size, (255, 255, 255))
+    #                         background.paste(img, mask=img.split()[3])  # 알파 채널을 마스크로 사용
+    #                         img = background
+    #                     elif img.mode != 'RGB':
+    #                         img = img.convert('RGB')
                             
-                        img_byte_arr = io.BytesIO()
-                        img.save(img_byte_arr, format='JPEG', quality=100)
-                        frame = img_byte_arr.getvalue()
+    #                     img_byte_arr = io.BytesIO()
+    #                     img.save(img_byte_arr, format='JPEG', quality=100)
+    #                     frame = img_byte_arr.getvalue()
                         
-                        yield (b'--frame\r\n'
-                               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-                    except Exception as e:
-                        self.logger.error(f"이미지 변환 중 오류 발생: {str(e)}")
-                time.sleep(1)  # 1초마다 이미지 업데이트
+    #                     yield (b'--frame\r\n'
+    #                            b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    #                 except Exception as e:
+    #                     self.logger.error(f"이미지 변환 중 오류 발생: {str(e)}")
+    #             await asyncio.sleep(1)  # 1초마다 이미지 업데이트
 
-        return Response(generate(),
-                      mimetype='multipart/x-mixed-replace; boundary=frame')
+    #     return Response(generate(),
+    #                   mimetype='multipart/x-mixed-replace; boundary=frame')
 
     def run(self, host='0.0.0.0', port=None):
         """서버 실행"""
         if port is None:
             port = int(os.environ.get('PORT', 8099))
-        self.app.run(host=host, port=port, debug=False)
+
+        config = hypercorn.config.Config()
+        config.bind = [f"{host}:{port}"]
+        config.use_reloader = True
+        
+        asyncio.run(hypercorn.asyncio.serve(self.app, config))

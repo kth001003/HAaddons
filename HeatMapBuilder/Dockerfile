@@ -28,18 +28,7 @@ RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo &
 # # pip 업그레이드 및 Python 패키지 설치
 # RUN python -m pip install --no-cache-dir --upgrade pip && \
 #     python -m pip install --no-cache-dir \
-RUN python -m pip install \
-        "quart==0.20.0" \
-        "numpy==2.2.1" \
-        "pillow==11.1.0" \
-        "requests==2.32.3" \
-        "websockets==14.1" \
-        "scipy==1.15.1" \
-        "matplotlib==3.10.0" \
-        "shapely==2.0.6" \
-        # "svgpath2mpl==1.0.0" \
-        "pykrige==1.7.2" \
-        "filelock==3.17.0"
+RUN python -m pip install -r requirements.txt
 
 # 실행 권한 설정
 RUN chmod a+x /apps/run.sh
