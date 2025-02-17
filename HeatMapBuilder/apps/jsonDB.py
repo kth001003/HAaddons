@@ -26,19 +26,6 @@ class JsonDB:
             with open(self.db_path, 'w', encoding='utf-8') as f:
                 json.dump(db, f, indent=4)
 
-    def delete(self, map_id) -> bool:
-        """특정 ID의 데이터를 삭제합니다. 삭제되면 True, 없으면 False 반환."""
-        with self.lock:
-            db = self.load()
-
-            if map_id in db:
-                del db[map_id]
-                with open(self.db_path, 'w', encoding='utf-8') as f:
-                    json.dump(db, f, indent=4)
-
-                return True
-            return False
-
     def update_all(self, key, value) -> int:
         """
         모든 ID에 대해 동일한 key-value 쌍을 추가 또는 수정합니다.
@@ -77,3 +64,18 @@ class JsonDB:
         """특정 맵의 상세 정보를 반환합니다."""
         db = self.load()
         return db.get(map_id, {})
+
+    def save_all(self, maps_data: dict) -> None:
+        """전체 맵 데이터를 저장합니다."""
+        with self.lock:
+            with open(self.db_path, 'w', encoding='utf-8') as f:
+                json.dump(maps_data, f, indent=4)
+
+    def delete_map(self, map_id: str) -> None:
+        """맵을 삭제합니다."""
+        with self.lock:
+            db = self.load()
+            if map_id in db:
+                del db[map_id]
+                with open(self.db_path, 'w', encoding='utf-8') as f:
+                    json.dump(db, f, indent=4)

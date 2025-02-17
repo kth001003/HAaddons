@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 wallsHTML += element.outerHTML;
             });
             const wallsData = wallsHTML;
-            const sensorsData = sensorManager.getSensors();
+            const sensorsData = sensorManager.getSensorConfig();
             await fetch('./api/save-walls-and-sensors', {
                 method: 'POST',
                 headers: {
@@ -843,10 +843,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         // 초기 데이터 로드
         loadConfig();
         
-        // 센서는 1분마다 업데이트
-        setInterval(async function() {
-            await sensorManager.refreshSensors();
-        }, 60000);
         // 맵 자동 새로고침 - 10초마다 확인
         setInterval(checkAndRefreshMap, 10000);
         

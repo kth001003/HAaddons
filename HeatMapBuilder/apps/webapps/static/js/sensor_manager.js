@@ -2,6 +2,7 @@ export class SensorManager {
     constructor(svgElement) {
         this.svg = svgElement;
         this.sensors = [];
+        this.allSensors = [];
         this.onSensorsUpdate = null;
         this.enabled = true;
         this.filters = {
@@ -55,21 +56,16 @@ export class SensorManager {
     // 센서 데이터 로드
     async loadSensors() {
         try {
+            // 레이블 레지스트리 로드
+            await this.loadLabelRegistry();
+
             // 센서 상태 로드
             const response = await fetch('./api/states');
             const states = await response.json();
             console.log("SensorManager - 서버에서 받은 states:", states);
 
-            this.sensors = states.filter(state => {
-                const matchDeviceClass = !this.filters.device_class || 
-                    state.attributes.device_class === this.filters.device_class;
-                const matchLabel = !this.filters.label || 
-                    (state.labels && state.labels.some(label => 
-                        label.toLowerCase().includes(this.filters.label.toLowerCase())
-                    ));
-                
-                return matchDeviceClass && matchLabel;
-            });
+            this.allSensors = states; // 모든 센서 데이터 저장
+            this.applyFilters(); // 필터 적용
 
             // 저장된 설정 로드
             const configResponse = await fetch('./api/load-config');
@@ -93,29 +89,10 @@ export class SensorManager {
             this.updateSensorList();
         } catch (error) {
             console.error('센서 정보를 불러오는데 실패했습니다:', error);
-              this.displayError(`센서 정보를 불러오는데 실패했습니다: ${error.message}`);
+            this.displayError(`센서 정보를 불러오는데 실패했습니다: ${error.message}`);
         }
     }
-    async refreshSensors() {
-        try {
-            // 센서 상태 로드
-            const response = await fetch('./api/states');
-            const states = await response.json();
-            const newSensors = states.filter(state =>
-                state.attributes.device_class === 'temperature'
-            );
-            this.sensors.forEach(sensor => {
-                const newSensor = newSensors.find(newSensor => newSensor.entity_id === sensor.entity_id);
-                if (newSensor) {
-                    sensor.state = newSensor.state;
-                }
-            });
-            this.updateSensorList();
-        } catch (error) {
-            console.error('센서 정보를 불러오는데 실패했습니다:', error);
-              this.displayError(`센서 정보를 불러오는데 실패했습니다: ${error.message}`);
-        }
-    }
+
     displayError(message) {
         const container = document.getElementById('sensor-container');
         if (container) {
@@ -416,23 +393,18 @@ export class SensorManager {
         const text = group.querySelector('text');
         const rect = group.querySelector('rect');
         const dragHandle = group.querySelector('circle');  // 드래그 핸들 요소 가져오기
-        const config = /** @type {{
-            sensor_display: string,
-            sensor_info_bg: { color: string, opacity: number },
-            sensor_marker: { style: string, size: number, color: string },
-            sensor_name: { font_size: number, color: string },
-            sensor_temp: { font_size: number, color: string }
-        }} */ (this.getVisualizationConfig());
+
+        // 기본 스타일 정의
+        const DEFAULT_MARKER_SIZE = 3;
+        const DEFAULT_MARKER_COLOR = 'red';
+        const DEFAULT_TEXT_SIZE = 12;
+        const DEFAULT_TEXT_COLOR = 'black';
+        const DEFAULT_BG_COLOR = 'white';
+        const DEFAULT_BG_OPACITY = 0.8;
 
         // 드래그 핸들 위치 업데이트
         dragHandle.setAttribute('cx', String(point.x));
         dragHandle.setAttribute('cy', String(point.y));
-
-        // 마커 스타일 업데이트
-        const markerConfig = config.sensor_marker;
-        const markerSize = markerConfig.size;
-        const markerStyle = markerConfig.style;
-        const markerColor = markerConfig.color;
 
         // 기존 마커 제거
         const oldPath = group.querySelector('path.sensor-marker');
@@ -441,10 +413,12 @@ export class SensorManager {
         }
 
         // 새 마커 생성
-        const markerPath = this.createMarkerPath(markerStyle, markerSize, point.x, point.y);
-        markerPath.setAttribute('fill', markerStyle === 'cross' ? 'none' : markerColor);
-        markerPath.setAttribute('stroke', markerColor);
-        markerPath.setAttribute('stroke-width', markerStyle === 'cross' ? '2' : '0');
+        const markerPath = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        markerPath.classList.add('sensor-marker');
+        markerPath.setAttribute('cx', String(point.x));
+        markerPath.setAttribute('cy', String(point.y));
+        markerPath.setAttribute('r', String(DEFAULT_MARKER_SIZE));
+        markerPath.setAttribute('fill', DEFAULT_MARKER_COLOR);
         markerPath.style.pointerEvents = 'none';
         group.appendChild(markerPath);
 
@@ -455,43 +429,36 @@ export class SensorManager {
 
         // 텍스트 위치 설정
         text.setAttribute('x', String(point.x));
-        text.setAttribute('y', String(point.y - markerSize - 5));
+        text.setAttribute('y', String(point.y - DEFAULT_MARKER_SIZE - 5));
         
-        const displayOption = config.sensor_display;
         const calibratedTemp = this.getCalibratedTemperature(sensor);
         
         // 센서 이름 표시
-        if (displayOption.includes('name')) {
-            const nameConfig = config.sensor_name;
-            const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-            nameText.textContent = sensor.attributes.friendly_name || sensor.entity_id;
-            nameText.setAttribute('x', String(point.x));
-            nameText.setAttribute('font-size', String(nameConfig.font_size));
-            nameText.setAttribute('fill', nameConfig.color);
-            text.appendChild(nameText);
-        }
+        const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        nameText.textContent = sensor.attributes.friendly_name || sensor.entity_id;
+        nameText.setAttribute('x', String(point.x));
+        nameText.setAttribute('font-size', String(DEFAULT_TEXT_SIZE));
+        nameText.setAttribute('fill', DEFAULT_TEXT_COLOR);
+        text.appendChild(nameText);
 
         // 온도 표시
-        if (displayOption.includes('temp')) {
-            const tempConfig = config.sensor_temp;
-            const tempText = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-            tempText.textContent = `${calibratedTemp.toFixed(1)}°C`;
-            tempText.setAttribute('x', String(point.x));
-            tempText.setAttribute('dy', displayOption.includes('name') ? String(tempConfig.font_size) : '0');
-            tempText.setAttribute('font-size', String(tempConfig.font_size));
-            tempText.setAttribute('fill', tempConfig.color);
-            text.appendChild(tempText);
-        }
+        const tempText = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        tempText.textContent = `${calibratedTemp.toFixed(1)}°C`;
+        tempText.setAttribute('x', String(point.x));
+        tempText.setAttribute('dy', String(DEFAULT_TEXT_SIZE));
+        tempText.setAttribute('font-size', String(DEFAULT_TEXT_SIZE));
+        tempText.setAttribute('fill', DEFAULT_TEXT_COLOR);
+        text.appendChild(tempText);
 
         // 배경 사각형 업데이트
         const textBBox = text.getBBox();
         const padding = 4;
         rect.setAttribute('x', String(point.x - textBBox.width/2 - padding));
-        rect.setAttribute('y', String(point.y - textBBox.height - markerSize - padding));
+        rect.setAttribute('y', String(point.y - textBBox.height - DEFAULT_MARKER_SIZE - padding));
         rect.setAttribute('width', String(textBBox.width + padding * 2));
         rect.setAttribute('height', String(textBBox.height + padding * 2));
-        rect.setAttribute('fill', config.sensor_info_bg.color);
-        rect.setAttribute('fill-opacity', String(config.sensor_info_bg.opacity / 100));
+        rect.setAttribute('fill', DEFAULT_BG_COLOR);
+        rect.setAttribute('fill-opacity', String(DEFAULT_BG_OPACITY));
     }
 
     setupDragEvents(group, sensor, point) {
@@ -582,16 +549,18 @@ export class SensorManager {
 
     // 현재 센서 데이터 반환
     getSensors() {
-        return this.sensors;
+        return this.sensors.filter(sensor => sensor.position);
     }
 
     // 설정 저장을 위한 센서 데이터 반환
     getSensorConfig() {
-        return this.sensors.map(sensor => ({
-            entity_id: sensor.entity_id,
-            position: sensor.position || null,
-            calibration: sensor.calibration || 0
-        }));
+        return this.sensors
+            .filter(sensor => sensor.position)
+            .map(sensor => ({
+                entity_id: sensor.entity_id,
+                position: sensor.position,
+                calibration: sensor.calibration || 0
+            }));
     }
 
     // 보정된 온도값 반환
@@ -601,9 +570,24 @@ export class SensorManager {
         return rawTemp + calibration;
     }
 
+    // 필터 적용 메서드 추가
+    applyFilters() {
+        this.sensors = this.allSensors.filter(state => {
+            const matchDeviceClass = !this.filters.device_class || 
+                state.attributes.device_class === this.filters.device_class;
+            const matchLabel = !this.filters.label || 
+                (state.labels && state.labels.some(label => 
+                    label.toLowerCase().includes(this.filters.label.toLowerCase())
+                ));
+            
+            return matchDeviceClass && matchLabel;
+        });
+    }
+
     // 필터 설정 업데이트
     updateFilters(newFilters) {
         this.filters = { ...this.filters, ...newFilters };
-        this.loadSensors();  // 필터가 변경될 때마다 센서 목록 다시 로드
+        this.applyFilters();  // 현재 메모리에 있는 데이터에서 필터링
+        this.updateSensorList();  // UI 업데이트
     }
 }
