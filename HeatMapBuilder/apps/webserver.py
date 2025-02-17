@@ -158,6 +158,14 @@ class WebServer:
         async def delete_map(map_id):
             return await self.delete_map(map_id)
 
+        @self.app.route('/api/maps/export', methods=['GET'])
+        async def export_maps():
+            return await self.export_maps()
+
+        @self.app.route('/api/maps/import', methods=['POST'])
+        async def import_maps():
+            return await self.import_maps()
+
         # @self.app.route('/stream/<map_id>')
         # async def stream_map(map_id):
         #     return await self.stream_map(map_id)
@@ -410,20 +418,41 @@ class WebServer:
     async def delete_map(self, map_id):
         """맵 삭제"""
         try:
-            # 맵 디렉토리 경로 가져오기
-            map_dir = os.path.join(self.config_manager.paths['media'], map_id)
-            
-            # 데이터베이스에서 맵 삭제
-            if self.config_manager.db.delete(map_id):
-                # 맵 디렉토리가 존재하면 삭제
-                if os.path.exists(map_dir):
-                    import shutil
-                    shutil.rmtree(map_dir)
-                return jsonify({'status': 'success'})
-            return jsonify({'error': '맵을 찾을 수 없습니다.'}), 404
+            self.config_manager.db.delete_map(map_id)
+            return jsonify({'status': 'success'})
         except Exception as e:
-            self.logger.error(f"맵 삭제 중 오류 발생: {str(e)}")
-            return jsonify({'error': f'맵 삭제 중 오류가 발생했습니다: {str(e)}'}), 500
+            return jsonify({'error': str(e)}), 400
+
+    async def export_maps(self):
+        """맵 데이터 내보내기"""
+        try:
+            maps = self.config_manager.db.load()
+            return jsonify(maps)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    async def import_maps(self):
+        """맵 데이터 불러오기"""
+        try:
+            data = await request.get_json()
+            if not isinstance(data, dict):
+                return jsonify({'error': '올바르지 않은 맵 데이터 형식입니다.'}), 400
+
+            # 기존 맵 데이터와 병합
+            existing_maps = self.config_manager.db.load()
+            for map_id, map_data in data.items():
+                if map_id in existing_maps:
+                    # 기존 맵이 있는 경우 업데이트
+                    existing_maps[map_id].update(map_data)
+                else:
+                    # 새로운 맵인 경우 추가
+                    existing_maps[map_id] = map_data
+
+            # 저장
+            self.config_manager.db.save_all(existing_maps)
+            return jsonify({'status': 'success'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
 
     # async def stream_map(self, map_id):
     #     """맵의 MJPEG 스트림을 제공합니다."""

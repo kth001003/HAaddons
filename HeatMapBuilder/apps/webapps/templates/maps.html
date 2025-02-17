@@ -11,12 +11,27 @@
     <div class="container mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-bold">맵 선택</h1>
-            <button class="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" onclick="showModal('createMapModal')">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                </svg>
-                새 맵 생성
-            </button>
+            <div class="flex gap-2">
+                <input type="file" id="mapFileInput" accept=".json" class="hidden">
+                <button class="inline-flex items-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors" onclick="document.getElementById('mapFileInput').click()">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    불러오기
+                </button>
+                <button class="inline-flex items-center px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors" onclick="exportMaps()">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    내보내기
+                </button>
+                <button class="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" onclick="showModal('createMapModal')">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    새 맵 생성
+                </button>
+            </div>
         </div>
 
         <!-- 맵 목록 -->
@@ -300,6 +315,48 @@
                         hideModal(this.id);
                     }
                 });
+            });
+
+            // 맵 내보내기 함수
+            async function exportMaps() {
+                try {
+                    const response = await apiRequest('./api/maps/export');
+                    const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'maps.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showMessage('맵 데이터가 성공적으로 내보내기되었습니다.', 'success');
+                } catch (error) {
+                    showMessage('맵 내보내기 중 오류가 발생했습니다: ' + error.message, 'error');
+                }
+            }
+
+            // 파일 업로드 이벤트 리스너
+            document.getElementById('mapFileInput').addEventListener('change', async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    try {
+                        const content = JSON.parse(e.target.result);
+                        await apiRequest('./api/maps/import', {
+                            method: 'POST',
+                            body: JSON.stringify(content)
+                        });
+                        showMessage('맵 데이터가 성공적으로 불러와졌습니다.', 'success');
+                        loadMaps();
+                    } catch (error) {
+                        showMessage('맵 불러오기 중 오류가 발생했습니다: ' + error.message, 'error');
+                    }
+                };
+                reader.readAsText(file);
+                e.target.value = ''; // 파일 input 초기화
             });
 
             // 초기 맵 목록 로드
