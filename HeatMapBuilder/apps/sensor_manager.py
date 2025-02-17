@@ -67,8 +67,6 @@ class SensorManager:
                 await websocket.close()
                 return None
             
-            self.logger.debug(f"Auth required message: {auth_required}")
-            
             auth_message = {
                 "type": "auth",
                 "access_token": self.supervisor_token
@@ -77,7 +75,6 @@ class SensorManager:
             
             auth_response = await websocket.recv()
             auth_response_data = json.loads(auth_response)
-            self.logger.debug(f"Auth response: {auth_response}")
             
             if auth_response_data.get('type') == 'auth_ok':
                 return websocket
