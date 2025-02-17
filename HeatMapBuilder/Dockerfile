@@ -16,22 +16,18 @@ RUN mkdir -p /usr/share/fonts/truetype/nanum && \
     fc-cache -f -v
 
 # 타임존 설정
-RUN cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
-    echo "Asia/Seoul" > /etc/timezone
+RUN cp /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
 
-#Auto update on rebuild
-RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
-    cp -r /tmp/repo/HeatMapBuilder/apps /apps && \
-    rm -rf /tmp/repo
-# COPY apps /apps
+# #Auto update on rebuild
+# RUN git clone -b beta https://github.com/wooooooooooook/HAaddons.git /tmp/repo && \
+#     cp -r /tmp/repo/HeatMapBuilder/apps /apps && \
+#     rm -rf /tmp/repo
+COPY apps /apps
 
-# # pip 업그레이드 및 Python 패키지 설치
-# RUN python -m pip install --no-cache-dir --upgrade pip && \
-#     python -m pip install --no-cache-dir \
-RUN python -m pip install -r requirements.txt
+COPY requirements.txt /requirements.txt
+RUN python -m pip install -r /requirements.txt
 
-# 실행 권한 설정
-RUN chmod a+x /apps/run.sh
 
 # 개발 환경 관련 패키지 설치
 RUN pip install watchdog
@@ -39,5 +35,5 @@ RUN pip install watchdog
 WORKDIR /apps
 ENV PYTHONPATH=/apps
 
+RUN chmod a+x /apps/run.sh
 CMD ["/apps/run.sh"]
-# CMD ["python3","/apps/app.py"]

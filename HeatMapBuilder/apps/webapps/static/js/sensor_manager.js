@@ -141,35 +141,7 @@ export class SensorManager {
             return;
         }
 
-        // 필터 UI 추가
-        const filterUI = `
-            <div class="mb-4 space-y-3 border-b pb-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Device Class</label>
-                    <select id="filter-device-class" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">전체</option>
-                        <option value="temperature" selected>Temperature</option>
-                        <option value="humidity">Humidity</option>
-                        <option value="pressure">Pressure</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Unit of Measurement</label>
-                    <select id="filter-unit" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="">전체</option>
-                        <option value="°C">°C</option>
-                        <option value="%">%</option>
-                        <option value="hPa">hPa</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">센서 이름 검색</label>
-                    <input type="text" id="filter-label" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="센서 이름을 입력하세요">
-                </div>
-            </div>
-        `;
-
-        container.innerHTML = filterUI + this.sensors.map(sensor => this.createSensorListItem(sensor)).join('');
+        container.innerHTML = this.sensors.map(sensor => this.createSensorListItem(sensor)).join('');
         
         // 필터 이벤트 리스너 설정
         const deviceClassFilter = /** @type {HTMLSelectElement} */ (document.getElementById('filter-device-class'));

@@ -139,6 +139,31 @@
                     <!-- 센서 배치 컨트롤 -->
                     <div id="step2-controls" class="hidden bg-white rounded-lg shadow-md p-4 max-h-[400px] overflow-y-auto">
                         <h3 class="text-lg font-semibold mb-4">센서 배치</h3>
+                        <!-- 필터 UI -->
+                        <div class="mb-4 space-y-3 border-b pb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Device Class</label>
+                                <select id="filter-device-class" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="">전체</option>
+                                    <option value="temperature" selected>Temperature</option>
+                                    <option value="humidity">Humidity</option>
+                                    <option value="pressure">Pressure</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Unit of Measurement</label>
+                                <select id="filter-unit" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="">전체</option>
+                                    <option value="°C">°C</option>
+                                    <option value="%">%</option>
+                                    <option value="hPa">hPa</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">센서 이름 검색</label>
+                                <input type="text" id="filter-label" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="센서 이름을 입력하세요">
+                            </div>
+                        </div>
                         <div id="sensor-container" class="space-y-2"></div>
                     </div>
         

@@ -2,6 +2,7 @@ import threading
 import json
 import time
 import os
+import asyncio
 
 from map_generator import MapGenerator
 from config_manager import ConfigManager
@@ -30,7 +31,23 @@ class BackgroundTaskManager:
         if self.thread is not None:
             self.thread.join()
 
+    async def generate_map(self, map_id):
+        """열지도 생성 로직"""
+        if self.map_lock.acquire(blocking=False):  # 락 획득 시도
+            try:
+                _output_path = self.config_manager.get_output_path(map_id)
+                return await self.map_generator.generate(map_id, _output_path)
+            except Exception as e:
+                self.logger.error(f"열지도 생성 실패: {str(e)}")
+                raise e
+            finally:
+                self.map_lock.release()  # 락 해제
+        else:
+            self.logger.info("다른 프로세스가 열지도를 생성 중입니다. 이번 생성은 건너뜁니다.")
+            return False
+
     def run(self):
+        """백그라운드 작업 실행"""
         while self.running:
             try:
                 # 모든 맵 정보를 가져옴
@@ -58,36 +75,27 @@ class BackgroundTaskManager:
                             # 현재 맵으로 설정
                             self.config_manager.current_map_id = map_id
                             
-                            # 열지도 생성
-                            if self.generate_map(map_id):
-                                self.logger.info(f"백그라운드 맵 생성 완료 {map_name} ({map_id}) (소요시간: {self.map_generator.generation_duration})")
-                                # 생성 시간 업데이트
-                                self.map_timers[map_id] = current_time
-                            else:
-                                self.logger.error(f"백그라운드 맵 생성 실패 {map_name} ({map_id})")
-                    except Exception as e:
-                        self.logger.error(f"백그라운드 맵 생성 중 오류 발생: {str(e)}")
+                            # 비동기 이벤트 루프 생성 및 실행
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                if loop.run_until_complete(self.generate_map(map_id)):
+                                    self.logger.info(f"백그라운드 맵 생성 완료 {map_name} ({map_id}) (소요시간: {self.map_generator.generation_duration})")
+                                    # 생성 시간 업데이트
+                                    self.map_timers[map_id] = current_time
+                                else:
+                                    self.logger.error(f"백그라운드 맵 생성 실패 {map_name} ({map_id})")
+                            finally:
+                                loop.close()
 
-                # 최소 1분 대기
-                time.sleep(60)
+                    except Exception as e:
+                        self.logger.error(f"맵 {map_name} ({map_id}) 처리 중 오류 발생: {str(e)}")
+                        continue
+
+                time.sleep(60)  # 1분 대기
             except Exception as e:
                 self.logger.error(f"백그라운드 작업 중 오류 발생: {str(e)}")
                 time.sleep(60)
-
-    def generate_map(self, map_id):
-        """열지도 생성 로직"""
-        if self.map_lock.acquire(blocking=False):  # 락 획득 시도
-            try:
-                _output_path = self.config_manager.get_output_path(map_id)
-                return self.map_generator.generate(map_id, _output_path)
-            except Exception as e:
-                self.logger.error(f"열지도 생성 실패: {str(e)}")
-                raise e
-            finally:
-                self.map_lock.release()  # 락 해제
-        else:
-            self.logger.info("다른 프로세스가 열지도를 생성 중입니다. 이번 생성은 건너뜁니다.")
-            return False
 
 if __name__ == '__main__':
     is_local = False

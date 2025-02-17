@@ -204,7 +204,7 @@ class MapGenerator:
             self.logger.error(traceback.format_exc())
             return [], None
 
-    def _collect_sensor_data(self) -> Tuple[List[List[float]], List[float], List[str]]:
+    async def _collect_sensor_data(self) -> Tuple[List[List[float]], List[float], List[str]]:
         """센서 데이터를 수집하여 좌표, 온도값, 센서ID 리스트를 반환합니다."""
         points = []
         temperatures = []
@@ -220,7 +220,7 @@ class MapGenerator:
                 continue
                 
             # 센서 상태 조회
-            state = self.get_sensor_state(sensor['entity_id'])
+            state = await self.get_sensor_state(sensor['entity_id'])
             if not state or not isinstance(state, dict):
                 self.logger.warning(f"센서 {sensor['entity_id']} 상태 데이터가 유효하지 않음")
                 continue
@@ -600,7 +600,7 @@ class MapGenerator:
         except Exception as e:
             self.logger.error(f"센서 마커 생성 중 오류 발생: {str(e)}")
 
-    def generate(self, map_id: str, output_path: str) -> bool:
+    async def generate(self, map_id: str, output_path: str) -> bool:
         """
         온도맵을 생성하고 이미지 파일로 저장합니다.
         
@@ -648,7 +648,7 @@ class MapGenerator:
                 return False
 
             # 센서 데이터 수집
-            sensor_points, raw_temps, sensor_ids = self._collect_sensor_data()
+            sensor_points, raw_temps, sensor_ids = await self._collect_sensor_data()
             if not sensor_points:
                 self.logger.error("유효한 센서 데이터가 없습니다")
                 return False
@@ -744,7 +744,7 @@ class MapGenerator:
                 # 센서 위치 표시
                 for point, temperature, sensor_id in zip(sensor_points, raw_temps, sensor_ids):
                     try:
-                        state = self.get_sensor_state(sensor_id)
+                        state = await self.get_sensor_state(sensor_id)
                         if not state or not isinstance(state, dict):
                             continue
                         self._create_sensor_marker([point[0], point[1]], temperature, sensor_id, state)

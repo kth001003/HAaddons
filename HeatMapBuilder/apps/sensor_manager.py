@@ -1,7 +1,7 @@
-import requests
 import websockets # type: ignore
 import json
 from typing import Optional, Dict, Any, List
+import asyncio  # type: ignore
 
 class SensorManager:
     """센서 상태 관리를 담당하는 클래스"""
@@ -12,6 +12,38 @@ class SensorManager:
         self.logger = logger
         self.supervisor_token = supervisor_token
         self.message_id = 1
+        self.websocket: Optional[websockets.WebSocketClientProtocol] = None
+        self.reconnect_attempt = 0
+        self.max_reconnect_attempts = 5
+        self.reconnect_delay = 5  # 초단위
+
+    async def ensure_websocket_connected(self):
+        """웹소켓 연결이 활성 상태인지 확인하고, 필요시 재연결"""
+        if self.is_local:
+            return True
+
+        try:
+            if self.websocket and self.websocket.open:
+                return True
+        except Exception:
+            self.websocket = None
+
+        while self.reconnect_attempt < self.max_reconnect_attempts:
+            try:
+                self.websocket = await self.websocket_connect()
+                if self.websocket:
+                    self.reconnect_attempt = 0
+                    return True
+                
+                self.reconnect_attempt += 1
+                await asyncio.sleep(self.reconnect_delay)
+            except Exception as e:
+                self.logger.error(f"웹소켓 재연결 시도 실패 ({self.reconnect_attempt}): {str(e)}")
+                self.reconnect_attempt += 1
+                await asyncio.sleep(self.reconnect_delay)
+
+        self.logger.error("최대 재연결 시도 횟수 초과")
+        return False
 
     async def websocket_connect(self):
         """WebSocket 연결 설정"""
@@ -21,7 +53,11 @@ class SensorManager:
         websocket = None
         try:
             uri = "ws://supervisor/core/api/websocket"
-            websocket = await websockets.connect(uri)
+            websocket = await websockets.connect(uri, 
+                                               max_size=2**24,  # 16MB
+                                               max_queue=2**10,  # 1024 messages
+                                               compression=None
+                                               )
             
             # 인증 단계
             auth_required = await websocket.recv()
@@ -56,63 +92,50 @@ class SensorManager:
                 await websocket.close()
             return None
 
+    async def _send_websocket_message(self, message_type: str, **kwargs) -> Optional[Any]:
+        """WebSocket 메시지 전송 및 응답 처리를 위한 공통 메서드"""
+        if not await self.ensure_websocket_connected() or not self.websocket:
+            return None
+            
+        message = {
+            "id": self.message_id,
+            "type": message_type,
+            **kwargs
+        }
+        self.message_id += 1
+        
+        try:
+            await self.websocket.send(json.dumps(message))
+            
+            while True:
+                response = await self.websocket.recv()
+                response_data = json.loads(response)
+                
+                if response_data.get('id') == message['id']:
+                    if response_data.get('success'):
+                        return response_data.get('result')
+                    else:
+                        self.logger.error(f"WebSocket 요청 실패: {response_data}")
+                        return None
+                        
+        except websockets.exceptions.ConnectionClosed as e:
+            self.logger.error(f"WebSocket 연결이 닫힘: {str(e)}")
+            self.websocket = None
+            return None
+        except Exception as e:
+            self.logger.error(f"WebSocket 통신 중 오류 발생: {str(e)}")
+            self.websocket = None
+            return None
+
     async def get_entity_registry(self) -> List[Dict]:
         """Entity Registry 조회"""
         if self.is_local:
             return []
             
-        try:
-            websocket = await self.websocket_connect()
-            if not websocket:
-                return []
-                
-            message = {
-                "id": self.message_id,
-                "type": "config/entity_registry/list"
-            }
-            self.message_id += 1
-            
-            await websocket.send(json.dumps(message))
-            
-            # 응답 대기 및 처리
-            while True:
-                response = await websocket.recv()
-                response_data = json.loads(response)
-                
-                # 응답의 id가 요청한 id와 일치하는지 확인
-                if response_data.get('id') == message['id']:
-                    await websocket.close()
-                    if response_data.get('success'):
-                        return response_data.get('result', [])
-                    else:
-                        self.logger.error(f"Entity Registry 조회 실패: {response_data}")
-                        return []
-                        
-        except Exception as e:
-            self.logger.error(f"Entity Registry 조회 중 오류 발생: {str(e)}")
-            if websocket is not None:
-                await websocket.close()
-            return []
+        result = await self._send_websocket_message("config/entity_registry/list")
+        return result if result is not None else []
 
-    def get_ha_api(self) -> Optional[Dict[str, Any]]:
-        """Home Assistant API 설정"""
-        if self.is_local:
-            return {
-                'base_url': 'mock_url',
-                'headers': {'Content-Type': 'application/json'}
-            }
-        if not self.supervisor_token:
-            self.logger.error("Supervisor Token is not configured")
-            return None
-        return {
-            'base_url': 'http://supervisor/core/api',
-            'headers': {
-                'Authorization': f'Bearer {self.supervisor_token}',
-                'Content-Type': 'application/json'
-            }
-        }
-    
-    def get_sensor_state(self, entity_id: str) -> Dict[str, Any]:
+    async def get_sensor_state(self, entity_id: str) -> Dict[str, Any]:
         """센서 상태 조회"""
         try:
             if self.is_local:
@@ -127,18 +150,19 @@ class SensorManager:
                 self.logger.warning(f"Mock 센서 데이터를 찾을 수 없음: {entity_id}")
                 return {'state': '20', 'entity_id': entity_id}
             
-            api = self.get_ha_api()
-            if not api:
-                self.logger.error("Home Assistant API 설정을 가져올 수 없습니다")
+            states = await self._send_websocket_message("get_states")
+            if states is None:
                 return {'state': '0', 'entity_id': entity_id}
+                
+            for state in states:
+                if state.get('entity_id') == entity_id:
+                    return state
             
-            response = requests.get(
-                f"{api['base_url']}/states/{entity_id}",
-                headers=api['headers']
-            )
-            return response.json()
+            self.logger.warning(f"센서 상태를 찾을 수 없음: {entity_id}")
+            return {'state': '0', 'entity_id': entity_id}
+                
         except Exception as e:
-            self.logger.error(f"센서 상태 조회 실패: {str(e)}")
+            self.logger.error(f"센서 상태 조회 중 오류 발생: {str(e)}")
             return {'state': '0', 'entity_id': entity_id}
     
     async def get_all_states(self) -> List[Dict]:
@@ -147,11 +171,6 @@ class SensorManager:
             mock_data = self.config_manager.get_mock_data()
             self.logger.debug(f"가상 센서 상태 조회: {mock_data}")
             return mock_data.get('temperature_sensors', [])
-        
-        api = self.get_ha_api()
-        if not api:
-            self.logger.error("Home Assistant API 설정을 가져올 수 없습니다")
-            return []
 
         try:
             # Entity Registry 정보 가져오기
@@ -162,31 +181,23 @@ class SensorManager:
             }
             
             # 상태 정보 가져오기
-            response = requests.get(f"{api['base_url']}/states", headers=api['headers'])
-            response.raise_for_status()
-            states = response.json()
-            
-            # 온도 센서 필터링 및 레이블 정보 추가
+            states = await self._send_websocket_message("get_states")
+            if states is None:
+                return []
+
             filtered_states = []
             for state in states:
-                if (state.get('attributes', {}).get('device_class') == 'temperature' and
-                    state.get('attributes', {}).get('state_class') == 'measurement'):
-                    
-                    # Entity Registry 정보 추가
-                    entity_id = state['entity_id']
-                    if entity_id in entity_registry_dict:
-                        registry_info = entity_registry_dict[entity_id]
-                        state['labels'] = registry_info.get('labels', [])
-                        state['area_id'] = registry_info.get('area_id')
-                    
+                entity_id = state['entity_id']
+                if not entity_id.startswith('sensor.'):
+                    continue
+                if entity_id in entity_registry_dict:
+                    state.update({
+                        'labels': entity_registry_dict[entity_id].get('labels', []),
+                        'area_id': entity_registry_dict[entity_id].get('area_id')
+                    })
                     filtered_states.append(state)
-            
             return filtered_states
             
         except Exception as e:
-            self.logger.error(f"센서 상태 조회 실패: {str(e)}")
-            if 'response' in locals():
-                self.logger.error(f"응답 내용: {response.text}")
+            self.logger.error(f"센서 상태 조회 중 오류 발생: {str(e)}")
             return []
-
-
