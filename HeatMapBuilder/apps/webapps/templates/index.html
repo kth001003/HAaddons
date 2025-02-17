@@ -148,11 +148,15 @@
                                     <option value="temperature" selected>Temperature</option>
                                     <option value="humidity">Humidity</option>
                                     <option value="pressure">Pressure</option>
+                                    <option value="carbon_dioxide">Carbon Dioxide</option>
+                                    <option value="signal_strength">Signal Strength</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">레이블 검색</label>
-                                <input type="text" id="filter-label" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="레이블을 입력하세요">
+                                <label class="block text-sm font-medium text-gray-700">레이블</label>
+                                <select id="filter-label" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="">모든 레이블</option>
+                                </select>
                             </div>
                         </div>
                         <div id="sensor-container" class="space-y-2"></div>
