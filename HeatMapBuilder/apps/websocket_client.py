@@ -14,12 +14,22 @@ class WebSocketClient:
         self.max_reconnect_attempts = 5
         self.reconnect_delay = 5
 
+    async def close(self):
+        """웹소켓 연결을 안전하게 종료합니다."""
+        if self.websocket:
+            try:
+                await self.websocket.close()
+            except Exception as e:
+                self.logger.error(f"웹소켓 연결 종료 중 오류 발생: {str(e)}")
+            finally:
+                self.websocket = None
+
     async def ensure_connected(self) -> bool:
         try:
             if self.websocket and self.websocket.open:
                 return True
         except Exception:
-            self.websocket = None
+            await self.close()
 
         while self.reconnect_attempt < self.max_reconnect_attempts:
             try:
@@ -103,11 +113,11 @@ class WebSocketClient:
                         
         except websockets.exceptions.ConnectionClosed as e:
             self.logger.error(f"WebSocket 연결이 닫힘: {str(e)}")
-            self.websocket = None
+            await self.close()
             return None
         except Exception as e:
             self.logger.error(f"WebSocket 통신 중 오류 발생: {str(e)}")
-            self.websocket = None
+            await self.close()
             return None
 
 class MockWebSocketClient:
