@@ -166,6 +166,31 @@ class WebServer:
         async def import_maps():
             return await self.import_maps()
 
+        @self.app.route('/api/debug-websocket', methods=['POST'])
+        async def debug_websocket():
+            """WebSocket 디버그 API"""
+            try:
+                data = await request.get_json()
+                message_type = data.get('message_type')
+                kwargs = data.get('kwargs', {})
+                
+                if not message_type:
+                    return jsonify({
+                        'status': 'error',
+                        'error': 'message_type이 필요합니다.'
+                    }), 400
+                    
+                result = await self.sensor_manager.debug_websocket(message_type, **kwargs)
+                return jsonify({
+                    'status': 'success',
+                    'result': result
+                })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
+
         # @self.app.route('/stream/<map_id>')
         # async def stream_map(map_id):
         #     return await self.stream_map(map_id)

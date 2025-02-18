@@ -875,6 +875,33 @@
                     설정 저장
                 </button>
             </div>
+
+            <!-- WebSocket 디버그 설정 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">WebSocket 디버그</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm mb-1">메시지 타입</label>
+                        <input type="text" id="websocket-message-type" class="w-full px-3 py-2 border rounded-md" placeholder="예: auth, get_states, config/entity_registry/list">
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1">파라미터 (JSON)</label>
+                        <textarea id="websocket-params" class="w-full px-3 py-2 border rounded-md h-32" placeholder='{"key": "value"}'></textarea>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <button id="send-websocket-debug" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                            전송
+                        </button>
+                        <button id="clear-websocket-result" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600">
+                            결과 지우기
+                        </button>
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1">결과</label>
+                        <pre id="websocket-result" class="w-full px-3 py-2 border rounded-md bg-gray-50 min-h-[200px] max-h-[400px] overflow-auto"></pre>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 

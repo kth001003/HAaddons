@@ -830,6 +830,64 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 센서 표시 설정 업데이트 설정
     setupSensorDisplayUpdate();
 
+    // WebSocket 디버그 기능 설정
+    const sendWebsocketDebug = document.getElementById('send-websocket-debug');
+    const clearWebsocketResult = document.getElementById('clear-websocket-result');
+    const websocketResult = document.getElementById('websocket-result');
+    const websocketMessageType = /** @type {HTMLInputElement} */ (document.getElementById('websocket-message-type'));
+    const websocketParams = /** @type {HTMLTextAreaElement} */ (document.getElementById('websocket-params'));
+
+    if (sendWebsocketDebug && clearWebsocketResult && websocketResult) {
+        sendWebsocketDebug.addEventListener('click', async function() {
+            try {
+                const messageType = websocketMessageType.value.trim();
+                if (!messageType) {
+                    showMessage('메시지 타입을 입력해주세요.', 'error');
+                    return;
+                }
+
+                let kwargs = {};
+                const paramsText = websocketParams.value.trim();
+                if (paramsText) {
+                    try {
+                        kwargs = JSON.parse(paramsText);
+                    } catch (e) {
+                        showMessage('파라미터 JSON 형식이 올바르지 않습니다.', 'error');
+                        return;
+                    }
+                }
+
+                const response = await fetch('./api/debug-websocket', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message_type: messageType,
+                        kwargs: kwargs
+                    })
+                });
+
+                const data = await response.json();
+                if (data.status === 'success') {
+                    websocketResult.textContent = JSON.stringify(data.result, null, 2);
+                    showMessage('WebSocket 디버그 요청이 성공했습니다.', 'success');
+                } else {
+                    websocketResult.textContent = JSON.stringify(data, null, 2);
+                    showMessage(data.error || 'WebSocket 디버그 요청이 실패했습니다.', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showMessage('WebSocket 디버그 요청 중 오류가 발생했습니다.', 'error');
+            }
+        });
+
+        clearWebsocketResult.addEventListener('click', function() {
+            websocketResult.textContent = '';
+            showMessage('결과를 지웠습니다.', 'success');
+        });
+    }
+
     try {
         // DrawingTool 초기화
         drawingTool = new DrawingTool(svg);

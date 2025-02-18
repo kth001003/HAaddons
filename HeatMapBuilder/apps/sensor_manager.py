@@ -3,6 +3,53 @@ import json
 from typing import Optional, Dict, Any, List
 import asyncio  # type: ignore
 
+class MockWebSocket:
+    """테스트를 위한 모의 웹소켓 클래스"""
+    def __init__(self, config_manager):
+        self.config_manager = config_manager
+        self.open = True
+        self.message_queue = asyncio.Queue()
+
+    async def send(self, message: str):
+        message_data = json.loads(message)
+        response = None
+        
+        if message_data['type'] == 'auth':
+            response = {"type": "auth_ok"}
+        elif message_data['type'] == 'get_states':
+            mock_data = self.config_manager.get_mock_data()
+            response = {
+                "id": message_data['id'],
+                "type": "result",
+                "success": True,
+                "result": mock_data.get('temperature_sensors', [])
+            }
+        elif message_data['type'] == 'config/entity_registry/list':
+            response = {
+                "id": message_data['id'],
+                "type": "result",
+                "success": True,
+                "result": self.config_manager.get_mock_data().get('entity_registry', [])
+            }
+        elif message_data['type'] == 'config/label_registry/list':
+            response = {
+                "id": message_data['id'],
+                "type": "result",
+                "success": True,
+                "result": self.config_manager.get_mock_data().get('label_registry', [])
+            }
+            
+        if response:
+            await self.message_queue.put(json.dumps(response))
+
+    async def recv(self):
+        if not self.message_queue.empty():
+            return await self.message_queue.get()
+        return json.dumps({"type": "auth_required"})
+
+    async def close(self):
+        self.open = False
+
 class SensorManager:
     """센서 상태 관리를 담당하는 클래스"""
     
@@ -48,7 +95,7 @@ class SensorManager:
     async def websocket_connect(self):
         """WebSocket 연결 설정"""
         if self.is_local:
-            return None
+            return MockWebSocket(self.config_manager)
             
         websocket = None
         try:
@@ -123,19 +170,21 @@ class SensorManager:
             self.logger.error(f"WebSocket 통신 중 오류 발생: {str(e)}")
             self.websocket = None
             return None
+        
+    async def debug_websocket(self, message_type: str, **kwargs):
+        """WebSocket 메시지 전송 및 응답 처리를 위한 공통 메서드"""
+
+        result = await self._send_websocket_message(message_type, **kwargs)
+        return result if result is not None else []
 
     async def get_entity_registry(self) -> List[Dict]:
         """Entity Registry 조회"""
-        if self.is_local:
-            return []
             
         result = await self._send_websocket_message("config/entity_registry/list")
         return result if result is not None else []
 
     async def get_label_registry(self) -> List[Dict]:
         """Label Registry 조회"""
-        if self.is_local:
-            return []
             
         result = await self._send_websocket_message("config/label_registry/list")
         return result if result is not None else []
@@ -143,18 +192,6 @@ class SensorManager:
     async def get_sensor_state(self, entity_id: str) -> Dict[str, Any]:
         """센서 상태 조회"""
         try:
-            if self.is_local:
-                mock_data = self.config_manager.get_mock_data()
-                for sensor in mock_data.get('temperature_sensors', []):
-                    if sensor['entity_id'] == entity_id:
-                        return {
-                            'entity_id': entity_id,
-                            'state': sensor.get('state', '0'),
-                            'attributes': sensor.get('attributes', {})
-                        }
-                self.logger.warning(f"Mock 센서 데이터를 찾을 수 없음: {entity_id}")
-                return {'state': '20', 'entity_id': entity_id}
-            
             states = await self._send_websocket_message("get_states")
             if states is None:
                 return {'state': '0', 'entity_id': entity_id}
@@ -172,11 +209,6 @@ class SensorManager:
     
     async def get_all_states(self) -> List[Dict]:
         """모든 센서 상태 조회"""
-        if self.is_local:
-            mock_data = self.config_manager.get_mock_data()
-            self.logger.debug(f"가상 센서 상태 조회: {mock_data}")
-            return mock_data.get('temperature_sensors', [])
-
         try:
             # Entity Registry 정보 가져오기
             entity_registry = await self.get_entity_registry()
