@@ -195,6 +195,54 @@ class WebServer:
                     'error': str(e)
                 }), 500
 
+        @self.app.route('/api/preview_colormap', methods=['POST'])
+        async def preview_colormap():
+            """컬러맵 미리보기 API"""
+            try:
+                data = await request.get_json()
+                colormap_name = data.get('colormap')
+                
+                if not colormap_name:
+                    return jsonify({
+                        'status': 'error',
+                        'error': '컬러맵 이름이 필요합니다.'
+                    }), 400
+
+                # matplotlib을 사용하여 컬러맵 미리보기 이미지 생성
+                import matplotlib.pyplot as plt
+                import numpy as np
+                
+                try:
+                    # 컬러맵 유효성 검사
+                    plt.get_cmap(colormap_name)
+                except ValueError:
+                    return jsonify({
+                        'status': 'error',
+                        'error': '잘못된 컬러맵 이름입니다.'
+                    }), 400
+
+                # 컬러맵 미리보기 이미지 생성
+                fig, ax = plt.subplots(figsize=(6, 1))
+                gradient = np.linspace(0, 1, 256)
+                gradient = np.vstack((gradient, gradient))
+                ax.imshow(gradient, aspect='auto', cmap=colormap_name)
+                ax.set_axis_off()
+                
+                # 이미지를 바이트로 변환
+                buf = io.BytesIO()
+                plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
+                buf.seek(0)
+                plt.close()
+
+                return Response(buf.getvalue(), mimetype='image/png')
+
+            except Exception as e:
+                self.logger.error(f"컬러맵 미리보기 생성 실패: {str(e)}")
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
+
     async def maps_page(self):
         """맵 선택 페이지"""
         return await render_template('maps.html')

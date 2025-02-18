@@ -3,6 +3,8 @@ import json
 import time
 import os
 import asyncio
+import glob
+import shutil
 
 from map_generator import MapGenerator
 from config_manager import ConfigManager
@@ -31,11 +33,41 @@ class BackgroundTaskManager:
         if self.thread is not None:
             self.thread.join()
 
+    def rotate_images(self, map_id, output_path):
+        """이미지 로테이션 처리"""
+        try:
+            # 맵 설정에서 로테이션 수 가져오기
+            map_data = self.config_manager.db.load().get(map_id, {})
+            gen_config = map_data.get('gen_config', {})
+            rotation_count = gen_config.get('rotation_count', 20)  # 기본값 20
+
+            # 기존 이미지 파일 경로
+            base_path = os.path.splitext(output_path)[0]
+            ext = os.path.splitext(output_path)[1]
+            
+            # 가장 오래된 백업 파일 삭제
+            old_file = f"{base_path}-{rotation_count-1}{ext}"
+            if os.path.exists(old_file):
+                os.remove(old_file)
+
+            # 기존 백업 파일들의 번호를 하나씩 증가
+            for i in range(rotation_count-2, -1, -1):
+                old_name = f"{base_path}-{i}{ext}" if i > 0 else output_path
+                new_name = f"{base_path}-{i+1}{ext}"
+                if os.path.exists(old_name):
+                    shutil.move(old_name, new_name)
+
+        except Exception as e:
+            self.logger.error(f"이미지 로테이션 처리 중 오류 발생: {str(e)}")
+
     async def generate_map(self, map_id):
         """열지도 생성 로직"""
         if self.map_lock.acquire(blocking=False):  # 락 획득 시도
             try:
                 _output_path = self.config_manager.get_output_path(map_id)
+                # 기존 이미지가 있다면 로테이션 수행
+                if os.path.exists(_output_path):
+                    self.rotate_images(map_id, _output_path)
                 return await self.map_generator.generate(map_id, _output_path)
             except Exception as e:
                 self.logger.error(f"열지도 생성 실패: {str(e)}")
