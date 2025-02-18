@@ -158,6 +158,10 @@ class WebServer:
         async def delete_map(map_id):
             return await self.delete_map(map_id)
 
+        @self.app.route('/api/maps/<map_id>/clone', methods=['POST'])
+        async def clone_map_route(map_id):
+            return await self.clone_map(map_id)
+
         @self.app.route('/api/maps/export', methods=['GET'])
         async def export_maps():
             return await self.export_maps()
@@ -190,10 +194,6 @@ class WebServer:
                     'status': 'error',
                     'error': str(e)
                 }), 500
-
-        # @self.app.route('/stream/<map_id>')
-        # async def stream_map(map_id):
-        #     return await self.stream_map(map_id)
 
     async def maps_page(self):
         """맵 선택 페이지"""
@@ -411,6 +411,7 @@ class WebServer:
                     "label": "온도 (°C)",
                     "font_size": 10,
                     "tick_size": 8,
+                    "label_color": "#000000",
                     "min_temp": 0,
                     "max_temp": 30,
                     "temp_steps": 100
@@ -447,6 +448,39 @@ class WebServer:
             return jsonify({'status': 'success'})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
+
+    async def clone_map(self, map_id):
+        """맵 복제"""
+        try:
+            data = await request.get_json() or {}
+            new_name = data.get('name')
+            if not new_name:
+                return jsonify({'error': '새 맵 이름이 필요합니다.'}), 400
+
+            # 원본 맵 데이터 가져오기
+            original_map = self.config_manager.db.get_map(map_id)
+            if not original_map:
+                return jsonify({'error': '원본 맵을 찾을 수 없습니다.'}), 404
+
+            # 새로운 맵 ID 생성
+            new_map_id = str(uuid.uuid4())
+
+            # 새로운 맵 데이터 생성 (sensors 제외)
+            new_map_data = original_map.copy()
+            new_map_data['name'] = new_name
+            new_map_data['created_at'] = datetime.now().isoformat()
+            new_map_data['updated_at'] = datetime.now().isoformat()
+            new_map_data['sensors'] = []  # sensors는 비움
+            
+            # 새로운 맵 저장
+            self.config_manager.db.save(new_map_id, new_map_data)
+            
+            return jsonify({
+                'status': 'success',
+                'id': new_map_id
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
     async def export_maps(self):
         """맵 데이터 내보내기"""

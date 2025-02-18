@@ -36,18 +36,14 @@ class ConfigManager:
 
         return paths
 
-    def load_mock_config(self) -> Dict:
-        """mock 설정 로드"""
-        try:
-            with open(os.path.join('local','test_config.json'), 'r') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {'mock_data': {}}
-
     def get_mock_data(self) -> Dict:
         """개발 환경용 mock 데이터 반환"""
-        config = self.load_mock_config()
-        return config.get('mock_data', {})
+        try:
+            with open(os.path.join('local','test_config.json'), 'r') as f:
+                data = json.load(f)
+                return data
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
 
     def get_output_filename(self, map_id: str) -> str:
         """맵의 출력 파일 이름을 반환"""

@@ -19,6 +19,13 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes #type: ignore
 from matplotlib.ticker import MaxNLocator #type: ignore
 import time
 from datetime import datetime
+import matplotlib.colors as mcolors #type: ignore
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes #type: ignore
+from mpl_toolkits.axes_grid1 import make_axes_locatable #type: ignore
+import matplotlib.patheffects as path_effects #type: ignore
+from shapely.vectorized import contains #type: ignore
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 class MapGenerator:
     def __init__(self, config_manager, sensor_manager, logger):
@@ -294,23 +301,24 @@ class MapGenerator:
 
         # 할당 결과 출력
         for area_idx, sensors in self.area_sensors.items():
-            self.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, {[f'{sensor_id}:{temp:.1f}' for _, temp, sensor_id in sensors]}")
+            self.logger.debug(f"Area {area_idx}: {len(sensors)}개의 센서, {[f'{sensor_id}:{temp:.1f}' for _, temp, sensor_id in sensors]}")
 
-    def _calculate_area_temperature(self, area_idx: int, area: Dict[str, Any], grid_points: np.ndarray, 
-                                   grid_x: np.ndarray, grid_y: np.ndarray, min_x: float, max_x: float, 
-                                   min_y: float, max_y: float) -> np.ndarray:
+    @staticmethod
+    def _calculate_area_temperature_static(area_idx: int, area: Dict[str, Any], grid_points: np.ndarray,
+                                       grid_x: np.ndarray, grid_y: np.ndarray, min_x: float, max_x: float,
+                                       min_y: float, max_y: float, area_sensors: Dict[int, List[Tuple[Point, float, str]]],
+                                       parameters: Dict) -> np.ndarray:
         """특정 area의 온도 분포를 계산합니다."""
         try:
-            # area 마스크 생성
-            area_mask = np.array([area['polygon'].contains(Point(x, y)) for x, y in grid_points])
-            area_mask = area_mask.reshape(grid_x.shape)
+            pmask = np.array(contains(area['polygon'], grid_points[:, 0], grid_points[:, 1]))
+            area_mask = pmask.reshape(grid_x.shape)
             temps = np.full_like(grid_x[area_mask], np.nan)
             
-            if area_idx not in self.area_sensors:
+            if area_idx not in area_sensors:
                 return temps
             
             # 센서가 있는 area
-            sensors = self.area_sensors[area_idx]
+            sensors = area_sensors[area_idx]
             sensor_locs = np.array([[p.x, p.y] for p, _, _ in sensors])
             sensor_temps = np.array([t for _, t, _ in sensors])
             mask_points = grid_points[area_mask.flatten()]
@@ -334,96 +342,80 @@ class MapGenerator:
             area_height = max_y - min_y
             
             # 가우시안 sigma 계산
-            sigma = min(area_width, area_height) / self.parameters['gaussian']['sigma_factor']
+            sigma = min(area_width, area_height) / parameters['gaussian']['sigma_factor']
             
-            if sensor_count == 1:  # 단일 센서: 가우시안 분포
-                self.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - 가우시안 분포 적용")
-                temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
-                
-            elif sensor_count <= 3:  # 2~3개 센서: RBF -> 가우시안
+            if sensor_count == 1:  # 단일 센서: 단일값 적용
+                temps = np.full_like(mask_points[:, 0], sensor_temps[0])
+            elif sensor_count <= 3:
                 try:
-                    self.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - RBF 보간 시도")
-                    # RBF 보간기 설정
                     rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
-                            function=self.parameters['rbf']['function'],
-                            epsilon=min(area_width, area_height) / self.parameters['rbf']['epsilon_factor'])
-                    
-                    # RBF 예측 수행
+                            function=parameters['rbf']['function'],
+                            epsilon=min(area_width, area_height) / parameters['rbf']['epsilon_factor'])
                     temps = rbf(mask_points[:, 0], mask_points[:, 1])
-                    
-                    # 예측값 범위 제한
                     temp_min, temp_max = np.min(sensor_temps), np.max(sensor_temps)
-                    margin = 0.1 * (temp_max - temp_min)  # 10% 마진
+                    margin = 0.1 * (temp_max - temp_min)
                     temps = np.clip(temps, temp_min - margin, temp_max + margin)
-                    
-                    self.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
-                    
-                except Exception as rbf_error:
-                    self.logger.warning(f"Area {area_idx} RBF 보간 실패, 가우시안 분포로 대체: {str(rbf_error)}")
+                except Exception:
                     temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
-                
-            else:  # 4개 이상: 크리깅 -> RBF -> 가우시안
+            else:
                 try:
-                    # 데이터 전처리: 중복된 위치 제거
                     unique_locs = {}
                     for loc, temp in zip(sensor_locs, sensor_temps):
                         key = (loc[0], loc[1])
                         if key not in unique_locs:
                             unique_locs[key] = []
                         unique_locs[key].append(temp)
-                    
                     unique_sensor_locs = np.array(list(unique_locs.keys()))
                     unique_sensor_temps = np.array([np.mean(temps) for temps in unique_locs.values()])
-                    
-                    # 크리깅 모델 생성
                     ok = OrdinaryKriging(
                         unique_sensor_locs[:, 0],
                         unique_sensor_locs[:, 1],
                         unique_sensor_temps,
-                        **self.parameters['kriging']
+                        **parameters['kriging']
                     )
-                    
-                    # 크리깅 예측 수행
-                    temps, variances = ok.execute('points', mask_points[:, 0], mask_points[:, 1])
-                    
-                    # 예측값 범위 제한
+                    temps, _ = ok.execute('points', mask_points[:, 0], mask_points[:, 1])
                     temp_min, temp_max = np.min(sensor_temps), np.max(sensor_temps)
-                    margin = 0.5 * (temp_max - temp_min)  # 50% 마진
+                    margin = 0.5 * (temp_max - temp_min)
                     temps = np.clip(temps, temp_min - margin, temp_max + margin)
-                    
-                    self.logger.debug(f"Area {area_idx}: 크리깅 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
-                    
-                except Exception as kriging_error:
-                    self.logger.warning(f"Area {area_idx} 크리깅 보간 실패, RBF 시도: {str(kriging_error)}")
+                except Exception:
                     try:
-                        # RBF 보간 시도
                         rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
-                                function=self.parameters['rbf']['function'],
-                                epsilon=min(area_width, area_height) / self.parameters['rbf']['epsilon_factor'])
+                                function=parameters['rbf']['function'],
+                                epsilon=min(area_width, area_height) / parameters['rbf']['epsilon_factor'])
                         temps = rbf(mask_points[:, 0], mask_points[:, 1])
-                        
-                        # 예측값 범위 제한
                         temp_min, temp_max = np.min(sensor_temps), np.max(sensor_temps)
                         margin = 0.1 * (temp_max - temp_min)
                         temps = np.clip(temps, temp_min - margin, temp_max + margin)
-                        
-                        self.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
-                        
-                    except Exception as rbf_error:
-                        self.logger.warning(f"Area {area_idx} RBF 보간도 실패, 가우시안 분포로 대체: {str(rbf_error)}")
+                    except Exception:
                         temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
             
-            # NaN 처리
             if np.any(np.isnan(temps)):
-                self.logger.debug(f"Area {area_idx}: NaN 값을 nearest로 채우기")
                 nearest_temps = griddata(sensor_locs, sensor_temps, mask_points, method='nearest')
                 temps[np.isnan(temps)] = nearest_temps[np.isnan(temps)]
             
             return temps
             
         except Exception as e:
-            self.logger.error(f"Area {area_idx} 온도 계산 중 오류: {str(e)}")
             return np.full_like(grid_x[area_mask], np.nan)
+
+    @staticmethod
+    def _process_area_static(args: Tuple[int, Dict[str, Any], np.ndarray, np.ndarray, np.ndarray, float, float, float, float, Dict[int, List[Tuple[Point, float, str]]], Dict]) -> Tuple[int, np.ndarray, np.ndarray]:
+        """멀티프로세싱용 area 처리 함수"""
+        area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, area_sensors, parameters = args
+        area_start_time = time.time()
+        
+        area_temps = MapGenerator._calculate_area_temperature_static(
+            area_idx, area, grid_points, grid_x, grid_y,
+            min_x, max_x, min_y, max_y, area_sensors, parameters
+        )
+        
+        # area 마스크 생성
+        pmask = np.array(contains(area['polygon'], grid_points[:, 0], grid_points[:, 1]))
+        area_mask = pmask.reshape(grid_x.shape)
+        
+        area_duration = time.time() - area_start_time
+        
+        return area_idx, area_temps, area_mask
 
     def _get_polygon_coords(self, geom) -> List[Tuple[np.ndarray, np.ndarray]]:
         """폴리곤 또는 멀티폴리곤에서 좌표를 추출합니다."""
@@ -600,16 +592,61 @@ class MapGenerator:
         except Exception as e:
             self.logger.error(f"센서 마커 생성 중 오류 발생: {str(e)}")
 
-    async def generate(self, map_id: str, output_path: str) -> bool:
-        """
-        온도맵을 생성하고 이미지 파일로 저장합니다.
+    def _create_colorbar(self, fig, im, colorbar_config):
+        """컬러바를 생성합니다."""
         
-        Args:
-            output_path: 출력 이미지 파일 경로
+        show_label = colorbar_config.get('show_label', True)
+        label = colorbar_config.get('label', '°C')
+        label_color = colorbar_config.get('label_color', '#000000')
+        show_shadow = colorbar_config.get('show_shadow', True)
+        shadow_color = colorbar_config.get('shadow_color', '#FFFFFF')
+        shadow_width = colorbar_config.get('shadow_width', 3)
+        shadow_x_offset = colorbar_config.get('shadow_x_offset', 1)
+        shadow_y_offset = colorbar_config.get('shadow_y_offset', 1)
+        orientation = colorbar_config.get('orientation', 'vertical')
+        location = colorbar_config.get('location', 'right')
+        width = colorbar_config.get('width', 5)
+        height = colorbar_config.get('height', 80)
+        pad = colorbar_config.get('borderpad', 0)
+
+        if orientation == 'horizontal':
+            width, height = height, width
+        main_ax = fig.gca()
+        cax = inset_axes(main_ax,
+                        width=f'{width}%',
+                        height=f'{height}%',
+                        loc=location,
+                        borderpad=pad)
+
+        cbar = fig.colorbar(im, cax=cax, orientation=orientation)
+
+        if show_label:
+            # 그림자 효과 설정
+            path_effects_list = []
+            if show_shadow:
+                path_effects_list.append(path_effects.withStroke(linewidth=shadow_width, 
+                                                               foreground=shadow_color,
+                                                               offset=(shadow_x_offset, shadow_y_offset * -1)))
             
-        Returns:
-            bool: 성공 여부
-        """
+            # 레이블과 눈금에 그림자 효과 적용
+            cbar.set_label(label, 
+                        size=colorbar_config.get('font_size', 10),
+                        color=label_color,
+                        path_effects=path_effects_list if path_effects_list else None)
+            
+            # 눈금 레이블에도 그림자 효과 적용
+            for label in cbar.ax.get_yticklabels():
+                label.set_path_effects(path_effects_list if path_effects_list else None)
+            for label in cbar.ax.get_xticklabels():
+                label.set_path_effects(path_effects_list if path_effects_list else None)
+                
+            cbar.ax.tick_params(labelsize=colorbar_config.get('tick_size', 8),
+                            colors=label_color)
+
+        cbar.ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    async def generate(self, map_id: str, output_path: str) -> bool:
+        """온도맵을 생성하고 이미지 파일로 저장합니다."""
         try:
             # 출력 디렉토리 확인 및 생성
             output_dir = os.path.dirname(output_path)
@@ -675,16 +712,24 @@ class MapGenerator:
             grid_z = np.full_like(grid_x, np.nan)
             grid_points = np.column_stack((grid_x.flatten(), grid_y.flatten()))
             
-            # 각 area별로 온도 계산
-            for area_idx, area in enumerate(self.areas):
-                area_temps = self._calculate_area_temperature(
-                    area_idx, area, grid_points, grid_x, grid_y,
-                    min_x, max_x, min_y, max_y
-                )
-                # area 마스크 생성 및 결과 할당
-                area_mask = np.array([area['polygon'].contains(Point(x, y)) for x, y in grid_points])
-                area_mask = area_mask.reshape(grid_x.shape)
-                grid_z[area_mask] = area_temps
+            # 멀티프로세싱 설정
+            num_processes = min(cpu_count(), len(self.areas))
+            
+            # 프로세스 풀 생성 및 작업 실행
+            with Pool(processes=num_processes) as pool:
+                # 작업 인자 준비
+                process_args = [
+                    (area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, 
+                     self.area_sensors, self.parameters)
+                    for area_idx, area in enumerate(self.areas)
+                ]
+                
+                # 병렬 처리 실행
+                results = pool.map(self._process_area_static, process_args)
+                
+                # 결과 처리
+                for area_idx, area_temps, area_mask in results:
+                    grid_z[area_mask] = area_temps
 
             # 플롯 생성
             fig = plt.figure(figsize=(10, 10))  # 전체 figure 크기
@@ -755,37 +800,7 @@ class MapGenerator:
             # 컬러바 설정 적용
             colorbar_config = self.gen_config.get('colorbar', {})
             if colorbar_config and colorbar_config.get('show_colorbar', True):  # 컬러바 표시 여부 확인
-                # 컬러바 위치 및 크기 설정
-                width = colorbar_config.get('width', 5)
-                height = colorbar_config.get('height', 100)
-                location = colorbar_config.get('location', 'right')
-                orientation = colorbar_config.get('orientation', 'vertical')
-                borderpad = colorbar_config.get('borderpad',0)
-                # orientation에 따라 width와 height 조정
-                if orientation == 'horizontal':
-                    # 가로 방향일 경우 width와 height를 교체
-                    width, height = height, width
-                
-                # 컬러바 생성
-                cax = inset_axes(main_ax,
-                 width=f'{width}%',
-                 height=f'{height}%',
-                 loc=location,
-                 borderpad=borderpad)
-                cbar = fig.colorbar(contour, cax=cax, orientation=orientation)
-                
-                # 컬러바의 major locator를 정수로 설정
-                cbar.locator = MaxNLocator(integer=True)
-                cbar.update_ticks()
-                # 레이블 설정
-                if colorbar_config.get('show_label', True):
-                    label = colorbar_config.get('label', '온도 (°C)')
-                    font_size = colorbar_config.get('font_size', 12)
-                    cbar.set_label(label, fontsize=font_size)
-
-                # 눈금 크기 설정
-                tick_size = colorbar_config.get('tick_size', 10)
-                cbar.ax.tick_params(labelsize=tick_size)
+                self._create_colorbar(fig, contour, colorbar_config)
 
             # 축 설정
             main_ax.set_aspect('equal')

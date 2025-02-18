@@ -1,0 +1,43 @@
+<!-- 지도 생성 설정 -->
+<div class="space-y-6">
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h3 class="text-lg font-medium text-gray-900 mb-3">지도 생성 주기</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">생성 주기 (분)
+                    <div class="group relative inline-block">
+                        <button class="text-gray-400 hover:text-gray-500">
+                            <i class="mdi mdi-information"></i>
+                        </button>
+                        <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-md w-[300px] whitespace-normal z-20">
+                            지도 생성 주기를 설정합니다. 기본값은 15분입니다. 주기가 너무 짧아 다음 생성주기에 이전 지도가 생성중인경우 건너뜁니다.
+                        </div>
+                    </div>
+                </label>
+                <input type="number" id="generation-interval" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    value="15" min="1" max="1440" step="1">
+            </div>
+        </div>
+    </div>
+
+    <!-- 이미지 형식 -->
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h3 class="text-lg font-medium text-gray-900 mb-3">이미지 형식</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">파일 형식</label>
+                <select id="format" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <option value="png" selected>PNG</option>
+                    <option value="jpg">JPG</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- 이미지 이름 (숨김) -->
+    <div class="hidden">
+        <label class="block text-sm font-medium text-gray-700 mb-1">파일 이름</label>
+        <input type="text" id="file-name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            value="thermal_map">
+    </div>
+</div> 

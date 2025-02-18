@@ -16,16 +16,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     const tabs = {
         dashboard: document.getElementById('dashboard-content'),
         map: document.getElementById('map-content'),
-        settings: document.getElementById('settings-content')
+        settings: document.getElementById('settings-content'),
+        debug: document.getElementById('debug-content')
     };
 
     const tabButtons = {
         dashboard: document.getElementById('dashboard-tab'),
         map: document.getElementById('map-tab'),
-        settings: document.getElementById('settings-tab')
+        settings: document.getElementById('settings-tab'),
+        debug: document.getElementById('debug-tab')
     };
 
     function switchTab(tabName) {
+        // 모든 탭 컨텐츠 숨기기
         Object.values(tabs).forEach(tab => tab.classList.add('hidden'));
         Object.values(tabButtons).forEach(btn => {
             btn.classList.remove('text-gray-900', 'border-b-2', 'border-blue-500');
@@ -41,6 +44,40 @@ document.addEventListener('DOMContentLoaded', async function() {
         tabButtons[tabName].addEventListener('click', () => switchTab(tabName));
     });
 
+    // 설정 탭 관리
+    const settingsTabs = {
+        interpolation: document.getElementById('interpolation-content'),
+        generation: document.getElementById('generation-content'),
+        range: document.getElementById('range-content'),
+        display: document.getElementById('display-content'),
+        sensorMarker: document.getElementById('sensor-marker-content'),
+        colorbar: document.getElementById('colorbar-content')
+    };
+
+    const settingsTabButtons = {
+        interpolation: document.getElementById('interpolation-tab'),
+        generation: document.getElementById('generation-tab'),
+        range: document.getElementById('range-tab'),
+        display: document.getElementById('display-tab'),
+        sensorMarker: document.getElementById('sensor-marker-tab'),
+        colorbar: document.getElementById('colorbar-tab')
+    };
+
+    function switchSettingsTab(tabName) {
+        Object.values(settingsTabs).forEach(tab => tab.classList.add('hidden'));
+        Object.values(settingsTabButtons).forEach(btn => {
+            btn.classList.remove('text-gray-900', 'border-blue-500');
+            btn.classList.add('text-gray-500', 'border-transparent');
+        });
+
+        settingsTabs[tabName].classList.remove('hidden');
+        settingsTabButtons[tabName].classList.remove('text-gray-500', 'border-transparent');
+        settingsTabButtons[tabName].classList.add('text-gray-900', 'border-blue-500');
+    }
+
+    Object.keys(settingsTabButtons).forEach(tabName => {
+        settingsTabButtons[tabName].addEventListener('click', () => switchSettingsTab(tabName));
+    });
 
     // 단계 표시기 업데이트
     function updateStepIndicators(step) {
@@ -221,12 +258,24 @@ document.addEventListener('DOMContentLoaded', async function() {
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value = colorbar.label ?? '온도 (°C)';
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-font-size')).value = colorbar.font_size ?? 12;
                     /** @type {HTMLInputElement} */ (document.getElementById('colorbar-tick-size')).value = colorbar.tick_size ?? 10;
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label-color')).value = colorbar.label_color ?? '#000000';
+                    /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-label-color-preset')).value = colorbar.label_color ?? '#000000';
                     /** @type {HTMLInputElement} */ (document.getElementById('min-temp')).value = colorbar.min_temp ?? 15;
                     /** @type {HTMLInputElement} */ (document.getElementById('max-temp')).value = colorbar.max_temp ?? 35;
                     /** @type {HTMLInputElement} */ (document.getElementById('temp-steps')).value = colorbar.temp_steps ?? 100;
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-shadow')).checked = colorbar.show_shadow ?? true;
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-color')).value = colorbar.shadow_color ?? '#FFFFFF';
+                    /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-shadow-color-preset')).value = colorbar.shadow_color ?? '#FFFFFF';
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-width')).value = colorbar.shadow_width ?? 1;
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-x-offset')).value = colorbar.shadow_x_offset ?? 1;
+                    /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-y-offset')).value = colorbar.shadow_y_offset ?? 1;
                     
                     // 컬러맵 프리뷰 업데이트
                     updateColormapPreview();
+
+                    // 컬러바 색상 프리셋 동기화 설정
+                    setupColorSync('colorbar-label-color', 'colorbar-label-color-preset');
+                    setupColorSync('colorbar-shadow-color', 'colorbar-shadow-color-preset');
               }
                 await sensorManager.loadSensors();
             }
@@ -309,6 +358,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                 label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value,
                 font_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-font-size')).value),
                 tick_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-tick-size')).value),
+                label_color: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label-color')).value,
+                show_shadow: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-shadow')).checked,
+                shadow_color: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-color')).value,
+                shadow_width: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-width')).value),
+                shadow_x_offset: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-x-offset')).value),
+                shadow_y_offset: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-y-offset')).value),
                 min_temp: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('min-temp')).value),
                 max_temp: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('max-temp')).value),
                 temp_steps: parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('temp-steps')).value)
@@ -506,8 +561,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             type === 'success' ? 'bg-green-500 text-white' :
             'bg-blue-500 text-white'
         }`;
-        messageElement.textContent = message;
-        
+        messageElement.innerHTML = `<i class="mdi mdi-information"></i> ${message}`;
         messageContainer.innerHTML = '';
         messageContainer.appendChild(messageElement);
         
@@ -589,6 +643,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 초기 탭 설정
     switchTab('dashboard');
+    switchSettingsTab('interpolation');
 
     // 단계 버튼 클릭 이벤트
     document.querySelectorAll('.step-button').forEach(button => {
@@ -624,19 +679,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         drawingTool.clear();
     });
 
-    // 파라미터 저장 버튼 이벤트
-    const saveInterpolationParametersBtn = document.getElementById('save-interpolation-parameters');
-    if (saveInterpolationParametersBtn) {
-        saveInterpolationParametersBtn.addEventListener('click', function() {
+    // 모든 설정 저장 버튼 이벤트
+    const saveAllSettingsBtn = document.getElementById('save-all-settings');
+    if (saveAllSettingsBtn) {
+        saveAllSettingsBtn.addEventListener('click', function() {
             saveInterpolationParameters();
-        });
-    }
-    
-    // 파라미터 저장 버튼 이벤트
-    const saveGenConfigBtn = document.getElementById('save-gen-configs');
-    if (saveGenConfigBtn) {
-        saveGenConfigBtn.addEventListener('click', function() {
             saveGenConfig();
+            showMessage('모든 설정이 저장되었습니다.', 'success');
         });
     }
 

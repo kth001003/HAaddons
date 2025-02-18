@@ -37,4 +37,4 @@ ENV PYTHONPATH=/apps
 
 RUN chmod a+x /apps/run.sh
 CMD ["/apps/run.sh"]
-# CMD ["sh","/apps/run.sh"]
+# CMD ["python3", "app.py"]
