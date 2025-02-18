@@ -29,7 +29,7 @@ export class SensorManager {
         this.svg.addEventListener('dragover', this.handleDragOver);
         this.svg.addEventListener('drop', this.handleDrop);
 
-          // 상수 정의
+        // 상수 정의
         this.MARKER_RADIUS = 5;
         this.MARKER_FILL = 'red';
         this.TEXT_FILL = 'black';
@@ -58,12 +58,12 @@ export class SensorManager {
         if (labelFilter && labelFilter instanceof HTMLSelectElement) {
             // 기존 옵션 초기화 (첫 번째 빈 옵션은 유지)
             labelFilter.innerHTML = '<option value="">모든 레이블</option>';
-            
+
             // 레이블 레지스트리 데이터로 옵션 추가
             labelRegistry.forEach(label => {
                 const option = document.createElement('option');
                 option.value = label.label_id;
-                option.textContent = label.name;
+                option.textContent = `<i class="mdi ${label.icon.replace('mdi:', 'mdi-')} mr-2"></i>${label.name}`;
                 labelFilter.appendChild(option);
             });
         }
@@ -86,13 +86,13 @@ export class SensorManager {
             const configResponse = await fetch('./api/load-config');
             if (configResponse.ok) {
                 const config = await configResponse.json();
-      
+
                 // 저장된 센서 위치 정보를 현재 센서 데이터에 적용
                 if (config.sensors) {
                     config.sensors.forEach(savedSensor => {
                         const sensor = this.sensors.find(s => s.entity_id === savedSensor.entity_id);
                         const placedSensor = this.svg.querySelector(`g[data-entity-id="${savedSensor.entity_id}"]`);
-                        if (sensor && savedSensor.position && ! placedSensor) {
+                        if (sensor && savedSensor.position && !placedSensor) {
                             sensor.position = savedSensor.position;
                             sensor.calibration = savedSensor.calibration || 0;
                             this.updateSensorMarker(sensor, savedSensor.position);
@@ -100,7 +100,7 @@ export class SensorManager {
                     });
                 }
             }
-      
+
             this.updateSensorList();
         } catch (error) {
             console.error('센서 정보를 불러오는데 실패했습니다:', error);
@@ -117,11 +117,11 @@ export class SensorManager {
                     <button id="retry-load-sensors" class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700">다시 로드</button>
                 </div>
             `;
-         document.getElementById('retry-load-sensors').addEventListener('click', this.loadSensors.bind(this));
+            document.getElementById('retry-load-sensors').addEventListener('click', this.loadSensors.bind(this));
         }
     }
-    
-   // 센서 목록 UI 업데이트
+
+    // 센서 목록 UI 업데이트
     updateSensorList() {
         const container = document.getElementById('sensor-container');
         if (!container) return;
@@ -136,7 +136,7 @@ export class SensorManager {
         }
 
         container.innerHTML = this.sensors.map(sensor => this.createSensorListItem(sensor)).join('');
-        
+
         // 필터 이벤트 리스너 설정
         const deviceClassFilter = /** @type {HTMLSelectElement} */ (document.getElementById('filter-device-class'));
         const labelFilter = /** @type {HTMLInputElement} */ (document.getElementById('filter-label'));
@@ -156,7 +156,7 @@ export class SensorManager {
         }
 
         // 체크박스 이벤트 설정
-        if(this.enabled) {
+        if (this.enabled) {
             container.querySelectorAll('.sensor-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', this.handleCheckboxChange);
             });
@@ -166,11 +166,11 @@ export class SensorManager {
                 input.addEventListener('change', (e) => this.handleCalibrationChange(e));
                 input.addEventListener('click', (e) => e.stopPropagation());
             });
-         }
+        }
     }
-    
+
     createSensorListItem(sensor) {
-         const isPlaced = sensor.position !== undefined;
+        const isPlaced = sensor.position !== undefined;
         const itemClass = 'sensor-item p-3 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-pointer flex justify-between items-center';
         const calibration = sensor.calibration || 0;
         const calibratedTemp = parseFloat(sensor.state) + calibration;
@@ -228,28 +228,28 @@ export class SensorManager {
 
         if (e.target.checked) {
             if (!sensor.position) {
-                 sensor.position = this.getRandomCenterPoint();
-                this.updateSensorMarker(sensor,  sensor.position);
+                sensor.position = this.getRandomCenterPoint();
+                this.updateSensorMarker(sensor, sensor.position);
             }
 
         } else {
-             sensor.position = undefined;
+            sensor.position = undefined;
             this.removeSensorMarker(entityId);
         }
     }
-   getRandomCenterPoint() {
-        const {minX, minY, width, height} = this.viewBox;
-        const randX = Math.round(Math.random()*100) -50;
-        const randY = Math.round(Math.random()*100) -50;
-            return {
-                x: (minX + width / 2) + randX,
-                y: (minY + height / 2) + randY
-            };
+    getRandomCenterPoint() {
+        const { minX, minY, width, height } = this.viewBox;
+        const randX = Math.round(Math.random() * 100) - 50;
+        const randY = Math.round(Math.random() * 100) - 50;
+        return {
+            x: (minX + width / 2) + randX,
+            y: (minY + height / 2) + randY
+        };
     }
     removeSensorMarker(entityId) {
-           const marker = this.svg.querySelector(`g[data-entity-id="${entityId}"]`);
-           if (marker) marker.remove();
-   }
+        const marker = this.svg.querySelector(`g[data-entity-id="${entityId}"]`);
+        if (marker) marker.remove();
+    }
 
     // 드래그 앤 드롭 핸들러
     handleDragStart(e) {
@@ -267,13 +267,13 @@ export class SensorManager {
     handleDrop(e) {
         if (!this.enabled) return;
         e.preventDefault();
-       
+
         const entityId = e.dataTransfer.getData('text/plain');
         if (!entityId) return;
-        
+
         const sensor = this.sensors.find(s => s.entity_id === entityId);
-        if(sensor){
-           const point = this.clientToSVGPoint(e.clientX, e.clientY);
+        if (sensor) {
+            const point = this.clientToSVGPoint(e.clientX, e.clientY);
             this.updateSensorPosition(sensor, point);
         }
     }
@@ -285,26 +285,26 @@ export class SensorManager {
         this.updateSensorMarker(sensor, point);
     }
 
-  
-   // 센서 마커 업데이트
-   updateSensorMarker(sensor, point) {
+
+    // 센서 마커 업데이트
+    updateSensorMarker(sensor, point) {
         let group = this.svg.querySelector(`g[data-entity-id="${sensor.entity_id}"]`);
 
         if (!group) {
             group = this.createSensorMarkerGroup(sensor);
         }
-        
+
         // 임시 컨테이너 생성
         const tempContainer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         this.svg.appendChild(tempContainer);
-        
+
         try {
             this.updateMarkerPosition(group, sensor, point);
         } finally {
             // 임시 컨테이너 제거
             tempContainer.remove();
         }
-        
+
         this.setupDragEvents(group, sensor, point);
     }
 
@@ -352,24 +352,24 @@ export class SensorManager {
     getVisualizationConfig() {
         const genConfigElement = document.getElementById('save-gen-configs');
         if (!genConfigElement) return {};
-        
+
         return {
             sensor_display: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-display-option'))?.value ?? 'position_temp',
             sensor_info_bg: {
                 color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-color'))?.value ?? '#FFFFFF',
-                opacity: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-opacity'))?.value ?? '70')
+                opacity: parseInt(/** @type {HTMLInputElement} */(document.getElementById('sensor-info-bg-opacity'))?.value ?? '70')
             },
             sensor_marker: {
                 style: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-marker-style'))?.value ?? 'circle',
-                size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-size'))?.value ?? '10'),
+                size: parseInt(/** @type {HTMLInputElement} */(document.getElementById('sensor-marker-size'))?.value ?? '10'),
                 color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-color'))?.value ?? '#FF0000'
             },
             sensor_name: {
-                font_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-name-font-size'))?.value ?? '12'),
+                font_size: parseInt(/** @type {HTMLInputElement} */(document.getElementById('sensor-name-font-size'))?.value ?? '12'),
                 color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-name-color'))?.value ?? '#000000'
             },
             sensor_temp: {
-                font_size: parseInt(/** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-font-size'))?.value ?? '12'),
+                font_size: parseInt(/** @type {HTMLInputElement} */(document.getElementById('sensor-temp-font-size'))?.value ?? '12'),
                 color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-color'))?.value ?? '#000000'
             }
         };
@@ -378,17 +378,17 @@ export class SensorManager {
     createMarkerPath(style, size, x, y) {
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.classList.add('sensor-marker');
-        
+
         let d = '';
         switch (style) {
             case 'circle':
-                d = `M ${x} ${y} m -${size} 0 a ${size} ${size} 0 1 0 ${size*2} 0 a ${size} ${size} 0 1 0 -${size*2} 0`;
+                d = `M ${x} ${y} m -${size} 0 a ${size} ${size} 0 1 0 ${size * 2} 0 a ${size} ${size} 0 1 0 -${size * 2} 0`;
                 break;
             case 'square':
-                d = `M ${x-size} ${y-size} h ${size*2} v ${size*2} h -${size*2} z`;
+                d = `M ${x - size} ${y - size} h ${size * 2} v ${size * 2} h -${size * 2} z`;
                 break;
             case 'triangle':
-                d = `M ${x} ${y-size} l ${size} ${size*1.732} h -${size*2} z`;
+                d = `M ${x} ${y - size} l ${size} ${size * 1.732} h -${size * 2} z`;
                 break;
             case 'star':
                 const outerPoints = [];
@@ -406,10 +406,10 @@ export class SensorManager {
                 d = `M ${points[0]} L ${points.slice(1).join(' L ')} Z`;
                 break;
             case 'cross':
-                d = `M ${x-size} ${y} h ${size*2} M ${x} ${y-size} v ${size*2}`;
+                d = `M ${x - size} ${y} h ${size * 2} M ${x} ${y - size} v ${size * 2}`;
                 break;
             default:
-                d = `M ${x} ${y} m -${size} 0 a ${size} ${size} 0 1 0 ${size*2} 0 a ${size} ${size} 0 1 0 -${size*2} 0`;
+                d = `M ${x} ${y} m -${size} 0 a ${size} ${size} 0 1 0 ${size * 2} 0 a ${size} ${size} 0 1 0 -${size * 2} 0`;
         }
         path.setAttribute('d', d);
         return path;
@@ -452,13 +452,13 @@ export class SensorManager {
 
         // 텍스트 위치 설정
         text.setAttribute('x', String(point.x));
-        text.setAttribute('y', String(point.y - DEFAULT_MARKER_SIZE - 5));
+        text.setAttribute('y', String(point.y - DEFAULT_MARKER_SIZE - 2*DEFAULT_TEXT_SIZE -5));
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('dominant-baseline', 'middle');
         text.style.pointerEvents = 'none';
-        
+
         const calibratedTemp = this.getCalibratedTemperature(sensor);
-        
+
         // 센서 이름 표시
         const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
         nameText.textContent = sensor.attributes.friendly_name || sensor.entity_id;
@@ -483,7 +483,7 @@ export class SensorManager {
 
         // 배경 사각형 업데이트
         const padding = 4;
-        rect.setAttribute('x', String(point.x - textBBox.width/2 - padding));
+        rect.setAttribute('x', String(point.x - textBBox.width / 2 - padding));
         rect.setAttribute('y', String(point.y - textBBox.height - DEFAULT_MARKER_SIZE - padding));
         rect.setAttribute('width', String(textBBox.width + padding * 2));
         rect.setAttribute('height', String(textBBox.height + padding * 2));
@@ -504,7 +504,7 @@ export class SensorManager {
         let offsetX = 0;
         let offsetY = 0;
         let dragStartPoint = { x: 0, y: 0 };
-        
+
         const handleMouseDown = (e) => {
             if (!this.enabled) return;
             isDragging = true;
@@ -569,7 +569,7 @@ export class SensorManager {
             x: (clientX - rect.left) * scaleX + this.viewBox.minX,
             y: (clientY - rect.top) * scaleY + this.viewBox.minY
         };
-   }
+    }
 
     // SVG 좌표를 클라이언트 좌표로 변환
     svgToClientPoint(svgX, svgY) {
@@ -609,11 +609,11 @@ export class SensorManager {
     // 필터 적용 메서드 추가
     applyFilters() {
         this.sensors = this.allSensors.filter(state => {
-            const matchDeviceClass = !this.filters.device_class || 
+            const matchDeviceClass = !this.filters.device_class ||
                 state.attributes.device_class === this.filters.device_class;
-            const matchLabel = !this.filters.label || 
+            const matchLabel = !this.filters.label ||
                 (state.labels && state.labels.includes(this.filters.label));
-            
+
             return matchDeviceClass && matchLabel;
         });
     }
@@ -621,7 +621,7 @@ export class SensorManager {
     // 필터 설정 업데이트
     updateFilters(newFilters) {
         this.filters = { ...this.filters, ...newFilters };
-        this.applyFilters();  // 현재 메모리에 있는 데이터에서 필터링
-        this.updateSensorList();  // UI 업데이트
+        this.applyFilters();
+        this.updateSensorList();
     }
 }

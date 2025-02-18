@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>HeatMap Builder</title>
     <link href=".{{ url_for('static', filename='css/main.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.materialdesignicons.com/5.4.55/css/materialdesignicons.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
@@ -15,9 +16,7 @@
                 <p class="text-xs text-gray-500">{{ map_id }}</p>
             </div>
             <a href="./" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-colors">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path>
-                </svg>
+                <i class="mdi mdi-home mr-2"></i>
                 맵 선택으로
             </a>
         </div>
@@ -50,15 +49,11 @@
                         <span id="map-generation-time" class="text-sm text-gray-600">{{map_generation_time}}</span>
                         <span id="map-generation-duration" class="text-sm text-gray-600">{{map_generation_duration}}</span>
                         <button id="copy-image-url" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center" data-url="{{ img_url }}">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                            </svg>
+                            <i class="mdi mdi-content-copy mr-2"></i>
                             이미지 주소 복사
                         </button>
                         <button id="generate-now" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
+                            <i class="mdi mdi-refresh mr-2"></i>
                             지금 새로생성
                         </button>
                     </div>
@@ -70,9 +65,7 @@
                 <div class="flex justify-center items-center h-full">
                     <div class="text-gray-500 text-lg font-medium">생성된 온도지도가 없습니다</div>
                     <button id="generate-now" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                        <i class="mdi mdi-refresh mr-2"></i>
                         지금 생성
                     </button>
                 </div>
@@ -118,19 +111,13 @@
                             </div>
                             <div class="grid grid-cols-3 gap-2">
                                 <button id="undo-btn" class="px-3 py-2 bg-white border rounded-md hover:bg-blue-50">
-                                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                                    </svg>
+                                    <i class="mdi mdi-undo"></i>
                                 </button>
                                 <button id="redo-btn" class="px-3 py-2 bg-white border rounded-md hover:bg-blue-50">
-                                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
-                                    </svg>
+                                    <i class="mdi mdi-redo"></i>
                                 </button>
                                 <button id="clear-btn" class="px-3 py-2 bg-white border rounded-md hover:bg-red-50">
-                                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
+                                    <i class="mdi mdi-delete"></i>
                                 </button>
                             </div>
                         </div>
