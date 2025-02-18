@@ -132,7 +132,13 @@ class WebServer:
                     'error': str(e)
                 })
             finally:
-                self.map_lock.release()  # 락 해제
+                try:
+                    # 웹소켓 연결 종료
+                    await self.sensor_manager.close()
+                except Exception as close_error:
+                    self.app.logger.error(f"웹소켓 연결 종료 중 오류 발생: {str(close_error)}")
+                finally:
+                    self.map_lock.release()  # 락 해제
 
         @self.app.route('/api/check-map-time', methods=['GET'])
         async def check_map_time():
