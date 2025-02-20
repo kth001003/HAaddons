@@ -12,7 +12,9 @@ import asyncio
 from quart import Quart, jsonify, request, render_template, Response, send_from_directory # type: ignore
 import hypercorn.asyncio # type: ignore
 import hypercorn.config # type: ignore
-
+import matplotlib.pyplot as plt # type: ignore
+import matplotlib.cm as cm # type: ignore
+import numpy as np # type: ignore
 
 class WebServer:
     """열지도 웹 서버 클래스"""
@@ -209,12 +211,10 @@ class WebServer:
                     }), 400
 
                 # matplotlib을 사용하여 컬러맵 미리보기 이미지 생성
-                import matplotlib.pyplot as plt
-                import numpy as np
                 
                 try:
                     # 컬러맵 유효성 검사
-                    plt.get_cmap(colormap_name)
+                    cm.get_cmap(colormap_name)
                 except ValueError:
                     return jsonify({
                         'status': 'error',

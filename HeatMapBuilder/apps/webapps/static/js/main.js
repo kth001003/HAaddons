@@ -580,14 +580,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 디스플레이 설정
     // 컬러맵 프리뷰 생성 함수
     function updateColormapPreview() {
-        const colormapSelect = /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap'));
-        const customCmapInput = /** @type {HTMLInputElement} */ (document.getElementById('custom-cmap'));
-        let selectedColormap = colormapSelect.value;
-
-        // 커스텀 입력값이 있는 경우 해당 값을 사용
-        if (selectedColormap === 'custom' && customCmapInput.value.trim()) {
-            selectedColormap = customCmapInput.value.trim();
-        }
+        const selectedColormap = getSelectedColormap();
 
         // 서버에 컬러맵 미리보기 요청
         fetch('/api/preview_colormap', {
@@ -814,22 +807,72 @@ document.addEventListener('DOMContentLoaded', async function () {
     const colormapSelect = /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap'));
     const customColormapInput = document.getElementById('custom-colormap-input');
     const customCmapInput = /** @type {HTMLInputElement} */ (document.getElementById('custom-cmap'));
+    const reverseColormap = /** @type {HTMLInputElement} */ (document.getElementById('reverse-colormap'));
+    const applyCustomCmap = document.getElementById('apply-custom-cmap');
+
+    let lastValidCustomCmap = '';  // 마지막으로 확인된 유효한 커스텀 컬러맵 저장
+
+    function getSelectedColormap() {
+        let selectedColormap = colormapSelect.value;
+        if (selectedColormap === 'custom') {
+            selectedColormap = lastValidCustomCmap || 'RdYlBu';  // 유효한 커스텀 컬러맵이 없으면 기본값 사용
+        }
+        if (reverseColormap.checked) {
+            selectedColormap += '_r';
+        }
+        return selectedColormap;
+    }
 
     if (colormapSelect) {
         colormapSelect.addEventListener('change', function() {
             if (this.value === 'custom') {
                 customColormapInput.classList.remove('hidden');
+                customCmapInput.value = lastValidCustomCmap;  // 마지막으로 사용한 유효한 값 복원
             } else {
                 customColormapInput.classList.add('hidden');
-                // 기존 컬러맵 선택 시 커스텀 입력값 초기화
-                customCmapInput.value = '';
+                updateColormapPreview();
             }
-            updateColormapPreview();
         });
     }
 
-    if (customCmapInput) {
-        customCmapInput.addEventListener('input', function() {
+    if (applyCustomCmap) {
+        applyCustomCmap.addEventListener('click', function() {
+            const customValue = customCmapInput.value.trim();
+            if (customValue) {
+                // 서버에 컬러맵 유효성 검사 요청
+                fetch('/api/preview_colormap', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        colormap: customValue + (reverseColormap.checked ? '_r' : '')
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Invalid colormap');
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    // 유효한 컬러맵이면 저장하고 미리보기 업데이트
+                    lastValidCustomCmap = customValue;
+                    const previewElement = document.getElementById('colormap-preview');
+                    const url = URL.createObjectURL(blob);
+                    previewElement.style.backgroundImage = `url(${url})`;
+                    previewElement.style.backgroundSize = 'cover';
+                })
+                .catch(error => {
+                    console.error('Error previewing colormap:', error);
+                    showMessage('잘못된 컬러맵 이름입니다. 다시 확인해주세요.', 'error');
+                });
+            }
+        });
+    }
+
+    if (reverseColormap) {
+        reverseColormap.addEventListener('change', function() {
             updateColormapPreview();
         });
     }
