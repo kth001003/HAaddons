@@ -107,18 +107,44 @@ class BackgroundTaskManager:
                             # 현재 맵으로 설정
                             self.config_manager.current_map_id = map_id
                             
-                            # 비동기 이벤트 루프 생성 및 실행
+                            # 새로운 이벤트 루프 생성
                             loop = asyncio.new_event_loop()
                             asyncio.set_event_loop(loop)
+                            
                             try:
+                                # 맵 생성 태스크 실행
                                 if loop.run_until_complete(self.generate_map(map_id)):
                                     self.logger.info(f"백그라운드 맵 생성 완료 {map_name} ({map_id}) (소요시간: {self.map_generator.generation_duration})")
-                                    # 생성 시간 업데이트
                                     self.map_timers[map_id] = current_time
                                 else:
                                     self.logger.error(f"백그라운드 맵 생성 실패 {map_name} ({map_id})")
+                            except Exception as e:
+                                self.logger.error(f"맵 생성 중 오류 발생: {str(e)}")
                             finally:
-                                loop.close()
+                                try:
+                                    # 웹소켓 연결 종료
+                                    loop.run_until_complete(self.sensor_manager.close())
+                                    
+                                    # 실행 중인 모든 태스크 가져오기
+                                    pending = asyncio.all_tasks(loop)
+                                    
+                                    # 태스크 취소
+                                    for task in pending:
+                                        task.cancel()
+                                    
+                                    # 취소된 태스크들이 완료될 때까지 대기
+                                    if pending:
+                                        loop.run_until_complete(
+                                            asyncio.gather(*pending, return_exceptions=True)
+                                        )
+                                except Exception as cleanup_error:
+                                    self.logger.error(f"태스크 정리 중 오류 발생: {str(cleanup_error)}")
+                                finally:
+                                    try:
+                                        loop.stop()
+                                        loop.close()
+                                    except Exception as close_error:
+                                        self.logger.error(f"이벤트 루프 종료 중 오류 발생: {str(close_error)}")
 
                     except Exception as e:
                         self.logger.error(f"맵 {map_name} ({map_id}) 처리 중 오류 발생: {str(e)}")

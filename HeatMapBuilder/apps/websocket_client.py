@@ -13,30 +13,54 @@ class WebSocketClient:
         self.reconnect_attempt = 0
         self.max_reconnect_attempts = 5
         self.reconnect_delay = 5
+        self._connection_lock = asyncio.Lock()
+        self._connection_count = 0
+        self._max_reuse_count = 50  # 최대 재사용 횟수
+
+    async def close(self):
+        """웹소켓 연결을 안전하게 종료합니다."""
+        async with self._connection_lock:
+            self._connection_count = 0
+            if self.websocket:
+                try:
+                    await self.websocket.close()
+                except Exception as e:
+                    self.logger.error(f"웹소켓 연결 종료 중 오류 발생: {str(e)}")
+                finally:
+                    self.websocket = None
 
     async def ensure_connected(self) -> bool:
-        try:
-            if self.websocket and self.websocket.open:
-                return True
-        except Exception:
-            self.websocket = None
+        """연결 상태를 확인하고 필요한 경우 재연결합니다."""
+        async with self._connection_lock:
+            if self._connection_count >= self._max_reuse_count:
+                self.logger.info("연결 재사용 횟수 초과로 새로운 연결을 생성합니다.")
+                await self.close()
+                self._connection_count = 0
 
-        while self.reconnect_attempt < self.max_reconnect_attempts:
             try:
-                self.websocket = await self._connect()
-                if self.websocket:
-                    self.reconnect_attempt = 0
+                if self.websocket and self.websocket.open:
+                    self._connection_count += 1
                     return True
-                
-                self.reconnect_attempt += 1
-                await asyncio.sleep(self.reconnect_delay)
-            except Exception as e:
-                self.logger.error(f"웹소켓 재연결 시도 실패 ({self.reconnect_attempt}): {str(e)}")
-                self.reconnect_attempt += 1
-                await asyncio.sleep(self.reconnect_delay)
+            except Exception:
+                await self.close()
 
-        self.logger.error("최대 재연결 시도 횟수 초과")
-        return False
+            while self.reconnect_attempt < self.max_reconnect_attempts:
+                try:
+                    self.websocket = await self._connect()
+                    if self.websocket:
+                        self.reconnect_attempt = 0
+                        self._connection_count += 1
+                        return True
+                    
+                    self.reconnect_attempt += 1
+                    await asyncio.sleep(self.reconnect_delay)
+                except Exception as e:
+                    self.logger.error(f"웹소켓 재연결 시도 실패 ({self.reconnect_attempt}): {str(e)}")
+                    self.reconnect_attempt += 1
+                    await asyncio.sleep(self.reconnect_delay)
+
+            self.logger.error("최대 재연결 시도 횟수 초과")
+            return False
 
     async def _connect(self) -> Optional[websockets.WebSocketClientProtocol]:
         websocket = None
@@ -77,7 +101,7 @@ class WebSocketClient:
             return None
 
     async def send_message(self, message_type: str, **kwargs) -> Optional[Any]:
-        if not await self.ensure_connected() or not self.websocket:
+        if not await self.ensure_connected():
             return None
             
         message = {
@@ -103,11 +127,11 @@ class WebSocketClient:
                         
         except websockets.exceptions.ConnectionClosed as e:
             self.logger.error(f"WebSocket 연결이 닫힘: {str(e)}")
-            self.websocket = None
+            await self.close()
             return None
         except Exception as e:
             self.logger.error(f"WebSocket 통신 중 오류 발생: {str(e)}")
-            self.websocket = None
+            await self.close()
             return None
 
 class MockWebSocketClient:

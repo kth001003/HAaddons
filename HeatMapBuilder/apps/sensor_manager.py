@@ -14,6 +14,11 @@ class SensorManager:
             else WebSocketClient(supervisor_token, logger)
         )
 
+    async def close(self):
+        """웹소켓 연결을 종료합니다."""
+        if hasattr(self.websocket_client, 'close'):
+            await self.websocket_client.close()
+
     async def debug_websocket(self, message_type: str, **kwargs) -> Optional[Any]:
         """WebSocket 디버깅 메시지 전송"""
         return await self.websocket_client.send_message(message_type, **kwargs)
