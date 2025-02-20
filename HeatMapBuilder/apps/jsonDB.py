@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 from filelock import FileLock #type: ignore
 
@@ -23,6 +24,19 @@ class JsonDB:
         with self.lock:
             db = self.load()
             db[map_id] = map_data
+            with open(self.db_path, 'w', encoding='utf-8') as f:
+                json.dump(db, f, indent=4)
+
+    def update_map(self, map_id, map_data) -> None:
+        """ID에 해당하는 내용을 업데이트합니다.
+           기존 데이터의 key:value들을 전달된 map_data로 병합합니다."""
+        with self.lock:
+            db = self.load()
+            db[map_id].update({'updated_at': datetime.now().isoformat()})
+            if map_id in db and isinstance(db[map_id], dict):
+                db[map_id].update(map_data)
+            else:
+                db[map_id] = map_data
             with open(self.db_path, 'w', encoding='utf-8') as f:
                 json.dump(db, f, indent=4)
 
@@ -56,7 +70,8 @@ class JsonDB:
                     'name': map_data['name'],
                     'created_at': map_data.get('created_at', ''),
                     'updated_at': map_data.get('updated_at', ''),
-                    'walls': map_data.get('walls', '')
+                    'walls': map_data.get('walls', ''),
+                    'img_url': map_data.get('img_url', '')
                 })
         return maps
 

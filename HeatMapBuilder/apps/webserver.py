@@ -158,9 +158,9 @@ class WebServer:
         async def get_map(map_id):
             return await self.get_map(map_id)
 
-        @self.app.route('/api/maps/<map_id>', methods=['PUT'])
-        async def update_map(map_id):
-            return await self.update_map(map_id)
+        # @self.app.route('/api/maps/<map_id>', methods=['PUT'])
+        # async def update_map(map_id):
+        #     return await self.update_map(map_id)
 
         @self.app.route('/api/maps/<map_id>', methods=['DELETE'])
         async def delete_map(map_id):
@@ -302,9 +302,10 @@ class WebServer:
         if not self.current_map_id:
             return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
         map_data = self.config_manager.db.get_map(self.current_map_id)
-        map_data['walls'] = data.get("wallsData", "")
-        map_data['sensors'] = data.get("sensorsData", "")
-        self.config_manager.db.save(self.current_map_id, map_data)
+        self.config_manager.db.update_map(self.current_map_id, {
+            'walls': data.get("wallsData", ""),
+            'sensors': data.get("sensorsData", "")
+        })
         return jsonify({'status': 'success'})
     
     async def save_interpolation_parameters(self):
@@ -312,9 +313,9 @@ class WebServer:
         data = await request.get_json() or {}
         if not self.current_map_id:
             return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
-        map_data = self.config_manager.db.get_map(self.current_map_id)
-        map_data['parameters'] = data.get('interpolation_params', {})
-        self.config_manager.db.save(self.current_map_id, map_data)
+        self.config_manager.db.update_map(self.current_map_id, {
+            'parameters': data.get('interpolation_params', {})
+        })
         return jsonify({'status': 'success'})
     
     async def save_gen_config(self):
@@ -323,9 +324,10 @@ class WebServer:
         if not self.current_map_id:
             return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
         gen_config = data.get('gen_config', {})
-        map_data = self.config_manager.db.get_map(self.current_map_id)
-        map_data['gen_config'] = gen_config
-        self.config_manager.db.save(self.current_map_id, map_data)
+        self.config_manager.db.update_map(self.current_map_id, {
+            'gen_config': gen_config,
+            'img_url': f'/local/HeatMapBuilder/{self.current_map_id}/{gen_config.get("file_name", "thermal_map")}.{gen_config.get("format", "png")}'
+        })
         return jsonify({'status': 'success'})
 
     async def load_heatmap_config(self):
@@ -487,13 +489,13 @@ class WebServer:
             self.logger.error(f"맵 조회 실패: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
-    async def update_map(self, map_id):
-        """맵 정보 업데이트"""
-        data = await request.get_json() or {}
-        if not map_id:
-            return jsonify({'error': '맵 ID가 필요합니다.'}), 400
-        self.config_manager.db.save(map_id, data)
-        return jsonify({'status': 'success'})
+    # async def update_map(self, map_id):
+    #     """맵 정보 업데이트"""
+    #     data = await request.get_json() or {}
+    #     if not map_id:
+    #         return jsonify({'error': '맵 ID가 필요합니다.'}), 400
+    #     self.config_manager.db.save(map_id, data)
+    #     return jsonify({'status': 'success'})
 
     async def delete_map(self, map_id):
         """맵 삭제"""

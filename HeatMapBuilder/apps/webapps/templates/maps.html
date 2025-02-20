@@ -209,6 +209,7 @@
             async function loadMaps() {
                 try {
                     const maps = await apiRequest('./api/maps');
+                    console.log(maps);
                     
                     mapList.innerHTML = '';
                     maps.forEach(map => {
@@ -229,7 +230,16 @@
                                     </div>
                                     <div class="mt-4 bg-gray-50 rounded-lg overflow-hidden relative pb-[100%]">
                                         <div class="absolute inset-0 p-4" id="preview-${map.id}">
-                                            ${map.walls ? `<svg viewBox="0 0 1000 1000" class="w-full h-full">${map.walls}</svg>` : '<div class="w-full h-full flex items-center justify-center text-gray-400">미리보기 없음</div>'}
+                                            <img src="${map.img_url}" 
+                                                alt="맵 미리보기" 
+                                                class="w-full h-full object-contain"
+                                                onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                            <div style="display: none;">
+                                                ${map.walls ? 
+                                                    `<svg viewBox="0 0 1000 1000" class="w-full h-full">${map.walls}</svg>` : 
+                                                    '<div class="w-full h-full flex items-center justify-center text-gray-400">미리보기 없음</div>'
+                                                }
+                                            </div>
                                         </div>
                                     </div>
                                     <p class="text-sm text-gray-500 mt-2">
