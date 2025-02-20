@@ -15,6 +15,7 @@ export class SensorManager {
         this.allSensors = [];
         this.onSensorsUpdate = null;
         this.enabled = true;
+        this.currentUnit = null; // 현재 선택된 단위
         this.filters = {
             device_class: '',
             label: ''
@@ -103,8 +104,8 @@ export class SensorManager {
             const states = await response.json();
             console.log("SensorManager - 서버에서 받은 states:", states);
 
-            this.allSensors = states; // 모든 센서 데이터 저장
-            this.applyFilters(); // 필터 적용
+            this.allSensors = states;
+            this.applyFilters();
 
             // 저장된 설정 로드
             const configResponse = await fetch('./api/load-config');
@@ -113,15 +114,23 @@ export class SensorManager {
 
                 // DOM이 완전히 로드된 후 센서 마커 업데이트를 수행
                 window.requestAnimationFrame(() => {
+                    // 저장된 단위 정보 적용
+                    if (config.unit) {
+                        this.currentUnit = config.unit;
+                    }
+
                     // 저장된 센서 위치 정보를 현재 센서 데이터에 적용
                     if (config.sensors) {
                         config.sensors.forEach(savedSensor => {
                             const sensor = this.sensors.find(s => s.entity_id === savedSensor.entity_id);
                             const placedSensor = this.svg.querySelector(`g[data-entity-id="${savedSensor.entity_id}"]`);
                             if (sensor && savedSensor.position && !placedSensor) {
-                                sensor.position = savedSensor.position;
-                                sensor.calibration = savedSensor.calibration || 0;
-                                this.updateSensorMarker(sensor, savedSensor.position);
+                                // 단위 체크
+                                if (this.checkAndHandleUnit(sensor)) {
+                                    sensor.position = savedSensor.position;
+                                    sensor.calibration = savedSensor.calibration || 0;
+                                    this.updateSensorMarker(sensor, savedSensor.position);
+                                }
                             }
                         });
                     }
@@ -243,7 +252,44 @@ export class SensorManager {
         }
     }
 
-    // 체크박스 변경 핸들러
+    // 센서 추가 전 단위 체크
+    checkAndHandleUnit(sensor) {
+        const sensorUnit = sensor.attributes?.unit_of_measurement;
+        
+        // 단위 정보가 없는 경우
+        if (!sensorUnit) {
+            alert(`단위 정보가 없는 센서는 배치할 수 없습니다: ${sensor.attributes.friendly_name || sensor.entity_id}`);
+            return false;
+        }
+        
+        // 첫 센서인 경우
+        if (!this.currentUnit) {
+            this.currentUnit = sensorUnit;
+            return true;
+        }
+
+        // 단위가 다른 경우
+        if (this.currentUnit !== sensorUnit) {
+            alert(`현재 맵에는 ${this.currentUnit} 단위의 센서만 배치할 수 있습니다. 다른 단위(${sensorUnit})의 센서를 배치하려면 먼저 기존 센서들을 모두 제거해야 합니다.`);
+            return false;
+        }
+
+        return true;
+    }
+
+    // 모든 센서 제거
+    removeAllSensors() {
+        this.sensors.forEach(sensor => {
+            if (sensor.position) {
+                this.removeSensorMarker(sensor.entity_id);
+                sensor.position = undefined;
+            }
+        });
+        this.currentUnit = null;
+        this.updateSensorList();
+    }
+
+    // 체크박스 변경 핸들러 수정
     handleCheckboxChange(e) {
         if (!this.enabled) {
             e.preventDefault();
@@ -256,14 +302,25 @@ export class SensorManager {
         if (!sensor) return;
 
         if (e.target.checked) {
+            // 단위 체크
+            if (!this.checkAndHandleUnit(sensor)) {
+                e.target.checked = false;
+                return;
+            }
+
             if (!sensor.position) {
                 sensor.position = this.getRandomCenterPoint();
                 this.updateSensorMarker(sensor, sensor.position);
             }
-
         } else {
             sensor.position = undefined;
             this.removeSensorMarker(entityId);
+            
+            // 마지막 센서가 제거되면 currentUnit 초기화
+            const remainingSensors = this.sensors.filter(s => s.position);
+            if (remainingSensors.length === 0) {
+                this.currentUnit = null;
+            }
         }
     }
 
@@ -399,9 +456,10 @@ export class SensorManager {
         nameText.style.userSelect = 'none';
         text.appendChild(nameText);
 
-        // 온도 표시
+        // 온도 표시 (단위 포함)
         const tempText = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-        tempText.textContent = `${calibratedTemp.toFixed(1)}°C`;
+        const unit = sensor.attributes?.unit_of_measurement || '';
+        tempText.textContent = `${calibratedTemp.toFixed(1)}${unit}`;
         tempText.setAttribute('x', String(point.x));
         tempText.setAttribute('dy', String(DEFAULT_TEXT_SIZE + 2));
         tempText.setAttribute('font-size', String(DEFAULT_TEXT_SIZE));
@@ -548,14 +606,17 @@ export class SensorManager {
         return this.sensors.filter(sensor => sensor.position);
     }
 
-    // 설정 저장을 위한 센서 데이터 반환
+    // 설정 저장을 위한 센서 데이터 반환 수정
     getSensorConfig() {
-        return this.sensors
-            .filter(sensor => sensor.position)
-            .map(sensor => ({
-                entity_id: sensor.entity_id,
-                position: sensor.position,
-                calibration: sensor.calibration || 0
-            }));
+        return {
+            unit: this.currentUnit,
+            sensors: this.sensors
+                .filter(sensor => sensor.position)
+                .map(sensor => ({
+                    entity_id: sensor.entity_id,
+                    position: sensor.position,
+                    calibration: sensor.calibration || 0
+                }))
+        };
     }
 }

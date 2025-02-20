@@ -102,7 +102,9 @@ class BackgroundTaskManager:
                             if not walls or not sensors: # 벽 또는 센서 데이터가 없으면 건너뜀
                                 continue 
 
-                            self.logger.info(f"백그라운드 맵 생성 시작 {map_name} ({map_id})")
+                            self.logger.info("백그라운드 맵 생성 시작 %s (%s)",
+                                             self.logger._colorize(map_name, "blue"),
+                                             self.logger._colorize(map_id, "yellow"))
                             
                             # 현재 맵으로 설정
                             self.config_manager.current_map_id = map_id
@@ -114,12 +116,18 @@ class BackgroundTaskManager:
                             try:
                                 # 맵 생성 태스크 실행
                                 if loop.run_until_complete(self.generate_map(map_id)):
-                                    self.logger.info(f"백그라운드 맵 생성 완료 {map_name} ({map_id}) (소요시간: {self.map_generator.generation_duration})")
+                                    self.logger.info("백그라운드 맵 생성 완료 %s (%s) (소요시간: %s)",
+                                                     self.logger._colorize(map_name, "blue"),
+                                                     self.logger._colorize(map_id, "yellow"),
+                                                     self.logger._colorize(self.map_generator.generation_duration, "green"))
                                     self.map_timers[map_id] = current_time
                                 else:
-                                    self.logger.error(f"백그라운드 맵 생성 실패 {map_name} ({map_id})")
+                                    self.logger.error("백그라운드 맵 생성 실패 %s (%s)",
+                                                     self.logger._colorize(map_name, "blue"),
+                                                     self.logger._colorize(map_id, "yellow"))
                             except Exception as e:
-                                self.logger.error(f"맵 생성 중 오류 발생: {str(e)}")
+                                self.logger.error("맵 생성 중 오류 발생: %s",
+                                                 self.logger._colorize(str(e), "red"))
                             finally:
                                 try:
                                     # 웹소켓 연결 종료
@@ -164,7 +172,7 @@ if __name__ == '__main__':
         is_local = True
         CONFIG = {"img_generation_interval_in_minutes": 5}
     config_manager = ConfigManager(is_local, CONFIG)
-    log_level = str(CONFIG.get('log_level', 'info')).upper()
+    log_level = str(CONFIG.get('log_level', 'debug')).upper()
     # 로그 디렉토리 생성 
     log_dir = os.path.dirname(config_manager.paths['log'])
     os.makedirs(log_dir, exist_ok=True)

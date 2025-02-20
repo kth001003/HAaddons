@@ -70,14 +70,16 @@ export class SettingsManager {
                 wallsHTML += element.outerHTML;
             });
             const wallsData = wallsHTML;
-            const sensorsData = sensorManager.getSensorConfig();
+            const sensorConfig = sensorManager.getSensorConfig();
+            const unit = sensorConfig.unit;
+            const sensorsData = sensorConfig.sensors;
             
             await fetch('./api/save-walls-and-sensors', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ wallsData, sensorsData })
+                body: JSON.stringify({ wallsData, sensorsData, unit })
             });
             this.uiManager.showMessage('벽과 센서위치를 저장했습니다.', 'success');
         } catch (error) {
@@ -182,7 +184,10 @@ export class SettingsManager {
             file_name: /** @type {HTMLInputElement} */ (document.getElementById('file-name')).value,
             rotation_count: parseInt(/** @type {HTMLInputElement} */(document.getElementById('rotation-count')).value),
             visualization: this.collectVisualizationConfig(),
-            colorbar: this.collectColorbarConfig()
+            colorbar: {
+                ...this.collectColorbarConfig(),
+                cmap: this.getSelectedColormap()
+            }
         };
     }
 
@@ -203,7 +208,6 @@ export class SettingsManager {
 
     collectColorbarConfig() {
         return {
-            cmap: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value,
             show_colorbar: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-colorbar')).checked,
             width: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-width')).value),
             height: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-height')).value),
@@ -371,8 +375,14 @@ export class SettingsManager {
         if (applyCustomCmap) {
             applyCustomCmap.addEventListener('click', () => {
                 const customValue = customCmapInput.value.trim();
+                let customValueWithoutReverse = customValue;
+                if (customValue.endsWith('_r')){
+                    customValueWithoutReverse = customValue.slice(0, -2);
+                    customCmapInput.value = customValueWithoutReverse;
+                    reverseColormap.checked = true;
+                }
                 if (customValue) {
-                    this.validateAndApplyCustomColormap(customValue, reverseColormap.checked);
+                    this.validateAndApplyCustomColormap(customValueWithoutReverse, reverseColormap.checked);
                 }
             });
         }
@@ -386,16 +396,9 @@ export class SettingsManager {
 
     getSelectedColormap() {
         const colormapSelect = /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap'));
-        const reverseColormap = /** @type {HTMLInputElement} */ (document.getElementById('reverse-colormap'));
-        let selectedColormap = colormapSelect.value;
-        
-        if (selectedColormap === 'custom') {
-            selectedColormap = this.lastValidCustomCmap || 'RdYlBu';
-        }
-        if (reverseColormap.checked) {
-            selectedColormap += '_r';
-        }
-        return selectedColormap;
+        const reverseChecked = /** @type {HTMLInputElement} */ (document.getElementById('reverse-colormap')).checked;
+        const baseCmap = colormapSelect.value === 'custom' ? (this.lastValidCustomCmap || 'RdYlBu') : colormapSelect.value;
+        return reverseChecked ? (baseCmap.endsWith('_r') ? baseCmap : baseCmap + '_r') : baseCmap;
     }
 
     async validateAndApplyCustomColormap(customValue, isReversed) {
@@ -566,7 +569,12 @@ export class SettingsManager {
 
         // 컬러바 설정 로드
         const colorbar = config.colorbar || {};
-        /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value = colorbar.cmap ?? 'RdYlBu_r';
+        const cmap = colorbar.cmap ?? 'RdYlBu_r';
+        const isReversed = cmap.endsWith('_r');
+        const baseColormap = isReversed ? cmap.slice(0, -2) : cmap;
+        
+        /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value = baseColormap;
+        /** @type {HTMLInputElement} */ (document.getElementById('reverse-colormap')).checked = isReversed;
         /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-colorbar')).checked = colorbar.show_colorbar ?? true;
         /** @type {HTMLInputElement} */ (document.getElementById('colorbar-width')).value = colorbar.width ?? 5;
         /** @type {HTMLInputElement} */ (document.getElementById('colorbar-height')).value = colorbar.height ?? 100;

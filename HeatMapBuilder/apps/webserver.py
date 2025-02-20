@@ -1,6 +1,4 @@
 import os
-# from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, Response
-import json
 import logging
 import time
 from datetime import datetime
@@ -38,6 +36,7 @@ class WebServer:
         """Flask 앱 초기화"""
         self.app.debug = True
         self.app.jinja_env.auto_reload = True
+        self.app.config['TEMPLATES_AUTO_RELOAD'] = True
         self.app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
         
         # Flask 로깅 설정
@@ -301,10 +300,10 @@ class WebServer:
         data = await request.get_json() or {}
         if not self.current_map_id:
             return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
-        map_data = self.config_manager.db.get_map(self.current_map_id)
         self.config_manager.db.update_map(self.current_map_id, {
             'walls': data.get("wallsData", ""),
-            'sensors': data.get("sensorsData", "")
+            'sensors': data.get("sensorsData", ""),
+            'unit': data.get("unit", "")
         })
         return jsonify({'status': 'success'})
     
@@ -614,5 +613,10 @@ class WebServer:
         config = hypercorn.config.Config()
         config.bind = [f"{host}:{port}"]
         config.use_reloader = True
+        config.reload_dirs = ['apps']  # 앱 디렉토리 변경 감시
+        config.reload_includes = ['*.py', '*.html', '*.js', '*.css']  # 감시할 파일 확장자
+        config.reload_excludes = ['*.pyc', '*.pyo']  # 제외할 파일 확장자
+        config.accesslog = '-'  # 액세스 로그를 표준 출력으로
+        config.errorlog = '-'   # 에러 로그를 표준 출력으로
         
         asyncio.run(hypercorn.asyncio.serve(self.app, config))

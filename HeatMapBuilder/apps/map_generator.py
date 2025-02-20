@@ -167,16 +167,10 @@ class MapGenerator:
 
             self.areas = []
             
-            # SVG 변환 행렬 확인
-            transform = root.get('transform', '')
-            self.logger.debug(f"SVG transform: {transform}")
-            
             # path 요소 찾기
             paths = root.findall('.//{*}path')
             
             for i, path in enumerate(paths):
-                # path의 스타일과 클래스 확인
-                style = path.get('style', '')
                 class_name = path.get('class', '')
                 
                 # exterior 클래스 여부 확인
@@ -187,22 +181,18 @@ class MapGenerator:
                     self.logger.warning(f"Path {i}: 'd' 속성 없음")
                     continue
                 
-                # path별 transform 확인
-                path_transform = path.get('transform', '')
-                if path_transform:
-                    self.logger.debug(f"Path {i} transform: {path_transform}")
-                
                 polygon = self._parse_svg_path(d)
                 if polygon and polygon.is_valid:
                     self.areas.append({
                         'polygon': polygon,
                         'is_exterior': is_exterior
                     })
-                    self.logger.debug(f"Path {i}: {'외부' if is_exterior else '내부'} 영역으로 파싱됨")
                 else:
                     self.logger.warning(f"Path {i}: 유효한 폴리곤 생성 실패")
 
-            self.logger.debug(f"총 {len(self.areas)}개의 area 파싱됨 (전체 path 중 {len(paths)}개)")
+            self.logger.debug("총 %s개의 area 파싱됨 (전체 path 중 %s개)",
+                             self.logger._colorize(len(self.areas), "green"),
+                             self.logger._colorize(len(paths), "blue"))
             return self.areas, root
             
         except Exception as e:
@@ -216,34 +206,53 @@ class MapGenerator:
         points = []
         temperatures = []
         sensor_ids = []
-        self.logger.debug(f"저장된 센서 데이터: {self.sensors_data}")
         for sensor in self.sensors_data:
             if 'position' not in sensor:
                 continue
                 
             position = sensor['position']
             if not position or 'x' not in position or 'y' not in position:
-                self.logger.warning(f"{sensor['entity_id']} 센서에 position 데이터가 유효하지 않음")
+                self.logger.warning("%s 센서에 position 데이터가 유효하지 않음",
+                                    self.logger._colorize(sensor['entity_id'], "red"))
                 continue
                 
             # 센서 상태 조회
             state = await self.get_sensor_state(sensor['entity_id'])
             if not state or not isinstance(state, dict):
-                self.logger.warning(f"센서 {sensor['entity_id']} 상태 데이터가 유효하지 않음")
+                self.logger.warning("%s 센서 상태 데이터가 유효하지 않음",
+                                    self.logger._colorize(sensor['entity_id'], "red"))
                 continue
                 
             try:
                 # 온도값 파싱 및 보정값 적용
-                raw_temp = float(state.get('state', 0))  # 상태값을 state 키에서 가져옴
+                raw_state = state.get('state', '0')  # 상태값을 state 키에서 가져옴
+                
+                # unavailable, unknown, N/A 등의 값 체크
+                if raw_state.lower() in ['unavailable', 'unknown', 'n/a', 'null', 'none']:
+                    self.logger.warning("%s 센서를 사용할 수 없습니다 (상태: %s)",
+                                        self.logger._colorize(sensor['entity_id'], "red"),
+                                        self.logger._colorize(raw_state, "yellow"))
+                    continue
+                    
+                raw_temp = float(raw_state)
                 calibration = float(sensor.get('calibration', 0))  # 보정값이 없으면 0
                 temp = raw_temp + calibration  # 보정값 적용
                 
                 points.append([position['x'], position['y']])
                 temperatures.append(temp)
                 sensor_ids.append(sensor['entity_id'])
-                self.logger.debug(f"센서 {sensor['entity_id']}: 원본={raw_temp}°C, 보정값={calibration}°C, 보정후={temp}°C")
+                self.logger.debug("센서 %s: 원본=%s%s, 보정값=%s%s, 보정후=%s%s",
+                                 self.logger._colorize(sensor['entity_id'], "blue"),
+                                 self.logger._colorize(raw_temp, "yellow"),
+                                 self.logger._colorize(self.unit, "blue"),
+                                 self.logger._colorize(calibration, "yellow"),
+                                 self.logger._colorize(self.unit, "blue"),
+                                 self.logger._colorize(temp, "green"),
+                                 self.logger._colorize(self.unit, "blue"))
             except (ValueError, TypeError, AttributeError) as e:
-                self.logger.error(f"센서 {sensor['entity_id']} 데이터 처리 중 오류: {str(e)}")
+                self.logger.error("센서 %s 데이터 처리 중 오류: %s",
+                                 self.logger._colorize(sensor['entity_id'], "red"),
+                                 self.logger._colorize(str(e), "red"))
                 continue
         
         return points, temperatures, sensor_ids
@@ -265,7 +274,6 @@ class MapGenerator:
                     if area_idx not in self.area_sensors:
                         self.area_sensors[area_idx] = []
                     self.area_sensors[area_idx].append((point, temp, sensor_id))
-                    # self.logger.debug(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
                     assigned = True
                     break
             
@@ -276,7 +284,6 @@ class MapGenerator:
                         if area_idx not in self.area_sensors:
                             self.area_sensors[area_idx] = []
                         self.area_sensors[area_idx].append((point, temp, sensor_id))
-                        # self.logger.debug(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
                         assigned = True
                         break
             
@@ -295,13 +302,18 @@ class MapGenerator:
                     if nearest_area_idx not in self.area_sensors:
                         self.area_sensors[nearest_area_idx] = []
                     self.area_sensors[nearest_area_idx].append((point, temp, sensor_id))
-                    # self.logger.warning(f"센서 {sensor_id} (temp={temp:.1f}°C)가 가장 가까운 Area {nearest_area_idx}에 할당됨 (거리: {min_distance:.2f})")
                 else:
-                    self.logger.error(f"센서 {sensor_id} (temp={temp:.1f}°C)를 할당할 수 있는 area를 찾지 못함")
+                    self.logger.warning("센서 %s (temp=%s%s)를 할당할 수 있는 area를 찾지 못함",
+                                        self.logger._colorize(sensor_id, "red"),
+                                        self.logger._colorize(temp, "yellow"),
+                                        self.logger._colorize(self.unit, "blue"))
 
         # 할당 결과 출력
         for area_idx, sensors in self.area_sensors.items():
-            self.logger.debug(f"Area {area_idx}: {len(sensors)}개의 센서, {[f'{sensor_id}:{temp:.1f}' for _, temp, sensor_id in sensors]}")
+            self.logger.debug("Area %s: %s개의 센서, %s",
+                             self.logger._colorize(area_idx, "green"),
+                             self.logger._colorize(len(sensors), "blue"),
+                             self.logger._colorize([f'{sensor_id}:{temp:.1f}{self.unit}' for _, temp, sensor_id in sensors], "white"))
 
     @staticmethod
     def _calculate_area_temperature_static(area_idx: int, area: Dict[str, Any], grid_points: np.ndarray,
@@ -402,7 +414,6 @@ class MapGenerator:
     def _process_area_static(args: Tuple[int, Dict[str, Any], np.ndarray, np.ndarray, np.ndarray, float, float, float, float, Dict[int, List[Tuple[Point, float, str]]], Dict]) -> Tuple[int, np.ndarray, np.ndarray]:
         """멀티프로세싱용 area 처리 함수"""
         area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, area_sensors, parameters = args
-        area_start_time = time.time()
         
         area_temps = MapGenerator._calculate_area_temperature_static(
             area_idx, area, grid_points, grid_x, grid_y,
@@ -412,8 +423,6 @@ class MapGenerator:
         # area 마스크 생성
         pmask = np.array(contains(area['polygon'], grid_points[:, 0], grid_points[:, 1]))
         area_mask = pmask.reshape(grid_x.shape)
-        
-        area_duration = time.time() - area_start_time
         
         return area_idx, area_temps, area_mask
 
@@ -435,6 +444,7 @@ class MapGenerator:
         self.sensors_data = self.configs.get('sensors', [])
         self.parameters = self.configs.get('parameters', {})
         self.gen_config = self.configs.get('gen_config', {})
+        self.unit = self.configs.get('unit', '')
 
     def save_generation_time(self):
         """생성 시간 저장"""
@@ -519,7 +529,7 @@ class MapGenerator:
                 if 'temp' in sensor_display:
                     if text:
                         text += '\n'
-                    text += f'{temperature:.1f}°C'
+                    text += f'{temperature:.1f}{self.unit}'
                     if 'name' not in sensor_display:
                         font_size = sensor_temp.get('font_size', 12)
                         font_color = sensor_temp.get('color', '#000000')
@@ -596,8 +606,9 @@ class MapGenerator:
         """컬러바를 생성합니다."""
         
         show_label = colorbar_config.get('show_label', True)
-        label = colorbar_config.get('label', '°C')
+        label = colorbar_config.get('label', self.unit)
         label_color = colorbar_config.get('label_color', '#000000')
+        tick_size = colorbar_config.get('tick_size', 10)
         show_shadow = colorbar_config.get('show_shadow', True)
         shadow_color = colorbar_config.get('shadow_color', '#FFFFFF')
         shadow_width = colorbar_config.get('shadow_width', 3)
@@ -640,7 +651,7 @@ class MapGenerator:
             for label in cbar.ax.get_xticklabels():
                 label.set_path_effects(path_effects_list if path_effects_list else None)
                 
-            cbar.ax.tick_params(labelsize=colorbar_config.get('tick_size', 8),
+            cbar.ax.tick_params(labelsize=tick_size,
                             colors=label_color)
 
         cbar.ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -652,9 +663,6 @@ class MapGenerator:
             output_dir = os.path.dirname(output_path)
             if output_dir and not os.path.exists(output_dir):
                 try:
-                    parent_dir = os.path.dirname(output_dir)
-                    if parent_dir and not os.path.exists(parent_dir):
-                        self.logger.info(f"상위 디렉토리가 없습니다. 전체 경로를 생성합니다: {output_dir}")
                     os.makedirs(output_dir, exist_ok=True)
                     self.logger.info(f"출력 디렉토리 생성 완료: {output_dir}")
                 except Exception as dir_error:
@@ -794,7 +802,9 @@ class MapGenerator:
                             continue
                         self._create_sensor_marker([point[0], point[1]], temperature, sensor_id, state)
                     except Exception as e:
-                        self.logger.warning(f"센서 {sensor_id} 표시 실패: {str(e)}")
+                        self.logger.error("센서 %s 표시 실패: %s",
+                                         self.logger._colorize(sensor_id, "red"),
+                                         self.logger._colorize(str(e), "red"))
                         continue
 
             # 컬러바 설정 적용
