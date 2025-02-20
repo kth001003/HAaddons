@@ -16,11 +16,26 @@ class WebSocketClient:
         self._connection_lock = asyncio.Lock()
         self._connection_count = 0
         self._max_reuse_count = 50  # 최대 재사용 횟수
+        self._keepalive_tasks = set()  # keepalive 태스크 추적용
+
+    async def _cleanup_keepalive_tasks(self):
+        """keepalive 태스크들을 정리합니다."""
+        for task in list(self._keepalive_tasks):
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            self._keepalive_tasks.discard(task)
 
     async def close(self):
         """웹소켓 연결을 안전하게 종료합니다."""
         async with self._connection_lock:
             self._connection_count = 0
+            # keepalive 태스크들 정리
+            await self._cleanup_keepalive_tasks()
+            
             if self.websocket:
                 try:
                     await self.websocket.close()
@@ -71,6 +86,12 @@ class WebSocketClient:
                                                max_queue=2**10,
                                                compression=None)
             
+            # keepalive 태스크 추적 시작
+            if hasattr(websocket, '_keepalive_ping') and websocket._keepalive_ping is not None:
+                self._keepalive_tasks.add(websocket._keepalive_ping)
+            if hasattr(websocket, '_keepalive_pong') and websocket._keepalive_pong is not None:
+                self._keepalive_tasks.add(websocket._keepalive_pong)
+            
             auth_required = await websocket.recv()
             auth_required_data = json.loads(auth_required)
             if auth_required_data.get('type') != 'auth_required':
@@ -101,7 +122,7 @@ class WebSocketClient:
             return None
 
     async def send_message(self, message_type: str, **kwargs) -> Optional[Any]:
-        if not await self.ensure_connected():
+        if not await self.ensure_connected() or not self.websocket:
             return None
             
         message = {
