@@ -2,12 +2,12 @@
 <nav class="bg-white shadow-sm rounded-lg mb-6">
     <div class="px-4">
         <div class="flex space-x-4">
-            <button id="interpolation-tab"
-                class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">보간
-                설정</button>
             <button id="generation-tab"
                 class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">지도
                 생성</button>
+            <button id="interpolation-tab"
+                class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">보간
+                설정</button>
             <button id="range-tab"
                 class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">범위
                 설정</button>
@@ -25,14 +25,14 @@
 
 <!-- 설정 탭 컨텐츠 -->
 <div class="space-y-6">
-    <!-- 보간 설정 탭 -->
-    <div id="interpolation-content" class="settings-tab-content bg-white rounded-lg shadow-md p-6">
-        {% include 'settings/interpolation.html' %}
-    </div>
-
     <!-- 지도 생성 탭 -->
     <div id="generation-content" class="settings-tab-content hidden bg-white rounded-lg shadow-md p-6">
         {% include 'settings/generation.html' %}
+    </div>
+
+    <!-- 보간 설정 탭 -->
+    <div id="interpolation-content" class="settings-tab-content bg-white rounded-lg shadow-md p-6">
+        {% include 'settings/interpolation.html' %}
     </div>
 
     <!-- 범위 설정 탭 -->

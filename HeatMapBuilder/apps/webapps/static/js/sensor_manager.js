@@ -121,10 +121,7 @@ export class SensorManager {
                             if (sensor && savedSensor.position && !placedSensor) {
                                 sensor.position = savedSensor.position;
                                 sensor.calibration = savedSensor.calibration || 0;
-                                // setTimeout을 사용하여 각 센서 마커 업데이트를 약간의 지연을 두고 실행
-                                setTimeout(() => {
-                                    this.updateSensorMarker(sensor, savedSensor.position);
-                                }, 2000);
+                                this.updateSensorMarker(sensor, savedSensor.position);
                             }
                         });
                     }
