@@ -1,7 +1,8 @@
 import { DrawingUtils } from './drawing_utils.js';
 
 export class DrawingTool {
-    constructor(svgElement) {
+    constructor(svgElement, uiManager) {
+        this.uiManager = uiManager;
         this.svg = svgElement;
         this.isDrawing = false;
         this.currentTool = 'line';
@@ -53,11 +54,70 @@ export class DrawingTool {
         if (undoBtn) undoBtn.addEventListener('click', this.undo);
         if (redoBtn) redoBtn.addEventListener('click', this.redo);
 
-        // 초기 상태 저장
-        this.saveState();
+        // path 요소들의 pointer-events 비활성화
+        this.svg.querySelectorAll('path').forEach(path => {
+            path.style.pointerEvents = 'none';
+        });
+
+        // SVG defs 요소가 없으면 생성
+        this.initializeDefs();
     }
-    // 현재 상태 저장
+
+    // defs 초기화 및 마커 생성 메서드
+    initializeDefs() {
+        // 마커용 defs 생성 또는 찾기
+        let markerDefs = this.svg.querySelector('defs.marker-defs');
+        if (!markerDefs) {
+            markerDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            markerDefs.classList.add('marker-defs');
+            this.svg.insertBefore(markerDefs, this.svg.firstChild);
+        }
+
+        // 기존 마커 제거
+        const oldDefaultMarker = markerDefs.querySelector('#defaultEndpoint');
+        const oldHoverMarker = markerDefs.querySelector('#hoverEndpoint');
+        if (oldDefaultMarker) oldDefaultMarker.remove();
+        if (oldHoverMarker) oldHoverMarker.remove();
+
+        // 기본 마커 정의
+        this.createMarkerDef('defaultEndpoint', '#4CAF50', 5);
+        // 호버 상태 마커 정의
+        this.createMarkerDef('hoverEndpoint', '#2196F3', 7);
+    }
+
+    // 마커 정의 생성 메서드
+    createMarkerDef(id, color, radius) {
+        const markerDefs = this.svg.querySelector('defs.marker-defs');
+        if (!markerDefs) return;
+
+        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        
+        marker.setAttribute('id', id);
+        marker.setAttribute('viewBox', `-${radius} -${radius} ${radius * 2} ${radius * 2}`);
+        marker.setAttribute('refX', '0');
+        marker.setAttribute('refY', '0');
+        marker.setAttribute('markerWidth', String(radius * 2));
+        marker.setAttribute('markerHeight', String(radius * 2));
+        marker.setAttribute('markerUnits', 'strokeWidth');
+        marker.setAttribute('orient', 'auto');
+        
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', '0');
+        circle.setAttribute('cy', '0');
+        circle.setAttribute('r', String(radius));
+        circle.setAttribute('fill', color);
+        circle.style.transition = 'r 0.2s ease-in-out, fill 0.2s ease-in-out';
+        
+        marker.appendChild(circle);
+        markerDefs.appendChild(marker);
+    }
+
+    // 현재 상태 저장 메서드 수정
     saveState() {
+        // defs 임시 제거
+        const Defs = this.svg.querySelector('defs');
+        if (Defs) Defs.remove();
+
         // 현재 인덱스 이후의 기록 제거
         this.history = this.history.slice(0, this.currentHistoryIndex + 1);
         
@@ -70,26 +130,56 @@ export class DrawingTool {
         }
         
         this.currentHistoryIndex = this.history.length - 1;
+
+        // defs 복원
+        if (Defs) {
+            this.svg.insertBefore(Defs, this.svg.firstChild);
+        }
+
         this.updateUndoRedoButtons();
     }
 
-    // 실행취소
+    // 실행취소 메서드 수정
     undo() {
-        if (!this.enabled) return;
         if (this.currentHistoryIndex > 0) {
+            // 마커용 defs 임시 저장
+            const Defs = this.svg.querySelector('defs');
+            if (Defs) Defs.remove();
+
             this.currentHistoryIndex--;
             this.svg.innerHTML = this.history[this.currentHistoryIndex];
+
+            // 마커용 defs 복원
+            if (Defs) {
+                this.svg.insertBefore(Defs, this.svg.firstChild);
+            } else {
+                this.initializeDefs();
+            }
+
             this.updateUndoRedoButtons();
+            this.uiManager.sensorManager.parseSensorsFromSVG();
         }
     }
 
-    // 다시실행
+    // 다시실행 메서드 수정
     redo() {
-        if (!this.enabled) return;
         if (this.currentHistoryIndex < this.history.length - 1) {
+            // defs 임시 저장
+            const Defs = this.svg.querySelector('defs');
+            if (Defs) Defs.remove();
+
             this.currentHistoryIndex++;
             this.svg.innerHTML = this.history[this.currentHistoryIndex];
+
+            // defs 복원
+            if (Defs) {
+                this.svg.insertBefore(Defs, this.svg.firstChild);
+            } else {
+                this.initializeDefs();
+            }
+
             this.updateUndoRedoButtons();
+            this.uiManager.sensorManager.parseSensorsFromSVG();
         }
     }
 
@@ -109,16 +199,25 @@ export class DrawingTool {
         }
     }
 
-    // 초기화
+    // 초기화 메서드 수정
     clear() {
-        if (!this.enabled) return;
-        if (confirm('모든 벽을 삭제하시겠습니까?')) {
-            this.svg.innerHTML = '';
-            this.areas = [];
-            this.history = [''];
-            this.currentHistoryIndex = 0;
-            this.saveState();
+        // 마커용 defs 임시 저장
+        const Defs = this.svg.querySelector('defs');
+        if (Defs) Defs.remove();
+
+        this.svg.innerHTML = '<rect id="floorplan-rect" width="100%" height="100%" fill="#FFFFFF"/>';
+        
+        // defs 복원
+        if (Defs) {
+            this.svg.insertBefore(Defs, this.svg.firstChild);
+        } else {
+            this.initializeDefs();
         }
+
+        this.areas = [];
+        this.history = [''];
+        this.currentHistoryIndex = 0;
+        this.saveState();
     }
 
     handleKeyDown(e) {
@@ -204,7 +303,7 @@ export class DrawingTool {
 
     // 점 이동 시작
     startPointMove(e) {
-        if (!this.enabled || this.currentTool !== 'move-point') return;
+        if (this.currentTool !== 'move-point') return;
         
         e.preventDefault();
         const mousePoint = DrawingUtils.getMousePosition(e, this.svg);
@@ -255,7 +354,7 @@ export class DrawingTool {
 
     // 점 이동
     movePoint(e) {
-        if (!this.enabled || !this.isDragging || !this.selectedPoint) return;
+        if (!this.isDragging || !this.selectedPoint) return;
         
         e.preventDefault();
         const currentPoint = DrawingUtils.getMousePosition(e, this.svg);
@@ -282,7 +381,10 @@ export class DrawingTool {
             for (const { line } of this.affectedLines) {
                 const splitLines = this.processIntersections(line);
                 line.remove();
-                splitLines.forEach(line => this.svg.appendChild(line));
+                splitLines.forEach(newLine => {
+                    this.applyLineStyle(newLine);
+                    this.svg.appendChild(newLine);
+                });
             }
 
             this.isDragging = false;
@@ -719,6 +821,9 @@ export class DrawingTool {
                 processedEndPoint.y,
                 this.lineWidth
             );
+
+            // 선 스타일 적용
+            this.applyLineStyle(newLine);
             this.svg.appendChild(newLine);
 
             // 교차점 처리
@@ -726,7 +831,10 @@ export class DrawingTool {
             
             // 원래 선 제거하고 분할된 선들 추가
             newLine.remove();
-            splitLines.forEach(line => this.svg.appendChild(line));
+            splitLines.forEach(line => {
+                this.applyLineStyle(line);
+                this.svg.appendChild(line);
+            });
 
             // 영역 업데이트
             this.updateAreas();
@@ -751,6 +859,14 @@ export class DrawingTool {
             this.lineWidth,
             true
         );
+        
+        // 임시 선에도 마커 적용
+        this.applyLineStyle(line);
+        
+        // 임시 선이 항상 최상위에 표시되도록 설정
+        line.style.pointerEvents = 'none';
+        line.style.zIndex = '9999';
+        
         this.svg.appendChild(line);
     }
 
@@ -778,6 +894,10 @@ export class DrawingTool {
         if (this.isShiftPressed) {
             processedPoint = DrawingUtils.snapToAngle(processedPoint, this.startPoint);
         }
+        
+        // viewbox 범위 내로 제한
+        processedPoint.x = Math.max(0, Math.min(processedPoint.x, this.svg.viewBox.baseVal.width));
+        processedPoint.y = Math.max(0, Math.min(processedPoint.y, this.svg.viewBox.baseVal.height));
         
         return processedPoint;
     }
@@ -891,9 +1011,16 @@ export class DrawingTool {
             areaElement.setAttribute('fill-opacity', '0.3');
             areaElement.classList.add('area');
             areaElement.setAttribute('stroke', 'none');  // 테두리 없음
+            areaElement.style.pointerEvents = 'none';  // 마우스 이벤트 비활성화
             
-            // 영역을 선 뒤에 삽입 (맨 뒤로)
-            this.svg.insertBefore(areaElement, this.svg.firstChild);
+            // rect와 line 사이에 영역 삽입
+            const rect = this.svg.querySelector('rect');
+            const line = this.svg.querySelector('line');
+            if (rect && line) {
+                this.svg.insertBefore(areaElement, line);
+            } else {
+                this.svg.insertBefore(areaElement, this.svg.firstChild);
+            }
             
             this.areas.push(areaElement);
         } catch (error) {
@@ -1225,6 +1352,44 @@ export class DrawingTool {
             if (length < minLength) {
                 line.remove();
             }
+        }
+    }
+
+    // 선에 마커와 스타일을 적용하는 헬퍼 메서드
+    applyLineStyle(line) {
+        // 기본 마커와 스타일 적용 (모든 도구에서 공통)
+        line.setAttribute('marker-start', 'url(#defaultEndpoint)');
+        line.setAttribute('marker-end', 'url(#defaultEndpoint)');
+        line.classList.add('endpoint-line');
+        line.style.strokeWidth = this.lineWidth;
+        line.style.stroke = '#000';
+
+        // 점 이동 툴에서만 호버 효과와 커서 스타일 적용
+        if (this.currentTool === 'move-point') {
+            line.style.cursor = 'move';
+            
+            // 호버 이벤트 리스너 추가
+            line.addEventListener('mouseenter', (e) => {
+                const point = DrawingUtils.getMousePosition(e, this.svg);
+                const x1 = parseFloat(line.getAttribute('x1'));
+                const y1 = parseFloat(line.getAttribute('y1'));
+                const x2 = parseFloat(line.getAttribute('x2'));
+                const y2 = parseFloat(line.getAttribute('y2'));
+                
+                const distToStart = DrawingUtils.calculateDistance(point, {x: x1, y: y1});
+                const distToEnd = DrawingUtils.calculateDistance(point, {x: x2, y: y2});
+                
+                if (distToStart < this.snapDistance) {
+                    line.setAttribute('marker-start', 'url(#hoverEndpoint)');
+                } else if (distToEnd < this.snapDistance) {
+                    line.setAttribute('marker-end', 'url(#hoverEndpoint)');
+                }
+            });
+            
+            line.addEventListener('mouseleave', () => {
+                line.setAttribute('marker-start', 'url(#defaultEndpoint)');
+                line.setAttribute('marker-end', 'url(#defaultEndpoint)');
+            });
         }
     }
 } 

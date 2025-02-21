@@ -4,11 +4,13 @@ export class UIManager {
         this.drawingTool = null;
         this.sensorManager = null;
         this.currentTool = null;
+        this.confirmModal = document.getElementById('confirm-modal');
         this.initializeTabs();
         this.initializeSettingsTabs();
         this.initializeDrawingTools();
         this.initializeFloorplanUpload();
         this.initializeSensorPanel();
+        this.initializeConfirmModal();
     }
 
     showMessage(message, type = 'info') {
@@ -145,16 +147,19 @@ export class UIManager {
 
         // 초기화 버튼 이벤트 리스너
         document.getElementById('clear-btn')?.addEventListener('click', () => {
-            if (this.drawingTool) {
-                this.drawingTool.clear();
-                // 도면 이미지와 흰색 배경 초기화
-                const floorplanImg = document.getElementById('floorplan-img');
-                const floorplanOverlay = document.getElementById('floorplan-overlay');
-                if (floorplanImg instanceof HTMLImageElement) {
-                    floorplanImg.src = '';
+            this.showConfirmModal(
+                '초기화',
+                '모든 벽과 센서를 삭제하시겠습니까?',
+                () => {
+                    if (this.drawingTool) {
+                        this.drawingTool.clear();
+                    }
+                    if (this.sensorManager) {
+                        this.sensorManager.removeAllSensors();
+                    }
+                    this.showMessage('모든 벽과 센서가 삭제되었습니다.', 'success');
                 }
-                floorplanOverlay?.classList.add('hidden');
-            }
+            );
         });
 
         // Undo/Redo 버튼 이벤트 리스너
@@ -357,11 +362,10 @@ export class UIManager {
 
     initializeFloorplanUpload() {
         const floorplanUpload = document.getElementById('floorplan-upload');
-        const floorplanImg = /** @type {HTMLImageElement} */ (document.getElementById('floorplan-img'));
-        const floorplanOverlay = document.getElementById('floorplan-overlay');
-        const FIXED_SIZE = 1000;
+        const svgOverlay = document.getElementById('svg-overlay');
+        const FIXED_SIZE = 1000; // SVG viewBox 크기
 
-        if (floorplanUpload && floorplanImg) {
+        if (floorplanUpload && svgOverlay) {
             floorplanUpload.addEventListener('change', (e) => {
                 const input = /** @type {HTMLInputElement} */ (e.target);
                 const file = input.files?.[0];
@@ -369,28 +373,106 @@ export class UIManager {
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         const result = /** @type {string} */ (e.target?.result);
-                        floorplanImg.src = result;
-                        // 이미지가 로드되면 흰색 배경 표시
-                        floorplanOverlay?.classList.remove('hidden');
                         
-                        floorplanImg.onload = () => {
-                            // 이미지의 큰 쪽을 1000px에 맞추고 비율 유지
-                            const aspectRatio = floorplanImg.naturalWidth / floorplanImg.naturalHeight;
+                        // 기존 플로어플랜 관련 요소 제거
+                        const oldDefs = svgOverlay.querySelector('defs.floorplan-defs');
+                        if (oldDefs) oldDefs.remove();
+
+                        // 임시 이미지로 원본 크기 측정
+                        const tempImg = new Image();
+                        tempImg.onload = () => {
+                            const imgWidth = tempImg.naturalWidth;
+                            const imgHeight = tempImg.naturalHeight;
+                            const aspectRatio = imgWidth / imgHeight;
+
                             let width, height;
+                            let x = 0, y = 0;
 
                             if (aspectRatio > 1) {
                                 // 가로가 더 긴 경우
                                 width = FIXED_SIZE;
                                 height = FIXED_SIZE / aspectRatio;
+                                y = (FIXED_SIZE - height) / 2;
                             } else {
                                 // 세로가 더 긴 경우
                                 height = FIXED_SIZE;
                                 width = FIXED_SIZE * aspectRatio;
+                                x = (FIXED_SIZE - width) / 2;
                             }
 
-                            // 이미지 크기 설정
-                            floorplanImg.style.width = `${width}px`;
-                            floorplanImg.style.height = `${height}px`;
+                            // SVG 요소 생성
+                            const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+                            defs.classList.add('floorplan-defs');
+                            
+                            // 패턴 생성
+                            const pattern = document.createElementNS("http://www.w3.org/2000/svg", "pattern");
+                            const image = document.createElementNS("http://www.w3.org/2000/svg", "image");
+                            
+                            // 필터 생성
+                            const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+                            const feFloodBackground = document.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+                            const feFloodOverlay = document.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+                            const feCompositeBackground = document.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+                            const feCompositeOverlay = document.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+                            
+                            // 필터 설정
+                            filter.setAttribute("id", "white-overlay");
+                            
+                            // 배경 흰색 레이어 생성
+                            feFloodBackground.setAttribute("flood-color", "white");
+                            feFloodBackground.setAttribute("flood-opacity", "1");
+                            feFloodBackground.setAttribute("result", "background");
+                            
+                            // 배경과 이미지 합성
+                            feCompositeBackground.setAttribute("in", "SourceGraphic");
+                            feCompositeBackground.setAttribute("in2", "background");
+                            feCompositeBackground.setAttribute("operator", "over");
+                            feCompositeBackground.setAttribute("result", "backgrounded-image");
+                            
+                            // 오버레이 흰색 레이어 생성
+                            feFloodOverlay.setAttribute("flood-color", "white");
+                            feFloodOverlay.setAttribute("flood-opacity", "0.1");
+                            feFloodOverlay.setAttribute("result", "overlay");
+                            
+                            // 최종 합성
+                            feCompositeOverlay.setAttribute("in", "overlay");
+                            feCompositeOverlay.setAttribute("in2", "backgrounded-image");
+                            feCompositeOverlay.setAttribute("operator", "over");
+                            
+                            // 필터 조립
+                            filter.appendChild(feFloodBackground);
+                            filter.appendChild(feCompositeBackground);
+                            filter.appendChild(feFloodOverlay);
+                            filter.appendChild(feCompositeOverlay);
+
+                            // 패턴 설정
+                            pattern.setAttribute("id", "floorplan-pattern");
+                            pattern.setAttribute("patternUnits", "userSpaceOnUse");
+                            pattern.setAttribute("width", FIXED_SIZE.toString());
+                            pattern.setAttribute("height", FIXED_SIZE.toString());
+
+                            // 이미지 설정
+                            image.setAttribute("href", result);
+                            image.setAttribute("x", x.toString());
+                            image.setAttribute("y", y.toString());
+                            image.setAttribute("width", width.toString());
+                            image.setAttribute("height", height.toString());
+                            image.setAttribute("preserveAspectRatio", "none");
+                            image.setAttribute("filter", "url(#white-overlay)");
+
+                            // 기존 rect 업데이트
+                            const floorplanRect = svgOverlay.querySelector('#floorplan-rect');
+                            if (floorplanRect) {
+                                floorplanRect.setAttribute("fill", "url(#floorplan-pattern)");
+                            }
+
+                            // 요소 조립
+                            pattern.appendChild(image);
+                            defs.appendChild(pattern);
+                            defs.appendChild(filter);
+                            
+                            // SVG에 추가
+                            svgOverlay.appendChild(defs);
 
                             // 드로잉툴 초기화
                             if (this.drawingTool) {
@@ -399,6 +481,7 @@ export class UIManager {
                                 this.setActiveTool('line');
                             }
                         };
+                        tempImg.src = result;
                     };
                     reader.readAsDataURL(file);
                 }
@@ -412,21 +495,114 @@ export class UIManager {
         const toggleIcon = document.getElementById('toggle-sensor-icon');
         let isPanelOpen = false;
 
+        // 초기 상태 설정
+        if (sensorPanel) {
+            sensorPanel.style.display = 'none';
+            sensorPanel.style.transform = 'none';  // 기존 transform 제거
+        }
+
+        // 모두 추가/제거 버튼 이벤트 리스너
+        document.getElementById('add-all-sensors')?.addEventListener('click', () => {
+            if (!this.sensorManager) return;
+            
+            this.showConfirmModal(
+                '모든 센서 추가',
+                '필터링된 모든 센서를 맵에 추가하시겠습니까?\n (※가장 위에 있는 센서의 단위와 같은 단위를 가지는 센서들만 추가됩니다.)',
+                () => {
+                    this.sensorManager.addAllSensors();
+                    this.showMessage('필터링된 모든 센서를 추가했습니다.', 'success');
+                }
+            );
+        });
+
+        document.getElementById('remove-all-sensors')?.addEventListener('click', () => {
+            if (!this.sensorManager) return;
+            
+            this.showConfirmModal(
+                '모든 센서 제거',
+                '현재 배치된 모든 센서를 제거하시겠습니까?',
+                () => {
+                    this.sensorManager.removeAllSensors();
+                    this.showMessage('모든 센서를 제거했습니다.', 'success');
+                }
+            );
+        });
+
         function togglePanel() {
             isPanelOpen = !isPanelOpen;
             if (isPanelOpen) {
-                sensorPanel.style.transform = 'translateX(0)';
-                toggleButton.style.right = '19.5rem';
-                toggleIcon.classList.remove('mdi-chevron-right');
-                toggleIcon.classList.add('mdi-chevron-left');
-            } else {
-                sensorPanel.style.transform = 'translateX(100%)';
-                toggleButton.style.right = '0';
+                sensorPanel.style.display = 'block';
+                toggleButton.style.right = window.innerWidth < 640 ? 'calc(95vw - 8px)' : '492px';
                 toggleIcon.classList.remove('mdi-chevron-left');
                 toggleIcon.classList.add('mdi-chevron-right');
+            } else {
+                sensorPanel.style.display = 'none';
+                toggleButton.style.right = '0';
+                toggleIcon.classList.remove('mdi-chevron-right');
+                toggleIcon.classList.add('mdi-chevron-left');
             }
         }
 
-        toggleButton.addEventListener('click', togglePanel);
+        toggleButton?.addEventListener('click', togglePanel);
+
+        // 화면 크기 변경 시 토글 버튼 위치 업데이트
+        window.addEventListener('resize', () => {
+            if (isPanelOpen) {
+                toggleButton.style.right = window.innerWidth < 640 ? 'calc(95vw - 8px)' : '492px';
+            }
+        });
+    }
+
+    // 확인 모달 초기화
+    initializeConfirmModal() {
+        const cancelBtn = document.getElementById('confirm-modal-cancel');
+        const confirmBtn = document.getElementById('confirm-modal-confirm');
+        
+        cancelBtn?.addEventListener('click', () => {
+            this.hideConfirmModal();
+        });
+
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !this.confirmModal?.classList.contains('hidden')) {
+                this.hideConfirmModal();
+            }
+        });
+
+        // 모달 외부 클릭시 닫기
+        this.confirmModal?.addEventListener('click', (e) => {
+            if (e.target === this.confirmModal) {
+                this.hideConfirmModal();
+            }
+        });
+    }
+
+    // 확인 모달 표시
+    showConfirmModal(title, message, onConfirm) {
+        const modalTitle = document.getElementById('confirm-modal-title');
+        const modalMessage = document.getElementById('confirm-modal-message');
+        const confirmBtn = document.getElementById('confirm-modal-confirm');
+        
+        if (modalTitle) modalTitle.textContent = title;
+        if (modalMessage) modalMessage.textContent = message;
+        
+        // 이전 이벤트 리스너 제거
+        const newConfirmBtn = confirmBtn?.cloneNode(true);
+        confirmBtn?.parentNode?.replaceChild(newConfirmBtn, confirmBtn);
+        
+        // 새 이벤트 리스너 추가
+        newConfirmBtn?.addEventListener('click', () => {
+            onConfirm();
+            this.hideConfirmModal();
+        });
+
+        this.confirmModal?.classList.remove('hidden');
+        this.confirmModal?.classList.add('flex');
+    }
+
+    // 확인 모달 숨기기
+    hideConfirmModal() {
+        this.confirmModal?.classList.remove('flex');
+        this.confirmModal?.classList.add('hidden');
     }
 } 

@@ -71,6 +71,10 @@ class SensorManager:
                 entity_id = state['entity_id']
                 if not entity_id.startswith('sensor.'):
                     continue
+                try:
+                    float(state['state'])
+                except (ValueError, TypeError):
+                    continue
                 if entity_id in entity_registry_dict:
                     state.update({
                         'labels': entity_registry_dict[entity_id].get('labels', []),

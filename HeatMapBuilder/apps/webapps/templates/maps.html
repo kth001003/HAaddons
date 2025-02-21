@@ -11,34 +11,37 @@
 <body class="bg-gray-50">
     <div class="container mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-6">
-            <h1 class="text-2xl font-bold">맵 선택</h1>
+            <h1 class="text-2xl font-bold">HeatMap Builder - 맵 선택</h1>
             <div class="flex gap-2">
                 <input type="file" id="mapFileInput" accept=".json" class="hidden">
-                <button class="inline-flex items-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors" id="importMapsBtn">
-                    <i class="mdi mdi-file-import text-xl mr-2"></i>
-                    불러오기
-                </button>
-                <button class="inline-flex items-center px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors" id="exportMapsBtn">
-                    <i class="mdi mdi-file-export text-xl mr-2"></i>
-                    내보내기
-                </button>
-                <button class="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" onclick="showModal('createMapModal')">
-                    <i class="mdi mdi-plus text-xl mr-2"></i>
-                    새 맵 생성
-                </button>
             </div>
         </div>
 
         <!-- 맵 목록 -->
-        <div id="map-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div id="map-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             <!-- 맵 카드들이 여기에 동적으로 추가됩니다 -->
+        </div>
+
+        <!-- 불러오기/내보내기 버튼 -->
+        <div class="flex justify-center gap-4 mt-8">
+            <button class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors" id="importMapsBtn">
+                <i class="mdi mdi-file-import text-lg mr-1"></i>
+                불러오기
+            </button>
+            <button class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors" id="exportMapsBtn">
+                <i class="mdi mdi-file-export text-lg mr-1"></i>
+                내보내기
+            </button>
         </div>
 
         <!-- 맵 생성 모달 -->
         <div id="createMapModal" class="modal fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
                 <div class="flex items-center justify-between p-4 border-b border-gray-200">
-                    <h5 class="text-xl font-semibold">새 맵 생성</h5>
+                    <div class="flex items-center gap-2">
+                        <i class="mdi mdi-map-plus text-2xl text-blue-600"></i>
+                        <h5 class="text-xl font-semibold">새 맵 생성</h5>
+                    </div>
                     <button type="button" class="text-gray-400 hover:text-gray-500" onclick="hideModal('createMapModal')">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -65,7 +68,10 @@
         <div id="deleteMapModal" class="modal fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
                 <div class="flex items-center justify-between p-4 border-b border-gray-200">
-                    <h5 class="text-xl font-semibold">맵 삭제</h5>
+                    <div class="flex items-center gap-2">
+                        <i class="mdi mdi-map-marker-alert text-2xl text-red-600"></i>
+                        <h5 class="text-xl font-semibold">맵 삭제</h5>
+                    </div>
                     <button type="button" class="text-gray-400 hover:text-gray-500" onclick="hideModal('deleteMapModal')">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -74,6 +80,15 @@
                 </div>
                 <div class="p-4">
                     <p class="text-gray-700">정말로 이 맵을 삭제하시겠습니까?</p>
+                    <div class="mt-4 p-3 bg-red-50 rounded-md">
+                        <p class="text-sm text-red-600 mb-2">※ 다음 항목이 영구적으로 삭제됩니다:</p>
+                        <ul class="text-sm text-red-600 space-y-1 list-disc list-inside">
+                            <li>맵 데이터</li>
+                            <li>생성된 열지도 이미지</li>
+                            <li>센서 배치 정보</li>
+                        </ul>
+                        <p class="text-sm text-red-600 mt-2">※ 삭제된 데이터는 복구할 수 없습니다.</p>
+                    </div>
                 </div>
                 <div class="flex justify-end gap-2 p-4 border-t border-gray-200">
                     <button type="button" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" onclick="hideModal('deleteMapModal')">취소</button>
@@ -86,8 +101,10 @@
         <div id="cloneMapModal" class="modal fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center hidden">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
                 <div class="flex items-center justify-between p-4 border-b border-gray-200">
-                    <h5 class="text-xl font-semibold">맵 복제</h5>
-                    <p class="text-sm text-gray-500">복제된 맵은 센서배치만 초기화되고 나머지는 원본 맵과 동일한 설정을 사용합니다.</p>
+                    <div class="flex items-center gap-2">
+                        <i class="mdi mdi-content-copy text-2xl text-blue-600"></i>
+                        <h5 class="text-xl font-semibold">맵 복제</h5>
+                    </div>
                     <button type="button" class="text-gray-400 hover:text-gray-500" onclick="hideModal('cloneMapModal')">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -100,6 +117,15 @@
                             <label for="cloneMapName" class="block text-sm font-medium text-gray-700 mb-1">새 맵 이름</label>
                             <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" id="cloneMapName" required>
                         </div>
+                        <div class="mt-4 p-3 bg-gray-50 rounded-md">
+                            <p class="text-sm text-gray-600 mb-2">※ 복제 시 다음 항목이 복사됩니다:</p>
+                            <ul class="text-sm text-gray-600 space-y-1 list-disc list-inside">
+                                <li>맵 레이아웃 (walls)</li>
+                                <li>생성 설정 (gen_config)</li>
+                                <li>파라미터 (parameters)</li>
+                            </ul>
+                            <p class="text-sm text-gray-600 mt-2">※ 센서 배치(sensors)는 초기화됩니다.</p>
+                        </div>
                         <button type="submit" style="display: none;"></button>
                     </form>
                 </div>
@@ -111,7 +137,7 @@
         </div>
 
         <!-- 메시지 컨테이너 -->
-        <div id="message-container" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50"></div>
+        <div id="message-container" class="fixed top-4 left-0 right-0 mx-auto z-50 w-96"></div>
     </div>
 
     <script>
@@ -189,11 +215,22 @@
             function showMessage(message, type = 'info') {
                 const messageContainer = document.getElementById('message-container');
                 const messageElement = document.createElement('div');
-                messageElement.className = `alert alert-${type}`;
+                
+                // 타입에 따른 스타일 설정
+                const styles = {
+                    success: 'bg-green-100 border-green-500 text-green-700',
+                    error: 'bg-red-100 border-red-500 text-red-700',
+                    info: 'bg-blue-100 border-blue-500 text-blue-700',
+                };
+                
+                messageElement.className = `mx-auto px-4 py-3 rounded-lg border shadow-sm flex items-center justify-between ${styles[type] || styles.info}`;
                 messageElement.innerHTML = `
-                    <span>${message}</span>
-                    <button type="button" class="ml-4 hover:text-gray-200" onclick="this.parentElement.remove()">
-                        <i class="bi bi-x-lg"></i>
+                    <div class="flex items-center">
+                        <i class="mdi ${type === 'success' ? 'mdi-check-circle' : type === 'error' ? 'mdi-alert-circle' : 'mdi-information'} text-xl mr-2"></i>
+                        <span>${message}</span>
+                    </div>
+                    <button type="button" class="ml-4 hover:opacity-75" onclick="this.parentElement.remove()">
+                        <i class="mdi mdi-close text-lg"></i>
                     </button>
                 `;
                 
@@ -212,18 +249,21 @@
                     console.log(maps);
                     
                     mapList.innerHTML = '';
+                    const MAX_SLOTS = 6;
+                    
+                    // 실제 맵 카드 생성
                     maps.forEach(map => {
                         const col = document.createElement('div');
                         col.innerHTML = `
-                            <div class="map-card bg-white rounded-lg shadow-md overflow-hidden">
+                            <div class="map-card bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow" onclick="window.location.href='./map?id=${map.id}'">
                                 <div class="p-4">
                                     <div class="flex justify-between items-start">
                                         <h5 class="text-lg font-semibold">${map.name}</h5>
                                         <div class="flex gap-2">
-                                            <button class="text-blue-500 hover:text-blue-600 p-1 clone-map" data-map-id="${map.id}">
+                                            <button class="text-gray-400 hover:text-blue-500 p-1 clone-map transition-colors" data-map-id="${map.id}" onclick="event.stopPropagation()">
                                                 <i class="mdi mdi-content-copy text-xl"></i>
                                             </button>
-                                            <button class="text-red-500 hover:text-red-600 p-1 delete-map" data-map-id="${map.id}">
+                                            <button class="text-gray-400 hover:text-red-500 p-1 delete-map transition-colors" data-map-id="${map.id}" onclick="event.stopPropagation()">
                                                 <i class="mdi mdi-delete text-xl"></i>
                                             </button>
                                         </div>
@@ -237,7 +277,7 @@
                                             <div style="display: none;">
                                                 ${map.walls ? 
                                                     `<svg viewBox="0 0 1000 1000" class="w-full h-full">${map.walls}</svg>` : 
-                                                    '<div class="w-full h-full flex items-center justify-center text-gray-400">미리보기 없음</div>'
+                                                    '<div class="absolute inset-0 flex items-center justify-center text-gray-400 text-center">아직 생성되지 않음</div>'
                                                 }
                                             </div>
                                         </div>
@@ -247,16 +287,23 @@
                                         <span class="block">수정: ${new Date(map.updated_at).toLocaleString()}</span>
                                     </p>
                                 </div>
-                                <div class="px-4 py-3 bg-gray-50">
-                                    <button class="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 switch-map" data-map-id="${map.id}">
-                                        <i class="mdi mdi-arrow-right text-xl mr-2"></i>
-                                        선택
-                                    </button>
-                                </div>
                             </div>
                         `;
                         mapList.appendChild(col);
                     });
+
+                    if (maps.length < MAX_SLOTS) {
+                        const col = document.createElement('div');
+                        col.innerHTML = `
+                            <div class="map-card bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 overflow-hidden h-full cursor-pointer hover:bg-gray-100 hover:border-gray-400 transition-colors" onclick="showModal('createMapModal')">
+                                <div class="p-4 flex flex-col items-center justify-center h-full min-h-[300px]">
+                                    <i class="mdi mdi-plus-circle-outline text-4xl text-gray-400 mb-2"></i>
+                                    <p class="text-gray-500 text-center">새 맵 생성</p>
+                                </div>
+                            </div>
+                        `;
+                        mapList.appendChild(col);
+                    }
 
                     setupEventListeners();
                 } catch (error) {
@@ -291,14 +338,6 @@
                         e.stopPropagation();
                         currentMapId = e.currentTarget.dataset.mapId;
                         showModal('deleteMapModal');
-                    });
-                });
-
-                // 맵 선택 이벤트 리스너
-                document.querySelectorAll('.switch-map').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const mapId = e.currentTarget.dataset.mapId;
-                        window.location.href = `./map?id=${mapId}`;
                     });
                 });
             }

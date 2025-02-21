@@ -1,5 +1,5 @@
 export class SensorManager {
-    constructor(svgElement) {
+    constructor(svgElement, uiManager) {
         // 상수 정의
         this.MARKER_RADIUS = 5;
         this.MARKER_FILL = 'red';
@@ -20,6 +20,7 @@ export class SensorManager {
             device_class: '',
             label: ''
         };
+        this.uiManager = uiManager;
 
         // SVG viewBox 파싱
         const viewBox = this.svg.getAttribute('viewBox');
@@ -207,34 +208,38 @@ export class SensorManager {
 
     createSensorListItem(sensor) {
         const isPlaced = sensor.position !== undefined;
-        const itemClass = 'sensor-item p-3 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-pointer flex justify-between items-center';
+        const itemClass = 'sensor-item p-2 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-pointer flex justify-between items-center';
         const calibration = sensor.calibration || 0;
         const calibratedTemp = parseFloat(sensor.state) + calibration;
+        const entityId = sensor.entity_id;
+        const friendlyName = sensor.attributes.friendly_name || entityId;
+        const unit = sensor.attributes.unit_of_measurement ?? '';
+        const state = sensor.state;
 
         return `
-            <div class="${itemClass}" data-entity-id="${sensor.entity_id}">
+            <div class="${itemClass}" data-entity-id="${entityId}" style="pointer-events: auto;">
                 <div class="flex-1">
                      <div class="flex items-center">
                         <input type="checkbox"
                             class="sensor-checkbox mr-2"
-                            data-entity-id="${sensor.entity_id}"
+                            data-entity-id="${entityId}"
                             ${isPlaced ? 'checked' : ''}
-                            ${this.enabled ? '' : 'disabled'}
+                            style="pointer-events: auto;"
                         >
-                        <span class="font-medium">${sensor.attributes.friendly_name || sensor.entity_id}</span>
+                        <span class="text-sm">${friendlyName}</span>
                     </div>
-                    <div class="flex items-center mt-1">
-                        <span class="text-xs text-gray-600 mr-2">측정값: ${sensor.state}°C</span>
-                        <span class="text-xs text-blue-600">보정값: 
+                    <div class="grid grid-cols-3 gap-4 mt-1">
+                        <span class="text-xs text-gray-600">측정값: ${state} ${unit}</span>
+                        <span class="text-xs text-blue-600">보정: 
                             <input type="number" 
                                 class="calibration-input text-xs w-16 px-1 py-0.5 border border-gray-300 rounded"
                                 value="${calibration}"
                                 step="0.1"
-                                data-entity-id="${sensor.entity_id}"
-                                ${this.enabled ? '' : 'disabled'}
-                            > °C
+                                data-entity-id="${entityId}"
+                                style="pointer-events: auto;"
+                            >
                         </span>
-                        <span class="text-xs text-green-600 ml-2">보정후: ${calibratedTemp.toFixed(1)}°C</span>
+                        <span class="text-xs text-green-600">보정후: ${calibratedTemp.toFixed(1)} ${unit}</span>
                     </div>
                 </div>
             </div>
@@ -275,6 +280,22 @@ export class SensorManager {
         }
 
         return true;
+    }
+
+    // 모든 센서 추가
+    addAllSensors() {
+        const unit = this.sensors[0].attributes.unit_of_measurement;        
+        this.sensors.forEach(sensor => {
+            if (sensor.attributes.unit_of_measurement !== unit) {
+                this.uiManager.showMessage(`${sensor.attributes.friendly_name}의 단위가 ${unit}이 아닙니다.`, 'error');
+                return;
+            }
+            if (!sensor.position) {
+                sensor.position = this.getRandomCenterPoint();
+                this.updateSensorMarker(sensor, sensor.position);
+            }
+        });
+        this.updateSensorList();
     }
 
     // 모든 센서 제거
@@ -384,12 +405,14 @@ export class SensorManager {
         rect.style.pointerEvents = 'none';
         rect.setAttribute('fill', 'white');
         rect.setAttribute('fill-opacity', '0.9');
+        rect.classList.add('sensor-bg-rect');
 
         // 센서 위치 마커 생성 (드래그를 위한 투명한 원)
         const dragHandle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         dragHandle.setAttribute('r', '10');  // 드래그 영역을 위한 충분한 크기
         dragHandle.setAttribute('fill', 'transparent');  // 투명하게 설정
         dragHandle.style.pointerEvents = 'all';  // 이벤트 처리 활성화
+        dragHandle.classList.add('sensor-drag-handle');
 
         // 텍스트 생성
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -397,13 +420,241 @@ export class SensorManager {
         text.setAttribute('dominant-baseline', 'middle');
         text.style.pointerEvents = 'none';
         text.style.userSelect = 'none';
+        text.classList.add('sensor-text');
 
         group.appendChild(rect);
-        group.appendChild(dragHandle);  // 드래그 핸들을 먼저 추가
+        group.appendChild(dragHandle);
         group.appendChild(text);
+
+        // 호버 이벤트 설정
+        this.setupHoverEvents(group);
+        
+        // 컨텍스트 메뉴와 hold 이벤트 설정
+        this.setupContextMenuAndHold(group, sensor);
 
         this.svg.appendChild(group);
         return group;
+    }
+
+    setupHoverEvents(group) {
+        const handleMouseEnter = () => {
+            if (!this.enabled) return;
+            
+            // 배경 사각형 강조
+            const rect = group.querySelector('.sensor-bg-rect');
+            if (rect) {
+                rect.setAttribute('fill', '#f0f9ff');  // 연한 파란색 배경
+                rect.setAttribute('stroke', '#3b82f6');  // 파란색 테두리
+                rect.setAttribute('stroke-width', '2');
+            }
+
+            // 마커 강조
+            const marker = group.querySelector('.sensor-marker');
+            if (marker) {
+                marker.setAttribute('r', '6');  // 마커 크기 증가
+                marker.setAttribute('fill', '#3b82f6');  // 파란색으로 변경
+            }
+
+            // 텍스트 강조
+            const text = group.querySelector('.sensor-text');
+            if (text) {
+                text.setAttribute('fill', '#2563eb');  // 진한 파란색으로 변경
+                text.style.fontWeight = 'bold';
+            }
+        };
+
+        const handleMouseLeave = () => {
+            if (!this.enabled) return;
+            
+            // 배경 사각형 원래대로
+            const rect = group.querySelector('.sensor-bg-rect');
+            if (rect) {
+                rect.setAttribute('fill', 'white');
+                rect.removeAttribute('stroke');
+                rect.removeAttribute('stroke-width');
+            }
+
+            // 마커 원래대로
+            const marker = group.querySelector('.sensor-marker');
+            if (marker) {
+                marker.setAttribute('r', '3');
+                marker.setAttribute('fill', 'red');
+            }
+
+            // 텍스트 원래대로
+            const text = group.querySelector('.sensor-text');
+            if (text) {
+                text.setAttribute('fill', 'black');
+                text.style.fontWeight = 'normal';
+            }
+        };
+
+        group.addEventListener('mouseenter', handleMouseEnter);
+        group.addEventListener('mouseleave', handleMouseLeave);
+    }
+
+    setupContextMenuAndHold(group, sensor) {
+        let holdTimer = null;
+        const HOLD_DURATION = 1000; // 1초
+
+        // 삭제 버튼 생성 함수
+        const createDeleteButton = (x, y) => {
+            const deleteGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            deleteGroup.classList.add('delete-button');
+            deleteGroup.setAttribute('transform', `translate(${x},${y})`);
+            deleteGroup.style.cursor = 'pointer';
+            deleteGroup.style.pointerEvents = 'all';
+
+            // 삭제 버튼 배경
+            const buttonBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            buttonBg.setAttribute('r', '15');
+            buttonBg.setAttribute('fill', '#ef4444');
+            buttonBg.setAttribute('stroke', 'white');
+            buttonBg.setAttribute('stroke-width', '2');
+            buttonBg.style.pointerEvents = 'all';
+
+            // X 아이콘
+            const xIcon = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            xIcon.setAttribute('d', 'M-6,-6 L6,6 M-6,6 L6,-6');
+            xIcon.setAttribute('stroke', 'white');
+            xIcon.setAttribute('stroke-width', '2');
+            xIcon.setAttribute('stroke-linecap', 'round');
+            xIcon.style.pointerEvents = 'none';
+
+            deleteGroup.appendChild(buttonBg);
+            deleteGroup.appendChild(xIcon);
+
+            // 삭제 처리 함수
+            const handleDelete = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (confirm('이 센서를 삭제하시겠습니까?')) {
+                    this.removeSensorMarker(sensor.entity_id);
+                    const sensorIndex = this.sensors.findIndex(s => s.entity_id === sensor.entity_id);
+                    if (sensorIndex !== -1) {
+                        this.sensors[sensorIndex].position = undefined;
+                    }
+                    this.updateSensorList();
+                }
+            };
+
+            // 클릭 및 터치 이벤트
+            [deleteGroup, buttonBg].forEach(element => {
+                // 마우스 클릭
+                element.addEventListener('click', handleDelete);
+                
+                // 터치 이벤트
+                element.addEventListener('touchstart', (e) => {
+                    e.preventDefault(); // 기본 동작 방지
+                });
+                
+                element.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    handleDelete(e);
+                });
+            });
+
+            // 호버 효과
+            const handleMouseEnter = () => {
+                buttonBg.setAttribute('fill', '#dc2626');
+            };
+
+            const handleMouseLeave = () => {
+                buttonBg.setAttribute('fill', '#ef4444');
+            };
+
+            deleteGroup.addEventListener('mouseenter', handleMouseEnter);
+            deleteGroup.addEventListener('mouseleave', handleMouseLeave);
+
+            return deleteGroup;
+        };
+
+        // 삭제 버튼 표시
+        const showDeleteButton = () => {
+            const existingButton = group.querySelector('.delete-button');
+            if (existingButton) return;
+
+            const marker = group.querySelector('.sensor-marker');
+            if (marker) {
+                const x = parseFloat(marker.getAttribute('cx'));
+                const y = parseFloat(marker.getAttribute('cy')) - 40;
+                const deleteButton = createDeleteButton(x, y);
+                group.appendChild(deleteButton);
+            }
+        };
+
+        // 삭제 버튼 숨기기
+        const hideDeleteButton = () => {
+            const deleteButton = group.querySelector('.delete-button');
+            if (deleteButton) {
+                deleteButton.remove();
+            }
+        };
+
+        // 우클릭 이벤트
+        group.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showDeleteButton();
+            
+            // 3초 후 자동으로 삭제 버튼 숨기기
+            setTimeout(hideDeleteButton, 3000);
+        });
+
+        // 터치 이벤트 (hold)
+        let touchStartTime = 0;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        const TOUCH_MOVE_THRESHOLD = 10; // 10px 이상 움직이면 드래그로 간주
+
+        group.addEventListener('touchstart', (e) => {
+            touchStartTime = Date.now();
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            
+            holdTimer = setTimeout(() => {
+                showDeleteButton();
+                // 3초 후 자동으로 삭제 버튼 숨기기
+                setTimeout(hideDeleteButton, 3000);
+            }, HOLD_DURATION);
+        });
+
+        group.addEventListener('touchend', (e) => {
+            const touchEndTime = Date.now();
+            const touchDuration = touchEndTime - touchStartTime;
+
+            if (holdTimer) {
+                clearTimeout(holdTimer);
+            }
+
+            // 짧은 터치는 삭제 버튼을 숨김
+            if (touchDuration < HOLD_DURATION) {
+                hideDeleteButton();
+            }
+        });
+
+        group.addEventListener('touchmove', (e) => {
+            const touchMoveX = e.touches[0].clientX;
+            const touchMoveY = e.touches[0].clientY;
+            const moveDistance = Math.sqrt(
+                Math.pow(touchMoveX - touchStartX, 2) + 
+                Math.pow(touchMoveY - touchStartY, 2)
+            );
+
+            // 일정 거리 이상 움직였으면 hold 타이머 취소
+            if (moveDistance > TOUCH_MOVE_THRESHOLD) {
+                if (holdTimer) {
+                    clearTimeout(holdTimer);
+                }
+            }
+        });
+
+        // SVG 영역 클릭 시 삭제 버튼 숨기기
+        this.svg.addEventListener('click', (e) => {
+            if (!group.contains(e.target)) {
+                hideDeleteButton();
+            }
+        });
     }
 
     updateMarkerPosition(group, sensor, point) {
@@ -532,6 +783,9 @@ export class SensorManager {
             isDragging = false;
             group.style.pointerEvents = 'auto';
             e.stopPropagation();
+            if (this.uiManager.drawingTool) {
+                this.uiManager.drawingTool.saveState();
+            }
         };
 
         // 기존 이벤트 리스너 제거
@@ -565,10 +819,15 @@ export class SensorManager {
         const rect_size = Math.min(rect.width, rect.height)
         const scaleX = this.viewBox.width / rect_size;
         const scaleY = this.viewBox.height / rect_size;
-        return {
-            x: (clientX - rect.left) * scaleX + this.viewBox.minX,
-            y: (clientY - rect.top) * scaleY + this.viewBox.minY
-        };
+        
+        let x = (clientX - rect.left) * scaleX + this.viewBox.minX;
+        let y = (clientY - rect.top) * scaleY + this.viewBox.minY;
+        
+        // // viewbox 범위 내로 제한
+        // x = Math.max(this.viewBox.minX, Math.min(x, this.viewBox.minX + this.viewBox.width));
+        // y = Math.max(this.viewBox.minY, Math.min(y, this.viewBox.minY + this.viewBox.height));
+        
+        return { x, y };
     }
 
     // SVG 좌표를 클라이언트 좌표로 변환
@@ -618,5 +877,25 @@ export class SensorManager {
                     calibration: sensor.calibration || 0
                 }))
         };
+    }
+
+    // SVG 요소로부터 센서 정보 파싱
+    parseSensorsFromSVG() {
+        const sensorGroups = this.svg.querySelectorAll('g[data-entity-id]');
+        sensorGroups.forEach(group => {
+            const entityId = group.getAttribute('data-entity-id');
+            const sensor = this.sensors.find(s => s.entity_id === entityId);
+            if (sensor) {
+                const circle = group.querySelector('circle.sensor-marker');
+                if (circle) {
+                    const x = parseFloat(circle.getAttribute('cx'));
+                    const y = parseFloat(circle.getAttribute('cy'));
+                    sensor.position = { x, y };
+
+                    // 이벤트 핸들러 재등록
+                    this.setupDragEvents(group, sensor, sensor.position);
+                }
+            }
+        });
     }
 }

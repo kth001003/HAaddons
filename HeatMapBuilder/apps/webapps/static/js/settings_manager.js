@@ -462,7 +462,7 @@ export class SettingsManager {
             if (response.ok) {
                 const config = await response.json();
                 if (config.walls) {
-                    svg.innerHTML = config.walls;
+                    svg.innerHTML = svg.innerHTML + config.walls;
                 }
                 if (config.sensors) {
                     config.sensors.forEach(savedSensor => {
@@ -483,7 +483,7 @@ export class SettingsManager {
                     this.loadGenConfig(config.gen_config);
                 }
             }
-            drawingTool.saveState();
+            drawingTool.resetState();
         } catch (error) {
             console.error('설정을 불러오는데 실패했습니다:', error);
         }

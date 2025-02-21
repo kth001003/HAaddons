@@ -13,6 +13,7 @@ import hypercorn.config # type: ignore
 import matplotlib.pyplot as plt # type: ignore
 import matplotlib.cm as cm # type: ignore
 import numpy as np # type: ignore
+import shutil
 
 class WebServer:
     """열지도 웹 서버 클래스"""
@@ -499,7 +500,16 @@ class WebServer:
     async def delete_map(self, map_id):
         """맵 삭제"""
         try:
+            # 맵 폴더 경로 생성
+            map_dir = os.path.join(self.config_manager.paths['media'], str(map_id))
+            
+            # DB에서 맵 삭제
             self.config_manager.db.delete_map(map_id)
+            
+            # 맵 폴더가 존재하면 삭제
+            if os.path.exists(map_dir):
+                shutil.rmtree(map_dir)
+            
             return jsonify({'status': 'success'})
         except Exception as e:
             return jsonify({'error': str(e)}), 400

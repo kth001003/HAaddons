@@ -22,13 +22,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
     console.log('SVG element found:', svg);
 
-    // 플로어플랜 이미지 초기화
-    const floorplanImg = /** @type {HTMLImageElement} */ (document.getElementById('floorplan-img'));
-    if (!floorplanImg) {
-        console.error('Floorplan image element not found');
-        return;
-    }
-
     // SVG 초기 설정
     const container = document.getElementById('floorplan-container');
     if (!container) {
@@ -48,12 +41,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     const websocketDebugger = new WebSocketDebugger(uiManager);
 
     // DrawingTool 초기화
-    const drawingTool = new DrawingTool(svg);
+    const drawingTool = new DrawingTool(svg, uiManager);
     drawingTool.enable();
     console.log('DrawingTool initialized');
 
     // SensorManager 초기화
-    const sensorManager = new SensorManager(svg);
+    const sensorManager = new SensorManager(svg, uiManager);
     sensorManager.disable();
 
     // UI 매니저에 도구 설정
