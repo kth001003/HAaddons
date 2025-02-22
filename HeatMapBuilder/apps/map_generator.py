@@ -206,6 +206,8 @@ class MapGenerator:
         points = []
         temperatures = []
         sensor_ids = []
+        self.logger.debug("상태조회 대상 센서 %s개", 
+                          self.logger._colorize(len(self.sensors_data), "blue"))
         for sensor in self.sensors_data:
             if 'position' not in sensor:
                 continue
