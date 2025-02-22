@@ -626,7 +626,7 @@ class WebServer:
         config.reload_dirs = ['apps']  # 앱 디렉토리 변경 감시
         config.reload_includes = ['*.py', '*.html', '*.js', '*.css']  # 감시할 파일 확장자
         config.reload_excludes = ['*.pyc', '*.pyo']  # 제외할 파일 확장자
-        config.accesslog = '-'  # 액세스 로그를 표준 출력으로
-        config.errorlog = '-'   # 에러 로그를 표준 출력으로
+        config.accesslog = None  # 액세스 로그 비활성화
+        config.errorlog = '-'
         
         asyncio.run(hypercorn.asyncio.serve(self.app, config))

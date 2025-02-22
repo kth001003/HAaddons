@@ -14,8 +14,6 @@ class WebSocketClient:
         self.max_reconnect_attempts = 5
         self.reconnect_delay = 5
         self._connection_lock = asyncio.Lock()
-        self._connection_count = 0
-        self._max_reuse_count = 50  # 최대 재사용 횟수
         self._keepalive_tasks = set()  # keepalive 태스크 추적용
 
     async def _cleanup_keepalive_tasks(self):
@@ -32,7 +30,6 @@ class WebSocketClient:
     async def close(self):
         """웹소켓 연결을 안전하게 종료합니다."""
         async with self._connection_lock:
-            self._connection_count = 0
             # keepalive 태스크들 정리
             await self._cleanup_keepalive_tasks()
             
@@ -47,14 +44,8 @@ class WebSocketClient:
     async def ensure_connected(self) -> bool:
         """연결 상태를 확인하고 필요한 경우 재연결합니다."""
         async with self._connection_lock:
-            if self._connection_count >= self._max_reuse_count:
-                self.logger.info("연결 재사용 횟수 초과로 새로운 연결을 생성합니다.")
-                await self.close()
-                self._connection_count = 0
-
             try:
                 if self.websocket and self.websocket.open:
-                    self._connection_count += 1
                     return True
             except Exception:
                 await self.close()
@@ -64,7 +55,6 @@ class WebSocketClient:
                     self.websocket = await self._connect()
                     if self.websocket:
                         self.reconnect_attempt = 0
-                        self._connection_count += 1
                         return True
                     
                     self.reconnect_attempt += 1
