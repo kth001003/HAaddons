@@ -19,7 +19,7 @@ export class ThermalMapManager {
             this.copyImageUrlBtn.addEventListener('click', () => this.copyImageUrl());
         }
 
-        // 10초마다 맵 자동 새로고침
+        // 10초마다 지도 자동 새로고침
         setInterval(() => this.checkAndRefreshMap(), 10000);
     }
 
@@ -28,7 +28,7 @@ export class ThermalMapManager {
             return;
         }
 
-        this.uiManager.showMessage('온도지도 생성 중..');
+        this.uiManager.showMessage('지도 생성 중..');
         this.mapGenerationButton.children[0].classList.add('animate-spin');
 
         try {
@@ -46,13 +46,13 @@ export class ThermalMapManager {
                     this.mapGenerationDuration.textContent = data.duration;
                 }
                 
-                this.uiManager.showMessage('온도지도를 새로 생성했습니다.', 'success');
+                this.uiManager.showMessage('지도를 새로 생성했습니다.', 'success');
             } else {
-                this.uiManager.showMessage(data.error || '온도지도 생성에 실패했습니다.', 'error');
+                this.uiManager.showMessage(data.error || '지도 생성에 실패했습니다.', 'error');
             }
         } catch (error) {
             console.error('Error:', error);
-            this.uiManager.showMessage('온도지도 생성 중 오류가 발생했습니다.', 'error');
+            this.uiManager.showMessage('지도 생성 중 오류가 발생했습니다.', 'error');
         }
 
         this.mapGenerationButton.children[0].classList.remove('animate-spin');
@@ -85,7 +85,7 @@ export class ThermalMapManager {
                 }
             }
         } catch (error) {
-            console.error('맵 시간 확인 중 오류:', error);
+            console.error('지도 시간 확인 중 오류:', error);
         }
     }
 

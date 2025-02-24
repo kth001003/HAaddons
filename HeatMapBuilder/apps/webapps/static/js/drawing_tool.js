@@ -51,8 +51,14 @@ export class DrawingTool {
         // 실행취소/다시실행 버튼 이벤트 리스너 등록
         const undoBtn = document.getElementById('undo-btn');
         const redoBtn = document.getElementById('redo-btn');
-        if (undoBtn) undoBtn.addEventListener('click', this.undo);
-        if (redoBtn) redoBtn.addEventListener('click', this.redo);
+        if (undoBtn) {
+            undoBtn.removeEventListener('click', this.undo);  // 기존 이벤트 리스너 제거
+            undoBtn.addEventListener('click', this.undo);
+        }
+        if (redoBtn) {
+            redoBtn.removeEventListener('click', this.redo);  // 기존 이벤트 리스너 제거
+            redoBtn.addEventListener('click', this.redo);
+        }
 
         // path 요소들의 pointer-events 비활성화
         this.svg.querySelectorAll('path').forEach(path => {
@@ -893,7 +899,7 @@ export class DrawingTool {
             // 시작점과 끝점이 너무 가까우면 그리지 않음
             const length = DrawingUtils.calculateDistance(this.startPoint, processedEndPoint);
             
-            if (length < 1) {
+            if (length < 3) {
                 this.isDrawing = false;
                 this.startPoint = null;
                 return;

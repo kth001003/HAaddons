@@ -68,7 +68,10 @@ class BackgroundTaskManager:
                 # 기존 이미지가 있다면 로테이션 수행
                 if os.path.exists(_output_path):
                     self.rotate_images(map_id, _output_path)
-                return await self.map_generator.generate(map_id, _output_path)
+                success, error_msg = await self.map_generator.generate(map_id, _output_path)
+                if not success:
+                    raise Exception(error_msg)
+                return success
             except Exception as e:
                 self.logger.error(f"열지도 생성 실패: {str(e)}")
                 raise e

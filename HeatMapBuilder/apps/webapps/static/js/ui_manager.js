@@ -141,6 +141,10 @@ export class UIManager {
             this.setActiveTool('eraser');
         });
 
+        document.getElementById('sensor-list-tool')?.addEventListener('click', () => {
+            this.toggleSensorPanel();
+        });
+
         // 초기화 버튼 이벤트 리스너
         document.getElementById('clear-btn')?.addEventListener('click', () => {
             this.showConfirmModal(
@@ -156,19 +160,6 @@ export class UIManager {
                     this.showMessage('모든 벽과 센서가 삭제되었습니다.', 'success');
                 }
             );
-        });
-
-        // Undo/Redo 버튼 이벤트 리스너
-        document.getElementById('undo-btn')?.addEventListener('click', () => {
-            if (this.drawingTool) {
-                this.drawingTool.undo();
-            }
-        });
-
-        document.getElementById('redo-btn')?.addEventListener('click', () => {
-            if (this.drawingTool) {
-                this.drawingTool.redo();
-            }
         });
 
         // 저장 버튼 이벤트 리스너
@@ -532,8 +523,6 @@ export class UIManager {
 
     initializeSensorPanel() {
         const sensorPanel = document.getElementById('sensor-panel');
-        const toggleButton = document.getElementById('toggle-sensor-panel');
-        const toggleIcon = document.getElementById('toggle-sensor-icon');
         let isPanelOpen = false;
 
         // 초기 상태 설정
@@ -568,30 +557,25 @@ export class UIManager {
                 }
             );
         });
+    }
 
-        function togglePanel() {
-            isPanelOpen = !isPanelOpen;
-            if (isPanelOpen) {
-                sensorPanel.style.display = 'block';
-                toggleButton.style.right = window.innerWidth < 640 ? 'calc(95vw - 8px)' : '492px';
-                toggleIcon.classList.remove('mdi-chevron-left');
-                toggleIcon.classList.add('mdi-chevron-right');
-            } else {
-                sensorPanel.style.display = 'none';
-                toggleButton.style.right = '0';
-                toggleIcon.classList.remove('mdi-chevron-right');
-                toggleIcon.classList.add('mdi-chevron-left');
-            }
+    toggleSensorPanel() {
+        const sensorPanel = document.getElementById('sensor-panel');
+        const sensorListTool = document.getElementById('sensor-list-tool');
+        
+        if (!sensorPanel || !sensorListTool) return;
+
+        const isHidden = sensorPanel.style.display === 'none';
+        
+        if (isHidden) {
+            sensorPanel.style.display = 'block';
+            sensorListTool.classList.remove('bg-white', 'text-gray-700');
+            sensorListTool.classList.add('bg-blue-500', 'text-white');
+        } else {
+            sensorPanel.style.display = 'none';
+            sensorListTool.classList.remove('bg-blue-500', 'text-white');
+            sensorListTool.classList.add('bg-white', 'text-gray-700');
         }
-
-        toggleButton?.addEventListener('click', togglePanel);
-
-        // 화면 크기 변경 시 토글 버튼 위치 업데이트
-        window.addEventListener('resize', () => {
-            if (isPanelOpen) {
-                toggleButton.style.right = window.innerWidth < 640 ? 'calc(95vw - 8px)' : '492px';
-            }
-        });
     }
 
     // 확인 모달 초기화

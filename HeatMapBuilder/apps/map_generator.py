@@ -658,7 +658,7 @@ class MapGenerator:
 
         cbar.ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-    async def generate(self, map_id: str, output_path: str) -> bool:
+    async def generate(self, map_id: str, output_path: str) -> tuple[bool, str]:
         """온도맵을 생성하고 이미지 파일로 저장합니다."""
         try:
             # 출력 디렉토리 확인 및 생성
@@ -668,19 +668,22 @@ class MapGenerator:
                     os.makedirs(output_dir, exist_ok=True)
                     self.logger.info(f"출력 디렉토리 생성 완료: {output_dir}")
                 except Exception as dir_error:
-                    self.logger.error(f"출력 디렉토리 생성 실패 ({output_dir}): {str(dir_error)}")
-                    return False
+                    error_msg = f"출력 디렉토리 생성 실패 ({output_dir}): {str(dir_error)}"
+                    self.logger.error(error_msg)
+                    return False, error_msg
 
             self.current_map_id = map_id
             if not self.current_map_id:
-                self.logger.error("현재 선택된 맵이 없습니다")
-                return False
+                error_msg = "현재 선택된 맵이 없습니다"
+                self.logger.error(error_msg)
+                return False, error_msg
             self.load_map_config(self.current_map_id)
 
             # walls_data와 sensors_data 유효성 검사
             if not self.walls_data or len(self.sensors_data) == 0:
-                self.logger.error("벽 데이터 또는 센서 데이터가 없습니다")
-                return False
+                error_msg = "벽 데이터 또는 센서 데이터가 없습니다"
+                self.logger.error(error_msg)
+                return False, error_msg
             
             timestamp_start = time.time_ns()
 
@@ -691,14 +694,16 @@ class MapGenerator:
             # area 데이터 파싱
             areas, root = self._parse_areas()
             if not areas:
-                self.logger.error("유효한 area를 찾을 수 없습니다")
-                return False
+                error_msg = "유효한 area를 찾을 수 없습니다"
+                self.logger.error(error_msg)
+                return False, error_msg
 
             # 센서 데이터 수집
             sensor_points, raw_temps, sensor_ids = await self._collect_sensor_data()
             if not sensor_points:
-                self.logger.error("유효한 센서 데이터가 없습니다")
-                return False
+                error_msg = "유효한 센서 데이터가 없습니다"
+                self.logger.error(error_msg)
+                return False, error_msg
             temperatures = raw_temps
             # 온도값 범위 제한 적용
             if min_temp is not None:
@@ -839,10 +844,11 @@ class MapGenerator:
             
             self.save_generation_time()
             
-            return True
+            return True, ""
 
         except Exception as e:
-            self.logger.error(f"온도맵 생성 중 오류 발생: {str(e)}")
+            error_msg = f"온도맵 생성 중 오류 발생: {str(e)}"
+            self.logger.error(error_msg)
             import traceback
             self.logger.error(traceback.format_exc())
-            return False 
+            return False, error_msg 

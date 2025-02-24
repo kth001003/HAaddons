@@ -16,7 +16,7 @@ import numpy as np # type: ignore
 import shutil
 
 class WebServer:
-    """열지도 웹 서버 클래스"""
+    """지도 웹 서버 클래스"""
     
     def __init__(self, ConfigManager, SensorManager, MapGenerator, Logger):
         self.app = Quart(__name__,
@@ -95,7 +95,7 @@ class WebServer:
 
         @self.app.route('/api/generate-map', methods=['GET'])
         async def generate_map():
-            """열지도 생성 API"""
+            """지도 생성 API"""
             if not self.current_map_id:
                 return jsonify({
                     'status': 'error',
@@ -105,15 +105,16 @@ class WebServer:
             if not self.map_lock.acquire(blocking=False):
                 return jsonify({
                     'status': 'error',
-                    'error': '다른 프로세스가 열지도를 생성 중입니다. 잠시 후 다시 시도해주세요.'
+                    'error': '다른 프로세스가 지도를 생성 중입니다. 잠시 후 다시 시도해주세요.'
                 })
 
             try:
-                # 열지도 생성
+                # 지도 생성
                 output_filename, _, output_path = self.config_manager.get_output_info(self.current_map_id)
                     
-                if await self.map_generator.generate(self.current_map_id,output_path):
-                    self.app.logger.info("열지도 생성 완료")
+                success, error_msg = await self.map_generator.generate(self.current_map_id,output_path)
+                if success:
+                    self.app.logger.info("지도 생성 완료")
 
                     return jsonify({
                         'status': 'success',
@@ -124,11 +125,11 @@ class WebServer:
                 else:
                     return jsonify({
                         'status': 'error',
-                        'error': '열지도 생성에 실패했습니다.'
+                        'error': error_msg
                     })
 
             except Exception as e:
-                self.app.logger.error(f"열지도 생성 실패: {str(e)}")
+                self.app.logger.error(f"지도 생성 실패: {str(e)}")
                 return jsonify({
                     'status': 'error',
                     'error': str(e)
@@ -355,7 +356,7 @@ class WebServer:
             return "File not found", 404
     
     async def check_map_time(self):
-        """열지도 생성 시간 확인"""
+        """지도 생성 시간 확인"""
         try:
             if not self.current_map_id:
                 return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400

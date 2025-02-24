@@ -403,7 +403,7 @@ export class SettingsManager {
 
     async validateAndApplyCustomColormap(customValue, isReversed) {
         try {
-            const response = await fetch('/api/preview_colormap', {
+            const response = await fetch('./api/preview_colormap', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -431,7 +431,7 @@ export class SettingsManager {
 
     async updateColormapPreview() {
         try {
-            const response = await fetch('/api/preview_colormap', {
+            const response = await fetch('./api/preview_colormap', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
