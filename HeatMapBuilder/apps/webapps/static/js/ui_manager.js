@@ -224,6 +224,72 @@ export class UIManager {
         let currentTranslateX = 0;
         let currentTranslateY = 0;
         let currentScale = 1;
+        let lastTouchDistance = 0;
+
+        // 핀치 줌을 위한 터치 이벤트
+        svgContainer.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                lastTouchDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+            }
+        }, { passive: false });
+
+        svgContainer.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+
+                if (lastTouchDistance > 0) {
+                    const scaleChange = currentDistance / lastTouchDistance;
+                    const newScale = Math.min(Math.max(currentScale * scaleChange, 0.1), 5);
+
+                    // 두 손가락의 중간점 계산
+                    const centerX = (touch1.clientX + touch2.clientX) / 2;
+                    const centerY = (touch1.clientY + touch2.clientY) / 2;
+                    const rect = svgContainer.getBoundingClientRect();
+                    const mouseX = centerX - rect.left;
+                    const mouseY = centerY - rect.top;
+
+                    // 현재 위치에서 중간점까지의 거리
+                    const distanceX = mouseX - currentTranslateX;
+                    const distanceY = mouseY - currentTranslateY;
+
+                    // 새로운 거리 계산
+                    const newDistanceX = distanceX * scaleChange;
+                    const newDistanceY = distanceY * scaleChange;
+
+                    // 새로운 위치 계산
+                    currentTranslateX = mouseX - newDistanceX;
+                    currentTranslateY = mouseY - newDistanceY;
+                    currentScale = newScale;
+
+                    // 변환 적용
+                    svgContainer.style.transform = `translate(${currentTranslateX}px, ${currentTranslateY}px) scale(${currentScale})`;
+
+                    // 초기화 버튼 표시 여부
+                    if (currentScale !== 1 || currentTranslateX !== 0 || currentTranslateY !== 0) {
+                        resetTransformBtn?.classList.remove('opacity-0');
+                    } else {
+                        resetTransformBtn?.classList.add('opacity-0');
+                    }
+                }
+                lastTouchDistance = currentDistance;
+            }
+        }, { passive: false });
+
+        svgContainer.addEventListener('touchend', () => {
+            lastTouchDistance = 0;
+        });
 
         // 초기화 버튼 이벤트
         resetTransformBtn?.addEventListener('click', () => {
@@ -473,13 +539,6 @@ export class UIManager {
                             
                             // SVG에 추가
                             svgOverlay.appendChild(defs);
-
-                            // 드로잉툴 초기화
-                            if (this.drawingTool) {
-                                this.drawingTool.enable();
-                                this.drawingTool.setTool('line');
-                                this.setActiveTool('line');
-                            }
                         };
                         tempImg.src = result;
                     };
