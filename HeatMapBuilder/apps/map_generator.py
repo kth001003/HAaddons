@@ -654,6 +654,75 @@ class MapGenerator:
 
         cbar.ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
+    def _add_timestamp(self, ax, timestamp_config):
+        """타임스탬프를 추가합니다."""
+        try:
+            # 현재 시간을 설정된 형식으로 포맷팅
+            format_map = {
+                'YYYY-MM-DD HH:mm:ss': '%Y-%m-%d %H:%M:%S',
+                'YYYY/MM/DD HH:mm:ss': '%Y/%m/%d %H:%M:%S',
+                'MM-DD HH:mm': '%m-%d %H:%M',
+                'HH:mm:ss': '%H:%M:%S',
+                'HH:mm': '%H:%M'
+            }
+            time_format = format_map.get(timestamp_config.get('format', 'YYYY-MM-DD HH:mm:ss'), '%Y-%m-%d %H:%M:%S')
+            timestamp_text = datetime.now().strftime(time_format)
+
+            # 위치 설정
+            position = timestamp_config.get('position', 'bottom-right')
+            margin_x = timestamp_config.get('margin_x', 10)
+            margin_y = timestamp_config.get('margin_y', 10)
+            
+            # 데이터 좌표계에서의 여백 계산 (1000x1000 기준)
+            margin_x_data = (margin_x / 1000) * 1000  # 픽셀 값을 데이터 좌표로 변환
+            margin_y_data = (margin_y / 1000) * 1000
+            
+            # 위치에 따른 좌표와 정렬 설정
+            position_settings = {
+                'top-left': {'x': margin_x_data, 'y': margin_y_data, 'ha': 'left', 'va': 'top'},
+                'top-right': {'x': 1000 - margin_x_data, 'y': margin_y_data, 'ha': 'right', 'va': 'top'},
+                'bottom-left': {'x': margin_x_data, 'y': 1000 - margin_y_data, 'ha': 'left', 'va': 'bottom'},
+                'bottom-right': {'x': 1000 - margin_x_data, 'y': 1000 - margin_y_data, 'ha': 'right', 'va': 'bottom'}
+            }
+            pos = position_settings.get(position, position_settings['bottom-right'])
+
+            # 글자 설정
+            font_size = timestamp_config.get('font_size', 16)
+            font_color = timestamp_config.get('font_color', '#ffffff')
+
+            # 그림자 설정
+            shadow = timestamp_config.get('shadow', {})
+            path_effects_list = []
+            if shadow.get('enabled', True):
+                shadow_color = shadow.get('color', '#000000')
+                shadow_size = shadow.get('size', 2)
+                
+                # 그림자 오프셋을 데이터 좌표계로 변환
+                shadow_x_offset = shadow.get('x_offset', 1)
+                shadow_y_offset = shadow.get('y_offset', 1)
+                shadow_y_offset *= -1  # 그림자 방향 반전
+                
+                # 데이터 좌표계에서의 오프셋 계산
+                shadow_x_data = (shadow_x_offset / 1000) * 1000
+                shadow_y_data = (shadow_y_offset / 1000) * 1000
+                
+                path_effects_list.append(path_effects.withStroke(linewidth=shadow_size,
+                                                               foreground=shadow_color,
+                                                               offset=(shadow_x_data, shadow_y_data)))
+
+            # 타임스탬프 텍스트 추가
+            ax.text(pos['x'], pos['y'],
+                   timestamp_text,
+                   fontsize=font_size,
+                   color=font_color,
+                   horizontalalignment=pos['ha'],
+                   verticalalignment=pos['va'],
+                   path_effects=path_effects_list if path_effects_list else None,
+                   zorder=10)  # 다른 요소들 위에 표시
+
+        except Exception as e:
+            self.logger.error(f"타임스탬프 추가 중 오류 발생: {str(e)}")
+
     async def generate(self, map_id: str, output_path: str) -> tuple[bool, str]:
         """온도맵을 생성하고 이미지 파일로 저장합니다."""
         try:
@@ -816,6 +885,11 @@ class MapGenerator:
             colorbar_config = self.gen_config.get('colorbar', {})
             if colorbar_config and colorbar_config.get('show_colorbar', True):  # 컬러바 표시 여부 확인
                 self._create_colorbar(fig, contour, colorbar_config)
+
+            # 타임스탬프 설정 적용
+            timestamp_config = self.gen_config.get('timestamp', {})
+            if timestamp_config.get('enabled', False):
+                self._add_timestamp(main_ax, timestamp_config)
 
             # 축 설정
             main_ax.set_aspect('equal')

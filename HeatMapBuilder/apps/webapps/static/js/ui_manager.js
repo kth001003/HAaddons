@@ -1,10 +1,14 @@
 export class UIManager {
     constructor() {
+        this.svg = document.getElementById('svg-overlay');
         this.messageContainer = document.getElementById('message-container');
         this.drawingTool = null;
         this.sensorManager = null;
+        this.settingsManager = null;
         this.currentTool = null;
         this.confirmModal = document.getElementById('confirm-modal');
+        this.lastSavedHistoryIndex = 0; // 마지막으로 저장된 히스토리 인덱스
+        this.lastSavedSettings = null; // 마지막으로 저장된 설정 상태
         this.initializeTabs();
         this.initializeSettingsTabs();
         this.initializeDrawingTools();
@@ -31,15 +35,15 @@ export class UIManager {
 
     initializeTabs() {
         this.tabs = {
-            dashboard: document.getElementById('dashboard-content'),
             map: document.getElementById('map-content'),
+            map_edit: document.getElementById('map-edit-content'),
             settings: document.getElementById('settings-content'),
             debug: document.getElementById('debug-content')
         };
 
         this.tabButtons = {
-            dashboard: document.getElementById('dashboard-tab'),
             map: document.getElementById('map-tab'),
+            map_edit: document.getElementById('map-edit-tab'),
             settings: document.getElementById('settings-tab'),
             debug: document.getElementById('debug-tab')
         };
@@ -48,11 +52,54 @@ export class UIManager {
             this.tabButtons[tabName].addEventListener('click', () => this.switchTab(tabName));
         });
 
-        // 초기 탭 설정 - 대시보드 탭을 기본으로 표시
-        this.switchTab('dashboard');
+        // 초기 탭 설정 - 지도 탭을 기본으로 표시
+        this.switchTab('map');
     }
 
     switchTab(tabName) {
+        // 현재 활성화된 탭 찾기
+        const currentTab = Object.entries(this.tabs).find(([_, tab]) => !tab.classList.contains('hidden'))?.[0];
+
+        // 지도 편집 탭이나 설정 탭에서 다른 탭으로 이동하려고 할 때
+        if ((currentTab === 'map_edit' || currentTab === 'settings') && currentTab !== tabName) {
+            // 저장되지 않은 변경사항이 있는지 확인
+            if (this.hasUnsavedChanges()) {
+                this.showConfirmModal(
+                    '저장 확인',
+                    '저장되지 않은 변경사항이 있습니다. 어떻게 하시겠습니까?',
+                    null,
+                    [
+                        {
+                            text: '취소',
+                            className: 'bg-gray-500 text-white hover:bg-gray-600 mr-2'
+                        },
+                        {
+                            text: '저장 안함',
+                            className: 'bg-red-500 text-white hover:bg-red-600 mr-2',
+                            action: () => this.performTabSwitch(tabName)
+                        },
+                        {
+                            text: '저장',
+                            className: 'bg-blue-500 text-white hover:bg-blue-600',
+                            action: async () => {
+                                if (currentTab === 'map_edit') {
+                                    await this.saveWallsAndSensors();
+                                } else if (currentTab === 'settings') {
+                                    await this.settingsManager.saveAllSettings();
+                                }
+                                this.performTabSwitch(tabName);
+                            }
+                        }
+                    ]
+                );
+                return;
+            }
+        }
+
+        this.performTabSwitch(tabName);
+    }
+
+    performTabSwitch(tabName) {
         Object.values(this.tabs).forEach(tab => tab.classList.add('hidden'));
         Object.values(this.tabButtons).forEach(btn => {
             btn.classList.remove('text-gray-900', 'border-b-2', 'border-blue-500');
@@ -63,8 +110,8 @@ export class UIManager {
         this.tabButtons[tabName].classList.remove('text-gray-500');
         this.tabButtons[tabName].classList.add('text-gray-900', 'border-b-2', 'border-blue-500');
 
-        // map 탭으로 이동할 때 센서 로드
-        if (tabName === 'map' && this.sensorManager) {
+        // 지도 편집 탭으로 이동할 때 센서 로드
+        if (tabName === 'map_edit' && this.sensorManager) {
             this.sensorManager.loadSensors().then(() => {
                 console.log('센서 로드 완료');
             }).catch(error => {
@@ -162,6 +209,22 @@ export class UIManager {
             );
         });
 
+        // 다시로드 버튼 이벤트 리스너
+        document.getElementById('reload-btn')?.addEventListener('click', () => {
+            this.showConfirmModal(
+                '다시로드',
+                '저장 되지 않은 변경을 취소하고 저장된 정보를 다시 불러오시겠습니까?',
+                async () => {
+                    try {
+                        this.loadWallsAndSensors();
+                    } catch (error) {
+                        console.error('설정 로드 실패:', error);
+                        this.showMessage('설정을 불러오는데 실패했습니다.', 'error');
+                    }
+                }
+            );
+        });
+
         // 저장 버튼 이벤트 리스너
         document.getElementById('save-walls-sensors')?.addEventListener('click', async () => {
             await this.saveWallsAndSensors();
@@ -169,6 +232,52 @@ export class UIManager {
 
         // SVG 이동을 위한 이벤트 리스너
         this.initializeSVGPan();
+    }
+
+    // 저장되지 않은 변경사항이 있는지 확인
+    hasUnsavedChanges() {
+        const currentTab = Object.entries(this.tabs).find(([_, tab]) => !tab.classList.contains('hidden'))?.[0];
+        
+        if (currentTab === 'map_edit') {
+            if (!this.drawingTool) return false;
+            return this.drawingTool.currentHistoryIndex !== this.lastSavedHistoryIndex;
+        } else if (currentTab === 'settings') {
+            return this.hasSettingsChanged();
+        }
+        
+        return false;
+    }
+
+    // 설정 변경 여부 확인
+    hasSettingsChanged() {
+        if (!this.lastSavedSettings) return true;
+
+        const currentSettings = this.getCurrentSettings();
+        return !this.areSettingsEqual(currentSettings, this.lastSavedSettings);
+    }
+
+    // 현재 설정값들 가져오기
+    getCurrentSettings() {
+        if (!this.settingsManager) return null;
+
+        const settings = {
+            interpolation: this.settingsManager.collectInterpolationParams(),
+            generation: this.settingsManager.collectGenConfig(),
+        };
+
+        return settings;
+    }
+
+    // 설정값 비교
+    areSettingsEqual(settings1, settings2) {
+        if (!settings1 || !settings2) return false;
+        console.log(settings1, settings2);
+        return JSON.stringify(settings1) === JSON.stringify(settings2);
+    }
+
+    // 설정 저장 시 현재 상태 저장
+    saveCurrentSettings() {
+        this.lastSavedSettings = this.getCurrentSettings();
     }
 
     async saveWallsAndSensors() {
@@ -195,6 +304,12 @@ export class UIManager {
                 },
                 body: JSON.stringify({ wallsData, sensorsData, unit })
             });
+
+            // 저장 성공 시 현재 히스토리 인덱스를 저장
+            if (this.drawingTool) {
+                this.lastSavedHistoryIndex = this.drawingTool.currentHistoryIndex;
+            }
+
             this.showMessage('벽과 센서위치를 저장했습니다.', 'success');
         } catch (error) {
             console.error('벽 및 센서 저장 실패:', error);
@@ -202,6 +317,73 @@ export class UIManager {
         }
     }
 
+    updateSVGContent(newContent) {
+        if (!this.svg) {
+            console.error('SVG 요소를 찾을 수 없습니다.');
+            return;
+        }
+
+        // 마커용 defs 임시 저장
+        const defs = this.svg.querySelector('defs');
+        if (defs) defs.remove();
+
+        // SVG 내용 업데이트
+        this.svg.innerHTML = newContent;
+
+        // floorplan-rect가 없으면 추가
+        if (!this.svg.querySelector('#floorplan-rect')) {
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('id', 'floorplan-rect');
+            rect.setAttribute('width', '100%');
+            rect.setAttribute('height', '100%');
+            rect.setAttribute('fill', '#FFFFFF');
+            this.svg.insertBefore(rect, this.svg.firstChild);
+        }
+
+        // 마커용 defs 복원
+        if (defs) {
+            this.svg.insertBefore(defs, this.svg.firstChild);
+        } else if (this.drawingTool) {
+            this.drawingTool.initializeDefs();
+        }
+
+        // 센서 정보 다시 파싱
+        if (this.sensorManager) {
+            this.sensorManager.parseSensorsFromSVG();
+        }
+    }
+
+    async loadWallsAndSensors() {
+        const svg = this.svg;
+        const sensorManager = this.sensorManager;
+        const drawingTool = this.drawingTool;
+        try {
+            const response = await fetch('./api/load-config');
+            if (response.ok) {
+                const config = await response.json();
+                if (config.walls) {
+                    this.updateSVGContent(config.walls);
+                }
+                if (config.sensors) {
+                    config.sensors.forEach(savedSensor => {
+                        const sensor = sensorManager.sensors.find(s => s.entity_id === savedSensor.entity_id);
+                        if (sensor && savedSensor.position) {
+                            sensor.position = savedSensor.position;
+                            sensor.calibration = savedSensor.calibration || 0;
+                            sensorManager.updateSensorMarker(sensor, savedSensor.position);
+                        }
+                    });
+                }
+                // 로드 성공 시 현재 히스토리 인덱스를 저장
+                if (drawingTool) {
+                    drawingTool.resetState();
+                    this.lastSavedHistoryIndex = drawingTool.currentHistoryIndex;
+                }
+            }
+        } catch (error) {
+            console.error('설정을 불러오는데 실패했습니다:', error);
+        }
+    }
     initializeSVGPan() {
         const svgContainer = document.getElementById('svg-overlay-container');
         const resetTransformBtn = document.getElementById('reset-transform-btn');
@@ -392,9 +574,10 @@ export class UIManager {
         }
     }
 
-    setTools(drawingTool, sensorManager) {
+    setTools(drawingTool, sensorManager, settingsManager) {
         this.drawingTool = drawingTool;
         this.sensorManager = sensorManager;
+        this.settingsManager = settingsManager;
         // 초기 도구 설정
         this.setActiveTool('select');
     }
@@ -582,6 +765,7 @@ export class UIManager {
     initializeConfirmModal() {
         const cancelBtn = document.getElementById('confirm-modal-cancel');
         const confirmBtn = document.getElementById('confirm-modal-confirm');
+        const actionBtnsContainer = document.getElementById('confirm-modal-action-btns');
         
         cancelBtn?.addEventListener('click', () => {
             this.hideConfirmModal();
@@ -603,23 +787,52 @@ export class UIManager {
     }
 
     // 확인 모달 표시
-    showConfirmModal(title, message, onConfirm) {
+    showConfirmModal(title, message, onConfirm, options = null) {
         const modalTitle = document.getElementById('confirm-modal-title');
         const modalMessage = document.getElementById('confirm-modal-message');
-        const confirmBtn = document.getElementById('confirm-modal-confirm');
+        const defaultBtns = document.getElementById('confirm-modal-default-btns');
+        const actionBtns = document.getElementById('confirm-modal-action-btns');
         
         if (modalTitle) modalTitle.textContent = title;
         if (modalMessage) modalMessage.textContent = message;
+
+        // 기존 액션 버튼들 제거
+        if (actionBtns) {
+            actionBtns.innerHTML = '';
+            actionBtns.classList.add('hidden');
+        }
         
-        // 이전 이벤트 리스너 제거
-        const newConfirmBtn = confirmBtn?.cloneNode(true);
-        confirmBtn?.parentNode?.replaceChild(newConfirmBtn, confirmBtn);
-        
-        // 새 이벤트 리스너 추가
-        newConfirmBtn?.addEventListener('click', () => {
-            onConfirm();
-            this.hideConfirmModal();
-        });
+        if (defaultBtns) {
+            defaultBtns.classList.add('hidden');
+        }
+
+        // 옵션이 있는 경우 커스텀 버튼 생성
+        if (options && actionBtns) {
+            actionBtns.classList.remove('hidden');
+            options.forEach(option => {
+                const btn = document.createElement('button');
+                btn.textContent = option.text;
+                btn.className = `px-4 py-2 rounded-lg ${option.className || 'bg-blue-500 text-white hover:bg-blue-600'}`;
+                btn.addEventListener('click', () => {
+                    if (option.action) option.action();
+                    this.hideConfirmModal();
+                });
+                actionBtns.appendChild(btn);
+            });
+        } else if (defaultBtns) {
+            // 기본 확인/취소 버튼 표시
+            defaultBtns.classList.remove('hidden');
+            const confirmBtn = document.getElementById('confirm-modal-confirm');
+            // 이전 이벤트 리스너 제거
+            const newConfirmBtn = confirmBtn?.cloneNode(true);
+            confirmBtn?.parentNode?.replaceChild(newConfirmBtn, confirmBtn);
+            
+            // 새 이벤트 리스너 추가
+            newConfirmBtn?.addEventListener('click', () => {
+                if (onConfirm) onConfirm();
+                this.hideConfirmModal();
+            });
+        }
 
         this.confirmModal?.classList.remove('hidden');
         this.confirmModal?.classList.add('flex');
@@ -630,4 +843,5 @@ export class UIManager {
         this.confirmModal?.classList.remove('flex');
         this.confirmModal?.classList.add('hidden');
     }
+
 } 

@@ -284,7 +284,14 @@ export class SensorManager {
 
     // 모든 센서 추가
     addAllSensors() {
-        const unit = this.sensors[0].attributes.unit_of_measurement;        
+        const unit = this.sensors[0]?.attributes.unit_of_measurement;
+        if (!unit) {
+            this.uiManager.showMessage('센서의 단위 정보가 없습니다.', 'error');
+            return;
+        }
+        
+        this.currentUnit = unit;  // currentUnit 설정
+        
         this.sensors.forEach(sensor => {
             if (sensor.attributes.unit_of_measurement !== unit) {
                 this.uiManager.showMessage(`${sensor.attributes.friendly_name}의 단위가 ${unit}이 아닙니다.`, 'error');

@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     sensorManager.disable();
 
     // UI 매니저에 도구 설정
-    uiManager.setTools(drawingTool, sensorManager);
+    uiManager.setTools(drawingTool, sensorManager, settingsManager);
 
     // 초기 데이터 로드
     settingsManager.loadConfig(svg, sensorManager, drawingTool);

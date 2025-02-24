@@ -29,9 +29,9 @@
     <nav class="bg-white shadow-sm">
         <div class="max-w-7xl mx-auto px-4">
             <div class="flex space-x-8">
-                <button id="dashboard-tab"
+                <button id="map-tab"
                     class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">지도</button>
-                <button id="map-tab" class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">지도 편집</button>
+                <button id="map-edit-tab" class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">지도 편집</button>
                 <button id="settings-tab"
                     class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">설정</button>
                 <button id="debug-tab"
@@ -46,8 +46,8 @@
 
     <!-- 메인 컨텐츠 -->
     <main class="flex-1">
-        <!-- 대시보드 탭 -->
-        <div id="dashboard-content" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <!-- 지도 탭 -->
+        <div id="map-content" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
             <!-- 현재 지도 섹션 -->
             <div id="thermal-map-container" class="bg-white rounded-lg shadow-md p-6">
                 {% if is_map_generated %}
@@ -110,8 +110,8 @@
             </div>
         </div>
 
-        <!-- 편집 탭 -->
-        <div id="map-content" class="hidden relative">
+        <!-- 지도 편집 탭 -->
+        <div id="map-edit-content" class="hidden relative">
             <!-- SVG 배경 -->
             <div class="fixed left-0 right-0 top-[6rem] bottom-0 bg-gray-800 z-0 overflow-hidden">
                 <div id="floorplan-container" class="absolute inset-0">
@@ -167,7 +167,8 @@
                         <i class="mdi mdi-format-list-bulleted text-xl text-gray-700"></i>
                     </button>
                     <span class="text-[10px] text-white mt-0.5">센서목록</span>
-                </div>
+                </div>                
+                <div class="h-px w-8 bg-gray-300 mx-auto my-1"></div>
                 <div class="flex flex-col items-center">
                     <button id="undo-btn" 
                         class="w-12 h-12 bg-white rounded-full shadow-lg hover:bg-gray-50 flex items-center justify-center">
@@ -188,6 +189,13 @@
                         <i class="mdi mdi-delete text-xl text-red-500"></i>
                     </button>
                     <span class="text-[10px] text-white mt-0.5">초기화</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <button id="reload-btn" 
+                        class="w-12 h-12 bg-white rounded-full shadow-lg hover:bg-blue-50 flex items-center justify-center">
+                        <i class="mdi mdi-reload text-xl text-blue-500"></i>
+                    </button>
+                    <span class="text-[10px] text-white mt-0.5">다시로드</span>
                 </div>
                 <div class="h-px w-8 bg-gray-300 mx-auto my-1"></div>
                 <div class="flex flex-col items-center">
@@ -291,17 +299,29 @@
     </main>
 
     <!-- 확인 모달 -->
-    <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-        <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 class="text-lg font-semibold mb-4" id="confirm-modal-title"></h3>
-            <p class="text-gray-600 mb-6" id="confirm-modal-message"></p>
-            <div class="flex justify-end space-x-3">
-                <button id="confirm-modal-cancel" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-                    취소
-                </button>
-                <button id="confirm-modal-confirm" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                    확인
-                </button>
+    <div id="confirm-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="p-6">
+                <h3 id="confirm-modal-title" class="text-lg font-medium text-gray-900 mb-2"></h3>
+                <p id="confirm-modal-message" class="text-gray-500"></p>
+            </div>
+            <div class="px-6 py-3 bg-gray-50 rounded-b-lg">
+                <!-- 기본 버튼 영역 -->
+                <div id="confirm-modal-default-btns" class="flex justify-end space-x-2">
+                    <button id="confirm-modal-cancel"
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                        취소
+                    </button>
+                    <button id="confirm-modal-confirm"
+                        class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                        확인
+                    </button>
+                </div>
+                <!-- 액션 버튼 영역 -->
+                <div id="confirm-modal-action-btns" class="hidden flex justify-end space-x-2">
+                    <!-- 동적으로 버튼이 추가됨 -->
+                </div>
             </div>
         </div>
     </div>

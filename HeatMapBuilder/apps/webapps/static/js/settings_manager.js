@@ -106,6 +106,7 @@ export class SettingsManager {
             } else {
                 this.uiManager.showMessage(data.error || '파라미터 저장에 실패했습니다.', 'error');
             }
+            this.uiManager.saveCurrentSettings();
         } catch (error) {
             console.error('Error:', error);
             this.uiManager.showMessage('파라미터 저장 중 오류가 발생했습니다.', 'error');
@@ -171,6 +172,7 @@ export class SettingsManager {
             } else {
                 this.uiManager.showMessage(data.error || '구성 저장에 실패했습니다.', 'error');
             }
+            this.uiManager.saveCurrentSettings();
         } catch (error) {
             console.error('Error:', error);
             this.uiManager.showMessage('구성 저장 중 오류가 발생했습니다.', 'error');
@@ -183,10 +185,30 @@ export class SettingsManager {
             format: /** @type {HTMLInputElement} */ (document.getElementById('format')).value,
             file_name: /** @type {HTMLInputElement} */ (document.getElementById('file-name')).value,
             rotation_count: parseInt(/** @type {HTMLInputElement} */(document.getElementById('rotation-count')).value),
+            timestamp: this.collectTimestampConfig(),
             visualization: this.collectVisualizationConfig(),
             colorbar: {
                 ...this.collectColorbarConfig(),
                 cmap: this.getSelectedColormap()
+            }
+        };
+    }
+
+    collectTimestampConfig() {
+        return {
+            enabled: /** @type {HTMLInputElement} */ (document.getElementById('timestamp-enabled')).checked,
+            format: /** @type {HTMLSelectElement} */ (document.getElementById('timestamp-format')).value,
+            position: /** @type {HTMLSelectElement} */ (document.getElementById('timestamp-position')).value,
+            margin_x: parseInt(/** @type {HTMLInputElement} */(document.getElementById('timestamp-margin-x')).value),
+            margin_y: parseInt(/** @type {HTMLInputElement} */(document.getElementById('timestamp-margin-y')).value),
+            font_size: parseInt(/** @type {HTMLInputElement} */(document.getElementById('timestamp-font-size')).value),
+            font_color: /** @type {HTMLInputElement} */ (document.getElementById('timestamp-font-color')).value,
+            shadow: {
+                enabled: /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-enabled')).checked,
+                color: /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-color')).value,
+                size: parseInt(/** @type {HTMLInputElement} */(document.getElementById('timestamp-shadow-size')).value),
+                x_offset: parseInt(/** @type {HTMLInputElement} */(document.getElementById('timestamp-shadow-x-offset')).value),
+                y_offset: parseInt(/** @type {HTMLInputElement} */(document.getElementById('timestamp-shadow-y-offset')).value)
             }
         };
     }
@@ -484,6 +506,7 @@ export class SettingsManager {
                 }
             }
             drawingTool.resetState();
+            this.uiManager.saveCurrentSettings();
         } catch (error) {
             console.error('설정을 불러오는데 실패했습니다:', error);
         }
@@ -530,6 +553,23 @@ export class SettingsManager {
         /** @type {HTMLInputElement} */ (document.getElementById('format')).value = config.format ?? 'png';
         /** @type {HTMLInputElement} */ (document.getElementById('file-name')).value = config.file_name ?? 'thermal_map';
         /** @type {HTMLInputElement} */ (document.getElementById('rotation-count')).value = config.rotation_count ?? 20;
+
+        // 타임스탬프 설정 로드
+        const timestamp = config.timestamp || {};
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-enabled')).checked = timestamp.enabled ?? false;
+        /** @type {HTMLSelectElement} */ (document.getElementById('timestamp-format')).value = timestamp.format ?? 'YYYY-MM-DD HH:mm:ss';
+        /** @type {HTMLSelectElement} */ (document.getElementById('timestamp-position')).value = timestamp.position ?? 'bottom-right';
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-margin-x')).value = timestamp.margin_x ?? 10;
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-margin-y')).value = timestamp.margin_y ?? 10;
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-font-size')).value = timestamp.font_size ?? 16;
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-font-color')).value = timestamp.font_color ?? '#ffffff';
+        
+        const shadow = timestamp.shadow || {};
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-enabled')).checked = shadow.enabled ?? true;
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-color')).value = shadow.color ?? '#000000';
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-size')).value = shadow.size ?? 2;
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-x-offset')).value = shadow.x_offset ?? 1;
+        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-y-offset')).value = shadow.y_offset ?? 1;
 
         // 시각화 설정 로드
         const visualization = config.visualization || {};
