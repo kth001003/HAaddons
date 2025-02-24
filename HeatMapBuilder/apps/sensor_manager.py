@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from websocket_client import WebSocketClient, MockWebSocketClient
 
 class SensorManager:
@@ -33,24 +33,6 @@ class SensorManager:
         result = await self.websocket_client.send_message("config/label_registry/list")
         return result if result is not None else []
 
-    async def get_sensor_state(self, entity_id: str) -> Dict[str, Any]:
-        """센서 상태 조회"""
-        try:
-            states = await self.websocket_client.send_message("get_states")
-            if states is None:
-                return {'state': '0', 'entity_id': entity_id}
-                
-            for state in states:
-                if state.get('entity_id') == entity_id:
-                    return state
-            
-            self.logger.warning(f"센서 상태를 찾을 수 없음: {entity_id}")
-            return {'state': '0', 'entity_id': entity_id}
-                
-        except Exception as e:
-            self.logger.error(f"센서 상태 조회 중 오류 발생: {str(e)}")
-            return {'state': '0', 'entity_id': entity_id}
-    
     async def get_all_states(self) -> List[Dict]:
         """모든 센서 상태 조회"""
         try:

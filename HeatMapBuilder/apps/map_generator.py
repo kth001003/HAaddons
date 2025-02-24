@@ -42,7 +42,6 @@ class MapGenerator:
         self.configs = {}
         self.walls_data = ''
         self.sensors_data = []
-        self.get_sensor_state = self.sensor_manager.get_sensor_state
         self.parameters = {}
         self.gen_config = {}
         
@@ -201,13 +200,15 @@ class MapGenerator:
             self.logger.error(traceback.format_exc())
             return [], None
 
-    async def _collect_sensor_data(self) -> Tuple[List[List[float]], List[float], List[str]]:
+    async def _collect_sensor_data(self, states_dict: Dict[str, Dict[str, Any]]) -> Tuple[List[List[float]], List[float], List[str]]:
         """센서 데이터를 수집하여 좌표, 온도값, 센서ID 리스트를 반환합니다."""
         points = []
         temperatures = []
         sensor_ids = []
+        
         self.logger.debug("상태조회 대상 센서 %s개", 
                           self.logger._colorize(len(self.sensors_data), "blue"))
+                          
         for sensor in self.sensors_data:
             if 'position' not in sensor:
                 continue
@@ -218,13 +219,8 @@ class MapGenerator:
                                     self.logger._colorize(sensor['entity_id'], "red"))
                 continue
                 
-            # 센서 상태 조회
-            state = await self.get_sensor_state(sensor['entity_id'])
-            if not state or not isinstance(state, dict):
-                self.logger.warning("%s 센서 상태 데이터가 유효하지 않음",
-                                    self.logger._colorize(sensor['entity_id'], "red"))
-                continue
-                
+            state = states_dict.get(sensor['entity_id'], {'state': '0', 'entity_id': sensor['entity_id']})
+            
             try:
                 # 온도값 파싱 및 보정값 적용
                 raw_state = state.get('state', '0')  # 상태값을 state 키에서 가져옴
@@ -687,6 +683,10 @@ class MapGenerator:
             
             timestamp_start = time.time_ns()
 
+            
+            all_states = await self.sensor_manager.get_all_states()
+            states_dict = {state['entity_id']: state for state in all_states}
+            
             # 설정된 온도 범위 가져오기
             min_temp = self.gen_config.get('colorbar', {}).get('min_temp', 0)
             max_temp = self.gen_config.get('colorbar', {}).get('max_temp', 40)
@@ -698,8 +698,8 @@ class MapGenerator:
                 self.logger.error(error_msg)
                 return False, error_msg
 
-            # 센서 데이터 수집
-            sensor_points, raw_temps, sensor_ids = await self._collect_sensor_data()
+            # 센서 데이터 수집 (states_dict 전달)
+            sensor_points, raw_temps, sensor_ids = await self._collect_sensor_data(states_dict)
             if not sensor_points:
                 error_msg = "유효한 센서 데이터가 없습니다"
                 self.logger.error(error_msg)
@@ -804,9 +804,7 @@ class MapGenerator:
                 # 센서 위치 표시
                 for point, temperature, sensor_id in zip(sensor_points, raw_temps, sensor_ids):
                     try:
-                        state = await self.get_sensor_state(sensor_id)
-                        if not state or not isinstance(state, dict):
-                            continue
+                        state = states_dict.get(sensor_id, {'state': '0', 'entity_id': sensor_id})
                         self._create_sensor_marker([point[0], point[1]], temperature, sensor_id, state)
                     except Exception as e:
                         self.logger.error("센서 %s 표시 실패: %s",
