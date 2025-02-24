@@ -1,18 +1,15 @@
-// 캐시버스팅을 위한 타임스탬프 생성
-const timestamp = new Date().getTime();
-
 // @ts-ignore
-import { DrawingTool } from `./drawing_tool.js?v=${timestamp}`;
+import { DrawingTool } from './drawing_tool.js';
 // @ts-ignore
-import { SensorManager } from `./sensor_manager.js?v=${timestamp}`;
+import { SensorManager } from './sensor_manager.js';
 // @ts-ignore
-import { UIManager } from `./ui_manager.js?v=${timestamp}`;
+import { UIManager } from './ui_manager.js';
 // @ts-ignore
-import { SettingsManager } from `./settings_manager.js?v=${timestamp}`;
+import { SettingsManager } from './settings_manager.js';
 // @ts-ignore
-import { ThermalMapManager } from `./thermal_map_manager.js?v=${timestamp}`;
+import { ThermalMapManager } from './thermal_map_manager.js';
 // @ts-ignore
-import { WebSocketDebugger } from `./websocket_debugger.js?v=${timestamp}`;
+import { WebSocketDebugger } from './websocket_debugger.js';
 
 document.addEventListener('DOMContentLoaded', async function () {
     console.log('DOM Content Loaded');

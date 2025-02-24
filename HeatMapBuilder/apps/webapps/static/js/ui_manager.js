@@ -137,10 +137,6 @@ export class UIManager {
             this.setActiveTool('line');
         });
 
-        document.getElementById('move-point-tool')?.addEventListener('click', () => {
-            this.setActiveTool('move-point');
-        });
-
         document.getElementById('eraser-tool')?.addEventListener('click', () => {
             this.setActiveTool('eraser');
         });
@@ -314,17 +310,9 @@ export class UIManager {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            // 현재 위치에서 마우스 포인터까지의 거리
-            const distanceX = mouseX - currentTranslateX;
-            const distanceY = mouseY - currentTranslateY;
-
-            // 새로운 거리 계산
-            const newDistanceX = distanceX * scaleChange;
-            const newDistanceY = distanceY * scaleChange;
-
-            // 새로운 위치 계산
-            currentTranslateX = mouseX - newDistanceX;
-            currentTranslateY = mouseY - newDistanceY;
+            // 새로운 위치 계산 (마우스 포인터 위치를 기준으로)
+            currentTranslateX = mouseX - (mouseX - currentTranslateX) * scaleChange;
+            currentTranslateY = mouseY - (mouseY - currentTranslateY) * scaleChange;
             currentScale = newScale;
 
             // 변환 적용
@@ -341,9 +329,12 @@ export class UIManager {
         svgContainer.addEventListener('mousedown', (e) => {
             if (this.currentTool !== 'select') return;
             
-            // 센서 요소 위에서는 이벤트 무시
+            // 센서 요소나 선의 끝점 위에서는 이벤트 무시
             const target = /** @type {Element} */ (e.target);
             if (target.closest('g.sensor')) return;
+
+            // 선의 끝점 근처인지 확인
+            if (this.drawingTool?.isNearLineEndpoint(e)) return;
 
             isDragging = true;
             startX = e.clientX - currentTranslateX;
@@ -392,23 +383,14 @@ export class UIManager {
 
         // 도구별 기능 활성화/비활성화
         if (this.drawingTool) {
-            if (['line', 'move-point', 'eraser'].includes(tool)) {
+            if (['line', 'eraser'].includes(tool)) {
                 this.drawingTool.enable();
                 this.drawingTool.setTool(tool);
                 if (this.sensorManager) this.sensorManager.disable();
             } else if (tool === 'select') {
-                this.drawingTool.disable();
-                if (this.sensorManager) {
-                    this.sensorManager.enable();
-                }
-            }
-        }
-
-        // 센서 관련 도구 활성화/비활성화
-        if (tool === 'sensor') {
-            if (this.drawingTool) this.drawingTool.disable();
-            if (this.sensorManager) {
-                this.sensorManager.enable();
+                this.drawingTool.enable();
+                this.drawingTool.setTool(tool);
+                if (this.sensorManager) this.sensorManager.enable();
             }
         }
 

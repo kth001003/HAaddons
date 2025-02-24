@@ -1,0 +1,11 @@
+---
+description: heatmapbulder 프로젝트에 대한 지시
+globs: 
+---
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
+
+이 프로젝트는 home assistant의 addon이며 haos의 supervisor에의해 실행된다.

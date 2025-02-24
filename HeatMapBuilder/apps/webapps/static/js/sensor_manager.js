@@ -438,7 +438,8 @@ export class SensorManager {
 
     setupHoverEvents(group) {
         const handleMouseEnter = () => {
-            if (!this.enabled) return;
+            // 선택 도구일 때는 호버 효과를 적용하지 않음
+            if (!this.enabled || this.uiManager.currentTool === 'select') return;
             
             // 배경 사각형 강조
             const rect = group.querySelector('.sensor-bg-rect');
@@ -464,7 +465,8 @@ export class SensorManager {
         };
 
         const handleMouseLeave = () => {
-            if (!this.enabled) return;
+            // 선택 도구일 때는 호버 효과를 적용하지 않음
+            if (!this.enabled || this.uiManager.currentTool === 'select') return;
             
             // 배경 사각형 원래대로
             const rect = group.querySelector('.sensor-bg-rect');
