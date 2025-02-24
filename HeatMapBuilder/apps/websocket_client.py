@@ -149,24 +149,67 @@ class MockWebSocketClient:
     def __init__(self, config_manager):
         self.config_manager = config_manager
         self.open = True
-        self.message_queue = asyncio.Queue()
+        self._loop = None
+        self._lock = None
+        self._mock_data = None
+
+    async def _ensure_loop_and_lock(self):
+        """현재 이벤트 루프와 락을 확인하고 필요한 경우 초기화합니다."""
+        if self._loop is None:
+            self._loop = asyncio.get_running_loop()
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._loop, self._lock
+
+    def _get_mock_data(self):
+        """mock 데이터를 가져오고 필요한 경우 초기화합니다."""
+        if self._mock_data is None:
+            self._mock_data = self.config_manager.get_mock_data()
+            
+            # 온도 센서 데이터가 없거나 모든 값이 0인 경우 기본값 설정
+            temp_sensors = self._mock_data.get('temperature_sensors', [])
+            if not temp_sensors or all(float(sensor.get('state', '0')) == 0 for sensor in temp_sensors):
+                # 기본 온도값 범위 설정 (20°C ~ 25°C)
+                import random
+                for sensor in temp_sensors:
+                    sensor['state'] = str(round(random.uniform(20, 25), 1))
+                    if 'attributes' not in sensor:
+                        sensor['attributes'] = {}
+                    sensor['attributes']['unit_of_measurement'] = '°C'
+                self._mock_data['temperature_sensors'] = temp_sensors
+                
+        return self._mock_data
 
     async def send_message(self, message_type: str, **kwargs) -> Optional[Any]:
-        message_data = {"type": message_type, **kwargs}
-        
-        if message_type == 'auth':
-            return {"type": "auth_ok"}
-        elif message_type == 'get_states':
-            mock_data = self.config_manager.get_mock_data()
-            return mock_data.get('temperature_sensors', [])
-        elif message_type == 'config/entity_registry/list':
-            mock_data = self.config_manager.get_mock_data()
-            return mock_data.get('entity_registry', [])
-        elif message_type == 'config/label_registry/list':
-            mock_data = self.config_manager.get_mock_data()
-            return mock_data.get('label_registry', [])
-            
-        return None
+        try:
+            loop, lock = await self._ensure_loop_and_lock()
+            if not lock:
+                return None
+                
+            async with lock:
+                message_data = {"type": message_type, **kwargs}
+                mock_data = self._get_mock_data()
+                
+                if message_type == 'auth':
+                    return {"type": "auth_ok"}
+                elif message_type == 'get_states':
+                    return mock_data.get('temperature_sensors', [])
+                elif message_type == 'config/entity_registry/list':
+                    return mock_data.get('entity_registry', [])
+                elif message_type == 'config/label_registry/list':
+                    return mock_data.get('label_registry', [])
+                    
+                return None
+        except Exception as e:
+            print(f"Error in send_message: {str(e)}")
+            return None
 
     async def close(self):
-        self.open = False 
+        self.open = False
+        if self._lock:
+            try:
+                async with self._lock:
+                    self._loop = None
+                    self._lock = None
+            except Exception:
+                pass 

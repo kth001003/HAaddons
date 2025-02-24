@@ -293,6 +293,7 @@ export class UIManager {
                 wallsHTML += element.outerHTML;
             });
             const wallsData = wallsHTML;
+            this.sensorManager.parseSensorsFromSVG();
             const sensorConfig = this.sensorManager.getSensorConfig();
             const unit = sensorConfig.unit;
             const sensorsData = sensorConfig.sensors;

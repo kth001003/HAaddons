@@ -752,9 +752,14 @@ class MapGenerator:
             
             timestamp_start = time.time_ns()
 
-            
-            all_states = await self.sensor_manager.get_all_states()
-            states_dict = {state['entity_id']: state for state in all_states}
+            try:
+                # 센서 상태 조회를 현재 이벤트 루프에서 실행
+                all_states = await self.sensor_manager.get_all_states()
+                states_dict = {state['entity_id']: state for state in all_states}
+            except Exception as e:
+                self.logger.error(f"센서 상태 조회 중 오류 발생: {str(e)}")
+                # 오류 발생 시 빈 딕셔너리로 초기화
+                states_dict = {}
             
             # 설정된 온도 범위 가져오기
             min_temp = self.gen_config.get('colorbar', {}).get('min_temp', 0)
