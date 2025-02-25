@@ -16,6 +16,7 @@ class WebSocketClient:
         self.reconnect_delay = 5
         self._connection_lock = asyncio.Lock()
         self._keepalive_tasks = set()  # keepalive 태스크 추적용
+        self.logger.info(f"WebSocketClient 초기화: message_id={self.message_id}")
 
     def _truncate_log_message(self, message: str, max_length: int = 100) -> str:
         """로그 메시지를 지정된 길이로 잘라서 반환합니다."""
@@ -130,46 +131,97 @@ class WebSocketClient:
             self.logger.error(f"웹소켓 연결이 없어 메시지를 보낼 수 없습니다: {message_type}")
             return None
             
+        # 메시지 ID 할당 전에 현재 값 로깅
+        current_id = self.message_id
+        self.logger.info(f"메시지 ID 할당: current_id={current_id}, 타입={message_type}")
+            
         message = {
-            "id": self.message_id,
+            "id": current_id,
             "type": message_type,
             **kwargs
         }
+        
+        # 다음 메시지를 위해 ID 증가
         self.message_id += 1
+        self.logger.info(f"메시지 ID 증가: 새 message_id={self.message_id}")
         
         try:
             message_str = json.dumps(message)
-            self.logger.debug(f"송신 메시지 (ID: {message['id']}, 타입: {message_type}): {self._truncate_log_message(message_str)}")
+            self.logger.info(f"송신 메시지 (ID: {message['id']}, 타입: {message_type}): {self._truncate_log_message(message_str)}")
+            
+            # 특별히 get_states 요청인 경우 더 자세한 로깅
+            if message_type == "get_states":
+                self.logger.info(f"===== get_states 요청 전송 시작 (ID: {message['id']}) =====")
+            
+            # 메시지 전송
+            send_start_time = time.time()
             await self.websocket.send(message_str)
-            self.logger.debug(f"메시지 전송 완료 (ID: {message['id']}, 타입: {message_type})")
+            send_time = time.time() - send_start_time
+            
+            self.logger.info(f"메시지 전송 완료 (ID: {message['id']}, 타입: {message_type}, 소요시간: {send_time:.3f}초)")
             
             # 응답 대기 시간 설정 (기본 30초)
             timeout = 30.0
+            if message_type == "get_states":
+                # get_states는 데이터가 많을 수 있으므로 타임아웃을 더 길게 설정
+                timeout = 60.0
+                
             start_time = time.time()
+            
+            # 응답 대기 시작 로깅
+            self.logger.info(f"응답 대기 시작 (ID: {message['id']}, 타입: {message_type}, 제한시간: {timeout}초)")
             
             while True:
                 # 타임아웃 체크
-                if time.time() - start_time > timeout:
+                elapsed_time = time.time() - start_time
+                if elapsed_time > timeout:
                     self.logger.error(f"응답 타임아웃 (ID: {message['id']}, 타입: {message_type}, 제한시간: {timeout}초)")
+                    
+                    # get_states 요청이 타임아웃된 경우 연결 재설정 시도
+                    if message_type == "get_states":
+                        self.logger.warning(f"get_states 요청 타임아웃으로 연결을 재설정합니다")
+                        await self.close()
+                        
                     return None
                     
                 try:
                     # 응답 대기 (5초 타임아웃으로 여러 번 시도)
+                    wait_start_time = time.time()
                     response = await asyncio.wait_for(self.websocket.recv(), 5.0)
-                    self.logger.debug(f"수신 메시지: {self._truncate_log_message(response)}")
+                    wait_time = time.time() - wait_start_time
+                    
+                    self.logger.info(f"메시지 수신 (소요시간: {wait_time:.3f}초): {self._truncate_log_message(response)}")
                     response_data = json.loads(response)
                     
+                    # 응답 ID 확인
                     if response_data.get('id') == message['id']:
+                        total_time = time.time() - start_time
+                        
                         if response_data.get('success'):
-                            self.logger.debug(f"요청 성공 (ID: {message['id']}, 타입: {message_type})")
-                            return response_data.get('result')
+                            result = response_data.get('result')
+                            result_size = len(result) if isinstance(result, list) else "N/A"
+                            
+                            self.logger.info(f"요청 성공 (ID: {message['id']}, 타입: {message_type}, 총 소요시간: {total_time:.3f}초, 결과 크기: {result_size})")
+                            
+                            # get_states 요청인 경우 추가 정보 로깅
+                            if message_type == "get_states" and isinstance(result, list):
+                                temp_sensors = [s for s in result if s.get('entity_id', '').startswith('sensor.temperature')]
+                                self.logger.info(f"get_states 결과: 전체 {len(result)}개 항목, 온도 센서 {len(temp_sensors)}개")
+                                
+                                # 온도 센서 값 확인
+                                zero_temp_count = sum(1 for s in temp_sensors if s.get('state') == '0' or s.get('state') == '0.0')
+                                if zero_temp_count > 0:
+                                    self.logger.warning(f"주의: {zero_temp_count}개 온도 센서가 0°C를 보고하고 있습니다")
+                            
+                            return result
                         else:
                             error_msg = response_data.get('error', {}).get('message', '알 수 없는 오류')
-                            self.logger.error(f"웹소켓 요청 실패 (ID: {message['id']}, 타입: {message_type}): {error_msg}")
+                            self.logger.error(f"웹소켓 요청 실패 (ID: {message['id']}, 타입: {message_type}, 총 소요시간: {total_time:.3f}초): {error_msg}")
                             return None
                 except asyncio.TimeoutError:
                     # 5초 타임아웃이 발생했지만 전체 타임아웃은 아직 안 됨
-                    self.logger.debug(f"응답 대기 중... (ID: {message['id']}, 타입: {message_type}, 경과시간: {time.time() - start_time:.1f}초)")
+                    elapsed_time = time.time() - start_time
+                    self.logger.info(f"응답 대기 중... (ID: {message['id']}, 타입: {message_type}, 경과시간: {elapsed_time:.1f}초/{timeout}초)")
                     continue
                     
         except websockets.exceptions.ConnectionClosed as e:
@@ -177,7 +229,9 @@ class WebSocketClient:
             await self.close()
             return None
         except Exception as e:
+            import traceback
             self.logger.error(f"웹소켓 통신 중 오류 발생: {str(e)}")
+            self.logger.error(traceback.format_exc())
             await self.close()
             return None
 
@@ -203,6 +257,11 @@ class MockWebSocketClient:
         if self._lock is None:
             self._lock = asyncio.Lock()
         return self._loop, self._lock
+
+    async def ensure_connected(self) -> bool:
+        """웹소켓 연결 상태를 확인합니다. 모의 클라이언트는 항상 연결된 것으로 간주합니다."""
+        self.logger.debug("모의 웹소켓 연결 상태 확인 (항상 True 반환)")
+        return True
 
     def _get_mock_data(self):
         """mock 데이터를 가져오고 필요한 경우 초기화합니다."""
@@ -233,34 +292,52 @@ class MockWebSocketClient:
             async with lock:
                 message_data = {"type": message_type, **kwargs}
                 message_str = json.dumps(message_data)
-                self.logger.debug(f"모의 송신 메시지 (타입: {message_type}): {self._truncate_log_message(message_str)}")
+                self.logger.info(f"모의 송신 메시지 (타입: {message_type}): {self._truncate_log_message(message_str)}")
+                
+                # 특별히 get_states 요청인 경우 더 자세한 로깅
+                if message_type == "get_states":
+                    self.logger.info(f"===== 모의 get_states 요청 처리 시작 =====")
                 
                 # 의도적으로 약간의 지연 추가 (실제 네트워크 통신 시뮬레이션)
+                start_time = time.time()
                 await asyncio.sleep(0.1)
                 
                 mock_data = self._get_mock_data()
                 
                 if message_type == 'auth':
                     response = {"type": "auth_ok"}
-                    self.logger.debug(f"모의 수신 응답 (타입: {message_type}): {self._truncate_log_message(json.dumps(response))}")
+                    self.logger.info(f"모의 수신 응답 (타입: {message_type}): {self._truncate_log_message(json.dumps(response))}")
                     return response
                 elif message_type == 'get_states':
                     result = mock_data.get('temperature_sensors', [])
-                    self.logger.debug(f"모의 상태 조회 결과 (타입: {message_type}): {len(result)}개 센서 데이터")
+                    elapsed_time = time.time() - start_time
+                    
+                    # 온도 센서 값 확인
+                    zero_temp_count = sum(1 for s in result if s.get('state') == '0' or s.get('state') == '0.0')
+                    
+                    self.logger.info(f"모의 상태 조회 결과 (타입: {message_type}, 소요시간: {elapsed_time:.3f}초): {len(result)}개 센서 데이터")
+                    
+                    if zero_temp_count > 0:
+                        self.logger.warning(f"주의: 모의 데이터에 {zero_temp_count}개 온도 센서가 0°C를 보고하고 있습니다")
+                    
                     return result
                 elif message_type == 'config/entity_registry/list':
                     result = mock_data.get('entity_registry', [])
-                    self.logger.debug(f"모의 엔티티 레지스트리 조회 결과 (타입: {message_type}): {len(result)}개 항목")
+                    elapsed_time = time.time() - start_time
+                    self.logger.info(f"모의 엔티티 레지스트리 조회 결과 (타입: {message_type}, 소요시간: {elapsed_time:.3f}초): {len(result)}개 항목")
                     return result
                 elif message_type == 'config/label_registry/list':
                     result = mock_data.get('label_registry', [])
-                    self.logger.debug(f"모의 레이블 레지스트리 조회 결과 (타입: {message_type}): {len(result)}개 항목")
+                    elapsed_time = time.time() - start_time
+                    self.logger.info(f"모의 레이블 레지스트리 조회 결과 (타입: {message_type}, 소요시간: {elapsed_time:.3f}초): {len(result)}개 항목")
                     return result
                     
-                self.logger.debug(f"모의 응답 없음 (타입: {message_type})")
+                self.logger.info(f"모의 응답 없음 (타입: {message_type})")
                 return None
         except Exception as e:
+            import traceback
             self.logger.error(f"모의 웹소켓 통신 중 오류 발생 (타입: {message_type}): {str(e)}")
+            self.logger.error(traceback.format_exc())
             return None
 
     async def close(self):

@@ -1,6 +1,7 @@
 import json
 from typing import Optional, Dict, Any, List, Union
 from websocket_client import WebSocketClient, MockWebSocketClient
+import time
 
 class SensorManager:
     """센서 상태 관리를 담당하는 클래스"""
@@ -9,39 +10,73 @@ class SensorManager:
         self.is_local = is_local
         self.config_manager = config_manager
         self.logger = logger
+        
+        # 웹소켓 클라이언트 초기화 로깅
+        self.logger.info("SensorManager: 웹소켓 클라이언트 초기화 시작")
+        
         self.websocket_client = (
             MockWebSocketClient(config_manager) if is_local 
             else WebSocketClient(supervisor_token, logger)
         )
+        
+        self.logger.info(f"SensorManager: 웹소켓 클라이언트 초기화 완료 (타입: {'Mock' if is_local else '실제'})")
 
     async def close(self):
         """웹소켓 연결을 종료합니다."""
+        self.logger.info("SensorManager: 웹소켓 연결 종료 시작")
         if hasattr(self.websocket_client, 'close'):
             await self.websocket_client.close()
+        self.logger.info("SensorManager: 웹소켓 연결 종료 완료")
 
     async def debug_websocket(self, message_type: str, **kwargs) -> Optional[Any]:
         """WebSocket 디버깅 메시지 전송"""
+        self.logger.info(f"SensorManager: 디버깅 메시지 전송 - {message_type}")
         return await self.websocket_client.send_message(message_type, **kwargs)
 
     async def get_entity_registry(self) -> List[Dict]:
         """Entity Registry 조회"""
+        self.logger.debug("Entity Registry 조회 요청 시작")
+        start_time = time.time()
         result = await self.websocket_client.send_message("config/entity_registry/list")
+        elapsed_time = time.time() - start_time
+        
+        if result is not None:
+            self.logger.debug(f"Entity Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
+        else:
+            self.logger.error(f"Entity Registry 조회 실패 (소요시간: {elapsed_time:.3f}초)")
+            
         return result if result is not None else []
 
     async def get_label_registry(self) -> List[Dict]:
         """Label Registry 조회"""
+        self.logger.debug("Label Registry 조회 요청 시작")
+        start_time = time.time()
         result = await self.websocket_client.send_message("config/label_registry/list")
+        elapsed_time = time.time() - start_time
+        
+        if result is not None:
+            self.logger.debug(f"Label Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
+        else:
+            self.logger.error(f"Label Registry 조회 실패 (소요시간: {elapsed_time:.3f}초)")
+            
         return result if result is not None else []
 
     async def get_all_states(self) -> List[Dict]:
         """모든 센서 상태 조회"""
         try:
-            self.logger.debug("센서 상태 조회 시작")
+            self.logger.info("===== 센서 상태 조회 시작 =====")
+            overall_start_time = time.time()
             
             # Entity Registry 정보 가져오기
-            self.logger.debug("Entity Registry 정보 요청 중...")
+            self.logger.info("Entity Registry 정보 요청 중...")
+            entity_registry_start = time.time()
             entity_registry = await self.get_entity_registry()
-            self.logger.debug(f"Entity Registry 정보 수신 완료: {len(entity_registry)}개 항목")
+            entity_registry_time = time.time() - entity_registry_start
+            
+            if not entity_registry:
+                self.logger.error(f"Entity Registry 정보 수신 실패 (소요시간: {entity_registry_time:.3f}초)")
+            else:
+                self.logger.info(f"Entity Registry 정보 수신 완료: {len(entity_registry)}개 항목 (소요시간: {entity_registry_time:.3f}초)")
             
             entity_registry_dict = {
                 entry['entity_id']: entry 
@@ -49,19 +84,39 @@ class SensorManager:
             }
             
             # 상태 정보 가져오기
-            self.logger.debug("get_states 요청 시작")
+            self.logger.info("===== get_states 요청 시작 =====")
+            states_start = time.time()
+            
+            # 웹소켓 연결 상태 확인
+            connection_check_start = time.time()
+            is_connected = await self.websocket_client.ensure_connected()
+            connection_check_time = time.time() - connection_check_start
+            
+            if not is_connected:
+                self.logger.error(f"웹소켓 연결 실패 (소요시간: {connection_check_time:.3f}초)")
+                return []
+            else:
+                self.logger.info(f"웹소켓 연결 확인 완료 (소요시간: {connection_check_time:.3f}초)")
+            
+            # get_states 요청 전송
+            self.logger.info("get_states 요청 전송 중...")
             states = await self.websocket_client.send_message("get_states")
+            states_time = time.time() - states_start
             
             if states is None:
-                self.logger.error("get_states 요청 실패: 응답이 None입니다")
+                self.logger.error(f"get_states 요청 실패: 응답이 None입니다 (소요시간: {states_time:.3f}초)")
                 return []
                 
-            self.logger.debug(f"get_states 응답 수신 완료: {len(states)}개 항목")
+            self.logger.info(f"get_states 응답 수신 완료: {len(states)}개 항목 (소요시간: {states_time:.3f}초)")
 
             # 센서 필터링 및 처리
+            self.logger.info("센서 데이터 필터링 시작...")
+            filtering_start = time.time()
+            
             filtered_states = []
             sensor_count = 0
             valid_sensor_count = 0
+            zero_temp_count = 0
             
             for state in states:
                 entity_id = state['entity_id']
@@ -72,8 +127,12 @@ class SensorManager:
                 
                 try:
                     # 숫자 값인지 확인
-                    float(state['state'])
+                    temp_value = float(state['state'])
                     valid_sensor_count += 1
+                    
+                    # 0도 센서 카운트
+                    if temp_value == 0:
+                        zero_temp_count += 1
                     
                     # Entity Registry 정보 추가
                     if entity_id in entity_registry_dict:
@@ -85,8 +144,18 @@ class SensorManager:
                 except (ValueError, TypeError):
                     # 숫자가 아닌 상태값은 무시
                     continue
-                    
-            self.logger.debug(f"센서 상태 조회 완료: 전체 {sensor_count}개 중 {valid_sensor_count}개 유효, {len(filtered_states)}개 필터링됨")
+            
+            filtering_time = time.time() - filtering_start
+            overall_time = time.time() - overall_start_time
+            
+            self.logger.info(f"센서 필터링 완료 (소요시간: {filtering_time:.3f}초)")
+            self.logger.info(f"센서 상태 조회 결과: 전체 {sensor_count}개 중 {valid_sensor_count}개 유효, {len(filtered_states)}개 필터링됨")
+            
+            if zero_temp_count > 0:
+                self.logger.warning(f"주의: {zero_temp_count}개 센서가 0°C 온도를 보고하고 있습니다")
+            
+            self.logger.info(f"===== 센서 상태 조회 완료 (총 소요시간: {overall_time:.3f}초) =====")
+            
             return filtered_states
             
         except Exception as e:

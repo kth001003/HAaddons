@@ -64,123 +64,153 @@ class BackgroundTaskManager:
         """열지도 생성 로직"""
         if self.map_lock.acquire(blocking=False):  # 락 획득 시도
             try:
+                self.logger.info(f"맵 생성 시작: {map_id}")
                 _output_path = self.config_manager.get_output_path(map_id)
                 # 기존 이미지가 있다면 로테이션 수행
                 if os.path.exists(_output_path):
                     self.rotate_images(map_id, _output_path)
+                
+                # 맵 생성 시작 시간 기록
+                start_time = time.time()
+                
+                # 맵 생성 실행
                 success, error_msg = await self.map_generator.generate(map_id, _output_path)
+                
+                # 소요 시간 계산
+                elapsed_time = time.time() - start_time
+                self.logger.info(f"맵 생성 완료: {map_id}, 성공 여부: {success}, 소요시간: {elapsed_time:.3f}초")
+                
                 if not success:
                     raise Exception(error_msg)
                 return success
             except Exception as e:
                 self.logger.error(f"열지도 생성 실패: {str(e)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
                 raise e
             finally:
                 self.map_lock.release()  # 락 해제
+                self.logger.info(f"맵 생성 락 해제: {map_id}")
         else:
             self.logger.info("다른 프로세스가 열지도를 생성 중입니다. 이번 생성은 건너뜁니다.")
             return False
 
     def run(self):
         """백그라운드 작업 실행"""
-        while self.running:
-            try:
-                # 모든 맵 정보를 가져옴
-                maps = self.config_manager.db.load()
-                current_time = time.time()
+        self.logger.info("백그라운드 작업 스레드 시작")
+        
+        # 이벤트 루프 생성 (스레드당 하나의 이벤트 루프 사용)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self.logger.info("백그라운드 작업용 이벤트 루프 생성")
+        
+        try:
+            while self.running:
+                try:
+                    # 모든 맵 정보를 가져옴
+                    maps = self.config_manager.db.load()
+                    current_time = time.time()
+                    self.logger.info(f"맵 정보 로드 완료: {len(maps)}개 맵")
 
-                for map_id, map_data in maps.items():
-                    try:
-                        # 맵의 생성 설정 가져오기
-                        gen_config = map_data.get('gen_config', {})
-                        gen_interval = gen_config.get('gen_interval', 5) * 60  # 기본값 5분
-                        map_name = map_data.get('name', '')
-                        # 마지막 생성 시간 확인
-                        last_gen_time = self.map_timers.get(map_id, 0)
-                        
-                        # 생성 간격이 지났는지 확인
-                        if current_time - last_gen_time >= gen_interval:
-                            walls = map_data.get('walls', '')
-                            sensors = map_data.get('sensors', [])
-                            if not walls or not sensors: # 벽 또는 센서 데이터가 없으면 건너뜀
-                                continue 
+                    for map_id, map_data in maps.items():
+                        try:
+                            # 맵의 생성 설정 가져오기
+                            gen_config = map_data.get('gen_config', {})
+                            gen_interval = gen_config.get('gen_interval', 5) * 60  # 기본값 5분
+                            map_name = map_data.get('name', '')
+                            # 마지막 생성 시간 확인
+                            last_gen_time = self.map_timers.get(map_id, 0)
+                            
+                            # 생성 간격이 지났는지 확인
+                            if current_time - last_gen_time >= gen_interval:
+                                walls = map_data.get('walls', '')
+                                sensors = map_data.get('sensors', [])
+                                if not walls or not sensors: # 벽 또는 센서 데이터가 없으면 건너뜀
+                                    self.logger.info(f"맵 {map_name} ({map_id}): 벽 또는 센서 데이터 없음, 생성 건너뜀")
+                                    continue 
 
-                            self.logger.info("백그라운드 맵 생성 시작 %s (%s)",
-                                             self.logger._colorize(map_name, "blue"),
-                                             self.logger._colorize(map_id, "yellow"))
-                            
-                            # 현재 맵으로 설정
-                            self.config_manager.current_map_id = map_id
-                            
-                            # 새로운 이벤트 루프 생성
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            
-                            try:
-                                # 맵 생성 태스크 실행
-                                if loop.run_until_complete(self.generate_map(map_id)):
-                                    self.logger.info("백그라운드 맵 생성 완료 %s (%s) (소요시간: %s)",
-                                                     self.logger._colorize(map_name, "blue"),
-                                                     self.logger._colorize(map_id, "yellow"),
-                                                     self.logger._colorize(self.map_generator.generation_duration, "green"))
-                                    self.map_timers[map_id] = current_time
-                                else:
-                                    self.logger.error("백그라운드 맵 생성 실패 %s (%s)",
-                                                     self.logger._colorize(map_name, "blue"),
-                                                     self.logger._colorize(map_id, "yellow"))
-                            except Exception as e:
-                                self.logger.error("맵 생성 중 오류 발생: %s",
-                                                 self.logger._colorize(str(e), "red"))
-                            finally:
+                                self.logger.info("백그라운드 맵 생성 시작 %s (%s)",
+                                                self.logger._colorize(map_name, "blue"),
+                                                self.logger._colorize(map_id, "yellow"))
+                                
+                                # 현재 맵으로 설정
+                                self.config_manager.current_map_id = map_id
+                                
                                 try:
-                                    # 웹소켓 연결 종료
-                                    loop.run_until_complete(self.sensor_manager.close())
-                                    
-                                    # 실행 중인 모든 태스크 가져오기
-                                    pending = asyncio.all_tasks(loop)
-                                    
-                                    # 태스크 취소
-                                    for task in pending:
-                                        task.cancel()
-                                    
-                                    # 취소된 태스크들이 완료될 때까지 대기
-                                    if pending:
-                                        try:
-                                            loop.run_until_complete(
-                                                asyncio.gather(*pending, return_exceptions=True)
-                                            )
-                                        except asyncio.CancelledError:
-                                            self.logger.debug("태스크가 취소되었습니다")
-                                        except Exception as gather_error:
-                                            self.logger.error(f"태스크 정리 중 gather 오류: {str(gather_error)}")
-                                except Exception as cleanup_error:
-                                    self.logger.error(f"태스크 정리 중 오류 발생: {str(cleanup_error)}")
+                                    # 맵 생성 태스크 실행 (기존 이벤트 루프 사용)
+                                    if loop.run_until_complete(self.generate_map(map_id)):
+                                        self.logger.info("백그라운드 맵 생성 완료 %s (%s) (소요시간: %s)",
+                                                        self.logger._colorize(map_name, "blue"),
+                                                        self.logger._colorize(map_id, "yellow"),
+                                                        self.logger._colorize(self.map_generator.generation_duration, "green"))
+                                        self.map_timers[map_id] = current_time
+                                    else:
+                                        self.logger.error("백그라운드 맵 생성 실패 %s (%s)",
+                                                        self.logger._colorize(map_name, "blue"),
+                                                        self.logger._colorize(map_id, "yellow"))
+                                except Exception as e:
+                                    self.logger.error("맵 생성 중 오류 발생: %s",
+                                                    self.logger._colorize(str(e), "red"))
                                     import traceback
                                     self.logger.error(traceback.format_exc())
-                                finally:
-                                    try:
-                                        # 이벤트 루프 종료 전에 모든 태스크가 완료되었는지 확인
-                                        pending = asyncio.all_tasks(loop)
-                                        if pending:
-                                            self.logger.warning(f"아직 {len(pending)}개의 태스크가 남아있습니다")
-                                            
-                                        loop.run_until_complete(asyncio.sleep(0.1))  # 잠시 대기하여 태스크 정리 시간 제공
-                                        loop.stop()
-                                        loop.close()
-                                        self.logger.debug("이벤트 루프가 정상적으로 종료되었습니다")
-                                    except Exception as close_error:
-                                        self.logger.error(f"이벤트 루프 종료 중 오류 발생: {str(close_error)}")
-                                        import traceback
-                                        self.logger.error(traceback.format_exc())
 
-                    except Exception as e:
-                        self.logger.error(f"맵 {map_name} ({map_id}) 처리 중 오류 발생: {str(e)}")
-                        continue
+                        except Exception as e:
+                            self.logger.error(f"맵 {map_name} ({map_id}) 처리 중 오류 발생: {str(e)}")
+                            import traceback
+                            self.logger.error(traceback.format_exc())
+                            continue
 
-                time.sleep(60)  # 1분 대기
-            except Exception as e:
-                self.logger.error(f"백그라운드 작업 중 오류 발생: {str(e)}")
-                time.sleep(60)
+                    # 다음 실행 전 대기
+                    self.logger.info("다음 백그라운드 작업 실행 전 1분 대기")
+                    time.sleep(60)  # 1분 대기
+                    
+                except Exception as e:
+                    self.logger.error(f"백그라운드 작업 중 오류 발생: {str(e)}")
+                    import traceback
+                    self.logger.error(traceback.format_exc())
+                    time.sleep(60)
+        finally:
+            # 스레드 종료 시 이벤트 루프 정리
+            try:
+                # 웹소켓 연결 종료
+                loop.run_until_complete(self.sensor_manager.close())
+                
+                # 실행 중인 모든 태스크 가져오기
+                pending = asyncio.all_tasks(loop)
+                
+                # 태스크 취소
+                for task in pending:
+                    task.cancel()
+                
+                # 취소된 태스크들이 완료될 때까지 대기
+                if pending:
+                    try:
+                        loop.run_until_complete(
+                            asyncio.gather(*pending, return_exceptions=True)
+                        )
+                    except asyncio.CancelledError:
+                        self.logger.debug("태스크가 취소되었습니다")
+                    except Exception as gather_error:
+                        self.logger.error(f"태스크 정리 중 gather 오류: {str(gather_error)}")
+            except Exception as cleanup_error:
+                self.logger.error(f"태스크 정리 중 오류 발생: {str(cleanup_error)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+            finally:
+                try:
+                    # 이벤트 루프 종료 전에 모든 태스크가 완료되었는지 확인
+                    pending = asyncio.all_tasks(loop)
+                    if pending:
+                        self.logger.warning(f"아직 {len(pending)}개의 태스크가 남아있습니다")
+                        
+                    loop.run_until_complete(asyncio.sleep(0.1))  # 잠시 대기하여 태스크 정리 시간 제공
+                    loop.stop()
+                    loop.close()
+                    self.logger.info("백그라운드 작업용 이벤트 루프 종료")
+                except Exception as close_error:
+                    self.logger.error(f"이벤트 루프 종료 중 오류 발생: {str(close_error)}")
+                    import traceback
+                    self.logger.error(traceback.format_exc())
 
 if __name__ == '__main__':
     is_local = False
@@ -196,9 +226,9 @@ if __name__ == '__main__':
     log_dir = os.path.dirname(config_manager.paths['log'])
     os.makedirs(log_dir, exist_ok=True)
 
-    # 로거 초기화 (디버그 모드 활성화)
+    # 로거 초기화
     logger = CustomLogger(log_file=config_manager.paths['log'], log_level=str(log_level))
-    logger.info("애플리케이션 시작")
+    logger.info("애플리케이션 시작 (로그 레벨: " + log_level + ")")
 
     supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
     try:

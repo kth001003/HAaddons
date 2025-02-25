@@ -756,6 +756,14 @@ class MapGenerator:
                 # 센서 상태 조회를 현재 이벤트 루프에서 실행
                 self.logger.info("센서 상태 조회 시작")
                 start_time = time.time()
+                
+                # 웹소켓 연결 상태 확인
+                self.logger.info("웹소켓 연결 상태 확인 중...")
+                websocket_client = self.sensor_manager.websocket_client
+                if hasattr(websocket_client, 'message_id'):
+                    self.logger.info(f"현재 웹소켓 클라이언트 message_id: {websocket_client.message_id}")
+                
+                # 센서 상태 조회 실행
                 all_states = await self.sensor_manager.get_all_states()
                 elapsed_time = time.time() - start_time
                 
