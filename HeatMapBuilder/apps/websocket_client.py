@@ -40,12 +40,40 @@ class WebSocketClient:
         """keepalive 태스크들을 정리합니다."""
         for task in list(self._keepalive_tasks):
             if not task.done():
+                self.logger.debug(f"keepalive 태스크 취소 시도: {task}")
                 task.cancel()
                 try:
-                    await task
-                except asyncio.CancelledError:
+                    # 태스크 취소 대기에 3초 타임아웃 추가
+                    await asyncio.wait_for(asyncio.shield(task), timeout=3.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    self.logger.debug(f"keepalive 태스크 취소됨 또는 타임아웃: {task}")
                     pass
+                except Exception as e:
+                    self.logger.error(f"keepalive 태스크 취소 중 오류: {str(e)}")
             self._keepalive_tasks.discard(task)
+
+    async def _force_cleanup(self):
+        """락 획득 타임아웃 발생 시 강제로 자원을 정리합니다."""
+        self.logger.warning("웹소켓 연결 강제 정리 시작")
+        try:
+            # keepalive 태스크 강제 정리
+            for task in list(self._keepalive_tasks):
+                if not task.done():
+                    task.cancel()
+                self._keepalive_tasks.discard(task)
+                
+            # 웹소켓 객체 강제 정리
+            if self.websocket:
+                try:
+                    await self.websocket.close()
+                except Exception as e:
+                    self.logger.error(f"웹소켓 강제 종료 중 오류: {str(e)}")
+                finally:
+                    self.websocket = None
+            
+            self.logger.warning("웹소켓 연결 강제 정리 완료")
+        except Exception as e:
+            self.logger.error(f"웹소켓 연결 강제 정리 중 오류 발생: {str(e)}")
 
     async def close(self):
         """웹소켓 연결을 안전하게 종료합니다."""
@@ -53,20 +81,34 @@ class WebSocketClient:
         lock = await self._get_connection_lock()
         self.logger.info("웹소켓 연결 종료 중. lock 가져오기 성공")
         
-        async with lock:
-            # keepalive 태스크들 정리
-            self.logger.info("웹소켓 연결 종료 중 keepalive 태스크들 정리 시작")
-            await self._cleanup_keepalive_tasks()
-            self.logger.info("웹소켓 연결 종료 중 keepalive 태스크들 정리 완료")
-            if self.websocket:
-                try:
-                    self.logger.info("웹소켓 연결 종료 중 웹소켓 객체 닫기 시도")
-                    await self.websocket.close()
-                    self.logger.info("웹소켓 연결 종료 중 웹소켓 객체 닫기 성공")
-                except Exception as e:
-                    self.logger.error(f"웹소켓 연결 종료 중 오류 발생: {str(e)}")
-                finally:
-                    self.websocket = None
+        # 락 획득 시도에 타임아웃 추가
+        try:
+            self.logger.info("웹소켓 연결 종료 중. async with lock 블록 진입 시도")
+            async with asyncio.timeout(5):  # 5초 타임아웃
+                async with lock:
+                    self.logger.info("웹소켓 연결 종료 중. async with lock 블록 진입 성공")
+                    # keepalive 태스크들 정리
+                    self.logger.info("웹소켓 연결 종료 중 keepalive 태스크들 정리 시작")
+                    await self._cleanup_keepalive_tasks()
+                    self.logger.info("웹소켓 연결 종료 중 keepalive 태스크들 정리 완료")
+                    if self.websocket:
+                        try:
+                            self.logger.info("웹소켓 연결 종료 중 웹소켓 객체 닫기 시도")
+                            await self.websocket.close()
+                            self.logger.info("웹소켓 연결 종료 중 웹소켓 객체 닫기 성공")
+                        except Exception as e:
+                            self.logger.error(f"웹소켓 연결 종료 중 오류 발생: {str(e)}")
+                        finally:
+                            self.websocket = None
+        except asyncio.TimeoutError:
+            self.logger.error("락 획득 타임아웃 발생, 강제로 진행합니다")
+            await self._force_cleanup()  # 강제 정리 메서드 호출
+        except Exception as e:
+            self.logger.error(f"웹소켓 연결 종료 중 예상치 못한 오류 발생: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            # 예상치 못한 오류 발생 시에도 강제 정리 시도
+            await self._force_cleanup()
 
     async def ensure_connected(self) -> bool:
         """연결 상태를 확인하고 필요한 경우 재연결합니다."""
