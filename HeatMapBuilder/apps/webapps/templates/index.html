@@ -104,8 +104,38 @@
             <!-- 이전 생성 이미지 섹션 -->
             <div id="previous-maps" class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-lg font-medium text-gray-900 mb-4">이전 생성 이미지</h2>
-                <div id="previous-maps-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <!-- 이전 이미지들이 여기에 동적으로 추가될 예정 -->
+                <div id="previous-maps-container" class="relative">
+                    <!-- 이미지 슬라이더 -->
+                    <div class="flex justify-center items-center">
+                        <!-- 이전 이미지 버튼 -->
+                        <button id="prev-image-btn" class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-4 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="mdi mdi-chevron-left text-xl text-gray-700"></i>
+                        </button>
+                        
+                        <!-- 이미지 표시 영역 -->
+                        <div class="relative flex-1 flex justify-center">
+                            <div id="previous-map-image-container" class="relative min-h-[300px] flex items-center justify-center">
+                                <img id="previous-map-image" src="" alt="이전 히트맵 이미지" class="max-h-[300px] object-contain hidden">
+                                <div id="previous-map-empty" class="flex flex-col justify-center items-center h-[300px] w-full bg-gray-50">
+                                    <div class="text-gray-500 text-lg font-medium mb-4">이전 생성 이미지가 없습니다</div>
+                                </div>
+                                <div id="previous-map-loading" class="absolute inset-0 flex justify-center items-center bg-white bg-opacity-80 hidden">
+                                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 다음 이미지 버튼 -->
+                        <button id="next-image-btn" class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center ml-4 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="mdi mdi-chevron-right text-xl text-gray-700"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- 이미지 정보 -->
+                    <div id="previous-map-info" class="mt-4 text-center text-sm text-gray-500 hidden">
+                        <span id="current-image-index">1</span> / <span id="total-images">5</span>
+                        <div id="current-image-date" class="mt-1"></div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -171,6 +171,11 @@ class WebServer:
         async def clone_map_route(map_id):
             return await self.clone_map(map_id)
 
+        @self.app.route('/api/maps/<map_id>/previous-maps', methods=['GET'])
+        async def get_previous_maps_by_id(map_id):
+            """특정 맵의 이전 생성 이미지 목록 조회"""
+            return await self.get_previous_maps(map_id)
+
         @self.app.route('/api/maps/export', methods=['GET'])
         async def export_maps():
             return await self.export_maps()
@@ -578,6 +583,55 @@ class WebServer:
             return jsonify({'status': 'success'})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
+
+    async def get_previous_maps(self, map_id=None):
+        """이전 생성 이미지 목록을 반환합니다."""
+        try:
+            self.logger.info(f"get_previous_maps 호출: map_id={map_id}")
+            if map_id is None:
+                return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
+                
+            # 맵 데이터에서 파일 이름과 형식 가져오기
+            map_data = self.config_manager.db.get_map(map_id)
+            if not map_data:
+                return jsonify({'error': '요청한 맵을 찾을 수 없습니다.'}), 404
+                
+            gen_config = map_data.get('gen_config', {})
+            file_name = gen_config.get('file_name', 'thermal_map')
+            file_format = gen_config.get('format', 'png')
+                        
+            dir = os.path.dirname(self.config_manager.get_output_path(map_id))
+            # 패턴에 맞는 파일 목록 가져오기
+            previous_maps = []
+            if os.path.exists(dir):
+                for file in os.listdir(dir):
+                    import re
+                    # 파일 이름 패턴 확인 (thermal_map-숫자.확장자)
+                    match = re.match(f"{file_name}-(\\d+)\\.{file_format}", file)
+                    if match:
+                        index = int(match.group(1))
+                        img_url = f"/local/HeatMapBuilder/{map_id}/{file}"
+                        timestamp = os.path.getmtime(os.path.join(dir, file))
+                        previous_maps.append({
+                            'index': index,
+                            'url': img_url,
+                            'timestamp': timestamp,
+                            'date': datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                        })
+            
+            # 인덱스 기준으로 정렬 (작은 숫자가 최신)
+            previous_maps.sort(key=lambda x: x['index'])
+            self.logger.info(f"이전 맵 목록: {previous_maps}")
+            return jsonify({
+                'status': 'success',
+                'previous_maps': previous_maps
+            })
+        except Exception as e:
+            self.logger.error(f"이전 맵 목록 조회 실패: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'error': str(e)
+            }), 500
 
     def run(self, host='0.0.0.0', port=None):
         """서버 실행"""
