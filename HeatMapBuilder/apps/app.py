@@ -145,17 +145,33 @@ class BackgroundTaskManager:
                                     
                                     # 취소된 태스크들이 완료될 때까지 대기
                                     if pending:
-                                        loop.run_until_complete(
-                                            asyncio.gather(*pending, return_exceptions=True)
-                                        )
+                                        try:
+                                            loop.run_until_complete(
+                                                asyncio.gather(*pending, return_exceptions=True)
+                                            )
+                                        except asyncio.CancelledError:
+                                            self.logger.debug("태스크가 취소되었습니다")
+                                        except Exception as gather_error:
+                                            self.logger.error(f"태스크 정리 중 gather 오류: {str(gather_error)}")
                                 except Exception as cleanup_error:
                                     self.logger.error(f"태스크 정리 중 오류 발생: {str(cleanup_error)}")
+                                    import traceback
+                                    self.logger.error(traceback.format_exc())
                                 finally:
                                     try:
+                                        # 이벤트 루프 종료 전에 모든 태스크가 완료되었는지 확인
+                                        pending = asyncio.all_tasks(loop)
+                                        if pending:
+                                            self.logger.warning(f"아직 {len(pending)}개의 태스크가 남아있습니다")
+                                            
+                                        loop.run_until_complete(asyncio.sleep(0.1))  # 잠시 대기하여 태스크 정리 시간 제공
                                         loop.stop()
                                         loop.close()
+                                        self.logger.debug("이벤트 루프가 정상적으로 종료되었습니다")
                                     except Exception as close_error:
                                         self.logger.error(f"이벤트 루프 종료 중 오류 발생: {str(close_error)}")
+                                        import traceback
+                                        self.logger.error(traceback.format_exc())
 
                     except Exception as e:
                         self.logger.error(f"맵 {map_name} ({map_id}) 처리 중 오류 발생: {str(e)}")

@@ -36,35 +36,61 @@ class SensorManager:
     async def get_all_states(self) -> List[Dict]:
         """모든 센서 상태 조회"""
         try:
+            self.logger.debug("센서 상태 조회 시작")
+            
             # Entity Registry 정보 가져오기
+            self.logger.debug("Entity Registry 정보 요청 중...")
             entity_registry = await self.get_entity_registry()
+            self.logger.debug(f"Entity Registry 정보 수신 완료: {len(entity_registry)}개 항목")
+            
             entity_registry_dict = {
                 entry['entity_id']: entry 
                 for entry in entity_registry
             }
             
             # 상태 정보 가져오기
+            self.logger.debug("get_states 요청 시작")
             states = await self.websocket_client.send_message("get_states")
+            
             if states is None:
+                self.logger.error("get_states 요청 실패: 응답이 None입니다")
                 return []
+                
+            self.logger.debug(f"get_states 응답 수신 완료: {len(states)}개 항목")
 
+            # 센서 필터링 및 처리
             filtered_states = []
+            sensor_count = 0
+            valid_sensor_count = 0
+            
             for state in states:
                 entity_id = state['entity_id']
                 if not entity_id.startswith('sensor.'):
                     continue
+                    
+                sensor_count += 1
+                
                 try:
+                    # 숫자 값인지 확인
                     float(state['state'])
+                    valid_sensor_count += 1
+                    
+                    # Entity Registry 정보 추가
+                    if entity_id in entity_registry_dict:
+                        state.update({
+                            'labels': entity_registry_dict[entity_id].get('labels', []),
+                            'area_id': entity_registry_dict[entity_id].get('area_id')
+                        })
+                        filtered_states.append(state)
                 except (ValueError, TypeError):
+                    # 숫자가 아닌 상태값은 무시
                     continue
-                if entity_id in entity_registry_dict:
-                    state.update({
-                        'labels': entity_registry_dict[entity_id].get('labels', []),
-                        'area_id': entity_registry_dict[entity_id].get('area_id')
-                    })
-                    filtered_states.append(state)
+                    
+            self.logger.debug(f"센서 상태 조회 완료: 전체 {sensor_count}개 중 {valid_sensor_count}개 유효, {len(filtered_states)}개 필터링됨")
             return filtered_states
             
         except Exception as e:
+            import traceback
             self.logger.error(f"센서 상태 조회 중 오류 발생: {str(e)}")
+            self.logger.error(traceback.format_exc())
             return []

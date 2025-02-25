@@ -3,6 +3,7 @@ import json
 from typing import Optional, Dict, Any, List
 import asyncio
 import logging
+import time
 
 class WebSocketClient:
     def __init__(self, supervisor_token: str, logger: logging.Logger):
@@ -126,6 +127,7 @@ class WebSocketClient:
 
     async def send_message(self, message_type: str, **kwargs) -> Optional[Any]:
         if not await self.ensure_connected() or not self.websocket:
+            self.logger.error(f"웹소켓 연결이 없어 메시지를 보낼 수 없습니다: {message_type}")
             return None
             
         message = {
@@ -137,22 +139,39 @@ class WebSocketClient:
         
         try:
             message_str = json.dumps(message)
-            self.logger.debug(f"송신 메시지 (ID: {message['id']}): {self._truncate_log_message(message_str)}")
+            self.logger.debug(f"송신 메시지 (ID: {message['id']}, 타입: {message_type}): {self._truncate_log_message(message_str)}")
             await self.websocket.send(message_str)
+            self.logger.debug(f"메시지 전송 완료 (ID: {message['id']}, 타입: {message_type})")
+            
+            # 응답 대기 시간 설정 (기본 30초)
+            timeout = 30.0
+            start_time = time.time()
             
             while True:
-                response = await self.websocket.recv()
-                self.logger.debug(f"수신 메시지: {self._truncate_log_message(response)}")
-                response_data = json.loads(response)
-                
-                if response_data.get('id') == message['id']:
-                    if response_data.get('success'):
-                        self.logger.debug(f"요청 성공 (ID: {message['id']})")
-                        return response_data.get('result')
-                    else:
-                        self.logger.error(f"웹소켓 요청 실패: {response_data}")
-                        return None
-                        
+                # 타임아웃 체크
+                if time.time() - start_time > timeout:
+                    self.logger.error(f"응답 타임아웃 (ID: {message['id']}, 타입: {message_type}, 제한시간: {timeout}초)")
+                    return None
+                    
+                try:
+                    # 응답 대기 (5초 타임아웃으로 여러 번 시도)
+                    response = await asyncio.wait_for(self.websocket.recv(), 5.0)
+                    self.logger.debug(f"수신 메시지: {self._truncate_log_message(response)}")
+                    response_data = json.loads(response)
+                    
+                    if response_data.get('id') == message['id']:
+                        if response_data.get('success'):
+                            self.logger.debug(f"요청 성공 (ID: {message['id']}, 타입: {message_type})")
+                            return response_data.get('result')
+                        else:
+                            error_msg = response_data.get('error', {}).get('message', '알 수 없는 오류')
+                            self.logger.error(f"웹소켓 요청 실패 (ID: {message['id']}, 타입: {message_type}): {error_msg}")
+                            return None
+                except asyncio.TimeoutError:
+                    # 5초 타임아웃이 발생했지만 전체 타임아웃은 아직 안 됨
+                    self.logger.debug(f"응답 대기 중... (ID: {message['id']}, 타입: {message_type}, 경과시간: {time.time() - start_time:.1f}초)")
+                    continue
+                    
         except websockets.exceptions.ConnectionClosed as e:
             self.logger.error(f"웹소켓 연결이 닫힘: {str(e)}")
             await self.close()
@@ -208,36 +227,40 @@ class MockWebSocketClient:
         try:
             loop, lock = await self._ensure_loop_and_lock()
             if not lock:
+                self.logger.error(f"락을 획득할 수 없어 메시지를 보낼 수 없습니다: {message_type}")
                 return None
-                
+            
             async with lock:
                 message_data = {"type": message_type, **kwargs}
                 message_str = json.dumps(message_data)
-                self.logger.debug(f"모의 송신 메시지: {self._truncate_log_message(message_str)}")
+                self.logger.debug(f"모의 송신 메시지 (타입: {message_type}): {self._truncate_log_message(message_str)}")
+                
+                # 의도적으로 약간의 지연 추가 (실제 네트워크 통신 시뮬레이션)
+                await asyncio.sleep(0.1)
                 
                 mock_data = self._get_mock_data()
                 
                 if message_type == 'auth':
                     response = {"type": "auth_ok"}
-                    self.logger.debug(f"모의 수신 응답: {self._truncate_log_message(json.dumps(response))}")
+                    self.logger.debug(f"모의 수신 응답 (타입: {message_type}): {self._truncate_log_message(json.dumps(response))}")
                     return response
                 elif message_type == 'get_states':
                     result = mock_data.get('temperature_sensors', [])
-                    self.logger.debug(f"모의 상태 조회 결과: {len(result)}개 센서 데이터")
+                    self.logger.debug(f"모의 상태 조회 결과 (타입: {message_type}): {len(result)}개 센서 데이터")
                     return result
                 elif message_type == 'config/entity_registry/list':
                     result = mock_data.get('entity_registry', [])
-                    self.logger.debug(f"모의 엔티티 레지스트리 조회 결과: {len(result)}개 항목")
+                    self.logger.debug(f"모의 엔티티 레지스트리 조회 결과 (타입: {message_type}): {len(result)}개 항목")
                     return result
                 elif message_type == 'config/label_registry/list':
                     result = mock_data.get('label_registry', [])
-                    self.logger.debug(f"모의 레이블 레지스트리 조회 결과: {len(result)}개 항목")
+                    self.logger.debug(f"모의 레이블 레지스트리 조회 결과 (타입: {message_type}): {len(result)}개 항목")
                     return result
                     
-                self.logger.debug(f"모의 응답 없음: {message_type}")
+                self.logger.debug(f"모의 응답 없음 (타입: {message_type})")
                 return None
         except Exception as e:
-            self.logger.error(f"모의 웹소켓 통신 중 오류 발생: {str(e)}")
+            self.logger.error(f"모의 웹소켓 통신 중 오류 발생 (타입: {message_type}): {str(e)}")
             return None
 
     async def close(self):

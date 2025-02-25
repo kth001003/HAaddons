@@ -754,10 +754,21 @@ class MapGenerator:
 
             try:
                 # 센서 상태 조회를 현재 이벤트 루프에서 실행
+                self.logger.info("센서 상태 조회 시작")
+                start_time = time.time()
                 all_states = await self.sensor_manager.get_all_states()
-                states_dict = {state['entity_id']: state for state in all_states}
+                elapsed_time = time.time() - start_time
+                
+                if all_states:
+                    self.logger.info(f"센서 상태 조회 완료: {len(all_states)}개 센서, 소요시간: {elapsed_time:.3f}초")
+                    states_dict = {state['entity_id']: state for state in all_states}
+                else:
+                    self.logger.error(f"센서 상태 조회 실패: 결과가 비어있음 (소요시간: {elapsed_time:.3f}초)")
+                    states_dict = {}
             except Exception as e:
+                import traceback
                 self.logger.error(f"센서 상태 조회 중 오류 발생: {str(e)}")
+                self.logger.error(traceback.format_exc())
                 # 오류 발생 시 빈 딕셔너리로 초기화
                 states_dict = {}
             
