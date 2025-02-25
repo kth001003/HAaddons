@@ -49,7 +49,9 @@ class WebSocketClient:
 
     async def close(self):
         """웹소켓 연결을 안전하게 종료합니다."""
+        self.logger.info("웹소켓 연결 종료 중. lock 가져오기 시작")
         lock = await self._get_connection_lock()
+        self.logger.info("웹소켓 연결 종료 중. lock 가져오기 성공")
         
         async with lock:
             # keepalive 태스크들 정리
