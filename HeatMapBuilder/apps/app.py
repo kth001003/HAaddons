@@ -65,6 +65,16 @@ class BackgroundTaskManager:
         if self.map_lock.acquire(blocking=False):  # 락 획득 시도
             try:
                 self.logger.info(f"맵 생성 시작: {map_id}")
+                
+                # 웹소켓 클라이언트 상태 로깅
+                websocket_client = self.sensor_manager.websocket_client
+                if hasattr(websocket_client, 'message_id'):
+                    self.logger.info(f"맵 생성 시작 시 message_id: {websocket_client.message_id}")
+                if hasattr(websocket_client, 'websocket'):
+                    self.logger.info(f"맵 생성 시작 시 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
+                    if websocket_client.websocket:
+                        self.logger.info(f"맵 생성 시작 시 웹소켓 열림 상태: {'열림' if websocket_client.websocket.open else '닫힘'}")
+                
                 _output_path = self.config_manager.get_output_path(map_id)
                 # 기존 이미지가 있다면 로테이션 수행
                 if os.path.exists(_output_path):
@@ -79,6 +89,14 @@ class BackgroundTaskManager:
                 # 소요 시간 계산
                 elapsed_time = time.time() - start_time
                 self.logger.info(f"맵 생성 완료: {map_id}, 성공 여부: {success}, 소요시간: {elapsed_time:.3f}초")
+                
+                # 맵 생성 후 웹소켓 클라이언트 상태 로깅
+                if hasattr(websocket_client, 'message_id'):
+                    self.logger.info(f"맵 생성 완료 후 message_id: {websocket_client.message_id}")
+                if hasattr(websocket_client, 'websocket'):
+                    self.logger.info(f"맵 생성 완료 후 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
+                    if websocket_client.websocket:
+                        self.logger.info(f"맵 생성 완료 후 웹소켓 열림 상태: {'열림' if websocket_client.websocket.open else '닫힘'}")
                 
                 if not success:
                     raise Exception(error_msg)
@@ -107,6 +125,15 @@ class BackgroundTaskManager:
         try:
             while self.running:
                 try:
+                    # 웹소켓 클라이언트 상태 로깅
+                    websocket_client = self.sensor_manager.websocket_client
+                    if hasattr(websocket_client, 'message_id'):
+                        self.logger.info(f"백그라운드 작업 루프 시작 시 message_id: {websocket_client.message_id}")
+                    if hasattr(websocket_client, 'websocket'):
+                        self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
+                        if websocket_client.websocket:
+                            self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 열림 상태: {'열림' if websocket_client.websocket.open else '닫힘'}")
+                    
                     # 모든 맵 정보를 가져옴
                     maps = self.config_manager.db.load()
                     current_time = time.time()
@@ -232,10 +259,21 @@ if __name__ == '__main__':
 
     supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
     try:
+        logger.info("SensorManager 및 웹소켓 클라이언트 초기화 시작")
         sensor_manager = SensorManager(is_local, config_manager, logger, supervisor_token)
+        logger.info("SensorManager 및 웹소켓 클라이언트 초기화 완료")
+        
+        logger.info("MapGenerator 초기화 시작")
         map_generator = MapGenerator(config_manager, sensor_manager, logger)
+        logger.info("MapGenerator 초기화 완료")
+        
+        logger.info("WebServer 초기화 시작")
         server = WebServer(config_manager,sensor_manager,map_generator,logger)
+        logger.info("WebServer 초기화 완료")
+        
+        logger.info("BackgroundTaskManager 초기화 시작")
         background_task_manager = BackgroundTaskManager(logger,config_manager,sensor_manager,map_generator)
+        logger.info("BackgroundTaskManager 초기화 완료")
 
         background_task_manager.start()
         logger.info("백그라운드 작업 시작됨")

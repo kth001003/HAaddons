@@ -763,9 +763,26 @@ class MapGenerator:
                 if hasattr(websocket_client, 'message_id'):
                     self.logger.info(f"현재 웹소켓 클라이언트 message_id: {websocket_client.message_id}")
                 
+                # 센서 상태 조회 실행 전 웹소켓 클라이언트 상태 확인
+                self.logger.info("센서 상태 조회 실행 전 웹소켓 클라이언트 상태:")
+                if hasattr(websocket_client, 'websocket'):
+                    self.logger.info(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
+                    if websocket_client.websocket:
+                        self.logger.info(f"웹소켓 열림 상태: {'열림' if websocket_client.websocket.open else '닫힘'}")
+                
                 # 센서 상태 조회 실행
+                self.logger.info("센서 상태 조회 실행 시작...")
                 all_states = await self.sensor_manager.get_all_states()
                 elapsed_time = time.time() - start_time
+                
+                # 센서 상태 조회 후 웹소켓 클라이언트 상태 확인
+                self.logger.info("센서 상태 조회 후 웹소켓 클라이언트 상태:")
+                if hasattr(websocket_client, 'message_id'):
+                    self.logger.info(f"센서 상태 조회 후 message_id: {websocket_client.message_id}")
+                if hasattr(websocket_client, 'websocket'):
+                    self.logger.info(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
+                    if websocket_client.websocket:
+                        self.logger.info(f"웹소켓 열림 상태: {'열림' if websocket_client.websocket.open else '닫힘'}")
                 
                 if all_states:
                     self.logger.info(f"센서 상태 조회 완료: {len(all_states)}개 센서, 소요시간: {elapsed_time:.3f}초")

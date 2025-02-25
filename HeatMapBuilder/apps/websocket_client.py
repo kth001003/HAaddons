@@ -242,7 +242,9 @@ class MockWebSocketClient:
         self._loop = None
         self._lock = None
         self._mock_data = None
+        self.message_id = 1
         self.logger = logging.getLogger("MockWebSocketClient")
+        self.logger.info(f"MockWebSocketClient 초기화: message_id={self.message_id}")
 
     def _truncate_log_message(self, message: str, max_length: int = 100) -> str:
         """로그 메시지를 지정된 길이로 잘라서 반환합니다."""
@@ -290,9 +292,18 @@ class MockWebSocketClient:
                 return None
             
             async with lock:
-                message_data = {"type": message_type, **kwargs}
+                # 메시지 ID 할당 전에 현재 값 로깅
+                current_id = self.message_id
+                self.logger.info(f"모의 메시지 ID 할당: current_id={current_id}, 타입={message_type}")
+                
+                message_data = {"id": current_id, "type": message_type, **kwargs}
                 message_str = json.dumps(message_data)
-                self.logger.info(f"모의 송신 메시지 (타입: {message_type}): {self._truncate_log_message(message_str)}")
+                
+                # 다음 메시지를 위해 ID 증가
+                self.message_id += 1
+                self.logger.info(f"모의 메시지 ID 증가: 새 message_id={self.message_id}")
+                
+                self.logger.info(f"모의 송신 메시지 (ID: {current_id}, 타입: {message_type}): {self._truncate_log_message(message_str)}")
                 
                 # 특별히 get_states 요청인 경우 더 자세한 로깅
                 if message_type == "get_states":

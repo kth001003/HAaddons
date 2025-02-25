@@ -35,10 +35,18 @@ class SensorManager:
 
     async def get_entity_registry(self) -> List[Dict]:
         """Entity Registry 조회"""
+        # 요청 전 message_id 확인
+        if hasattr(self.websocket_client, 'message_id'):
+            self.logger.info(f"Entity Registry 요청 전 message_id: {self.websocket_client.message_id}")
+            
         self.logger.debug("Entity Registry 조회 요청 시작")
         start_time = time.time()
         result = await self.websocket_client.send_message("config/entity_registry/list")
         elapsed_time = time.time() - start_time
+        
+        # 요청 후 message_id 확인
+        if hasattr(self.websocket_client, 'message_id'):
+            self.logger.info(f"Entity Registry 요청 후 message_id: {self.websocket_client.message_id}")
         
         if result is not None:
             self.logger.debug(f"Entity Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
@@ -49,10 +57,18 @@ class SensorManager:
 
     async def get_label_registry(self) -> List[Dict]:
         """Label Registry 조회"""
+        # 요청 전 message_id 확인
+        if hasattr(self.websocket_client, 'message_id'):
+            self.logger.info(f"Label Registry 요청 전 message_id: {self.websocket_client.message_id}")
+            
         self.logger.debug("Label Registry 조회 요청 시작")
         start_time = time.time()
         result = await self.websocket_client.send_message("config/label_registry/list")
         elapsed_time = time.time() - start_time
+        
+        # 요청 후 message_id 확인
+        if hasattr(self.websocket_client, 'message_id'):
+            self.logger.info(f"Label Registry 요청 후 message_id: {self.websocket_client.message_id}")
         
         if result is not None:
             self.logger.debug(f"Label Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
@@ -98,10 +114,18 @@ class SensorManager:
             else:
                 self.logger.info(f"웹소켓 연결 확인 완료 (소요시간: {connection_check_time:.3f}초)")
             
+            # get_states 요청 전 message_id 확인
+            if hasattr(self.websocket_client, 'message_id'):
+                self.logger.info(f"get_states 요청 전 message_id: {self.websocket_client.message_id}")
+            
             # get_states 요청 전송
             self.logger.info("get_states 요청 전송 중...")
             states = await self.websocket_client.send_message("get_states")
             states_time = time.time() - states_start
+            
+            # get_states 요청 후 message_id 확인
+            if hasattr(self.websocket_client, 'message_id'):
+                self.logger.info(f"get_states 요청 후 message_id: {self.websocket_client.message_id}")
             
             if states is None:
                 self.logger.error(f"get_states 요청 실패: 응답이 None입니다 (소요시간: {states_time:.3f}초)")
