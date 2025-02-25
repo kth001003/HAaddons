@@ -12,14 +12,14 @@ class SensorManager:
         self.logger = logger
         
         # 웹소켓 클라이언트 초기화 로깅
-        self.logger.info("SensorManager: 웹소켓 클라이언트 초기화 시작")
+        self.logger.debug("SensorManager: 웹소켓 클라이언트 초기화 시작")
         
         self.websocket_client = (
             MockWebSocketClient(config_manager) if is_local 
             else WebSocketClient(supervisor_token, logger)
         )
         
-        self.logger.info(f"SensorManager: 웹소켓 클라이언트 초기화 완료 (타입: {'모의' if is_local else '실제'})")
+        self.logger.debug(f"SensorManager: 웹소켓 클라이언트 초기화 완료 (타입: {'모의' if is_local else '실제'})")
 
     async def initialize_connection(self) -> bool:
         """
@@ -29,7 +29,17 @@ class SensorManager:
         start_time = time.time()
         
         try:
+            # 현재 웹소켓 상태 확인
+            if hasattr(self.websocket_client, 'websocket') and self.websocket_client.websocket:
+                self.logger.info("SensorManager: 기존 웹소켓 연결이 있음, 상태 확인 중")
+                
+                # 기존 웹소켓의 open 속성 확인
+                is_open = getattr(self.websocket_client.websocket, 'open', None)
+                if is_open is not None:
+                    self.logger.info(f"SensorManager: 기존 웹소켓 open 상태: {is_open}")
+            
             # 연결 시도
+            self.logger.info("SensorManager: ensure_connected 호출 시작")
             connection_success = await self.websocket_client.ensure_connected()
             elapsed_time = time.time() - start_time
             
@@ -39,6 +49,11 @@ class SensorManager:
                 # 연결 성공 후 현재 message_id 로깅
                 if hasattr(self.websocket_client, 'message_id'):
                     self.logger.info(f"SensorManager: 현재 message_id: {self.websocket_client.message_id}")
+                
+                # 웹소켓 상태 추가 확인
+                if hasattr(self.websocket_client, 'websocket') and self.websocket_client.websocket:
+                    is_open = getattr(self.websocket_client.websocket, 'open', None)
+                    self.logger.info(f"SensorManager: 연결 성공 후 웹소켓 open 상태: {is_open}")
                 
                 return True
             else:
@@ -58,6 +73,7 @@ class SensorManager:
         self.logger.info("SensorManager: 웹소켓 연결 상태 확인 중")
         
         try:
+            # 웹소켓 객체 존재 확인
             if not hasattr(self.websocket_client, 'websocket') or not self.websocket_client.websocket:
                 self.logger.info("SensorManager: 웹소켓 연결 없음")
                 return False
@@ -66,7 +82,18 @@ class SensorManager:
             if hasattr(self.websocket_client, 'message_id'):
                 self.logger.info(f"SensorManager: 현재 message_id: {self.websocket_client.message_id}")
             
-            # 연결 확인 요청
+            # 웹소켓 상태 직접 확인
+            is_open = getattr(self.websocket_client.websocket, 'open', None)
+            if is_open is not None:
+                self.logger.info(f"SensorManager: 웹소켓 open 상태: {is_open}")
+                if is_open:
+                    self.logger.info("SensorManager: 웹소켓이 open 속성으로 연결됨")
+                    return True
+            else:
+                self.logger.info("SensorManager: 웹소켓에 open 속성 없음, ping 확인 필요")
+            
+            # ensure_connected 호출로 상태 확인
+            self.logger.info("SensorManager: ensure_connected 호출하여 상태 확인")
             is_connected = await self.websocket_client.ensure_connected()
             
             if is_connected:
@@ -77,6 +104,8 @@ class SensorManager:
                 return False
         except Exception as e:
             self.logger.error(f"SensorManager: 웹소켓 연결 상태 확인 중 오류: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             return False
 
     async def close(self):

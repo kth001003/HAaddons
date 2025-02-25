@@ -311,14 +311,28 @@ if __name__ == '__main__':
         
         # 웹소켓 연결 초기화 (비동기 함수를 동기적으로 실행)
         logger.info("웹소켓 연결 초기화 시작")
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
+        # 새 이벤트 루프 생성 (경고 해결)
+        try:
+            # 이미 실행 중인 이벤트 루프가 있는지 확인
+            loop = asyncio.get_running_loop()
+            logger.info("기존 이벤트 루프 사용")
+        except RuntimeError:
+            # 실행 중인 이벤트 루프가 없으면 새로 생성
             logger.info("새 이벤트 루프 생성")
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         
-        connection_success = loop.run_until_complete(sensor_manager.initialize_connection())
-        logger.info(f"웹소켓 연결 초기화 결과: {'성공' if connection_success else '실패'}")
+        # 웹소켓 연결 초기화를 위한 명시적 호출
+        logger.info("웹소켓 연결 시도 중...")
+        try:
+            connection_success = loop.run_until_complete(sensor_manager.initialize_connection())
+            if connection_success:
+                logger.info("웹소켓 연결 초기화 성공")
+            else:
+                logger.warning("웹소켓 연결 초기화 실패, 애플리케이션은 계속 실행됩니다")
+        except Exception as e:
+            logger.error(f"웹소켓 연결 초기화 중 예외 발생: {str(e)}")
+            logger.warning("예외 발생에도 불구하고 애플리케이션은 계속 실행됩니다")
         
         logger.info("MapGenerator 초기화 시작")
         map_generator = MapGenerator(config_manager, sensor_manager, logger)
@@ -334,10 +348,18 @@ if __name__ == '__main__':
 
         # 백그라운드 작업 시작 전 웹소켓 연결 확인
         logger.info("백그라운드 작업 시작 전 웹소켓 연결 상태 확인")
-        conn_check = loop.run_until_complete(sensor_manager.check_connection())
-        if not conn_check:
-            logger.warning("웹소켓 연결이 활성화되지 않음, 재연결 시도")
-            loop.run_until_complete(sensor_manager.initialize_connection())
+        try:
+            conn_check = loop.run_until_complete(sensor_manager.check_connection())
+            if not conn_check:
+                logger.warning("웹소켓 연결이 활성화되지 않음, 재연결 시도")
+                reconnect_result = loop.run_until_complete(sensor_manager.initialize_connection())
+                if reconnect_result:
+                    logger.info("웹소켓 재연결 성공")
+                else:
+                    logger.warning("웹소켓 재연결 실패, 백그라운드 작업은 계속 실행됩니다")
+        except Exception as e:
+            logger.error(f"웹소켓 연결 확인 중 예외 발생: {str(e)}")
+            logger.warning("예외 발생에도 불구하고 백그라운드 작업은 계속 실행됩니다")
         
         background_task_manager.start()
         logger.info("백그라운드 작업 시작됨")

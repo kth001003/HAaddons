@@ -94,12 +94,22 @@ class WebSocketClient:
                 try:
                     # 연결 시도 시간 측정
                     connect_start = time.time()
+                    self.logger.info("_connect 메서드 호출 시작")
+                    
+                    # 웹소켓 연결 시도 (타임아웃 10초)
                     self.websocket = await asyncio.wait_for(self._connect(), timeout=10.0)
+                    
                     connect_time = time.time() - connect_start
                     
                     if self.websocket:
                         self.logger.info(f"웹소켓 재연결 성공 (소요시간: {connect_time:.3f}초)")
                         self.reconnect_attempt = 0
+                        
+                        # 연결 성공 확인 - 인증 상태 확인
+                        self.logger.info("웹소켓 연결 후 상태 확인:")
+                        is_open = getattr(self.websocket, 'open', None)
+                        self.logger.info(f"웹소켓 open 속성: {is_open}")
+                        
                         return True
                     
                     self.logger.warning(f"웹소켓 재연결 실패: _connect()에서 None 반환 (시도 {self.reconnect_attempt})")
@@ -116,6 +126,10 @@ class WebSocketClient:
                     
                 except Exception as e:
                     self.logger.error(f"웹소켓 재연결 시도 중 오류 발생 (시도 {self.reconnect_attempt}): {str(e)}")
+                    # 오류 상세 정보 출력
+                    import traceback
+                    self.logger.error(traceback.format_exc())
+                    
                     delay = self.reconnect_delay * (1.5 ** (self.reconnect_attempt - 1))  # 지수 백오프
                     self.logger.info(f"{delay:.1f}초 후 재시도...")
                     await asyncio.sleep(delay)
@@ -131,12 +145,25 @@ class WebSocketClient:
             connect_start = time.time()
             
             # 연결 시도
-            websocket = await websockets.connect(uri, 
-                                               max_size=2**24,
-                                               max_queue=2**10,
-                                               compression=None)
-            connect_time = time.time() - connect_start
-            self.logger.info(f"웹소켓 연결 수립 성공 (소요시간: {connect_time:.3f}초)")
+            self.logger.info("웹소켓 물리적 연결 시도 중...")
+            try:
+                websocket = await websockets.connect(uri, 
+                                                   max_size=2**24,
+                                                   max_queue=2**10,
+                                                   compression=None)
+                connect_time = time.time() - connect_start
+                self.logger.info(f"웹소켓 연결 수립 성공 (소요시간: {connect_time:.3f}초)")
+                
+                # 웹소켓 상태 로깅
+                if hasattr(websocket, 'open'):
+                    self.logger.info(f"웹소켓 open 상태: {websocket.open}")
+                else:
+                    self.logger.info("웹소켓에 open 속성이 없음")
+            except Exception as conn_err:
+                self.logger.error(f"웹소켓 물리적 연결 실패: {str(conn_err)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+                return None
             
             # keepalive 태스크 추적 시작
             if hasattr(websocket, '_keepalive_ping') and websocket._keepalive_ping is not None:
@@ -148,35 +175,64 @@ class WebSocketClient:
             
             # 서버로부터 초기 메시지 수신 대기
             self.logger.info("인증 요청 메시지 수신 대기 중...")
-            auth_required = await asyncio.wait_for(websocket.recv(), timeout=5.0)
-            auth_required_data = json.loads(auth_required)
-            self.logger.info(f"수신 메시지: {self._truncate_log_message(auth_required)}")
-            
-            if auth_required_data.get('type') != 'auth_required':
-                self.logger.error(f"예상치 못한 초기 메시지 타입: {auth_required_data.get('type', '알 수 없음')}")
+            try:
+                auth_required = await asyncio.wait_for(websocket.recv(), timeout=5.0)
+                auth_required_data = json.loads(auth_required)
+                self.logger.info(f"수신 메시지: {self._truncate_log_message(auth_required)}")
+                
+                if auth_required_data.get('type') != 'auth_required':
+                    self.logger.error(f"예상치 못한 초기 메시지 타입: {auth_required_data.get('type', '알 수 없음')}")
+                    await websocket.close()
+                    return None
+            except asyncio.TimeoutError:
+                self.logger.error("인증 요청 메시지 수신 타임아웃")
+                await websocket.close()
+                return None
+            except Exception as auth_req_err:
+                self.logger.error(f"인증 요청 메시지 수신 중 오류: {str(auth_req_err)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
                 await websocket.close()
                 return None
             
             # 인증 메시지 보내기
-            auth_message = {
-                "type": "auth",
-                "access_token": self.supervisor_token
-            }
-            auth_message_str = json.dumps(auth_message)
-            self.logger.info(f"인증 메시지 전송: {self._truncate_log_message(auth_message_str)}")
-            await websocket.send(auth_message_str)
+            try:
+                auth_message = {
+                    "type": "auth",
+                    "access_token": self.supervisor_token
+                }
+                auth_message_str = json.dumps(auth_message)
+                self.logger.info(f"인증 메시지 전송: {self._truncate_log_message(auth_message_str)}")
+                await websocket.send(auth_message_str)
+            except Exception as auth_send_err:
+                self.logger.error(f"인증 메시지 전송 중 오류: {str(auth_send_err)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+                await websocket.close()
+                return None
             
             # 인증 응답 대기
-            self.logger.info("인증 응답 대기 중...")
-            auth_response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
-            self.logger.info(f"인증 응답 수신: {self._truncate_log_message(auth_response)}")
-            auth_response_data = json.loads(auth_response)
-            
-            if auth_response_data.get('type') == 'auth_ok':
-                self.logger.info("웹소켓 인증 성공")
-                return websocket
-            else:
-                self.logger.error(f"웹소켓 인증 실패: {auth_response_data.get('type', '알 수 없음')}")
+            try:
+                self.logger.info("인증 응답 대기 중...")
+                auth_response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
+                self.logger.info(f"인증 응답 수신: {self._truncate_log_message(auth_response)}")
+                auth_response_data = json.loads(auth_response)
+                
+                if auth_response_data.get('type') == 'auth_ok':
+                    self.logger.info("웹소켓 인증 성공")
+                    return websocket
+                else:
+                    self.logger.error(f"웹소켓 인증 실패: {auth_response_data.get('type', '알 수 없음')}")
+                    await websocket.close()
+                    return None
+            except asyncio.TimeoutError:
+                self.logger.error("인증 응답 대기 타임아웃")
+                await websocket.close()
+                return None
+            except Exception as auth_resp_err:
+                self.logger.error(f"인증 응답 처리 중 오류: {str(auth_resp_err)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
                 await websocket.close()
                 return None
                 
