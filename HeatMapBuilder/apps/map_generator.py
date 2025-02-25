@@ -768,7 +768,15 @@ class MapGenerator:
                 if hasattr(websocket_client, 'websocket'):
                     self.logger.info(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
                     if websocket_client.websocket:
-                        self.logger.info(f"웹소켓 열림 상태: {'열림' if websocket_client.websocket.open else '닫힘'}")
+                        try:
+                            # open 속성이 있는지 확인하고 안전하게 접근
+                            is_open = getattr(websocket_client.websocket, 'open', None)
+                            if is_open is not None:
+                                self.logger.info(f"웹소켓 열림 상태: {'열림' if is_open else '닫힘'}")
+                            else:
+                                self.logger.info("웹소켓 열림 상태 확인 불가 (open 속성 없음)")
+                        except Exception as e:
+                            self.logger.info(f"웹소켓 상태 확인 중 오류: {str(e)}")
                 
                 # 센서 상태 조회 실행
                 self.logger.info("센서 상태 조회 실행 시작...")

@@ -53,10 +53,26 @@ class WebSocketClient:
         """연결 상태를 확인하고 필요한 경우 재연결합니다."""
         async with self._connection_lock:
             try:
-                if self.websocket and self.websocket.open:
-                    return True
-            except Exception:
-                await self.close()
+                if self.websocket:
+                    # open 속성이 있는지 확인하고 안전하게 접근
+                    is_open = getattr(self.websocket, 'open', None)
+                    if is_open is not None and is_open:
+                        return True
+                    # 웹소켓이 있지만 open 속성이 없거나 False라면 연결 상태 확인 시도
+                    try:
+                        # 간단한 ping 메시지를 보내 연결 상태 확인
+                        pong_waiter = await self.websocket.ping()
+                        await asyncio.wait_for(pong_waiter, timeout=2.0)
+                        return True
+                    except Exception:
+                        self.logger.debug("웹소켓 ping 실패, 연결 재시도 필요")
+                        pass
+            except Exception as e:
+                self.logger.debug(f"웹소켓 연결 상태 확인 중 오류: {str(e)}")
+                pass
+
+            # 이 지점에 도달하면 연결이 끊어진 것으로 간주하고 재연결 시도
+            await self.close()
 
             while self.reconnect_attempt < self.max_reconnect_attempts:
                 try:
@@ -171,17 +187,22 @@ class WebSocketClient:
             # 응답 대기 시작 로깅
             self.logger.info(f"응답 대기 시작 (ID: {message['id']}, 타입: {message_type}, 제한시간: {timeout}초)")
             
+            # 최대 메시지 처리 시도 횟수 설정
+            max_message_attempts = 10  # 최대 10번의 다른 메시지를 처리할 수 있음
+            message_attempts = 0
+            
             while True:
                 # 타임아웃 체크
                 elapsed_time = time.time() - start_time
                 if elapsed_time > timeout:
                     self.logger.error(f"응답 타임아웃 (ID: {message['id']}, 타입: {message_type}, 제한시간: {timeout}초)")
                     
-                    # get_states 요청이 타임아웃된 경우 연결 재설정 시도
-                    if message_type == "get_states":
-                        self.logger.warning(f"get_states 요청 타임아웃으로 연결을 재설정합니다")
+                    # 메시지 타입별 타임아웃 처리
+                    if message_type in ["get_states", "config/entity_registry/list"]:
+                        self.logger.warning(f"{message_type} 요청 타임아웃으로 연결을 재설정합니다")
                         await self.close()
-                        
+                    
+                    # 메시지 ID는 증가된 상태로 유지 (다음 요청을 위해)
                     return None
                     
                 try:
@@ -193,35 +214,61 @@ class WebSocketClient:
                     self.logger.info(f"메시지 수신 (소요시간: {wait_time:.3f}초): {self._truncate_log_message(response)}")
                     response_data = json.loads(response)
                     
-                    # 응답 ID 확인
-                    if response_data.get('id') == message['id']:
-                        total_time = time.time() - start_time
-                        
-                        if response_data.get('success'):
-                            result = response_data.get('result')
-                            result_size = len(result) if isinstance(result, list) else "N/A"
+                    # 현재 처리 중인 요청에 대한 응답인지 확인
+                    if 'id' in response_data:
+                        # 응답 ID 확인
+                        if response_data.get('id') == message['id']:
+                            total_time = time.time() - start_time
                             
-                            self.logger.info(f"요청 성공 (ID: {message['id']}, 타입: {message_type}, 총 소요시간: {total_time:.3f}초, 결과 크기: {result_size})")
-                            
-                            # get_states 요청인 경우 추가 정보 로깅
-                            if message_type == "get_states" and isinstance(result, list):
-                                temp_sensors = [s for s in result if s.get('entity_id', '').startswith('sensor.temperature')]
-                                self.logger.info(f"get_states 결과: 전체 {len(result)}개 항목, 온도 센서 {len(temp_sensors)}개")
+                            if response_data.get('success', True):  # success 필드가 없으면 기본적으로 성공으로 간주
+                                result = response_data.get('result')
+                                result_size = len(result) if isinstance(result, list) else "N/A"
                                 
-                                # 온도 센서 값 확인
-                                zero_temp_count = sum(1 for s in temp_sensors if s.get('state') == '0' or s.get('state') == '0.0')
-                                if zero_temp_count > 0:
-                                    self.logger.warning(f"주의: {zero_temp_count}개 온도 센서가 0°C를 보고하고 있습니다")
-                            
-                            return result
+                                self.logger.info(f"요청 성공 (ID: {message['id']}, 타입: {message_type}, 총 소요시간: {total_time:.3f}초, 결과 크기: {result_size})")
+                                
+                                # get_states 요청인 경우 추가 정보 로깅
+                                if message_type == "get_states" and isinstance(result, list):
+                                    temp_sensors = [s for s in result if s.get('entity_id', '').startswith('sensor.temperature')]
+                                    self.logger.info(f"get_states 결과: 전체 {len(result)}개 항목, 온도 센서 {len(temp_sensors)}개")
+                                    
+                                    # 온도 센서 값 확인
+                                    zero_temp_count = sum(1 for s in temp_sensors if s.get('state') == '0' or s.get('state') == '0.0')
+                                    if zero_temp_count > 0:
+                                        self.logger.warning(f"주의: {zero_temp_count}개 온도 센서가 0°C를 보고하고 있습니다")
+                                
+                                return result
+                            else:
+                                error_msg = response_data.get('error', {}).get('message', '알 수 없는 오류')
+                                self.logger.error(f"웹소켓 요청 실패 (ID: {message['id']}, 타입: {message_type}, 총 소요시간: {total_time:.3f}초): {error_msg}")
+                                return None
                         else:
-                            error_msg = response_data.get('error', {}).get('message', '알 수 없는 오류')
-                            self.logger.error(f"웹소켓 요청 실패 (ID: {message['id']}, 타입: {message_type}, 총 소요시간: {total_time:.3f}초): {error_msg}")
-                            return None
+                            # 다른 메시지에 대한 응답인 경우 로깅
+                            other_id = response_data.get('id')
+                            self.logger.info(f"다른 메시지 응답 수신 (요청 ID: {message['id']}, 응답 ID: {other_id})")
+                            
+                            # 다른 메시지가 너무 많이 수신되면 타임아웃 처리
+                            message_attempts += 1
+                            if message_attempts >= max_message_attempts:
+                                self.logger.error(f"너무 많은 다른 메시지 수신으로 응답 포기 (ID: {message['id']}, 타입: {message_type})")
+                                return None
+                    else:
+                        # ID가 없는 응답 (이벤트 등)은 로깅만 하고 계속 대기
+                        self.logger.info(f"ID 없는 메시지 수신 (타입: {response_data.get('type', 'unknown')})")
+                        
                 except asyncio.TimeoutError:
                     # 5초 타임아웃이 발생했지만 전체 타임아웃은 아직 안 됨
                     elapsed_time = time.time() - start_time
                     self.logger.info(f"응답 대기 중... (ID: {message['id']}, 타입: {message_type}, 경과시간: {elapsed_time:.1f}초/{timeout}초)")
+                    
+                    # 연결 상태 확인
+                    try:
+                        if not self.websocket or not getattr(self.websocket, 'open', False):
+                            self.logger.error(f"응답 대기 중 웹소켓 연결이 끊어짐 (ID: {message['id']}, 타입: {message_type})")
+                            await self.close()
+                            return None
+                    except Exception as e:
+                        self.logger.error(f"웹소켓 상태 확인 중 오류: {str(e)}")
+                    
                     continue
                     
         except websockets.exceptions.ConnectionClosed as e:

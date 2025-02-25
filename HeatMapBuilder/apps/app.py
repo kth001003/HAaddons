@@ -72,8 +72,15 @@ class BackgroundTaskManager:
                     self.logger.info(f"맵 생성 시작 시 message_id: {websocket_client.message_id}")
                 if hasattr(websocket_client, 'websocket'):
                     self.logger.info(f"맵 생성 시작 시 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-                    if websocket_client.websocket:
-                        self.logger.info(f"맵 생성 시작 시 웹소켓 열림 상태: {'열림' if websocket_client.websocket.open else '닫힘'}")
+                    try:
+                        # ClientConnection 객체에 open 속성이 있는지 확인
+                        is_open = getattr(websocket_client.websocket, 'open', None)
+                        if is_open is not None:
+                            self.logger.info(f"맵 생성 시작 시 웹소켓 열림 상태: {'열림' if is_open else '닫힘'}")
+                        else:
+                            self.logger.info("맵 생성 시작 시 웹소켓 상태 확인 불가 (open 속성 없음)")
+                    except Exception as e:
+                        self.logger.info(f"맵 생성 시작 시 웹소켓 상태 확인 중 오류: {str(e)}")
                 
                 _output_path = self.config_manager.get_output_path(map_id)
                 # 기존 이미지가 있다면 로테이션 수행
@@ -95,8 +102,15 @@ class BackgroundTaskManager:
                     self.logger.info(f"맵 생성 완료 후 message_id: {websocket_client.message_id}")
                 if hasattr(websocket_client, 'websocket'):
                     self.logger.info(f"맵 생성 완료 후 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-                    if websocket_client.websocket:
-                        self.logger.info(f"맵 생성 완료 후 웹소켓 열림 상태: {'열림' if websocket_client.websocket.open else '닫힘'}")
+                    try:
+                        # ClientConnection 객체에 open 속성이 있는지 확인
+                        is_open = getattr(websocket_client.websocket, 'open', None)
+                        if is_open is not None:
+                            self.logger.info(f"맵 생성 완료 후 웹소켓 열림 상태: {'열림' if is_open else '닫힘'}")
+                        else:
+                            self.logger.info("맵 생성 완료 후 웹소켓 상태 확인 불가 (open 속성 없음)")
+                    except Exception as e:
+                        self.logger.info(f"맵 생성 완료 후 웹소켓 상태 확인 중 오류: {str(e)}")
                 
                 if not success:
                     raise Exception(error_msg)
@@ -131,8 +145,15 @@ class BackgroundTaskManager:
                         self.logger.info(f"백그라운드 작업 루프 시작 시 message_id: {websocket_client.message_id}")
                     if hasattr(websocket_client, 'websocket'):
                         self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-                        if websocket_client.websocket:
-                            self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 열림 상태: {'열림' if websocket_client.websocket.open else '닫힘'}")
+                        try:
+                            # ClientConnection 객체에 open 속성이 있는지 확인
+                            is_open = getattr(websocket_client.websocket, 'open', None)
+                            if is_open is not None:
+                                self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 열림 상태: {'열림' if is_open else '닫힘'}")
+                            else:
+                                self.logger.info("백그라운드 작업 루프 시작 시 웹소켓 상태 확인 불가 (open 속성 없음)")
+                        except Exception as e:
+                            self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 상태 확인 중 오류: {str(e)}")
                     
                     # 모든 맵 정보를 가져옴
                     maps = self.config_manager.db.load()
