@@ -19,7 +19,65 @@ class SensorManager:
             else WebSocketClient(supervisor_token, logger)
         )
         
-        self.logger.info(f"SensorManager: 웹소켓 클라이언트 초기화 완료 (타입: {'Mock' if is_local else '실제'})")
+        self.logger.info(f"SensorManager: 웹소켓 클라이언트 초기화 완료 (타입: {'모의' if is_local else '실제'})")
+
+    async def initialize_connection(self) -> bool:
+        """
+        웹소켓 연결을 초기화합니다. 앱 시작 시 호출할 수 있습니다.
+        """
+        self.logger.info("SensorManager: 웹소켓 연결 초기화 시작")
+        start_time = time.time()
+        
+        try:
+            # 연결 시도
+            connection_success = await self.websocket_client.ensure_connected()
+            elapsed_time = time.time() - start_time
+            
+            if connection_success:
+                self.logger.info(f"SensorManager: 웹소켓 연결 성공 (소요시간: {elapsed_time:.3f}초)")
+                
+                # 연결 성공 후 현재 message_id 로깅
+                if hasattr(self.websocket_client, 'message_id'):
+                    self.logger.info(f"SensorManager: 현재 message_id: {self.websocket_client.message_id}")
+                
+                return True
+            else:
+                self.logger.error(f"SensorManager: 웹소켓 연결 실패 (소요시간: {elapsed_time:.3f}초)")
+                return False
+        except Exception as e:
+            elapsed_time = time.time() - start_time
+            self.logger.error(f"SensorManager: 웹소켓 연결 초기화 중 오류 발생: {str(e)} (소요시간: {elapsed_time:.3f}초)")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False
+
+    async def check_connection(self) -> bool:
+        """
+        현재 웹소켓 연결 상태를 확인합니다.
+        """
+        self.logger.info("SensorManager: 웹소켓 연결 상태 확인 중")
+        
+        try:
+            if not hasattr(self.websocket_client, 'websocket') or not self.websocket_client.websocket:
+                self.logger.info("SensorManager: 웹소켓 연결 없음")
+                return False
+            
+            # message_id 확인
+            if hasattr(self.websocket_client, 'message_id'):
+                self.logger.info(f"SensorManager: 현재 message_id: {self.websocket_client.message_id}")
+            
+            # 연결 확인 요청
+            is_connected = await self.websocket_client.ensure_connected()
+            
+            if is_connected:
+                self.logger.info("SensorManager: 웹소켓 연결 활성화 상태")
+                return True
+            else:
+                self.logger.warning("SensorManager: 웹소켓 연결 비활성화 상태")
+                return False
+        except Exception as e:
+            self.logger.error(f"SensorManager: 웹소켓 연결 상태 확인 중 오류: {str(e)}")
+            return False
 
     async def close(self):
         """웹소켓 연결을 종료합니다."""
