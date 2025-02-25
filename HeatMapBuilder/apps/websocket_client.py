@@ -16,6 +16,12 @@ class WebSocketClient:
         self._connection_lock = asyncio.Lock()
         self._keepalive_tasks = set()  # keepalive 태스크 추적용
 
+    def _truncate_log_message(self, message: str, max_length: int = 100) -> str:
+        """로그 메시지를 지정된 길이로 잘라서 반환합니다."""
+        if len(message) <= max_length:
+            return message
+        return message[:max_length] + "..."
+
     async def _cleanup_keepalive_tasks(self):
         """keepalive 태스크들을 정리합니다."""
         for task in list(self._keepalive_tasks):
@@ -71,6 +77,7 @@ class WebSocketClient:
         websocket = None
         try:
             uri = "ws://supervisor/core/api/websocket"
+            self.logger.debug(f"웹소켓 연결 시도: {uri}")
             websocket = await websockets.connect(uri, 
                                                max_size=2**24,
                                                max_queue=2**10,
@@ -84,6 +91,8 @@ class WebSocketClient:
             
             auth_required = await websocket.recv()
             auth_required_data = json.loads(auth_required)
+            self.logger.debug(f"수신 메시지: {self._truncate_log_message(auth_required)}")
+            
             if auth_required_data.get('type') != 'auth_required':
                 self.logger.error("예상치 못한 초기 메시지 타입")
                 await websocket.close()
@@ -93,20 +102,24 @@ class WebSocketClient:
                 "type": "auth",
                 "access_token": self.supervisor_token
             }
-            await websocket.send(json.dumps(auth_message))
+            auth_message_str = json.dumps(auth_message)
+            self.logger.debug(f"송신 메시지: {self._truncate_log_message(auth_message_str)}")
+            await websocket.send(auth_message_str)
             
             auth_response = await websocket.recv()
+            self.logger.debug(f"수신 메시지: {self._truncate_log_message(auth_response)}")
             auth_response_data = json.loads(auth_response)
             
             if auth_response_data.get('type') == 'auth_ok':
+                self.logger.debug("웹소켓 인증 성공")
                 return websocket
             else:
-                self.logger.error("WebSocket 인증 실패")
+                self.logger.error("웹소켓 인증 실패")
                 await websocket.close()
                 return None
                 
         except Exception as e:
-            self.logger.error(f"WebSocket 연결 실패: {str(e)}")
+            self.logger.error(f"웹소켓 연결 실패: {str(e)}")
             if websocket:
                 await websocket.close()
             return None
@@ -123,25 +136,29 @@ class WebSocketClient:
         self.message_id += 1
         
         try:
-            await self.websocket.send(json.dumps(message))
+            message_str = json.dumps(message)
+            self.logger.debug(f"송신 메시지 (ID: {message['id']}): {self._truncate_log_message(message_str)}")
+            await self.websocket.send(message_str)
             
             while True:
                 response = await self.websocket.recv()
+                self.logger.debug(f"수신 메시지: {self._truncate_log_message(response)}")
                 response_data = json.loads(response)
                 
                 if response_data.get('id') == message['id']:
                     if response_data.get('success'):
+                        self.logger.debug(f"요청 성공 (ID: {message['id']})")
                         return response_data.get('result')
                     else:
-                        self.logger.error(f"WebSocket 요청 실패: {response_data}")
+                        self.logger.error(f"웹소켓 요청 실패: {response_data}")
                         return None
                         
         except websockets.exceptions.ConnectionClosed as e:
-            self.logger.error(f"WebSocket 연결이 닫힘: {str(e)}")
+            self.logger.error(f"웹소켓 연결이 닫힘: {str(e)}")
             await self.close()
             return None
         except Exception as e:
-            self.logger.error(f"WebSocket 통신 중 오류 발생: {str(e)}")
+            self.logger.error(f"웹소켓 통신 중 오류 발생: {str(e)}")
             await self.close()
             return None
 
@@ -152,6 +169,13 @@ class MockWebSocketClient:
         self._loop = None
         self._lock = None
         self._mock_data = None
+        self.logger = logging.getLogger("MockWebSocketClient")
+
+    def _truncate_log_message(self, message: str, max_length: int = 100) -> str:
+        """로그 메시지를 지정된 길이로 잘라서 반환합니다."""
+        if len(message) <= max_length:
+            return message
+        return message[:max_length] + "..."
 
     async def _ensure_loop_and_lock(self):
         """현재 이벤트 루프와 락을 확인하고 필요한 경우 초기화합니다."""
@@ -188,28 +212,42 @@ class MockWebSocketClient:
                 
             async with lock:
                 message_data = {"type": message_type, **kwargs}
+                message_str = json.dumps(message_data)
+                self.logger.debug(f"모의 송신 메시지: {self._truncate_log_message(message_str)}")
+                
                 mock_data = self._get_mock_data()
                 
                 if message_type == 'auth':
-                    return {"type": "auth_ok"}
+                    response = {"type": "auth_ok"}
+                    self.logger.debug(f"모의 수신 응답: {self._truncate_log_message(json.dumps(response))}")
+                    return response
                 elif message_type == 'get_states':
-                    return mock_data.get('temperature_sensors', [])
+                    result = mock_data.get('temperature_sensors', [])
+                    self.logger.debug(f"모의 상태 조회 결과: {len(result)}개 센서 데이터")
+                    return result
                 elif message_type == 'config/entity_registry/list':
-                    return mock_data.get('entity_registry', [])
+                    result = mock_data.get('entity_registry', [])
+                    self.logger.debug(f"모의 엔티티 레지스트리 조회 결과: {len(result)}개 항목")
+                    return result
                 elif message_type == 'config/label_registry/list':
-                    return mock_data.get('label_registry', [])
+                    result = mock_data.get('label_registry', [])
+                    self.logger.debug(f"모의 레이블 레지스트리 조회 결과: {len(result)}개 항목")
+                    return result
                     
+                self.logger.debug(f"모의 응답 없음: {message_type}")
                 return None
         except Exception as e:
-            print(f"Error in send_message: {str(e)}")
+            self.logger.error(f"모의 웹소켓 통신 중 오류 발생: {str(e)}")
             return None
 
     async def close(self):
+        self.logger.debug("모의 웹소켓 연결 종료")
         self.open = False
         if self._lock:
             try:
                 async with self._lock:
                     self._loop = None
                     self._lock = None
-            except Exception:
+            except Exception as e:
+                self.logger.error(f"모의 웹소켓 연결 종료 중 오류 발생: {str(e)}")
                 pass 
