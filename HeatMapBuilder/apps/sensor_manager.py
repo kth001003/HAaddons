@@ -22,24 +22,22 @@ class SensorManager:
         self.logger.debug(f"SensorManager: 웹소켓 클라이언트 초기화 완료 (타입: {'모의' if is_local else '실제'})")
 
     async def initialize_connection(self) -> bool:
-        """
-        웹소켓 연결을 초기화합니다. 앱 시작 시 호출할 수 있습니다.
-        """
+        """웹소켓 연결을 초기화합니다."""
         self.logger.info("SensorManager: 웹소켓 연결 초기화 시작")
         start_time = time.time()
         
         try:
-            # 현재 웹소켓 상태 확인
-            if hasattr(self.websocket_client, 'websocket') and self.websocket_client.websocket:
-                self.logger.info("SensorManager: 기존 웹소켓 연결이 있음, 상태 확인 중")
-                
-                # 기존 웹소켓의 open 속성 확인
-                is_open = getattr(self.websocket_client.websocket, 'open', None)
-                if is_open is not None:
-                    self.logger.info(f"SensorManager: 기존 웹소켓 open 상태: {is_open}")
+            # 명시적으로 _connect 메서드 직접 호출
+            self.logger.info("SensorManager: 명시적으로 _connect 메서드 호출")
+            self.websocket_client.websocket = await self.websocket_client._connect()
             
-            # 연결 시도
-            self.logger.info("SensorManager: ensure_connected 호출 시작")
+            if self.websocket_client.websocket:
+                self.logger.info("SensorManager: _connect 메서드 호출 성공, 웹소켓 연결됨")
+                return True
+            else:
+                self.logger.error("SensorManager: _connect 메서드 호출 실패")
+                
+            # 기존 코드...
             connection_success = await self.websocket_client.ensure_connected()
             elapsed_time = time.time() - start_time
             

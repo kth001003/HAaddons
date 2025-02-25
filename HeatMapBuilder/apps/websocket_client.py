@@ -657,7 +657,9 @@ class MockWebSocketClient:
             self.logger.error(f"모의 웹소켓 통신 중 오류 발생 (타입: {message_type}): {str(e)}")
             self.logger.error(traceback.format_exc())
             return None
-
+    async def _connect(self):
+        await self.ensure_connected()
+    
     async def close(self):
         self.logger.info("모의 웹소켓 연결 종료")
         self.websocket = None
