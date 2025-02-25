@@ -14,9 +14,22 @@ class WebSocketClient:
         self.reconnect_attempt = 0
         self.max_reconnect_attempts = 5
         self.reconnect_delay = 5
-        self._connection_lock = asyncio.Lock()
+        self._connection_lock = None  # 초기에는 Lock을 생성하지 않고 None으로 설정
+        self._event_loop = None       # 이벤트 루프 참조 저장
         self._keepalive_tasks = set()  # keepalive 태스크 추적용
         self.logger.info(f"WebSocketClient 초기화: message_id={self.message_id}")
+
+    async def _get_connection_lock(self):
+        """현재 이벤트 루프에 맞는 connection lock을 반환합니다."""
+        current_loop = asyncio.get_running_loop()
+        
+        # 이벤트 루프가 변경되었거나 lock이 없는 경우 새로 생성
+        if self._connection_lock is None or self._event_loop != current_loop:
+            self.logger.debug("현재 이벤트 루프에 맞는 새 connection lock 생성")
+            self._connection_lock = asyncio.Lock()
+            self._event_loop = current_loop
+            
+        return self._connection_lock
 
     def _truncate_log_message(self, message: str, max_length: int = 100) -> str:
         """로그 메시지를 지정된 길이로 잘라서 반환합니다."""
@@ -37,7 +50,9 @@ class WebSocketClient:
 
     async def close(self):
         """웹소켓 연결을 안전하게 종료합니다."""
-        async with self._connection_lock:
+        lock = await self._get_connection_lock()
+        
+        async with lock:
             # keepalive 태스크들 정리
             await self._cleanup_keepalive_tasks()
             
@@ -51,7 +66,10 @@ class WebSocketClient:
 
     async def ensure_connected(self) -> bool:
         """연결 상태를 확인하고 필요한 경우 재연결합니다."""
-        async with self._connection_lock:
+        # 현재 이벤트 루프에 맞는 lock 가져오기
+        lock = await self._get_connection_lock()
+        
+        async with lock:
             try:
                 if self.websocket:
                     # open 속성이 있는지 확인하고 안전하게 접근
@@ -514,8 +532,8 @@ class MockWebSocketClient:
     def __init__(self, config_manager):
         self.config_manager = config_manager
         self.websocket = True  # 연결된 것으로 간주
-        self._loop = None
-        self._lock = None
+        self._event_loop = None
+        self._connection_lock = None
         self._mock_data = None
         self.message_id = 1
         self.reconnect_attempt = 0
@@ -528,13 +546,17 @@ class MockWebSocketClient:
             return message
         return message[:max_length] + "..."
 
-    async def _ensure_loop_and_lock(self):
-        """현재 이벤트 루프와 락을 확인하고 필요한 경우 초기화합니다."""
-        if self._loop is None:
-            self._loop = asyncio.get_running_loop()
-        if self._lock is None:
-            self._lock = asyncio.Lock()
-        return self._loop, self._lock
+    async def _get_connection_lock(self):
+        """현재 이벤트 루프에 맞는 connection lock을 반환합니다."""
+        current_loop = asyncio.get_running_loop()
+        
+        # 이벤트 루프가 변경되었거나 lock이 없는 경우 새로 생성
+        if self._connection_lock is None or self._event_loop != current_loop:
+            self.logger.debug("모의 웹소켓: 현재 이벤트 루프에 맞는 새 connection lock 생성")
+            self._connection_lock = asyncio.Lock()
+            self._event_loop = current_loop
+            
+        return self._connection_lock
 
     async def ensure_connected(self) -> bool:
         """웹소켓 연결 상태를 확인합니다. 모의 클라이언트는 항상 연결된 것으로 간주합니다."""
@@ -578,7 +600,8 @@ class MockWebSocketClient:
                 self.logger.warning(f"모의 message_id가 유효하지 않음: {self.message_id}, 1로 리셋합니다")
                 self.message_id = 1
             
-            loop, lock = await self._ensure_loop_and_lock()
+            # 현재 이벤트 루프에 맞는 lock 가져오기
+            lock = await self._get_connection_lock()
             if not lock:
                 self.logger.error(f"락을 획득할 수 없어 모의 메시지를 보낼 수 없습니다: {message_type}")
                 return None
@@ -657,18 +680,34 @@ class MockWebSocketClient:
             self.logger.error(f"모의 웹소켓 통신 중 오류 발생 (타입: {message_type}): {str(e)}")
             self.logger.error(traceback.format_exc())
             return None
+            
     async def _connect(self):
+        """웹소켓 연결을 시도합니다. MockWebSocketClient의 경우 항상 성공으로 처리합니다."""
+        self.logger.info("모의 웹소켓 _connect 호출됨")
+        
+        # 모의 연결 지연 시뮬레이션
+        await asyncio.sleep(0.1)
+        
+        # 연결 확인
         await self.ensure_connected()
-    
+        
+        # 모의 웹소켓은 항상 True를 웹소켓 객체로 사용
+        self.websocket = True
+        self.logger.info("모의 웹소켓 연결 수립 성공")
+        
+        return self.websocket
+
     async def close(self):
         self.logger.info("모의 웹소켓 연결 종료")
         self.websocket = None
-        if self._lock:
-            try:
-                async with self._lock:
-                    self._loop = None
-                    self._lock = None
-                    self.logger.debug("모의 웹소켓 자원 정리 완료")
-            except Exception as e:
-                self.logger.error(f"모의 웹소켓 연결 종료 중 오류 발생: {str(e)}")
-                pass 
+        
+        # 현재 이벤트 루프에 맞는 lock 가져오기
+        try:
+            lock = await self._get_connection_lock()
+            async with lock:
+                self._event_loop = None
+                self._connection_lock = None
+                self.logger.debug("모의 웹소켓 자원 정리 완료")
+        except Exception as e:
+            self.logger.error(f"모의 웹소켓 연결 종료 중 오류 발생: {str(e)}")
+            pass 

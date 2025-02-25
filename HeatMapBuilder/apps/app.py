@@ -134,7 +134,10 @@ class BackgroundTaskManager:
         # 이벤트 루프 생성 (스레드당 하나의 이벤트 루프 사용)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        self.logger.info("백그라운드 작업용 이벤트 루프 생성")
+        
+        # 생성된 이벤트 루프의 ID 로깅 (디버깅 목적)
+        loop_id = id(loop)
+        self.logger.info(f"백그라운드 작업용 이벤트 루프 생성 (ID: {loop_id})")
         
         try:
             # 연결 체크 간격 (초)
@@ -148,6 +151,18 @@ class BackgroundTaskManager:
                     # 주기적으로 연결 상태 확인
                     if current_time - last_connection_check >= connection_check_interval:
                         self.logger.info("주기적 웹소켓 연결 상태 확인 중...")
+                        # 현재 사용 중인 이벤트 루프 확인
+                        try:
+                            current_loop = asyncio.get_running_loop()
+                            if current_loop != loop:
+                                self.logger.warning(f"이벤트 루프가 변경됨: 원래={loop_id}, 현재={id(current_loop)}")
+                                # 다시 원래 루프 설정
+                                asyncio.set_event_loop(loop)
+                        except RuntimeError:
+                            # 실행 중인 이벤트 루프가 없으면 기존 루프 설정
+                            asyncio.set_event_loop(loop)
+                            self.logger.info("이벤트 루프 재설정됨")
+                        
                         is_connected = loop.run_until_complete(self.sensor_manager.check_connection())
                         
                         if not is_connected:
@@ -200,7 +215,18 @@ class BackgroundTaskManager:
                                 # 현재 맵으로 설정
                                 self.config_manager.current_map_id = map_id
                                 
-                                # 맵 생성 전 연결 상태 확인
+                                # 맵 생성 전 연결 상태 확인 (현재 이벤트 루프 확인)
+                                try:
+                                    current_loop = asyncio.get_running_loop()
+                                    if current_loop != loop:
+                                        self.logger.warning(f"맵 생성 전 이벤트 루프가 변경됨: 원래={loop_id}, 현재={id(current_loop)}")
+                                        # 다시 원래 루프 설정
+                                        asyncio.set_event_loop(loop)
+                                except RuntimeError:
+                                    # 실행 중인 이벤트 루프가 없으면 기존 루프 설정
+                                    asyncio.set_event_loop(loop)
+                                    self.logger.info("맵 생성 전 이벤트 루프 재설정됨")
+                                
                                 is_connected = loop.run_until_complete(self.sensor_manager.check_connection())
                                 if not is_connected:
                                     self.logger.warning("맵 생성 전 웹소켓 연결이 끊어졌습니다. 재연결 시도 중...")
@@ -279,7 +305,7 @@ class BackgroundTaskManager:
                     loop.run_until_complete(asyncio.sleep(0.1))  # 잠시 대기하여 태스크 정리 시간 제공
                     loop.stop()
                     loop.close()
-                    self.logger.info("백그라운드 작업용 이벤트 루프 종료")
+                    self.logger.info(f"백그라운드 작업용 이벤트 루프 종료 (ID: {loop_id})")
                 except Exception as close_error:
                     self.logger.error(f"이벤트 루프 종료 중 오류 발생: {str(close_error)}")
                     import traceback
@@ -305,13 +331,8 @@ if __name__ == '__main__':
 
     supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
     try:
-        logger.info("SensorManager 및 웹소켓 클라이언트 초기화 시작")
-        sensor_manager = SensorManager(is_local, config_manager, logger, supervisor_token)
-        logger.info("SensorManager 및 웹소켓 클라이언트 초기화 완료")
-        
-        # 웹소켓 연결 초기화 (비동기 함수를 동기적으로 실행)
-        logger.info("웹소켓 연결 초기화 시작")
-        # 새 이벤트 루프 생성 (경고 해결)
+        # 메인 스레드에서 이벤트 루프 생성 및 설정
+        logger.info("메인 이벤트 루프 생성 시작")
         try:
             # 이미 실행 중인 이벤트 루프가 있는지 확인
             loop = asyncio.get_running_loop()
@@ -321,6 +342,21 @@ if __name__ == '__main__':
             logger.info("새 이벤트 루프 생성")
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            
+        # 이벤트 루프 정책 설정 (운영체제에 맞게 최적화된 정책 사용)
+        if hasattr(asyncio, 'WindowsSelectorEventLoopPolicy') and os.name == 'nt':
+            # Windows 환경인 경우
+            logger.info("Windows 환경에 맞는 이벤트 루프 정책 설정")
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
+        logger.info("메인 이벤트 루프 ID: %s", id(loop))
+        
+        logger.info("SensorManager 및 웹소켓 클라이언트 초기화 시작")
+        sensor_manager = SensorManager(is_local, config_manager, logger, supervisor_token)
+        logger.info("SensorManager 및 웹소켓 클라이언트 초기화 완료")
+        
+        # 웹소켓 연결 초기화 (비동기 함수를 동기적으로 실행)
+        logger.info("웹소켓 연결 초기화 시작")
         
         # 웹소켓 연결 초기화를 위한 명시적 호출
         logger.info("웹소켓 연결 시도 중...")
@@ -332,6 +368,8 @@ if __name__ == '__main__':
                 logger.warning("웹소켓 연결 초기화 실패, 애플리케이션은 계속 실행됩니다")
         except Exception as e:
             logger.error(f"웹소켓 연결 초기화 중 예외 발생: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             logger.warning("예외 발생에도 불구하고 애플리케이션은 계속 실행됩니다")
         
         logger.info("MapGenerator 초기화 시작")
@@ -369,6 +407,34 @@ if __name__ == '__main__':
         finally:
             background_task_manager.stop()
             logger.info("백그라운드 작업 중지됨")
+            
+            # 메인 이벤트 루프 정리
+            try:
+                # 실행 중인 모든 태스크 가져오기
+                pending = asyncio.all_tasks(loop)
+                
+                # 태스크 취소
+                for task in pending:
+                    task.cancel()
+                
+                # 취소된 태스크들이 완료될 때까지 대기
+                if pending:
+                    try:
+                        loop.run_until_complete(
+                            asyncio.gather(*pending, return_exceptions=True)
+                        )
+                    except asyncio.CancelledError:
+                        logger.debug("태스크가 취소되었습니다")
+                    except Exception as gather_error:
+                        logger.error(f"태스크 정리 중 gather 오류: {str(gather_error)}")
+                
+                # 이벤트 루프 종료
+                loop.stop()
+                loop.close()
+                logger.info("메인 이벤트 루프 종료")
+            except Exception as loop_cleanup_error:
+                logger.error(f"이벤트 루프 정리 중 오류: {str(loop_cleanup_error)}")
+                
     except Exception as e:
         logger.error(f"애플리케이션 실행 중 오류 발생: {str(e)}")
         import traceback

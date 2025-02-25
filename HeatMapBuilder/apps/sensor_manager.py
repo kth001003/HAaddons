@@ -27,17 +27,19 @@ class SensorManager:
         start_time = time.time()
         
         try:
-            # 명시적으로 _connect 메서드 직접 호출
-            self.logger.info("SensorManager: 명시적으로 _connect 메서드 호출")
-            self.websocket_client.websocket = await self.websocket_client._connect()
-            
-            if self.websocket_client.websocket:
-                self.logger.info("SensorManager: _connect 메서드 호출 성공, 웹소켓 연결됨")
-                return True
-            else:
-                self.logger.error("SensorManager: _connect 메서드 호출 실패")
+            # 실제 WebSocketClient인 경우에만 _connect 메서드 직접 호출
+            if not self.is_local:
+                self.logger.info("SensorManager: 실제 웹소켓 클라이언트 - _connect 메서드 호출")
+                self.websocket_client.websocket = await self.websocket_client._connect()
                 
-            # 기존 코드...
+                if self.websocket_client.websocket:
+                    self.logger.info("SensorManager: _connect 메서드 호출 성공, 웹소켓 연결됨")
+                else:
+                    self.logger.error("SensorManager: _connect 메서드 호출 실패")
+            else:
+                self.logger.info("SensorManager: 모의 웹소켓 클라이언트 - _connect 메서드 호출 생략")
+            
+            # 공통 코드: 모든 클라이언트 타입에 적용
             connection_success = await self.websocket_client.ensure_connected()
             elapsed_time = time.time() - start_time
             
