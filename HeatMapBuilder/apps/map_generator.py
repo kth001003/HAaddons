@@ -767,16 +767,6 @@ class MapGenerator:
                 self.logger.info("센서 상태 조회 실행 전 웹소켓 클라이언트 상태:")
                 if hasattr(websocket_client, 'websocket'):
                     self.logger.info(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-                    if websocket_client.websocket:
-                        try:
-                            # open 속성이 있는지 확인하고 안전하게 접근
-                            is_open = getattr(websocket_client.websocket, 'open', None)
-                            if is_open is not None:
-                                self.logger.info(f"웹소켓 열림 상태: {'열림' if is_open else '닫힘'}")
-                            else:
-                                self.logger.info("웹소켓 열림 상태 확인 불가 (open 속성 없음)")
-                        except Exception as e:
-                            self.logger.info(f"웹소켓 상태 확인 중 오류: {str(e)}")
                 
                 # 센서 상태 조회 실행
                 self.logger.info("센서 상태 조회 실행 시작...")
@@ -789,17 +779,7 @@ class MapGenerator:
                     self.logger.info(f"센서 상태 조회 후 message_id: {websocket_client.message_id}")
                 if hasattr(websocket_client, 'websocket'):
                     self.logger.info(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-                    if websocket_client.websocket:
-                        try:
-                            # open 속성이 있는지 확인하고 안전하게 접근
-                            is_open = getattr(websocket_client.websocket, 'open', None)
-                            if is_open is not None:
-                                self.logger.info(f"웹소켓 열림 상태: {'열림' if is_open else '닫힘'}")
-                            else:
-                                self.logger.info("웹소켓 열림 상태 확인 불가 (open 속성 없음)")
-                        except Exception as e:
-                            self.logger.info(f"웹소켓 상태 확인 중 오류: {str(e)}")
-                
+
                 if all_states:
                     self.logger.info(f"센서 상태 조회 완료: {len(all_states)}개 센서, 소요시간: {elapsed_time:.3f}초")
                     states_dict = {state['entity_id']: state for state in all_states}

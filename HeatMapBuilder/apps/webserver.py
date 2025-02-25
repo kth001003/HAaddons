@@ -579,43 +579,6 @@ class WebServer:
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
-    # async def stream_map(self, map_id):
-    #     """맵의 MJPEG 스트림을 제공합니다."""
-    #     # 맵 ID 검증
-    #     map_data = self.config_manager.db.get_map(map_id)
-    #     if not map_data:
-    #         return await render_template('404.html', error_message=f'맵 ID {map_id}를 찾을 수 없습니다.'), 404
-    #     self.logger.info(f"맵 {map_data.get('name', '')} ({map_id}) 스트리밍 시작")
-        
-    #     async def generate():
-    #         while True:
-    #             image_filename, _, output_path = self.config_manager.get_output_info(map_id)
-    #             if os.path.exists(output_path):
-    #                 try:
-    #                     # PIL을 사용하여 이미지를 JPEG로 변환
-    #                     img = Image.open(output_path)
-    #                     # RGBA를 RGB로 변환
-    #                     if img.mode == 'RGBA':
-    #                         # 흰색 배경에 이미지 합성
-    #                         background = Image.new('RGB', img.size, (255, 255, 255))
-    #                         background.paste(img, mask=img.split()[3])  # 알파 채널을 마스크로 사용
-    #                         img = background
-    #                     elif img.mode != 'RGB':
-    #                         img = img.convert('RGB')
-                            
-    #                     img_byte_arr = io.BytesIO()
-    #                     img.save(img_byte_arr, format='JPEG', quality=100)
-    #                     frame = img_byte_arr.getvalue()
-                        
-    #                     yield (b'--frame\r\n'
-    #                            b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-    #                 except Exception as e:
-    #                     self.logger.error(f"이미지 변환 중 오류 발생: {str(e)}")
-    #             await asyncio.sleep(1)  # 1초마다 이미지 업데이트
-
-    #     return Response(generate(),
-    #                   mimetype='multipart/x-mixed-replace; boundary=frame')
-
     def run(self, host='0.0.0.0', port=None):
         """서버 실행"""
         if port is None:

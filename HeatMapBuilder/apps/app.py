@@ -72,16 +72,6 @@ class BackgroundTaskManager:
                     self.logger.info(f"맵 생성 시작 시 message_id: {websocket_client.message_id}")
                 if hasattr(websocket_client, 'websocket'):
                     self.logger.info(f"맵 생성 시작 시 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-                    try:
-                        # ClientConnection 객체에 open 속성이 있는지 확인
-                        is_open = getattr(websocket_client.websocket, 'open', None)
-                        if is_open is not None:
-                            self.logger.info(f"맵 생성 시작 시 웹소켓 열림 상태: {'열림' if is_open else '닫힘'}")
-                        else:
-                            self.logger.info("맵 생성 시작 시 웹소켓 상태 확인 불가 (open 속성 없음)")
-                    except Exception as e:
-                        self.logger.info(f"맵 생성 시작 시 웹소켓 상태 확인 중 오류: {str(e)}")
-                
                 _output_path = self.config_manager.get_output_path(map_id)
                 # 기존 이미지가 있다면 로테이션 수행
                 if os.path.exists(_output_path):
@@ -101,17 +91,7 @@ class BackgroundTaskManager:
                 if hasattr(websocket_client, 'message_id'):
                     self.logger.info(f"맵 생성 완료 후 message_id: {websocket_client.message_id}")
                 if hasattr(websocket_client, 'websocket'):
-                    self.logger.info(f"맵 생성 완료 후 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-                    try:
-                        # ClientConnection 객체에 open 속성이 있는지 확인
-                        is_open = getattr(websocket_client.websocket, 'open', None)
-                        if is_open is not None:
-                            self.logger.info(f"맵 생성 완료 후 웹소켓 열림 상태: {'열림' if is_open else '닫힘'}")
-                        else:
-                            self.logger.info("맵 생성 완료 후 웹소켓 상태 확인 불가 (open 속성 없음)")
-                    except Exception as e:
-                        self.logger.info(f"맵 생성 완료 후 웹소켓 상태 확인 중 오류: {str(e)}")
-                
+                    self.logger.info(f"맵 생성 완료 후 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")                
                 if not success:
                     raise Exception(error_msg)
                 return success
@@ -176,17 +156,7 @@ class BackgroundTaskManager:
                     if hasattr(websocket_client, 'message_id'):
                         self.logger.info(f"백그라운드 작업 루프 시작 시 message_id: {websocket_client.message_id}")
                     if hasattr(websocket_client, 'websocket'):
-                        self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-                        try:
-                            # ClientConnection 객체에 open 속성이 있는지 확인
-                            is_open = getattr(websocket_client.websocket, 'open', None)
-                            if is_open is not None:
-                                self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 열림 상태: {'열림' if is_open else '닫힘'}")
-                            else:
-                                self.logger.info("백그라운드 작업 루프 시작 시 웹소켓 상태 확인 불가 (open 속성 없음)")
-                        except Exception as e:
-                            self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 상태 확인 중 오류: {str(e)}")
-                    
+                        self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")                    
                     # 모든 맵 정보를 가져옴
                     maps = self.config_manager.db.load()
                     self.logger.info(f"맵 정보 로드 완료: {len(maps)}개 맵")
@@ -197,6 +167,12 @@ class BackgroundTaskManager:
                             gen_config = map_data.get('gen_config', {})
                             gen_interval = gen_config.get('gen_interval', 5) * 60  # 기본값 5분
                             map_name = map_data.get('name', '')
+                            
+                            # 자동 맵 생성 설정 확인
+                            auto_generation = gen_config.get('auto_generation', False)  # 기본값은 비활성화
+                            if not auto_generation:
+                                continue
+                                
                             # 마지막 생성 시간 확인
                             last_gen_time = self.map_timers.get(map_id, 0)
                             

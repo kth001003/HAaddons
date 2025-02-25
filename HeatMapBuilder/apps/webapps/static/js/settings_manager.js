@@ -181,6 +181,7 @@ export class SettingsManager {
 
     collectGenConfig() {
         return {
+            auto_generation: /** @type {HTMLInputElement} */ (document.getElementById('auto-generation-enabled')).checked,
             gen_interval: parseInt(/** @type {HTMLInputElement} */(document.getElementById('generation-interval')).value),
             format: /** @type {HTMLInputElement} */ (document.getElementById('format')).value,
             file_name: /** @type {HTMLInputElement} */ (document.getElementById('file-name')).value,
@@ -549,6 +550,7 @@ export class SettingsManager {
     }
 
     loadGenConfig(config) {
+        /** @type {HTMLInputElement} */ (document.getElementById('auto-generation-enabled')).checked = config.auto_generation ?? true;
         /** @type {HTMLInputElement} */ (document.getElementById('generation-interval')).value = config.gen_interval ?? 5;
         /** @type {HTMLInputElement} */ (document.getElementById('format')).value = config.format ?? 'png';
         /** @type {HTMLInputElement} */ (document.getElementById('file-name')).value = config.file_name ?? 'thermal_map';
