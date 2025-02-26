@@ -31,7 +31,7 @@
             <div class="flex space-x-8">
                 <button id="map-tab"
                     class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">지도</button>
-                <button id="map-edit-tab" class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">지도 편집</button>
+                <button id="map-edit-tab" class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">편집</button>
                 <button id="settings-tab"
                     class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">설정</button>
                 <button id="debug-tab"
@@ -50,13 +50,12 @@
         <div id="map-content" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
             <!-- 현재 지도 섹션 -->
             <div id="thermal-map-container" class="bg-white rounded-lg shadow-md p-6">
-                {% if is_map_generated %}
                 <div class="flex flex-col lg:flex-row gap-4">
                     <!-- 지도 영역 -->
                     <div class="flex-1 relative aspect-square lg:aspect-auto lg:max-w-[600px]">
                         <img id="thermal-map-img" 
                              src="{{ img_url }}" 
-                             alt="생성된 온도지도" 
+                             alt="생성된 지도" 
                              class="object-contain w-full h-full max-h-[600px]"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                         <div class="hidden absolute inset-0 flex-col justify-center items-center bg-gray-50">
@@ -87,11 +86,6 @@
                         </div>
                     </div>
                 </div>
-                {% else %}
-                <div class="flex flex-col justify-center items-center h-[600px] bg-gray-50">
-                    <div class="text-gray-500 text-lg font-medium mb-4">생성된 지도가 없습니다</div>
-                </div>
-                {% endif %}
 
                 <!-- 플로팅 새로생성 버튼 -->
                 <button id="generate-now"
@@ -160,7 +154,7 @@
             </button>
 
             <!-- 좌측 플로팅 툴바 -->
-            <div class="fixed left-6 top-1/2 transform -translate-y-1/2 space-y-2 z-10">
+            <div class="fixed left-2 top-1/2 transform -translate-y-1/2 space-y-2 z-10 max-h-[calc(100vh-6rem)] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <input type="file" id="floorplan-upload" accept="image/*" class="hidden">
                 <div class="flex flex-col items-center">
                     <button onclick="document.getElementById('floorplan-upload').click()" 
@@ -238,14 +232,14 @@
 
             <!-- 우측 센서 목록 영역 -->
             <!-- 센서 목록 패널 컨테이너 -->
-            <div class="absolute right-0 top-6 w-[95vw] sm:w-[500px] overflow-hidden" id="sensor-panel-container">
+            <div class="absolute right-0 top-6 w-[98vw] sm:w-[500px] overflow-hidden z-30" id="sensor-panel-container">
                 <div class="relative transition-transform duration-300 translate-x-full" id="sensor-panel">
                     <!-- 센서 목록 컨테이너 -->
                     <div class="w-full bg-white rounded-lg shadow-lg">
                         <div class="p-4 border-b">
                             <div class="flex justify-between items-center mb-4">
                                 <h3 class="text-lg font-semibold">센서 목록</h3>
-                                <div class="flex space-x-2">
+                                <div class="flex space-x-2 items-center">
                                     <button id="add-all-sensors" class="px-2 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 flex items-center">
                                         <i class="mdi mdi-plus-circle mr-1"></i>
                                         모두 추가
@@ -254,35 +248,48 @@
                                         <i class="mdi mdi-minus-circle mr-1"></i>
                                         모두 제거
                                     </button>
+                                    <button id="close-sensor-panel" class="ml-2 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200">
+                                        <i class="mdi mdi-close text-gray-600"></i>
+                                    </button>
                                 </div>
                             </div>
                             <!-- 필터 UI -->
-                            <div class="space-y-2 border-gray-300 border rounded-md p-1.5">
-                                <h5 class="text-xs">필터</h5>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-0.5">센서 이름 검색</label>
-                                    <input type="text" id="filter-sensor-name" 
-                                        placeholder="센서 이름 또는 ID 검색"
-                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-0.5">Device Class</label>
-                                    <select id="filter-device-class"
-                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                        <option value="">All</option>
-                                        <option value="temperature" selected>Temperature</option>
-                                        <option value="humidity">Humidity</option>
-                                        <option value="pressure">Pressure</option>
-                                        <option value="carbon_dioxide">Carbon Dioxide</option>
-                                        <option value="signal_strength">Signal Strength</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-0.5">Label</label>
-                                    <select id="filter-label"
-                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                        <option value="">All</option>
-                                    </select>
+                            <div class="border-gray-300 border rounded-md">
+                                <button id="filter-section-toggle" class="w-full px-1.5 py-2 flex justify-between items-center hover:bg-gray-50">
+                                    <div class="flex items-center">
+                                        <i class="mdi mdi-filter-outline mr-1 text-gray-500"></i>
+                                        <h5 class="text-xs">필터</h5>
+                                    </div>
+                                    <i class="mdi mdi-chevron-down text-gray-500 transition-transform duration-200"></i>
+                                </button>
+                                <div id="filter-section-content" class="px-1.5 pb-1.5 space-y-2">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-0.5">센서 이름 검색</label>
+                                        <input type="text" id="filter-sensor-name" 
+                                            placeholder="이름 또는 entity_id 검색"
+                                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-0.5">Device Class</label>
+                                        <select id="filter-device-class"
+                                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                            <option value="">All</option>
+                                            <option value="temperature" selected>Temperature</option>
+                                            <option value="humidity">Humidity</option>
+                                            <option value="pressure">Pressure</option>
+                                            <option value="carbon_dioxide">Carbon Dioxide</option>
+                                            <option value="pm10">PM10</option>
+                                            <option value="pm25">PM2.5</option>
+                                            <option value="signal_strength">Signal Strength</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-0.5">Label</label>
+                                        <select id="filter-label"
+                                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                            <option value="">All</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>

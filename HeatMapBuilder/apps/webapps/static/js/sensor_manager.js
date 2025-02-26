@@ -12,14 +12,14 @@ export class SensorManager {
         // 속성 초기화
         this.svg = svgElement;
         this.sensors = [];
-        this.allSensors = [];
+        this.filteredSensors = [];
         this.onSensorsUpdate = null;
         this.enabled = true;
-        this.currentUnit = null; // 현재 선택된 단위
+        this.currentUnit = null;
         this.filters = {
             device_class: '',
             label: '',
-            search: ''  // 검색어 필터 추가
+            search: ''
         };
         this.uiManager = uiManager;
         this.mapId = new URLSearchParams(window.location.search).get('id');
@@ -73,7 +73,7 @@ export class SensorManager {
 
     // 필터 적용 메서드
     applyFilters() {
-        this.sensors = this.allSensors.filter(state => {
+        this.filteredSensors = this.sensors.filter(state => {
             const matchDeviceClass = !this.filters.device_class ||
                 state.attributes.device_class === this.filters.device_class;
             const matchLabel = !this.filters.label ||
@@ -84,6 +84,7 @@ export class SensorManager {
 
             return matchDeviceClass && matchLabel && matchSearch;
         });
+        this.updateSensorList();
     }
 
     // 데이터 로딩 및 에러 처리
@@ -119,7 +120,7 @@ export class SensorManager {
             const states = await response.json();
             console.log("SensorManager - 서버에서 받은 states:", states);
 
-            this.allSensors = states;
+            this.sensors = states;
             this.applyFilters();
 
             // 저장된 설정 로드
@@ -136,27 +137,31 @@ export class SensorManager {
 
                     // 저장된 센서 위치 정보를 현재 센서 데이터에 적용
                     if (config.sensors) {
-                        config.sensors.forEach(savedSensor => {
-                            const sensor = this.sensors.find(s => s.entity_id === savedSensor.entity_id);
-                            const placedSensor = this.svg.querySelector(`g[data-entity-id="${savedSensor.entity_id}"]`);
-                            if (sensor && savedSensor.position && !placedSensor) {
-                                // 단위 체크
-                                if (this.checkAndHandleUnit(sensor)) {
-                                    sensor.position = savedSensor.position;
-                                    sensor.calibration = savedSensor.calibration || 0;
-                                    this.updateSensorMarker(sensor, savedSensor.position);
-                                }
-                            }
-                        });
+                        this.applySavedSensorConfig(config.sensors);
                     }
                 });
             }
 
             this.updateSensorList();
         } catch (error) {
-            console.error('센서 정보를 불러오는데 실패했습니다:', error);
-            this.displayError(`센서 정보를 불러오는데 실패했습니다: ${error.message}`);
+            console.error('센서 로드 실패:', error);
+            this.uiManager.showMessage('센서를 불러오는데 실패했습니다.', 'error');
         }
+    }
+
+    applySavedSensorConfig(savedSensors) {
+        savedSensors.forEach(savedSensor => {
+            const sensor = this.sensors.find(s => s.entity_id === savedSensor.entity_id);
+            const placedSensor = this.svg.querySelector(`g[data-entity-id="${savedSensor.entity_id}"]`);
+            if (sensor && savedSensor.position && !placedSensor) {
+                // 단위 체크
+                if (this.checkAndHandleUnit(sensor)) {
+                    sensor.position = savedSensor.position;
+                    sensor.calibration = savedSensor.calibration || 0;
+                    this.updateSensorMarker(sensor, savedSensor.position);
+                }
+            }
+        });
     }
 
     displayError(message) {
@@ -177,16 +182,16 @@ export class SensorManager {
         const container = document.getElementById('sensor-container');
         if (!container) return;
 
-        if (!this.sensors || this.sensors.length === 0) {
+        if (!this.filteredSensors || this.filteredSensors.length === 0) {
             container.innerHTML = `
                 <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <p class="text-yellow-600">사용 가능한 온도 센서가 없습니다.</p>
+                    <p class="text-yellow-600">사용 가능한 센서가 없습니다.</p>
                 </div>
             `;
             return;
         }
 
-        container.innerHTML = this.sensors.map(sensor => this.createSensorListItem(sensor)).join('');
+        container.innerHTML = this.filteredSensors.map(sensor => this.createSensorListItem(sensor)).join('');
 
         // 필터 이벤트 리스너 설정
         const deviceClassFilter = /** @type {HTMLSelectElement} */ (document.getElementById('filter-device-class'));
@@ -306,15 +311,15 @@ export class SensorManager {
 
     // 모든 센서 추가
     addAllSensors() {
-        const unit = this.sensors[0]?.attributes.unit_of_measurement;
+        const unit = this.filteredSensors[0]?.attributes.unit_of_measurement;
         if (!unit) {
-            this.uiManager.showMessage('센서의 단위 정보가 없습니다.', 'error');
+            this.uiManager.showMessage('첫번째 센서의 단위 정보가 없습니다.', 'error');
             return;
         }
         
         this.currentUnit = unit;  // currentUnit 설정
         
-        this.sensors.forEach(sensor => {
+        this.filteredSensors.forEach(sensor => {
             if (sensor.attributes.unit_of_measurement !== unit) {
                 this.uiManager.showMessage(`${sensor.attributes.friendly_name}의 단위가 ${unit}이 아닙니다.`, 'error');
                 return;
@@ -896,7 +901,7 @@ export class SensorManager {
         return this.sensors.filter(sensor => sensor.position);
     }
 
-    // 설정 저장을 위한 센서 데이터 반환 수정
+    // 설정 저장을 위한 센서 데이터 반환
     getSensorConfig() {
         return {
             unit: this.currentUnit,

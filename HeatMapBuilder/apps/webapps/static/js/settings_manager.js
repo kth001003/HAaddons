@@ -521,7 +521,7 @@ export class SettingsManager {
                     await this.loadWalls(config.walls);
                 }
                 if (config.sensors) {
-                    await this.loadSensors(config.sensors);
+                    await this.sensorManager.loadSensors();
                 }
                 if (config.parameters) {
                     this.loadInterpolationParameters(config.parameters);
@@ -544,22 +544,6 @@ export class SettingsManager {
         }
     }
 
-    async loadSensors(sensors) {
-        const config = sensors ? { sensors } : await this.fetchConfig();
-        
-        if (config && config.sensors) {
-            config.sensors.forEach(savedSensor => {
-                const sensor = this.sensorManager.sensors.find(s => s.entity_id === savedSensor.entity_id);
-                if (sensor && savedSensor.position) {
-                    console.log("적용 전 센서:", sensor);
-                    sensor.position = savedSensor.position;
-                    sensor.calibration = savedSensor.calibration || 0;
-                    console.log("적용 후 센서:", sensor);
-                    this.sensorManager.updateSensorMarker(sensor, savedSensor.position);
-                }
-            });
-        }
-    }
     async loadInterpolationParameters(params) {
         try {
             /** @type {HTMLInputElement} */ (document.getElementById('gaussian-sigma-factor')).value = params?.gaussian?.sigma_factor ?? 8.0;

@@ -312,7 +312,6 @@ class WebServer:
             return await render_template('index.html', 
                             img_url=self.config_manager.get_image_url(map_id),
                             cache_buster=timestamp,
-                            is_map_generated= True if timestamp else False,
                             map_generation_time=timestamp,
                             map_generation_duration=last_generation_info.get('duration', ''),
                             map_name=map_data.get('name', ''),

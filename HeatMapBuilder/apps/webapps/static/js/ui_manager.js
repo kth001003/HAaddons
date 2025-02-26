@@ -233,7 +233,7 @@ export class UIManager {
                 '저장 되지 않은 변경을 취소하고 저장된 정보를 다시 불러오시겠습니까?',
                 async () => {
                     try {
-                        this.loadWallsAndSensors();
+                        this.reloadWallsAndSensors();
                     } catch (error) {
                         console.error('설정 로드 실패:', error);
                         this.showMessage('설정을 불러오는데 실패했습니다.', 'error');
@@ -371,7 +371,7 @@ export class UIManager {
         }
     }
 
-    async loadWallsAndSensors() {
+    async reloadWallsAndSensors() {
         const svg = this.svg;
         const sensorManager = this.sensorManager;
         const drawingTool = this.drawingTool;
@@ -382,15 +382,8 @@ export class UIManager {
                 if (config.walls) {
                     this.updateSVGContent(config.walls);
                 }
-                if (config.sensors) {
-                    config.sensors.forEach(savedSensor => {
-                        const sensor = sensorManager.sensors.find(s => s.entity_id === savedSensor.entity_id);
-                        if (sensor && savedSensor.position) {
-                            sensor.position = savedSensor.position;
-                            sensor.calibration = savedSensor.calibration || 0;
-                            sensorManager.updateSensorMarker(sensor, savedSensor.position);
-                        }
-                    });
+                if (sensorManager) {
+                    await sensorManager.loadSensors();
                 }
                 // 로드 성공 시 현재 히스토리 인덱스를 저장
                 if (drawingTool) {
@@ -731,6 +724,30 @@ export class UIManager {
             sensorPanel.style.display = 'none';
             sensorPanel.style.transform = 'none';  // 기존 transform 제거
         }
+
+        // 필터 섹션 토글 기능
+        const filterToggleBtn = document.getElementById('filter-section-toggle');
+        const filterContent = document.getElementById('filter-section-content');
+        const filterChevron = filterToggleBtn?.querySelector('.mdi-chevron-down');
+        let isFilterOpen = true;
+
+        filterToggleBtn?.addEventListener('click', () => {
+            isFilterOpen = !isFilterOpen;
+            if (filterContent && filterChevron) {
+                if (isFilterOpen) {
+                    filterContent.style.display = 'block';
+                    filterChevron.style.transform = 'rotate(0deg)';
+                } else {
+                    filterContent.style.display = 'none';
+                    filterChevron.style.transform = 'rotate(-90deg)';
+                }
+            }
+        });
+
+        // 닫기 버튼 이벤트 리스너
+        document.getElementById('close-sensor-panel')?.addEventListener('click', () => {
+            this.toggleSensorPanel();
+        });
 
         // 모두 추가/제거 버튼 이벤트 리스너
         document.getElementById('add-all-sensors')?.addEventListener('click', () => {
