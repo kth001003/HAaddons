@@ -29,9 +29,6 @@ class MapGenerator:
         self.logger = logger
         self.config_manager = config_manager
         self.sensor_manager = sensor_manager
-        self.generation_time = ''
-        self.generation_duration = ''
-        self.current_map_id = None
 
         self.configs = {}
         self.walls_data = ''
@@ -429,7 +426,6 @@ class MapGenerator:
 
     def load_map_config(self, map_id: str):
         """맵 설정 로드"""
-        self.current_map_id = map_id
         self.configs = self.config_manager.db.get_map(map_id)
         self.walls_data = self.configs.get('walls', '')
         self.sensors_data = self.configs.get('sensors', [])
@@ -437,16 +433,20 @@ class MapGenerator:
         self.gen_config = self.configs.get('gen_config', {})
         self.unit = self.configs.get('unit', '')
 
-    def save_generation_time(self):
+    def save_generation_time(self, map_id: str, generation_time: str, generation_duration: str):
         """생성 시간 저장"""
-        if not self.current_map_id:
+        if not map_id:
             return
-        map_data = self.config_manager.db.get_map(self.current_map_id)
+        map_data = self.config_manager.db.get_map(map_id)
         map_data['last_generation'] = {
-            'timestamp': datetime.now().isoformat(),
-            'duration': self.generation_duration
+            'timestamp': generation_time,
+            'duration': generation_duration
         }
-        self.config_manager.db.save(self.current_map_id, map_data)
+        # 이미지 URL 업데이트
+        output_filename = self.config_manager.get_output_filename(map_id)
+        map_data['img_url'] = f'/local/HeatMapBuilder/{map_id}/{output_filename}?{generation_time}'
+        
+        self.config_manager.db.save(map_id, map_data)
 
     def _create_sensor_marker(self, point, temperature, sensor_id, state):
         """센서 마커를 생성합니다."""
@@ -716,8 +716,17 @@ class MapGenerator:
         except Exception as e:
             self.logger.error(f"타임스탬프 추가 중 오류 발생: {str(e)}")
 
-    async def generate(self, map_id: str, output_path: str) -> tuple[bool, str]:
-        """온도맵을 생성하고 이미지 파일로 저장합니다."""
+    async def generate(self, map_id: str, output_path: str) -> Dict[str, Any]:
+        """온도맵을 생성하고 이미지 파일로 저장합니다.
+        
+        Returns:
+            Dict[str, Any]: {
+                'success': bool,  # 성공 여부
+                'error': str,     # 에러 메시지
+                'time': str,      # 생성 시간
+                'duration': str   # 생성 소요 시간
+            }
+        """
         try:
             # 출력 디렉토리 확인 및 생성
             output_dir = os.path.dirname(output_path)
@@ -728,20 +737,18 @@ class MapGenerator:
                 except Exception as dir_error:
                     error_msg = f"출력 디렉토리 생성 실패 ({output_dir}): {str(dir_error)}"
                     self.logger.error(error_msg)
-                    return False, error_msg
-
-            self.current_map_id = map_id
-            if not self.current_map_id:
-                error_msg = "현재 선택된 맵이 없습니다"
+                    return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
+            if not map_id:
+                error_msg = "맵 ID가 없습니다"
                 self.logger.error(error_msg)
-                return False, error_msg
-            self.load_map_config(self.current_map_id)
+                return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
+            self.load_map_config(map_id)
 
             # walls_data와 sensors_data 유효성 검사
             if not self.walls_data or len(self.sensors_data) == 0:
                 error_msg = "벽 데이터 또는 센서 데이터가 없습니다"
                 self.logger.error(error_msg)
-                return False, error_msg
+                return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
             
             timestamp_start = time.time_ns()
 
@@ -750,29 +757,11 @@ class MapGenerator:
                 self.logger.debug("센서 상태 조회 시작")
                 start_time = time.time()
                 
-                # 웹소켓 연결 상태 확인
-                self.logger.debug("웹소켓 연결 상태 확인 중...")
-                websocket_client = self.sensor_manager.websocket_client
-                if hasattr(websocket_client, 'message_id'):
-                    self.logger.debug(f"현재 웹소켓 클라이언트 message_id: {websocket_client.message_id}")
-                
-                # 센서 상태 조회 실행 전 웹소켓 클라이언트 상태 확인
-                self.logger.debug("센서 상태 조회 실행 전 웹소켓 클라이언트 상태:")
-                if hasattr(websocket_client, 'websocket'):
-                    self.logger.debug(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-                
                 # 센서 상태 조회 실행
                 self.logger.debug("센서 상태 조회 실행 시작...")
                 all_states = await self.sensor_manager.get_all_states()
                 elapsed_time = time.time() - start_time
                 
-                # 센서 상태 조회 후 웹소켓 클라이언트 상태 확인
-                self.logger.debug("센서 상태 조회 후 웹소켓 클라이언트 상태:")
-                if hasattr(websocket_client, 'message_id'):
-                    self.logger.debug(f"센서 상태 조회 후 message_id: {websocket_client.message_id}")
-                if hasattr(websocket_client, 'websocket'):
-                    self.logger.debug(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
-
                 if all_states:
                     self.logger.debug(f"센서 상태 조회 완료: {len(all_states)}개 센서, 소요시간: {elapsed_time:.3f}초")
                     states_dict = {state['entity_id']: state for state in all_states}
@@ -795,14 +784,14 @@ class MapGenerator:
             if not areas:
                 error_msg = "유효한 area를 찾을 수 없습니다"
                 self.logger.error(error_msg)
-                return False, error_msg
+                return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
 
             # 센서 데이터 수집 (states_dict 전달)
             sensor_points, raw_temps, sensor_ids = await self._collect_sensor_data(states_dict)
             if not sensor_points:
                 error_msg = "유효한 센서 데이터가 없습니다"
                 self.logger.error(error_msg)
-                return False, error_msg
+                return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
             temperatures = raw_temps
             # 온도값 범위 제한 적용
             if min_temp is not None:
@@ -929,7 +918,7 @@ class MapGenerator:
             width_inches = fig.get_size_inches()[0]  # 메인 플롯의 실제 너비
             dpi = 1000 / (width_inches)  # 1000px 위해 필요한 dpi 계산
             
-            format = self.config_manager.get_output_format(self.current_map_id)
+            format = self.config_manager.get_output_format(map_id)
             plt.savefig(output_path,
                        bbox_inches='tight',
                        pad_inches=0,
@@ -941,16 +930,26 @@ class MapGenerator:
             
             # 생성 시간 정보 업데이트
             timestamp_end = time.time_ns()
-            self.generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            self.generation_duration = f'{((timestamp_end - timestamp_start)/1000000000):.3f}s'
+            generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            generation_duration = f'{((timestamp_end - timestamp_start)/1000000000):.3f}s'
             
-            self.save_generation_time()
+            self.save_generation_time(map_id, generation_time, generation_duration)
             
-            return True, ""
+            return {
+                'success': True,
+                'error': '',
+                'time': generation_time,
+                'duration': generation_duration
+            }
 
         except Exception as e:
             error_msg = f"온도맵 생성 중 오류 발생: {str(e)}"
             self.logger.error(error_msg)
             import traceback
             self.logger.error(traceback.format_exc())
-            return False, error_msg 
+            return {
+                'success': False,
+                'error': error_msg,
+                'time': '',
+                'duration': ''
+            } 

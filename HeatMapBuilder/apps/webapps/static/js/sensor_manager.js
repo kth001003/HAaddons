@@ -21,6 +21,7 @@ export class SensorManager {
             label: ''
         };
         this.uiManager = uiManager;
+        this.mapId = new URLSearchParams(window.location.search).get('id');
 
         // SVG viewBox 파싱
         const viewBox = this.svg.getAttribute('viewBox');
@@ -40,6 +41,15 @@ export class SensorManager {
         // SVG 이벤트 리스너 등록
         this.svg.addEventListener('dragover', this.handleDragOver);
         this.svg.addEventListener('drop', this.handleDrop);
+
+        this.initialize();
+    }
+
+    async initialize() {
+        if (!this.mapId) {
+            this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
+            return;
+        }
     }
 
     // 설정 및 상태 관리
@@ -109,7 +119,7 @@ export class SensorManager {
             this.applyFilters();
 
             // 저장된 설정 로드
-            const configResponse = await fetch('./api/load-config');
+            const configResponse = await fetch(`./api/load-config/${this.mapId}`);
             if (configResponse.ok) {
                 const config = await configResponse.json();
 

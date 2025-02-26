@@ -4,7 +4,6 @@ import time
 from datetime import datetime
 import threading
 import uuid
-from PIL import Image # type: ignore
 import io
 import asyncio
 from quart import Quart, jsonify, request, render_template, Response, send_from_directory # type: ignore
@@ -28,7 +27,6 @@ class WebServer:
         self.config_manager = ConfigManager
         self.sensor_manager = SensorManager
         self.map_generator = MapGenerator
-        self.current_map_id = None
         
         self._init_app()
         self._setup_routes()
@@ -69,21 +67,44 @@ class WebServer:
         async def get_label_registry():
             return await self.get_label_registry()
 
-        @self.app.route('/api/save-walls-and-sensors', methods=['POST'])
-        async def save_walls_and_sensors():
-            return await self.save_walls_and_sensors()
+        @self.app.route('/api/save-walls-and-sensors/<map_id>', methods=['POST'])
+        async def save_walls_and_sensors(map_id):
+            """벽 및 센서 설정 저장"""
+            data = await request.get_json() or {}
+            self.config_manager.db.update_map(map_id, {
+                'walls': data.get("wallsData", ""),
+                'sensors': data.get("sensorsData", ""),
+                'unit': data.get("unit", "")
+            })
+            return jsonify({'status': 'success'})
+    
+        @self.app.route('/api/save-interpolation-parameters/<map_id>', methods=['POST'])
+        async def save_interpolation_parameters(map_id):
+            """보간 파라미터 저장"""
+            data = await request.get_json() or {}
+            self.config_manager.db.update_map(map_id, {
+                'parameters': data.get('interpolation_params', {})
+            })
+            return jsonify({'status': 'success'})
+    
+        @self.app.route('/api/save-gen-config/<map_id>', methods=['POST'])
+        async def save_gen_config(map_id):
+            """생성 구성 저장"""
+            data = await request.get_json() or {}
+            gen_config = data.get('gen_config', {})
+            self.config_manager.db.update_map(map_id, {
+                'gen_config': gen_config
+            })
+            return jsonify({'status': 'success'})
 
-        @self.app.route('/api/save-interpolation-parameters', methods=['POST'])
-        async def save_interpolation_parameters():
-            return await self.save_interpolation_parameters()
-
-        @self.app.route('/api/save-gen-config', methods=['POST'])
-        async def save_gen_config():
-            return await self.save_gen_config()
-
-        @self.app.route('/api/load-config')
-        async def load_heatmap_config():
-            return await self.load_heatmap_config()
+        @self.app.route('/api/load-config/<map_id>', methods=['GET'])
+        async def load_heatmap_config(map_id):
+            """히트맵 설정 로드"""
+            try:
+                config = self.config_manager.db.get_map(map_id)
+                return jsonify(config)
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
 
         @self.app.route('/local/<path:filename>')
         async def serve_media(filename):
@@ -93,15 +114,9 @@ class WebServer:
         async def serve_heatmap_media(filename):
             return await self.serve_media(filename)
 
-        @self.app.route('/api/generate-map', methods=['GET'])
-        async def generate_map():
+        @self.app.route('/api/generate-map/<map_id>', methods=['GET'])
+        async def generate_map(map_id):
             """지도 생성 API"""
-            if not self.current_map_id:
-                return jsonify({
-                    'status': 'error',
-                    'error': '현재 선택된 맵이 없습니다.'
-                }), 400
-
             if not self.map_lock.acquire(blocking=False):
                 return jsonify({
                     'status': 'error',
@@ -110,22 +125,21 @@ class WebServer:
 
             try:
                 # 지도 생성
-                output_filename, _, output_path = self.config_manager.get_output_info(self.current_map_id)
-                    
-                success, error_msg = await self.map_generator.generate(self.current_map_id,output_path)
-                if success:
+                _, _, output_path = self.config_manager.get_output_info(map_id)
+                result = await self.map_generator.generate(map_id, output_path)
+                if result['success']:
                     self.app.logger.info("지도 생성 완료")
 
                     return jsonify({
                         'status': 'success',
-                        'image_url': f'/local/HeatMapBuilder/{self.current_map_id}/{output_filename}',
-                        'time': self.map_generator.generation_time,
-                        'duration': self.map_generator.generation_duration
+                        'img_url': self.config_manager.get_image_url(map_id),
+                        'time': result['time'],
+                        'duration': result['duration']
                     })
                 else:
                     return jsonify({
                         'status': 'error',
-                        'error': error_msg
+                        'error': result['error']
                     })
 
             except Exception as e:
@@ -143,9 +157,31 @@ class WebServer:
                 finally:
                     self.map_lock.release()  # 락 해제
 
-        @self.app.route('/api/check-map-time', methods=['GET'])
-        async def check_map_time():
-            return await self.check_map_time()
+        @self.app.route('/api/check-map-time/<map_id>', methods=['GET'])
+        async def check_map_time(map_id):
+            """지도 생성 시간 확인"""
+            try:
+                output_filename, _, output_path = self.config_manager.get_output_info(map_id)
+
+                if os.path.exists(output_path):
+                    map_data = self.config_manager.db.get_map(map_id)
+                    last_generation = map_data.get('last_generation', {})
+                    return jsonify({
+                        'status': 'success',
+                        'time': last_generation.get('time', ''),
+                        'duration': last_generation.get('duration', ''),
+                        'img_url': self.config_manager.get_image_url(map_id)
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'error': '온도 지도가 아직 생성되지 않았습니다.'
+                    })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                })
 
         @self.app.route('/api/maps', methods=['GET'])
         async def get_maps():
@@ -271,25 +307,19 @@ class WebServer:
             if not map_data:
                 return await render_template('404.html', error_message='요청하신 맵을 찾을 수 없습니다'), 404
             
-            # 현재 맵 ID 설정 및 설정 업데이트
-            self.current_map_id = map_id
+            last_generation_info = map_data.get('last_generation', {})
+            timestamp = last_generation_info.get('timestamp', '')
+            return await render_template('index.html', 
+                            img_url=self.config_manager.get_image_url(map_id),
+                            cache_buster=timestamp,
+                            is_map_generated= True if timestamp else False,
+                            map_generation_time=timestamp,
+                            map_generation_duration=last_generation_info.get('duration', ''),
+                            map_name=map_data.get('name', ''),
+                            map_id=map_id)
         except Exception as e:
             self.logger.error(f"맵 전환 실패: {str(e)}")
             return await render_template('404.html', error_message='맵 로딩 중 오류가 발생했습니다'), 404
-            
-        if not self.current_map_id:
-            return await render_template('404.html', error_message='선택된 맵이 없습니다'), 404
-        
-        last_generation_info = self.config_manager.db.get_map(self.current_map_id).get('last_generation', {})
-        cache_buster = int(time.time())
-        return await render_template('index.html', 
-                            img_url=f'/local/HeatMapBuilder/{self.current_map_id}/{self.config_manager.get_output_filename(self.current_map_id)}?{cache_buster}',
-                            cache_buster=cache_buster,
-                            is_map_generated= True if last_generation_info.get('timestamp') else False,
-                            map_generation_time=last_generation_info.get('timestamp', ''),
-                            map_generation_duration=last_generation_info.get('duration', ''),
-                            map_name=map_data.get('name', ''),
-                            map_id=self.current_map_id)
 
     
     async def get_states(self):
@@ -302,50 +332,6 @@ class WebServer:
         label_registry = await self.sensor_manager.get_label_registry()
         return jsonify(label_registry)
 
-    async def save_walls_and_sensors(self):
-        """벽 및 센서 설정 저장"""
-        data = await request.get_json() or {}
-        if not self.current_map_id:
-            return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
-        self.config_manager.db.update_map(self.current_map_id, {
-            'walls': data.get("wallsData", ""),
-            'sensors': data.get("sensorsData", ""),
-            'unit': data.get("unit", "")
-        })
-        return jsonify({'status': 'success'})
-    
-    async def save_interpolation_parameters(self):
-        """보간 파라미터 저장"""
-        data = await request.get_json() or {}
-        if not self.current_map_id:
-            return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
-        self.config_manager.db.update_map(self.current_map_id, {
-            'parameters': data.get('interpolation_params', {})
-        })
-        return jsonify({'status': 'success'})
-    
-    async def save_gen_config(self):
-        """생성 구성 저장"""
-        data = await request.get_json() or {}
-        if not self.current_map_id:
-            return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
-        gen_config = data.get('gen_config', {})
-        self.config_manager.db.update_map(self.current_map_id, {
-            'gen_config': gen_config,
-            'img_url': f'/local/HeatMapBuilder/{self.current_map_id}/{gen_config.get("file_name", "thermal_map")}.{gen_config.get("format", "png")}'
-        })
-        return jsonify({'status': 'success'})
-
-    async def load_heatmap_config(self):
-        """히트맵 설정 로드"""
-        try:
-            if not self.current_map_id:
-                return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
-            config = self.config_manager.db.get_map(self.current_map_id)
-            return jsonify(config)
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-    
     async def serve_media(self, filename):
         """미디어 파일 제공"""
         self.app.logger.debug(f"미디어 파일 요청: {filename}")
@@ -359,34 +345,6 @@ class WebServer:
         else:
             self.app.logger.error(f"파일을 찾을 수 없음: {filename}")
             return "File not found", 404
-    
-    async def check_map_time(self):
-        """지도 생성 시간 확인"""
-        try:
-            if not self.current_map_id:
-                return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
-
-            output_filename, _, output_path = self.config_manager.get_output_info(self.current_map_id)
-
-            if os.path.exists(output_path):
-                map_data = self.config_manager.db.get_map(self.current_map_id)
-                last_generation = map_data.get('last_generation', {})
-                return jsonify({
-                    'status': 'success',
-                    'time': last_generation.get('time', ''),
-                    'duration': last_generation.get('duration', ''),
-                    'image_url': f'/local/HeatMapBuilder/{self.current_map_id}/{output_filename}'
-                })
-            else:
-                return jsonify({
-                    'status': 'error',
-                    'error': '온도 지도가 아직 생성되지 않았습니다.'
-                })
-        except Exception as e:
-            return jsonify({
-                'status': 'error',
-                'error': str(e)
-            })
     
     async def get_maps(self):
         """모든 맵 목록을 반환"""
@@ -542,6 +500,8 @@ class WebServer:
             new_map_data['created_at'] = datetime.now().isoformat()
             new_map_data['updated_at'] = datetime.now().isoformat()
             new_map_data['sensors'] = []  # sensors는 비움
+            new_map_data['last_generation'] = {}
+            new_map_data['unit'] = None
             
             # 새로운 맵 저장
             self.config_manager.db.save(new_map_id, new_map_data)
@@ -610,7 +570,7 @@ class WebServer:
                     match = re.match(f"{file_name}-(\\d+)\\.{file_format}", file)
                     if match:
                         index = int(match.group(1))
-                        img_url = f"/local/HeatMapBuilder/{map_id}/{file}"
+                        img_url = self.config_manager.get_previous_image_url(map_id, index)
                         timestamp = os.path.getmtime(os.path.join(dir, file))
                         previous_maps.append({
                             'index': index,

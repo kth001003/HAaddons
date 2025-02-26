@@ -2,6 +2,7 @@ export class SettingsManager {
     constructor(uiManager) {
         this.uiManager = uiManager;
         this.lastValidCustomCmap = '';
+        this.mapId = new URLSearchParams(window.location.search).get('id');
         this.initializeColorSync();
         this.initializeVariogramModel();
         this.initializeColormapControls();
@@ -63,6 +64,11 @@ export class SettingsManager {
     }
 
     async saveWallsAndSensors(svg, sensorManager) {
+        if (!this.mapId) {
+            this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
+            return;
+        }
+
         try {
             const wallsElements = svg.querySelectorAll('line, path.area');
             let wallsHTML = '';
@@ -74,7 +80,7 @@ export class SettingsManager {
             const unit = sensorConfig.unit;
             const sensorsData = sensorConfig.sensors;
             
-            await fetch('./api/save-walls-and-sensors', {
+            await fetch(`./api/save-walls-and-sensors/${this.mapId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -89,9 +95,14 @@ export class SettingsManager {
     }
 
     async saveInterpolationParameters() {
+        if (!this.mapId) {
+            this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
+            return;
+        }
+
         const interpolationParams = this.collectInterpolationParams();
         try {
-            const response = await fetch('./api/save-interpolation-parameters', {
+            const response = await fetch(`./api/save-interpolation-parameters/${this.mapId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -155,9 +166,14 @@ export class SettingsManager {
     }
 
     async saveGenConfig() {
+        if (!this.mapId) {
+            this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
+            return;
+        }
+
         const genConfig = this.collectGenConfig();
         try {
-            const response = await fetch('./api/save-gen-config', {
+            const response = await fetch(`./api/save-gen-config/${this.mapId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -480,8 +496,13 @@ export class SettingsManager {
     }
 
     async loadConfig(svg, sensorManager, drawingTool) {
+        if (!this.mapId) {
+            this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
+            return;
+        }
+
         try {
-            const response = await fetch('./api/load-config');
+            const response = await fetch(`./api/load-config/${this.mapId}`);
             if (response.ok) {
                 const config = await response.json();
                 if (config.walls) {
@@ -509,7 +530,8 @@ export class SettingsManager {
             drawingTool.resetState();
             this.uiManager.saveCurrentSettings();
         } catch (error) {
-            console.error('설정을 불러오는데 실패했습니다:', error);
+            console.error('설정 로드 실패:', error);
+            this.uiManager.showMessage('설정을 불러오는데 실패했습니다.', 'error');
         }
     }
 

@@ -1,11 +1,14 @@
 export class UIManager {
     constructor() {
-        this.svg = document.getElementById('svg-overlay');
-        this.messageContainer = document.getElementById('message-container');
+        this.mapId = new URLSearchParams(window.location.search).get('id');
+        this.currentTool = 'select';
         this.drawingTool = null;
         this.sensorManager = null;
         this.settingsManager = null;
-        this.currentTool = null;
+        this.thermalMapManager = null;
+        this.lastSavedState = null;
+        this.svg = document.getElementById('svg-overlay');
+        this.messageContainer = document.getElementById('message-container');
         this.confirmModal = document.getElementById('confirm-modal');
         this.lastSavedHistoryIndex = 0; // 마지막으로 저장된 히스토리 인덱스
         this.lastSavedSettings = null; // 마지막으로 저장된 설정 상태
@@ -112,8 +115,10 @@ export class UIManager {
 
         // 지도 편집 탭으로 이동할 때 센서 로드
         if (tabName === 'map_edit' && this.sensorManager) {
+            this.showMessage('센서 로드 중...');
             this.sensorManager.loadSensors().then(() => {
                 console.log('센서 로드 완료');
+                this.showMessage('센서 로드 완료', 'success');
             }).catch(error => {
                 console.error('센서 로드 실패:', error);
                 this.showMessage('센서 로드에 실패했습니다.', 'error');
@@ -298,7 +303,7 @@ export class UIManager {
             const unit = sensorConfig.unit;
             const sensorsData = sensorConfig.sensors;
             
-            await fetch('./api/save-walls-and-sensors', {
+            await fetch(`./api/save-walls-and-sensors/${this.mapId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -359,7 +364,7 @@ export class UIManager {
         const sensorManager = this.sensorManager;
         const drawingTool = this.drawingTool;
         try {
-            const response = await fetch('./api/load-config');
+            const response = await fetch(`./api/load-config/${this.mapId}`);
             if (response.ok) {
                 const config = await response.json();
                 if (config.walls) {

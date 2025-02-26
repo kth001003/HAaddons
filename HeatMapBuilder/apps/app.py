@@ -77,14 +77,14 @@ class BackgroundTaskManager:
                 start_time = time.time()
                 
                 # 맵 생성 실행
-                success, error_msg = await self.map_generator.generate(map_id, _output_path)
+                result = await self.map_generator.generate(map_id, _output_path)
                 
                 # 소요 시간 계산
                 elapsed_time = time.time() - start_time
-                self.logger.info(f"맵 생성 완료: {map_id}, 성공 여부: {success}, 소요시간: {elapsed_time:.3f}초")
-                if not success:
-                    raise Exception(error_msg)
-                return success
+                self.logger.info(f"맵 생성 완료: {map_id}, 성공 여부: {result['success']}, 소요시간: {elapsed_time:.3f}초")
+                if not result['success']:
+                    raise Exception(result['error'])
+                return result['success']
             except Exception as e:
                 self.logger.error(f"열지도 생성 실패: {str(e)}")
                 import traceback
@@ -166,7 +166,7 @@ class BackgroundTaskManager:
                                         self.logger.info("백그라운드 맵 생성 완료 %s (%s) (소요시간: %s)",
                                                         self.logger._colorize(map_name, "blue"),
                                                         map_id,
-                                                        self.logger._colorize(self.map_generator.generation_duration, "green"))
+                                                        self.logger._colorize(self.config_manager.db.get_map(map_id).get('last_generation', {}).get('duration', ''), "green"))
                                         self.map_timers[map_id] = current_time
                                     else:
                                         self.logger.error("백그라운드 맵 생성 실패 %s (%s)",
@@ -241,6 +241,7 @@ if __name__ == '__main__':
         with open('/data/options.json') as file:
             CONFIG = json.load(file)
     except:
+        CONFIG = {}
         is_local = True
     config_manager = ConfigManager(is_local, CONFIG)
     log_level = str(CONFIG.get('log_level', 'debug')).upper()

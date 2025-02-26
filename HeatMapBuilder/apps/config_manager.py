@@ -2,6 +2,7 @@ import os
 import json
 from typing import Dict, Tuple
 from jsonDB import JsonDB
+import time
 
 class ConfigManager:
     """설정 관리를 담당하는 클래스"""
@@ -68,3 +69,39 @@ class ConfigManager:
         os.makedirs(os.path.join(self.paths['media'], map_id), exist_ok=True)
         path = os.path.join(self.paths['media'], map_id, filename)
         return filename, format, path
+
+    def get_image_url(self, map_id: str) -> str:
+        """맵의 이미지 URL을 반환합니다.
+        
+        Args:
+            map_id: 맵 ID
+            
+        Returns:
+            str: 이미지 URL
+        """
+        map_data = self.db.get_map(map_id)
+        img_url = map_data.get('img_url', '')
+        if not img_url:
+            timestamp = map_data.get('last_generation', {}).get('timestamp', int(time.time()))
+            output_filename = self.get_output_filename(map_id)
+            img_url = f"/local/HeatMapBuilder/{map_id}/{output_filename}?{timestamp}"
+            self.db.update_map(map_id, {'img_url': img_url})
+        return img_url
+    
+    def get_previous_image_url(self, map_id: str, index: int) -> str:
+        """이전 생성 이미지의 URL을 생성합니다. cache_buster 추가
+        
+        Args:
+            map_id: 맵 ID
+            index: 이미지 인덱스
+            
+        Returns:
+            str: 이미지 URL
+        """
+        map_data = self.db.get_map(map_id)
+        gen_config = map_data.get('gen_config', {})
+        filename = gen_config.get('file_name', 'thermal_map')
+        file_format = gen_config.get('format', 'png')
+        cache_buster = int(time.time())
+            
+        return f"/local/HeatMapBuilder/{map_id}/{filename}-{index}.{file_format}?{cache_buster}"

@@ -1,6 +1,7 @@
 export class ThermalMapManager {
     constructor(uiManager) {
         this.uiManager = uiManager;
+        this.mapId = new URLSearchParams(window.location.search).get('id');
         this.thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
         this.mapGenerationTime = document.getElementById('map-generation-time');
         this.mapGenerationDuration = document.getElementById('map-generation-duration');
@@ -51,7 +52,8 @@ export class ThermalMapManager {
     }
 
     async refreshThermalMap() {
-        if (!this.mapGenerationButton) {
+        if (!this.mapGenerationButton || !this.mapId) {
+            this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
             return;
         }
 
@@ -59,12 +61,12 @@ export class ThermalMapManager {
         this.mapGenerationButton.children[0].classList.add('animate-spin');
 
         try {
-            const response = await fetch('./api/generate-map');
+            const response = await fetch(`./api/generate-map/${this.mapId}`);
             const data = await response.json();
 
             if (data.status === 'success') {
                 const timestamp = new Date().getTime();
-                this.thermalMapImage.setAttribute('src', `${data.image_url}?t=${timestamp}`);
+                this.thermalMapImage.setAttribute('src', `${data.img_url}?t=${timestamp}`);
                 
                 if (this.mapGenerationTime) {
                     this.mapGenerationTime.textContent = data.time;
@@ -89,22 +91,22 @@ export class ThermalMapManager {
     }
 
     async checkAndRefreshMap() {
-        if (!this.mapGenerationButton) {
+        if (!this.mapGenerationButton || !this.mapId) {
             return;
         }
 
         try {
-            const response = await fetch('./api/check-map-time');
+            const response = await fetch(`./api/check-map-time/${this.mapId}`);
             const data = await response.json();
 
-            if (data.status === 'success' && data.generation_time) {
-                const serverTime = new Date(data.generation_time).getTime();
+            if (data.status === 'success' && data.time) {
+                const serverTime = new Date(data.time).getTime();
                 const currentDisplayTime = this.mapGenerationTime ? 
                     new Date(this.mapGenerationTime.textContent).getTime() : 0;
 
                 if (serverTime > currentDisplayTime) {
                     const timestamp = new Date().getTime();
-                    this.thermalMapImage.setAttribute('src', `${data.image_url}?t=${timestamp}`);
+                    this.thermalMapImage.setAttribute('src', `${data.img_url}?t=${timestamp}`);
                     
                     if (this.mapGenerationTime) {
                         this.mapGenerationTime.textContent = data.time;
