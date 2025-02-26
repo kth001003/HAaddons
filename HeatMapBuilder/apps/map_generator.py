@@ -865,112 +865,144 @@ class MapGenerator:
                 raise
 
             # 플롯 생성
-            fig = plt.figure(figsize=(10, 10))  # 전체 figure 크기
+            self.logger.debug("플롯 생성 시작")
+            try:
+                plt.close('all')  # 기존 플롯 정리
+                self.logger.debug("figure 생성 시작")
+                fig = plt.figure(figsize=(10, 10))  # 전체 figure 크기
+                self.logger.debug("figure 생성 완료")
 
-            # 메인 플롯 (열지도)
-            main_ax = plt.subplot2grid((1, 20), (0, 0), colspan=20)  # 열지도용 axes
-            main_ax.invert_yaxis()
+                # 메인 플롯 (열지도)
+                self.logger.debug("메인 플롯 axes 생성 시작")
+                main_ax = plt.subplot2grid((1, 20), (0, 0), colspan=20)  # 열지도용 axes
+                main_ax.invert_yaxis()
+                self.logger.debug("메인 플롯 axes 생성 완료")
 
-            # 온도 범위 설정
-            temp_range = min_temp - max_temp
-            steps = self.gen_config.get('colorbar', {}).get('temp_steps', 100)
-            levels = np.linspace(min_temp - 0.1 * temp_range, max_temp + 0.1 * temp_range, steps)
+                # 온도 범위 설정
+                self.logger.debug("온도 범위 설정 시작")
+                temp_range = min_temp - max_temp
+                steps = self.gen_config.get('colorbar', {}).get('temp_steps', 100)
+                levels = np.linspace(min_temp - 0.1 * temp_range, max_temp + 0.1 * temp_range, steps)
+                self.logger.debug("온도 범위 설정 완료")
 
-            # 온도 데이터가 없는 area 표시
-            for i, area in enumerate(self.areas):
-                if i not in self.area_sensors:
-                    empty_area_style = self.gen_config.get('visualization', {}).get('empty_area', 'white')
-                    if empty_area_style == 'white':
-                        for x, y in self._get_polygon_coords(area['polygon']):
-                            main_ax.fill(x, y, facecolor='white', alpha=1.0, edgecolor='none')
-                    elif empty_area_style == 'transparent':
-                        # transparent 스타일인 경우 해당 영역을 건너뜀
-                        continue
-                    elif empty_area_style == 'hatched':
-                        for x, y in self._get_polygon_coords(area['polygon']):
-                            main_ax.fill(x, y, facecolor='white', hatch='///', alpha=1.0, edgecolor='none')
+                # 온도 데이터가 없는 area 표시
+                self.logger.debug("빈 area 처리 시작")
+                for i, area in enumerate(self.areas):
+                    if i not in self.area_sensors:
+                        empty_area_style = self.gen_config.get('visualization', {}).get('empty_area', 'white')
+                        if empty_area_style == 'white':
+                            for x, y in self._get_polygon_coords(area['polygon']):
+                                main_ax.fill(x, y, facecolor='white', alpha=1.0, edgecolor='none')
+                        elif empty_area_style == 'transparent':
+                            # transparent 스타일인 경우 해당 영역을 건너뜀
+                            continue
+                        elif empty_area_style == 'hatched':
+                            for x, y in self._get_polygon_coords(area['polygon']):
+                                main_ax.fill(x, y, facecolor='white', hatch='///', alpha=1.0, edgecolor='none')
+                self.logger.debug("빈 area 처리 완료")
 
-            # 온도 분포 그리기 (부드러운 그라데이션을 위한 설정)
-            contour = main_ax.contourf(grid_x, grid_y, grid_z,
-                                   levels=levels,
-                                   cmap=self.gen_config.get('colorbar', {}).get('cmap', 'RdYlBu_r'),
-                                   extend='both',
-                                   alpha=0.9)  # 약간의 투명도 추가
-            
-            # area 경계 그리기
-            area_border_width = self.gen_config.get('visualization', {}).get('area_border_width', 2)
-            area_border_color = self.gen_config.get('visualization', {}).get('area_border_color', '#000000')
-            if area_border_width > 0:  # 선 두께가 0보다 큰 경우에만 그리기
-                for area in self.areas:
-                    if not area['is_exterior']:
-                        for x, y in self._get_polygon_coords(area['polygon']):
-                            main_ax.plot(x, y, color=area_border_color, linewidth=area_border_width)
+                # 온도 분포 그리기
+                self.logger.debug("온도 분포 그리기 시작")
+                contour = main_ax.contourf(grid_x, grid_y, grid_z,
+                                       levels=levels,
+                                       cmap=self.gen_config.get('colorbar', {}).get('cmap', 'RdYlBu_r'),
+                                       extend='both',
+                                       alpha=0.9)
+                self.logger.debug("온도 분포 그리기 완료")
 
-            # plot 외곽선 그리기
-            plot_border_width = self.gen_config.get('visualization', {}).get('plot_border_width', 0)
-            plot_border_color = self.gen_config.get('visualization', {}).get('plot_border_color', '#000000')
-            if plot_border_width > 0:  # 선 두께가 0보다 큰 경우에만 그리기
-                for spine in ['top', 'bottom', 'left', 'right']:
-                    main_ax.spines[spine].set_linewidth(plot_border_width)
-                    main_ax.spines[spine].set_color(plot_border_color)
-                    main_ax.spines[spine].set_visible(True)
+                # area 경계 그리기
+                self.logger.debug("area 경계 그리기 시작")
+                area_border_width = self.gen_config.get('visualization', {}).get('area_border_width', 2)
+                area_border_color = self.gen_config.get('visualization', {}).get('area_border_color', '#000000')
+                if area_border_width > 0:
+                    for area in self.areas:
+                        if not area['is_exterior']:
+                            for x, y in self._get_polygon_coords(area['polygon']):
+                                main_ax.plot(x, y, color=area_border_color, linewidth=area_border_width)
+                self.logger.debug("area 경계 그리기 완료")
 
-            # 센서 표시 설정
-            sensor_display = self.gen_config.get('visualization', {}).get('sensor_display', 'position_name_temp')
-            
-            if sensor_display != 'none':  # 'none'이 아닐 때만 센서 표시
-                # 센서 위치 표시
-                for point, temperature, sensor_id in zip(sensor_points, raw_temps, sensor_ids):
-                    try:
-                        state = states_dict.get(sensor_id, {'state': '0', 'entity_id': sensor_id})
-                        self._create_sensor_marker([point[0], point[1]], temperature, sensor_id, state)
-                    except Exception as e:
-                        self.logger.error("센서 %s 표시 실패: %s",
-                                         self.logger._colorize(sensor_id, "red"),
-                                         self.logger._colorize(str(e), "red"))
-                        continue
+                # plot 외곽선 그리기
+                self.logger.debug("plot 외곽선 그리기 시작")
+                plot_border_width = self.gen_config.get('visualization', {}).get('plot_border_width', 0)
+                plot_border_color = self.gen_config.get('visualization', {}).get('plot_border_color', '#000000')
+                if plot_border_width > 0:
+                    for spine in ['top', 'bottom', 'left', 'right']:
+                        main_ax.spines[spine].set_linewidth(plot_border_width)
+                        main_ax.spines[spine].set_color(plot_border_color)
+                        main_ax.spines[spine].set_visible(True)
+                self.logger.debug("plot 외곽선 그리기 완료")
 
-            # 컬러바 설정 적용
-            colorbar_config = self.gen_config.get('colorbar', {})
-            if colorbar_config and colorbar_config.get('show_colorbar', True):  # 컬러바 표시 여부 확인
-                self._create_colorbar(fig, contour, colorbar_config)
+                # 센서 표시 설정
+                self.logger.debug("센서 표시 시작")
+                sensor_display = self.gen_config.get('visualization', {}).get('sensor_display', 'position_name_temp')
+                if sensor_display != 'none':
+                    for point, temperature, sensor_id in zip(sensor_points, raw_temps, sensor_ids):
+                        try:
+                            state = states_dict.get(sensor_id, {'state': '0', 'entity_id': sensor_id})
+                            self._create_sensor_marker([point[0], point[1]], temperature, sensor_id, state)
+                        except Exception as e:
+                            self.logger.error(f"센서 {sensor_id} 표시 실패: {str(e)}")
+                            continue
+                self.logger.debug("센서 표시 완료")
 
-            # 타임스탬프 설정 적용
-            timestamp_config = self.gen_config.get('timestamp', {})
-            if timestamp_config.get('enabled', False):
-                self._add_timestamp(main_ax, timestamp_config)
+                # 컬러바 설정 적용
+                self.logger.debug("컬러바 설정 시작")
+                colorbar_config = self.gen_config.get('colorbar', {})
+                if colorbar_config and colorbar_config.get('show_colorbar', True):
+                    self._create_colorbar(fig, contour, colorbar_config)
+                self.logger.debug("컬러바 설정 완료")
 
-            # 축 설정
-            main_ax.set_aspect('equal')
-            main_ax.axis('off')
+                # 타임스탬프 설정 적용
+                self.logger.debug("타임스탬프 설정 시작")
+                timestamp_config = self.gen_config.get('timestamp', {})
+                if timestamp_config.get('enabled', False):
+                    self._add_timestamp(main_ax, timestamp_config)
+                self.logger.debug("타임스탬프 설정 완료")
 
-            # 저장 (dpi 조정으로 1000x1000 크기 맞추기)
-            width_inches = fig.get_size_inches()[0]  # 메인 플롯의 실제 너비
-            dpi = 1000 / (width_inches)  # 1000px 위해 필요한 dpi 계산
-            
-            format = self.config_manager.get_output_format(map_id)
-            plt.savefig(output_path,
-                       bbox_inches='tight',
-                       pad_inches=0,
-                       dpi=dpi,
-                       facecolor='none',  # 배경색을 none으로 변경
-                       transparent=True,
-                       format=format)
-            plt.close()
-            
-            # 생성 시간 정보 업데이트
-            timestamp_end = time.time_ns()
-            generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            generation_duration = f'{((timestamp_end - timestamp_start)/1000000000):.3f}s'
-            
-            self.save_generation_time(map_id, generation_time, generation_duration)
-            
-            return {
-                'success': True,
-                'error': '',
-                'time': generation_time,
-                'duration': generation_duration
-            }
+                # 축 설정
+                self.logger.debug("축 설정 시작")
+                main_ax.set_aspect('equal')
+                main_ax.axis('off')
+                self.logger.debug("축 설정 완료")
+
+                # 저장 (dpi 조정으로 1000x1000 크기 맞추기)
+                self.logger.debug("이미지 저장 시작")
+                width_inches = fig.get_size_inches()[0]
+                dpi = 1000 / width_inches
+                
+                format = self.config_manager.get_output_format(map_id)
+                plt.savefig(output_path,
+                           bbox_inches='tight',
+                           pad_inches=0,
+                           dpi=dpi,
+                           facecolor='none',
+                           transparent=True,
+                           format=format)
+                self.logger.debug("이미지 저장 완료")
+                
+                plt.close(fig)  # 메모리 정리
+                self.logger.debug("플롯 생성 완료")
+                
+                # 생성 시간 정보 업데이트
+                timestamp_end = time.time_ns()
+                generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                generation_duration = f'{((timestamp_end - timestamp_start)/1000000000):.3f}s'
+                
+                self.save_generation_time(map_id, generation_time, generation_duration)
+                
+                return {
+                    'success': True,
+                    'error': '',
+                    'time': generation_time,
+                    'duration': generation_duration
+                }
+
+            except Exception as e:
+                self.logger.error(f"플롯 생성 중 오류 발생: {str(e)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+                plt.close('all')  # 오류 발생 시에도 메모리 정리
+                raise
 
         except Exception as e:
             error_msg = f"온도맵 생성 중 오류 발생: {str(e)}"
