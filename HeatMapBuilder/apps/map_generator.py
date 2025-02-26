@@ -21,7 +21,6 @@ from shapely.geometry import Point, Polygon, MultiPolygon  #type: ignore
 from shapely.vectorized import contains  #type: ignore
 from pykrige.ok import OrdinaryKriging  #type: ignore
 import matplotlib #type: ignore
-import psutil #type: ignore
 matplotlib.use('Agg')  # GUI 없는 백엔드 강제 사용
 plt.switch_backend('Agg')
 
@@ -900,19 +899,18 @@ class MapGenerator:
                 self.logger.error(traceback.format_exc())
                 raise
 
-            # # 데이터 유효성 검사
-            # self.logger.debug("데이터 유효성 검사 시작")
-            # valid_values = np.count_nonzero(~np.isnan(grid_z))
-            # if valid_values == 0:
-            #     self.logger.warning("경고: 유효한 데이터가 없어 기본 이미지를 생성합니다.")
-            #     # 기본 그리드 생성
-            #     grid_z = np.zeros_like(grid_z)
-            #     grid_z[:] = self.gen_config.get('default_temp', -1)  # 기본값 사용
-            # else:
-            #     self.logger.debug(f"유효한 데이터 포인트: {valid_values}/{grid_z.size}")
+            # 데이터 유효성 검사
+            self.logger.debug("데이터 유효성 검사 시작")
+            valid_values = np.count_nonzero(~np.isnan(grid_z))
+            if valid_values == 0:
+                self.logger.warning("경고: 유효한 데이터가 없어 기본 이미지를 생성합니다.")
+                # 기본 그리드 생성
+                grid_z = np.zeros_like(grid_z)
+                grid_z[:] = self.gen_config.get('default_temp', -1)  # 기본값 사용
+            else:
+                self.logger.debug(f"유효한 데이터 포인트: {valid_values}/{grid_z.size}")
 
             # 플롯 생성 전 추가 로깅
-            self.logger.debug("플롯 생성 전 메모리 상태: %s", psutil.virtual_memory())
             self.logger.debug("현재 열려 있는 Figure 수: %d", len(plt.get_fignums()))
 
             # 플롯 생성
