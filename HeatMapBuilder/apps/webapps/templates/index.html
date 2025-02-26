@@ -57,6 +57,7 @@
                              src="{{ img_url }}" 
                              alt="생성된 지도" 
                              class="object-contain w-full h-full max-h-[600px]"
+                             onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                         <div class="hidden absolute inset-0 flex-col justify-center items-center bg-gray-50">
                             <div class="text-gray-500 text-lg font-medium mb-4">생성된 지도가 없습니다</div>

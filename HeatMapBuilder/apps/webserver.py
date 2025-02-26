@@ -362,80 +362,106 @@ class WebServer:
             "updated_at": datetime.now().isoformat(),
             "walls": "",
             "sensors": [],
-            "parameters": {
-                "gaussian": {
-                    "sigma_factor": 8
+            "gen_config": {
+                "auto_generation": True,
+                "colorbar": {
+                    "borderpad": 2,
+                    "cmap": "RdYlBu_r",
+                    "font_size": 8,
+                    "height": 30,
+                    "label": "(°C)",
+                    "label_color": "#000000",
+                    "location": "upper left",
+                    "max_temp": 30,
+                    "min_temp": 0,
+                    "orientation": "horizontal",
+                    "shadow_color": "#808080",
+                    "shadow_width": 0.5,
+                    "shadow_x_offset": 0.5,
+                    "shadow_y_offset": 0.5,
+                    "show_colorbar": True,
+                    "show_label": True,
+                    "show_shadow": True,
+                    "temp_steps": 70,
+                    "tick_size": 8,
+                    "width": 2
                 },
-                "rbf": {
-                    "function": "inverse",
-                    "epsilon_factor": 0.5
+                "file_name": "thermal_map",
+                "format": "png",
+                "gen_interval": 10,
+                "rotation_count": 60,
+                "timestamp": {
+                    "enabled": True,
+                    "font_color": "#000000",
+                    "font_size": 12,
+                    "format": "YYYY-MM-DD HH:mm:ss",
+                    "margin_x": 10,
+                    "margin_y": 10,
+                    "position": "bottom-right",
+                    "shadow": {
+                        "color": "#ffffff",
+                        "enabled": True,
+                        "size": 1,
+                        "x_offset": 1,
+                        "y_offset": 1
+                    }
                 },
-                "kriging": {
-                    "variogram_model": "power",
-                    "nlags": 6,
-                    "weight": True,
-                    "anisotropy_scaling": 1,
-                    "anisotropy_angle": 0,
-                    "variogram_parameters": {
-                        "scale": 1,
-                        "exponent": 1.5,
-                        "nugget": 0
+                "visualization": {
+                    "area_border_color": "#000000",
+                    "area_border_width": 7,
+                    "empty_area": "transparent",
+                    "plot_border_color": "#000000",
+                    "plot_border_width": 0,
+                    "sensor_display": "position_temp",
+                    "sensor_info_bg": {
+                        "border_color": "#000000",
+                        "border_radius": 1,
+                        "border_width": 1,
+                        "color": "#ffffff",
+                        "distance": 15,
+                        "opacity": 90,
+                        "padding": 5,
+                        "position": "top"
+                    },
+                    "sensor_marker": {
+                        "color": "#ff0000",
+                        "size": 5,
+                        "style": "circle"
+                    },
+                    "sensor_name": {
+                        "color": "#000000",
+                        "font_size": 8
+                    },
+                    "sensor_temp": {
+                        "color": "#000000",
+                        "font_size": 9
                     }
                 }
             },
-            "gen_config": {
-                "gen_interval": 5,
-                "format": "png",
-                "file_name": "thermal_map",
-                "visualization": {
-                    "empty_area": "white",
-                    "area_border_width": 7,
-                    "area_border_color": "#000000",
-                    "plot_border_width": 0,
-                    "plot_border_color": "#000000",
-                    "sensor_display": "position_temp",
-                    "sensor_info_bg": {
-                        "color": "#FFFFFF",
-                        "opacity": 70,
-                        "padding": 5,
-                        "border_radius": 4,
-                        "border_width": 1,
-                        "border_color": "#000000",
-                        "position": "right",
-                        "distance": 10
-                    },
-                    "sensor_marker": {
-                        "style": "circle",
-                        "size": 10,
-                        "color": "#FF0000"
-                    },
-                    "sensor_name": {
-                        "font_size": 12,
-                        "color": "#000000"
-                    },
-                    "sensor_temp": {
-                        "font_size": 12,
-                        "color": "#000000"
-                    }
+            "img_url": "",
+            "last_generation": {},
+            "parameters": {
+                "gaussian": {
+                    "sigma_factor": 5
                 },
-                "colorbar": {
-                    "cmap": "RdYlBu_r",
-                    "show_colorbar": True,
-                    "width": 5,
-                    "height": 80,
-                    "location": "right",
-                    "borderpad": 0,
-                    "orientation": "vertical",
-                    "show_label": True,
-                    "label": "온도 (°C)",
-                    "font_size": 10,
-                    "tick_size": 8,
-                    "label_color": "#000000",
-                    "min_temp": 0,
-                    "max_temp": 30,
-                    "temp_steps": 100
+                "kriging": {
+                    "anisotropy_angle": 0,
+                    "anisotropy_scaling": 1,
+                    "nlags": 10,
+                    "variogram_model": "gaussian",
+                    "variogram_parameters": {
+                        "nugget": 5,
+                        "range": 500,
+                        "sill": 20
+                    },
+                    "weight": True
+                },
+                "rbf": {
+                    "epsilon_factor": 0.5,
+                    "function": "gaussian"
                 }
-            }
+            },
+            "unit": None
         }
 
         self.config_manager.db.save(map_id, default_config)
