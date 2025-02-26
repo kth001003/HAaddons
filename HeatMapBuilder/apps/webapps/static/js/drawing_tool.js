@@ -128,11 +128,27 @@ export class DrawingTool {
         const Defs = this.svg.querySelector('defs');
         if (Defs) Defs.remove();
 
+        // 센서 위치 정보 저장
+        const sensorPositions = new Map();
+        if (this.uiManager.sensorManager) {
+            this.uiManager.sensorManager.sensors.forEach(sensor => {
+                if (sensor.position) {
+                    sensorPositions.set(sensor.entity_id, {
+                        position: { ...sensor.position },
+                        calibration: sensor.calibration
+                    });
+                }
+            });
+        }
+
         // 현재 인덱스 이후의 기록 제거
         this.history = this.history.slice(0, this.currentHistoryIndex + 1);
         
-        // 새로운 상태 추가
-        this.history.push(this.svg.innerHTML);
+        // 새로운 상태 추가 (SVG 내용과 센서 위치 정보)
+        this.history.push({
+            svg: this.svg.innerHTML,
+            sensorPositions: Object.fromEntries(sensorPositions)
+        });
         
         // 최대 길이 제한
         if (this.history.length > this.maxHistoryLength) {
@@ -156,12 +172,9 @@ export class DrawingTool {
             const Defs = this.svg.querySelector('defs');
             if (Defs) Defs.remove();
 
-            // 센서 마커들 임시 저장
-            const sensorMarkers = Array.from(this.svg.querySelectorAll('g[data-entity-id]'));
-            sensorMarkers.forEach(marker => marker.remove());
-
             this.currentHistoryIndex--;
-            this.svg.innerHTML = this.history[this.currentHistoryIndex];
+            const state = this.history[this.currentHistoryIndex];
+            this.svg.innerHTML = state.svg;
 
             // 마커용 defs 복원
             if (Defs) {
@@ -170,10 +183,17 @@ export class DrawingTool {
                 this.initializeDefs();
             }
 
-            // 센서 마커들 복원
-            sensorMarkers.forEach(marker => {
-                this.svg.appendChild(marker);
-            });
+            // 센서 위치 정보 복원
+            if (this.uiManager.sensorManager && state.sensorPositions) {
+                Object.entries(state.sensorPositions).forEach(([entity_id, data]) => {
+                    const sensor = this.uiManager.sensorManager.sensors.find(s => s.entity_id === entity_id);
+                    if (sensor) {
+                        sensor.position = data.position;
+                        sensor.calibration = data.calibration;
+                        this.uiManager.sensorManager.updateSensorMarker(sensor, data.position);
+                    }
+                });
+            }
 
             this.updateUndoRedoButtons();
             this.uiManager.sensorManager.parseSensorsFromSVG();
@@ -187,12 +207,9 @@ export class DrawingTool {
             const Defs = this.svg.querySelector('defs');
             if (Defs) Defs.remove();
 
-            // 센서 마커들 임시 저장
-            const sensorMarkers = Array.from(this.svg.querySelectorAll('g[data-entity-id]'));
-            sensorMarkers.forEach(marker => marker.remove());
-
             this.currentHistoryIndex++;
-            this.svg.innerHTML = this.history[this.currentHistoryIndex];
+            const state = this.history[this.currentHistoryIndex];
+            this.svg.innerHTML = state.svg;
 
             // defs 복원
             if (Defs) {
@@ -201,10 +218,17 @@ export class DrawingTool {
                 this.initializeDefs();
             }
 
-            // 센서 마커들 복원
-            sensorMarkers.forEach(marker => {
-                this.svg.appendChild(marker);
-            });
+            // 센서 위치 정보 복원
+            if (this.uiManager.sensorManager && state.sensorPositions) {
+                Object.entries(state.sensorPositions).forEach(([entity_id, data]) => {
+                    const sensor = this.uiManager.sensorManager.sensors.find(s => s.entity_id === entity_id);
+                    if (sensor) {
+                        sensor.position = data.position;
+                        sensor.calibration = data.calibration;
+                        this.uiManager.sensorManager.updateSensorMarker(sensor, data.position);
+                    }
+                });
+            }
 
             this.updateUndoRedoButtons();
             this.uiManager.sensorManager.parseSensorsFromSVG();

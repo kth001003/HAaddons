@@ -403,16 +403,26 @@ class MapGenerator:
         """멀티프로세싱용 area 처리 함수"""
         area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, area_sensors, parameters = args
         
-        area_temps = MapGenerator._calculate_area_temperature_static(
-            area_idx, area, grid_points, grid_x, grid_y,
-            min_x, max_x, min_y, max_y, area_sensors, parameters
-        )
-        
-        # area 마스크 생성
-        pmask = np.array(contains(area['polygon'], grid_points[:, 0], grid_points[:, 1]))
-        area_mask = pmask.reshape(grid_x.shape)
-        
-        return area_idx, area_temps, area_mask
+        try:
+            print(f"[프로세스] Area {area_idx} 처리 시작")  # 프로세스 내부 로그
+            area_temps = MapGenerator._calculate_area_temperature_static(
+                area_idx, area, grid_points, grid_x, grid_y,
+                min_x, max_x, min_y, max_y, area_sensors, parameters
+            )
+            print(f"[프로세스] Area {area_idx} 온도 계산 완료")  # 프로세스 내부 로그
+            
+            # area 마스크 생성
+            pmask = np.array(contains(area['polygon'], grid_points[:, 0], grid_points[:, 1]))
+            area_mask = pmask.reshape(grid_x.shape)
+            print(f"[프로세스] Area {area_idx} 마스크 생성 완료")  # 프로세스 내부 로그
+            
+            return area_idx, area_temps, area_mask
+            
+        except Exception as e:
+            print(f"[프로세스] Area {area_idx} 처리 중 오류 발생: {str(e)}")  # 프로세스 내부 로그
+            import traceback
+            print(traceback.format_exc())  # 프로세스 내부 로그
+            raise
 
     def _get_polygon_coords(self, geom) -> List[Tuple[np.ndarray, np.ndarray]]:
         """폴리곤 또는 멀티폴리곤에서 좌표를 추출합니다."""
@@ -817,22 +827,42 @@ class MapGenerator:
             
             # 멀티프로세싱 설정
             num_processes = min(cpu_count(), len(self.areas))
+            self.logger.debug(f"멀티프로세싱 시작: {num_processes}개의 프로세스 사용")
             
             # 프로세스 풀 생성 및 작업 실행
-            with Pool(processes=num_processes) as pool:
-                # 작업 인자 준비
-                process_args = [
-                    (area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, 
-                     self.area_sensors, self.parameters)
-                    for area_idx, area in enumerate(self.areas)
-                ]
-                
-                # 병렬 처리 실행
-                results = pool.map(self._process_area_static, process_args)
-                
-                # 결과 처리
-                for area_idx, area_temps, area_mask in results:
-                    grid_z[area_mask] = area_temps
+            try:
+                self.logger.debug("프로세스 풀 생성 시작")
+                with Pool(processes=num_processes) as pool:
+                    # 작업 인자 준비
+                    self.logger.debug("작업 인자 준비 시작")
+                    process_args = [
+                        (area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, 
+                         self.area_sensors, self.parameters)
+                        for area_idx, area in enumerate(self.areas)
+                    ]
+                    self.logger.debug(f"작업 인자 준비 완료: {len(process_args)}개의 작업")
+                    
+                    # 병렬 처리 실행
+                    self.logger.debug("병렬 처리 시작")
+                    results = []
+                    for i, result in enumerate(pool.imap_unordered(self._process_area_static, process_args)):
+                        self.logger.debug(f"Area 처리 완료 ({i+1}/{len(process_args)})")
+                        results.append(result)
+                    
+                    # 결과 처리
+                    self.logger.debug("결과 처리 시작")
+                    for area_idx, area_temps, area_mask in results:
+                        self.logger.debug(f"Area {area_idx} 결과 적용 중")
+                        grid_z[area_mask] = area_temps
+                        self.logger.debug(f"Area {area_idx} 결과 적용 완료")
+                    
+                    self.logger.debug("모든 area 처리 완료")
+                    
+            except Exception as e:
+                self.logger.error(f"멀티프로세싱 처리 중 오류 발생: {str(e)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+                raise
 
             # 플롯 생성
             fig = plt.figure(figsize=(10, 10))  # 전체 figure 크기

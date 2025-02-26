@@ -21,6 +21,7 @@ export class UIManager {
     }
 
     showMessage(message, type = 'info') {
+        console.log(type, message);
         const messageElement = document.createElement('div');
         messageElement.className = `px-4 py-2 rounded-lg shadow-md mx-auto max-w-lg text-center ${
             type === 'error' ? 'bg-red-500 text-white' :
@@ -79,7 +80,16 @@ export class UIManager {
                         {
                             text: '저장 안함',
                             className: 'bg-red-500 text-white hover:bg-red-600 mr-2',
-                            action: () => this.performTabSwitch(tabName)
+                            action: async() => {
+                                if (currentTab === 'map_edit') {
+                                    await this.drawingTool.clear();
+                                    await this.settingsManager.loadWalls();
+                                    await this.drawingTool.resetState();
+                                } else if (currentTab === 'settings') {
+                                    await this.settingsManager.saveAllSettings();
+                                }
+                                this.performTabSwitch(tabName);
+                            }
                         },
                         {
                             text: '저장',
@@ -117,8 +127,10 @@ export class UIManager {
         if (tabName === 'map_edit' && this.sensorManager) {
             this.showMessage('센서 로드 중...');
             this.sensorManager.loadSensors().then(() => {
-                console.log('센서 로드 완료');
                 this.showMessage('센서 로드 완료', 'success');
+                setTimeout(() => {
+                    this.drawingTool.resetState();
+                }, 100);
             }).catch(error => {
                 console.error('센서 로드 실패:', error);
                 this.showMessage('센서 로드에 실패했습니다.', 'error');

@@ -18,7 +18,8 @@ export class SensorManager {
         this.currentUnit = null; // 현재 선택된 단위
         this.filters = {
             device_class: '',
-            label: ''
+            label: '',
+            search: ''  // 검색어 필터 추가
         };
         this.uiManager = uiManager;
         this.mapId = new URLSearchParams(window.location.search).get('id');
@@ -77,8 +78,11 @@ export class SensorManager {
                 state.attributes.device_class === this.filters.device_class;
             const matchLabel = !this.filters.label ||
                 (state.labels && state.labels.includes(this.filters.label));
+            const matchSearch = !this.filters.search ||
+                state.attributes.friendly_name?.toLowerCase().includes(this.filters.search.toLowerCase()) ||
+                state.entity_id.toLowerCase().includes(this.filters.search.toLowerCase());
 
-            return matchDeviceClass && matchLabel;
+            return matchDeviceClass && matchLabel && matchSearch;
         });
     }
 
@@ -187,6 +191,7 @@ export class SensorManager {
         // 필터 이벤트 리스너 설정
         const deviceClassFilter = /** @type {HTMLSelectElement} */ (document.getElementById('filter-device-class'));
         const labelFilter = /** @type {HTMLInputElement} */ (document.getElementById('filter-label'));
+        const searchFilter = /** @type {HTMLInputElement} */ (document.getElementById('filter-sensor-name'));
 
         if (deviceClassFilter) {
             deviceClassFilter.value = this.filters.device_class;
@@ -199,6 +204,13 @@ export class SensorManager {
             labelFilter.value = this.filters.label;
             labelFilter.addEventListener('input', (e) => {
                 this.updateFilters({ label: /** @type {HTMLInputElement} */ (e.target).value });
+            });
+        }
+
+        if (searchFilter) {
+            searchFilter.value = this.filters.search;
+            searchFilter.addEventListener('input', (e) => {
+                this.updateFilters({ search: /** @type {HTMLInputElement} */ (e.target).value });
             });
         }
 

@@ -3,6 +3,9 @@ export class SettingsManager {
         this.uiManager = uiManager;
         this.lastValidCustomCmap = '';
         this.mapId = new URLSearchParams(window.location.search).get('id');
+        this.svg = null;
+        this.sensorManager = null;
+        this.drawingTool = null;
         this.initializeColorSync();
         this.initializeVariogramModel();
         this.initializeColormapControls();
@@ -495,30 +498,30 @@ export class SettingsManager {
         }
     }
 
+    async fetchConfig() {
+        const response = await fetch(`./api/load-config/${this.mapId}`);
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    }
+
     async loadConfig(svg, sensorManager, drawingTool) {
         if (!this.mapId) {
             this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
             return;
         }
-
+        this.svg = svg;
+        this.sensorManager = sensorManager;
+        this.drawingTool = drawingTool;
         try {
-            const response = await fetch(`./api/load-config/${this.mapId}`);
-            if (response.ok) {
-                const config = await response.json();
+            const config = await this.fetchConfig();
+            if (config) {
                 if (config.walls) {
-                    svg.innerHTML = svg.innerHTML + config.walls;
+                    await this.loadWalls(config.walls);
                 }
                 if (config.sensors) {
-                    config.sensors.forEach(savedSensor => {
-                        const sensor = sensorManager.sensors.find(s => s.entity_id === savedSensor.entity_id);
-                        if (sensor && savedSensor.position) {
-                            console.log("적용 전 센서:", sensor);
-                            sensor.position = savedSensor.position;
-                            sensor.calibration = savedSensor.calibration || 0;
-                            console.log("적용 후 센서:", sensor);
-                            sensorManager.updateSensorMarker(sensor, savedSensor.position);
-                        }
-                    });
+                    await this.loadSensors(config.sensors);
                 }
                 if (config.parameters) {
                     this.loadInterpolationParameters(config.parameters);
@@ -534,7 +537,29 @@ export class SettingsManager {
             this.uiManager.showMessage('설정을 불러오는데 실패했습니다.', 'error');
         }
     }
+    async loadWalls(walls) {
+        const config = walls ? { walls } : await this.fetchConfig();
+        if (config && config.walls) {
+            this.svg.innerHTML += config.walls;
+        }
+    }
 
+    async loadSensors(sensors) {
+        const config = sensors ? { sensors } : await this.fetchConfig();
+        
+        if (config && config.sensors) {
+            config.sensors.forEach(savedSensor => {
+                const sensor = this.sensorManager.sensors.find(s => s.entity_id === savedSensor.entity_id);
+                if (sensor && savedSensor.position) {
+                    console.log("적용 전 센서:", sensor);
+                    sensor.position = savedSensor.position;
+                    sensor.calibration = savedSensor.calibration || 0;
+                    console.log("적용 후 센서:", sensor);
+                    this.sensorManager.updateSensorMarker(sensor, savedSensor.position);
+                }
+            });
+        }
+    }
     async loadInterpolationParameters(params) {
         try {
             /** @type {HTMLInputElement} */ (document.getElementById('gaussian-sigma-factor')).value = params?.gaussian?.sigma_factor ?? 8.0;
