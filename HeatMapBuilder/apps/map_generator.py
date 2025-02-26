@@ -1,31 +1,25 @@
 import os
-import numpy as np  #type: ignore
-import matplotlib.pyplot as plt #type: ignore
-from matplotlib.patches import Circle, Rectangle, Polygon #type: ignore
-from matplotlib.lines import Line2D #type: ignore
-import matplotlib.patches as patches #type: ignore
-from scipy.interpolate import griddata, Rbf  #type: ignore
-from scipy.spatial import Voronoi  #type: ignore
-import xml.etree.ElementTree as ET
-from io import StringIO
-from typing import List, Dict, Tuple, Any, Optional
-from shapely.geometry import LineString, Point, Polygon, MultiPolygon  #type: ignore
-from shapely.ops import unary_union  #type: ignore
-import matplotlib.path as mpath  #type: ignore
-import matplotlib.font_manager as fm  #type: ignore
 import re
-from pykrige.ok import OrdinaryKriging  #type: ignore
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes #type: ignore
-from matplotlib.ticker import MaxNLocator #type: ignore
 import time
 from datetime import datetime
-import matplotlib.colors as mcolors #type: ignore
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes #type: ignore
-from mpl_toolkits.axes_grid1 import make_axes_locatable #type: ignore
-import matplotlib.patheffects as path_effects #type: ignore
-from shapely.vectorized import contains #type: ignore
+from io import StringIO
 from multiprocessing import Pool, cpu_count
-from functools import partial
+from typing import List, Dict, Tuple, Any, Optional
+
+import numpy as np  #type: ignore
+import matplotlib.pyplot as plt  #type: ignore
+import matplotlib.font_manager as fm  #type: ignore
+import matplotlib.patches as patches  #type: ignore
+from matplotlib.lines import Line2D  #type: ignore
+from matplotlib.patches import Circle, Rectangle, Polygon  #type: ignore
+from matplotlib.ticker import MaxNLocator  #type: ignore
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes  #type: ignore
+import matplotlib.patheffects as path_effects  #type: ignore
+from scipy.interpolate import griddata, Rbf  #type: ignore
+import xml.etree.ElementTree as ET
+from shapely.geometry import Point, Polygon, MultiPolygon  #type: ignore
+from shapely.vectorized import contains  #type: ignore
+from pykrige.ok import OrdinaryKriging  #type: ignore
 
 class MapGenerator:
     def __init__(self, config_manager, sensor_manager, logger):
@@ -50,7 +44,6 @@ class MapGenerator:
 
         # 한글 폰트 설정
         self._setup_korean_font()
-        self.logger.info("ThermalMapGenerator 초기화됨")
 
     def _setup_korean_font(self):
         """한글 폰트를 설정합니다."""
@@ -731,7 +724,7 @@ class MapGenerator:
             if output_dir and not os.path.exists(output_dir):
                 try:
                     os.makedirs(output_dir, exist_ok=True)
-                    self.logger.info(f"출력 디렉토리 생성 완료: {output_dir}")
+                    self.logger.debug(f"출력 디렉토리 생성 완료: {output_dir}")
                 except Exception as dir_error:
                     error_msg = f"출력 디렉토리 생성 실패 ({output_dir}): {str(dir_error)}"
                     self.logger.error(error_msg)
@@ -754,34 +747,34 @@ class MapGenerator:
 
             try:
                 # 센서 상태 조회를 현재 이벤트 루프에서 실행
-                self.logger.info("센서 상태 조회 시작")
+                self.logger.debug("센서 상태 조회 시작")
                 start_time = time.time()
                 
                 # 웹소켓 연결 상태 확인
-                self.logger.info("웹소켓 연결 상태 확인 중...")
+                self.logger.debug("웹소켓 연결 상태 확인 중...")
                 websocket_client = self.sensor_manager.websocket_client
                 if hasattr(websocket_client, 'message_id'):
-                    self.logger.info(f"현재 웹소켓 클라이언트 message_id: {websocket_client.message_id}")
+                    self.logger.debug(f"현재 웹소켓 클라이언트 message_id: {websocket_client.message_id}")
                 
                 # 센서 상태 조회 실행 전 웹소켓 클라이언트 상태 확인
-                self.logger.info("센서 상태 조회 실행 전 웹소켓 클라이언트 상태:")
+                self.logger.debug("센서 상태 조회 실행 전 웹소켓 클라이언트 상태:")
                 if hasattr(websocket_client, 'websocket'):
-                    self.logger.info(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
+                    self.logger.debug(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
                 
                 # 센서 상태 조회 실행
-                self.logger.info("센서 상태 조회 실행 시작...")
+                self.logger.debug("센서 상태 조회 실행 시작...")
                 all_states = await self.sensor_manager.get_all_states()
                 elapsed_time = time.time() - start_time
                 
                 # 센서 상태 조회 후 웹소켓 클라이언트 상태 확인
-                self.logger.info("센서 상태 조회 후 웹소켓 클라이언트 상태:")
+                self.logger.debug("센서 상태 조회 후 웹소켓 클라이언트 상태:")
                 if hasattr(websocket_client, 'message_id'):
-                    self.logger.info(f"센서 상태 조회 후 message_id: {websocket_client.message_id}")
+                    self.logger.debug(f"센서 상태 조회 후 message_id: {websocket_client.message_id}")
                 if hasattr(websocket_client, 'websocket'):
-                    self.logger.info(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
+                    self.logger.debug(f"웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
 
                 if all_states:
-                    self.logger.info(f"센서 상태 조회 완료: {len(all_states)}개 센서, 소요시간: {elapsed_time:.3f}초")
+                    self.logger.debug(f"센서 상태 조회 완료: {len(all_states)}개 센서, 소요시간: {elapsed_time:.3f}초")
                     states_dict = {state['entity_id']: state for state in all_states}
                 else:
                     self.logger.error(f"센서 상태 조회 실패: 결과가 비어있음 (소요시간: {elapsed_time:.3f}초)")

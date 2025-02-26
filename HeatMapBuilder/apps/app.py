@@ -64,14 +64,10 @@ class BackgroundTaskManager:
         """열지도 생성 로직"""
         if self.map_lock.acquire(blocking=False):  # 락 획득 시도
             try:
-                self.logger.info(f"맵 생성 시작: {map_id}")
+                self.logger.debug(f"맵 생성 시작: {map_id}")
                 
                 # 웹소켓 클라이언트 상태 로깅
                 websocket_client = self.sensor_manager.websocket_client
-                if hasattr(websocket_client, 'message_id'):
-                    self.logger.info(f"맵 생성 시작 시 message_id: {websocket_client.message_id}")
-                if hasattr(websocket_client, 'websocket'):
-                    self.logger.info(f"맵 생성 시작 시 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")
                 _output_path = self.config_manager.get_output_path(map_id)
                 # 기존 이미지가 있다면 로테이션 수행
                 if os.path.exists(_output_path):
@@ -86,12 +82,6 @@ class BackgroundTaskManager:
                 # 소요 시간 계산
                 elapsed_time = time.time() - start_time
                 self.logger.info(f"맵 생성 완료: {map_id}, 성공 여부: {success}, 소요시간: {elapsed_time:.3f}초")
-                
-                # 맵 생성 후 웹소켓 클라이언트 상태 로깅
-                if hasattr(websocket_client, 'message_id'):
-                    self.logger.info(f"맵 생성 완료 후 message_id: {websocket_client.message_id}")
-                if hasattr(websocket_client, 'websocket'):
-                    self.logger.info(f"맵 생성 완료 후 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")                
                 if not success:
                     raise Exception(error_msg)
                 return success
@@ -102,14 +92,14 @@ class BackgroundTaskManager:
                 raise e
             finally:
                 self.map_lock.release()  # 락 해제
-                self.logger.info(f"맵 생성 락 해제: {map_id}")
+                self.logger.debug(f"맵 생성 락 해제: {map_id}")
         else:
-            self.logger.info("다른 프로세스가 열지도를 생성 중입니다. 이번 생성은 건너뜁니다.")
+            self.logger.debug("다른 프로세스가 열지도를 생성 중입니다. 이번 생성은 건너뜁니다.")
             return False
 
     def run(self):
         """백그라운드 작업 실행"""
-        self.logger.info("백그라운드 작업 스레드 시작")
+        self.logger.debug("백그라운드 작업 스레드 시작")
         
         # 이벤트 루프 생성 (스레드당 하나의 이벤트 루프 사용)
         loop = asyncio.new_event_loop()
@@ -117,59 +107,30 @@ class BackgroundTaskManager:
         
         # 생성된 이벤트 루프의 ID 로깅 (디버깅 목적)
         loop_id = id(loop)
-        self.logger.info(f"백그라운드 작업용 이벤트 루프 생성 (ID: {loop_id})")
+        self.logger.debug(f"백그라운드 작업용 이벤트 루프 생성 (ID: {loop_id})")
         
         try:
-            # 연결 체크 간격 (초)
-            connection_check_interval = 300  # 5분마다 연결 상태 확인
-            last_connection_check = time.time()
-            
             while self.running:
                 try:
                     current_time = time.time()
                     
-                    # 주기적으로 연결 상태 확인
-                    if current_time - last_connection_check >= connection_check_interval:
-                        self.logger.info("주기적 웹소켓 연결 상태 확인 중...")
-                        # 현재 사용 중인 이벤트 루프 확인
-                        try:
-                            current_loop = asyncio.get_running_loop()
-                            if current_loop != loop:
-                                self.logger.warning(f"이벤트 루프가 변경됨: 원래={loop_id}, 현재={id(current_loop)}")
-                                # 다시 원래 루프 설정
-                                asyncio.set_event_loop(loop)
-                        except RuntimeError:
-                            # 실행 중인 이벤트 루프가 없으면 기존 루프 설정
-                            asyncio.set_event_loop(loop)
-                            self.logger.info("이벤트 루프 재설정됨")
-                        
-                        is_connected = loop.run_until_complete(self.sensor_manager.check_connection())
-                        
-                        if not is_connected:
-                            self.logger.warning("웹소켓 연결이 끊어졌습니다. 재연결 시도 중...")
-                            loop.run_until_complete(self.sensor_manager.initialize_connection())
-                        
-                        last_connection_check = current_time
-                    
-                    # 웹소켓 클라이언트 상태 로깅
-                    websocket_client = self.sensor_manager.websocket_client
-                    if hasattr(websocket_client, 'message_id'):
-                        self.logger.info(f"백그라운드 작업 루프 시작 시 message_id: {websocket_client.message_id}")
-                    if hasattr(websocket_client, 'websocket'):
-                        self.logger.info(f"백그라운드 작업 루프 시작 시 웹소켓 연결 상태: {'연결됨' if websocket_client.websocket else '연결 안됨'}")                    
                     # 모든 맵 정보를 가져옴
                     maps = self.config_manager.db.load()
-                    self.logger.info(f"맵 정보 로드 완료: {len(maps)}개 맵")
-
                     for map_id, map_data in maps.items():
                         try:
                             # 맵의 생성 설정 가져오기
                             gen_config = map_data.get('gen_config', {})
                             gen_interval = gen_config.get('gen_interval', 5) * 60  # 기본값 5분
-                            map_name = map_data.get('name', '')
-                            
+                            map_name = map_data.get('name', '이름 없음')
+                                
                             # 자동 맵 생성 설정 확인
                             auto_generation = gen_config.get('auto_generation', False)  # 기본값은 비활성화
+                            self.logger.debug("---맵 이름:%s, 맵 ID:%s, 자동생성:%s, 생성주기:%s", 
+                                            self.logger._colorize(map_name, "blue"),
+                                            map_id,
+                                            self.logger._colorize(auto_generation, "green"),
+                                            self.logger._colorize(gen_interval, "yellow"))
+                            
                             if not auto_generation:
                                 continue
                                 
@@ -181,16 +142,12 @@ class BackgroundTaskManager:
                                 walls = map_data.get('walls', '')
                                 sensors = map_data.get('sensors', [])
                                 if not walls or not sensors: # 벽 또는 센서 데이터가 없으면 건너뜀
-                                    self.logger.info(f"맵 {map_name} ({map_id}): 벽 또는 센서 데이터 없음, 생성 건너뜀")
+                                    self.logger.debug(f"맵 {map_name} ({map_id}): 벽 또는 센서 데이터 없음, 생성 건너뜀")
                                     continue 
 
-                                self.logger.info("백그라운드 맵 생성 시작 %s (%s)",
-                                                self.logger._colorize(map_name, "blue"),
-                                                self.logger._colorize(map_id, "yellow"))
-                                
-                                # 현재 맵으로 설정
-                                self.config_manager.current_map_id = map_id
-                                
+                                self.logger.debug("백그라운드 맵 생성 시작 %s (%s)",
+                                                self.logger._colorize(map_name, "blue"), map_id)
+                                                                
                                 # 맵 생성 전 연결 상태 확인 (현재 이벤트 루프 확인)
                                 try:
                                     current_loop = asyncio.get_running_loop()
@@ -201,28 +158,20 @@ class BackgroundTaskManager:
                                 except RuntimeError:
                                     # 실행 중인 이벤트 루프가 없으면 기존 루프 설정
                                     asyncio.set_event_loop(loop)
-                                    self.logger.info("맵 생성 전 이벤트 루프 재설정됨")
-                                
-                                is_connected = loop.run_until_complete(self.sensor_manager.check_connection())
-                                if not is_connected:
-                                    self.logger.warning("맵 생성 전 웹소켓 연결이 끊어졌습니다. 재연결 시도 중...")
-                                    reconnection_result = loop.run_until_complete(self.sensor_manager.initialize_connection())
-                                    if not reconnection_result:
-                                        self.logger.error("웹소켓 재연결 실패로 맵 생성을 건너뜁니다.")
-                                        continue
-                                
+                                    self.logger.debug("맵 생성 전 이벤트 루프 재설정됨")
+                                                                
                                 try:
                                     # 맵 생성 태스크 실행 (기존 이벤트 루프 사용)
                                     if loop.run_until_complete(self.generate_map(map_id)):
                                         self.logger.info("백그라운드 맵 생성 완료 %s (%s) (소요시간: %s)",
                                                         self.logger._colorize(map_name, "blue"),
-                                                        self.logger._colorize(map_id, "yellow"),
+                                                        map_id,
                                                         self.logger._colorize(self.map_generator.generation_duration, "green"))
                                         self.map_timers[map_id] = current_time
                                     else:
                                         self.logger.error("백그라운드 맵 생성 실패 %s (%s)",
                                                         self.logger._colorize(map_name, "blue"),
-                                                        self.logger._colorize(map_id, "yellow"))
+                                                        map_id)
                                 except Exception as e:
                                     self.logger.error("맵 생성 중 오류 발생: %s",
                                                     self.logger._colorize(str(e), "red"))
@@ -236,7 +185,6 @@ class BackgroundTaskManager:
                             continue
 
                     # 다음 실행 전 대기
-                    self.logger.info("다음 백그라운드 작업 실행 전 1분 대기")
                     time.sleep(60)  # 1분 대기
                     
                 except Exception as e:
@@ -248,7 +196,7 @@ class BackgroundTaskManager:
             # 스레드 종료 시 이벤트 루프 정리
             try:
                 # 웹소켓 연결 종료
-                loop.run_until_complete(self.sensor_manager.close())
+                loop.run_until_complete(self.sensor_manager.websocket_client.close())
                 
                 # 실행 중인 모든 태스크 가져오기
                 pending = asyncio.all_tasks(loop)
@@ -281,7 +229,7 @@ class BackgroundTaskManager:
                     loop.run_until_complete(asyncio.sleep(0.1))  # 잠시 대기하여 태스크 정리 시간 제공
                     loop.stop()
                     loop.close()
-                    self.logger.info(f"백그라운드 작업용 이벤트 루프 종료 (ID: {loop_id})")
+                    self.logger.debug(f"백그라운드 작업용 이벤트 루프 종료 (ID: {loop_id})")
                 except Exception as close_error:
                     self.logger.error(f"이벤트 루프 종료 중 오류 발생: {str(close_error)}")
                     import traceback
@@ -294,7 +242,6 @@ if __name__ == '__main__':
             CONFIG = json.load(file)
     except:
         is_local = True
-        CONFIG = {"img_generation_interval_in_minutes": 5}
     config_manager = ConfigManager(is_local, CONFIG)
     log_level = str(CONFIG.get('log_level', 'debug')).upper()
     # 로그 디렉토리 생성 
@@ -308,81 +255,50 @@ if __name__ == '__main__':
     supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
     try:
         # 메인 스레드에서 이벤트 루프 생성 및 설정
-        logger.info("메인 이벤트 루프 생성 시작")
+        logger.debug("메인 이벤트 루프 생성 시작")
         try:
             # 이미 실행 중인 이벤트 루프가 있는지 확인
             loop = asyncio.get_running_loop()
-            logger.info("기존 이벤트 루프 사용")
+            logger.debug("기존 이벤트 루프 사용")
         except RuntimeError:
             # 실행 중인 이벤트 루프가 없으면 새로 생성
-            logger.info("새 이벤트 루프 생성")
+            logger.debug("새 이벤트 루프 생성")
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
         # 이벤트 루프 정책 설정 (운영체제에 맞게 최적화된 정책 사용)
         if hasattr(asyncio, 'WindowsSelectorEventLoopPolicy') and os.name == 'nt':
             # Windows 환경인 경우
-            logger.info("Windows 환경에 맞는 이벤트 루프 정책 설정")
+            logger.debug("Windows 환경에 맞는 이벤트 루프 정책 설정")
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         
-        logger.info("메인 이벤트 루프 ID: %s", id(loop))
+        logger.debug("메인 이벤트 루프 ID: %s", id(loop))
         
-        logger.info("SensorManager 및 웹소켓 클라이언트 초기화 시작")
+        logger.debug("SensorManager 및 웹소켓 클라이언트 초기화 시작")
         sensor_manager = SensorManager(is_local, config_manager, logger, supervisor_token)
-        logger.info("SensorManager 및 웹소켓 클라이언트 초기화 완료")
+        logger.debug("SensorManager 및 웹소켓 클라이언트 초기화 완료")
         
-        # 웹소켓 연결 초기화 (비동기 함수를 동기적으로 실행)
-        logger.info("웹소켓 연결 초기화 시작")
-        
-        # 웹소켓 연결 초기화를 위한 명시적 호출
-        logger.info("웹소켓 연결 시도 중...")
-        try:
-            connection_success = loop.run_until_complete(sensor_manager.initialize_connection())
-            if connection_success:
-                logger.info("웹소켓 연결 초기화 성공")
-            else:
-                logger.warning("웹소켓 연결 초기화 실패, 애플리케이션은 계속 실행됩니다")
-        except Exception as e:
-            logger.error(f"웹소켓 연결 초기화 중 예외 발생: {str(e)}")
-            import traceback
-            logger.error(traceback.format_exc())
-            logger.warning("예외 발생에도 불구하고 애플리케이션은 계속 실행됩니다")
-        
-        logger.info("MapGenerator 초기화 시작")
+        logger.debug("MapGenerator 초기화 시작")
         map_generator = MapGenerator(config_manager, sensor_manager, logger)
-        logger.info("MapGenerator 초기화 완료")
+        logger.debug("MapGenerator 초기화 완료")
         
-        logger.info("WebServer 초기화 시작")
+        logger.debug("WebServer 초기화 시작")
         server = WebServer(config_manager,sensor_manager,map_generator,logger)
-        logger.info("WebServer 초기화 완료")
+        logger.debug("WebServer 초기화 완료")
         
-        logger.info("BackgroundTaskManager 초기화 시작")
+        logger.debug("BackgroundTaskManager 초기화 시작")
         background_task_manager = BackgroundTaskManager(logger,config_manager,sensor_manager,map_generator)
-        logger.info("BackgroundTaskManager 초기화 완료")
+        logger.debug("BackgroundTaskManager 초기화 완료")
 
-        # 백그라운드 작업 시작 전 웹소켓 연결 확인
-        logger.info("백그라운드 작업 시작 전 웹소켓 연결 상태 확인")
-        try:
-            conn_check = loop.run_until_complete(sensor_manager.check_connection())
-            if not conn_check:
-                logger.warning("웹소켓 연결이 활성화되지 않음, 재연결 시도")
-                reconnect_result = loop.run_until_complete(sensor_manager.initialize_connection())
-                if reconnect_result:
-                    logger.info("웹소켓 재연결 성공")
-                else:
-                    logger.warning("웹소켓 재연결 실패, 백그라운드 작업은 계속 실행됩니다")
-        except Exception as e:
-            logger.error(f"웹소켓 연결 확인 중 예외 발생: {str(e)}")
-            logger.warning("예외 발생에도 불구하고 백그라운드 작업은 계속 실행됩니다")
-        
+        # 백그라운드 작업 시작
         background_task_manager.start()
-        logger.info("백그라운드 작업 시작됨")
+        logger.debug("백그라운드 작업 시작됨")
 
         try:
             server.run()
         finally:
             background_task_manager.stop()
-            logger.info("백그라운드 작업 중지됨")
+            logger.debug("백그라운드 작업 중지됨")
             
             # 메인 이벤트 루프 정리
             try:
@@ -407,7 +323,7 @@ if __name__ == '__main__':
                 # 이벤트 루프 종료
                 loop.stop()
                 loop.close()
-                logger.info("메인 이벤트 루프 종료")
+                logger.debug("메인 이벤트 루프 종료")
             except Exception as loop_cleanup_error:
                 logger.error(f"이벤트 루프 정리 중 오류: {str(loop_cleanup_error)}")
                 

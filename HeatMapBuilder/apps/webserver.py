@@ -137,7 +137,7 @@ class WebServer:
             finally:
                 try:
                     # 웹소켓 연결 종료
-                    await self.sensor_manager.close()
+                    await self.sensor_manager.websocket_client.close()
                 except Exception as close_error:
                     self.app.logger.error(f"웹소켓 연결 종료 중 오류 발생: {str(close_error)}")
                 finally:
@@ -587,7 +587,7 @@ class WebServer:
     async def get_previous_maps(self, map_id=None):
         """이전 생성 이미지 목록을 반환합니다."""
         try:
-            self.logger.info(f"get_previous_maps 호출: map_id={map_id}")
+            self.logger.debug(f"get_previous_maps 호출: map_id={map_id}")
             if map_id is None:
                 return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
                 
@@ -621,7 +621,7 @@ class WebServer:
             
             # 인덱스 기준으로 정렬 (작은 숫자가 최신)
             previous_maps.sort(key=lambda x: x['index'])
-            self.logger.info(f"이전 맵 목록: {previous_maps}")
+            self.logger.debug(f"이전 맵 목록: {previous_maps}")
             return jsonify({
                 'status': 'success',
                 'previous_maps': previous_maps
