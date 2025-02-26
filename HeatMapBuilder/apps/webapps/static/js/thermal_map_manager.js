@@ -4,7 +4,10 @@ export class ThermalMapManager {
         this.mapId = new URLSearchParams(window.location.search).get('id');
         this.thermalMapImage = /** @type {HTMLImageElement} */ (document.getElementById('thermal-map-img'));
         this.mapGenerationTime = document.getElementById('map-generation-time');
+        this.mapGenerationElapsed = document.getElementById('map-generation-elapsed');
         this.mapGenerationDuration = document.getElementById('map-generation-duration');
+        this.nextGenerationTime = document.getElementById('next-generation-time');
+        this.autoGenerationStatus = document.getElementById('auto-generation-status');
         this.mapGenerationButton = /** @type {HTMLButtonElement} */ (document.getElementById('generate-now'));
         this.copyImageUrlBtn = document.getElementById('copy-image-url');
 
@@ -49,6 +52,58 @@ export class ThermalMapManager {
 
         // 10초마다 지도 자동 새로고침
         setInterval(() => this.checkAndRefreshMap(), 10000);
+        
+        // 1분마다 경과 시간 업데이트
+        setInterval(() => this.updateElapsedTime(), 60000);
+        
+        // 초기 상태 업데이트
+        this.updateAutoGenerationStatus();
+        this.updateElapsedTime();
+    }
+
+    async updateAutoGenerationStatus() {
+        if (!this.mapId || !this.autoGenerationStatus) return;
+
+        try {
+            const response = await fetch(`./api/load-config/${this.mapId}`);
+            const config = await response.json();
+            const autoGeneration = config.gen_config?.auto_generation || false;
+            
+            this.autoGenerationStatus.textContent = autoGeneration ? '켜짐' : '꺼짐';
+            this.autoGenerationStatus.className = 'font-medium ' + 
+                (autoGeneration ? 'text-green-600' : 'text-gray-500');
+        } catch (error) {
+            console.error('자동생성 상태 확인 중 오류:', error);
+            this.autoGenerationStatus.textContent = '확인 실패';
+            this.autoGenerationStatus.className = 'font-medium text-red-500';
+        }
+    }
+
+    updateElapsedTime() {
+        if (!this.mapGenerationTime || !this.mapGenerationElapsed) return;
+
+        const generationTime = new Date(this.mapGenerationTime.textContent);
+        if (isNaN(generationTime.getTime())) {
+            this.mapGenerationElapsed.textContent = '';
+            return;
+        }
+
+        const now = new Date();
+        const diffMinutes = Math.floor((now - generationTime) / (60 * 1000));
+        
+        if (diffMinutes < 1) {
+            this.mapGenerationElapsed.textContent = '(방금 전)';
+        } else if (diffMinutes < 60) {
+            this.mapGenerationElapsed.textContent = `(${diffMinutes}분 전)`;
+        } else {
+            const hours = Math.floor(diffMinutes / 60);
+            if (hours < 24) {
+                this.mapGenerationElapsed.textContent = `(${hours}시간 전)`;
+            } else {
+                const days = Math.floor(hours / 24);
+                this.mapGenerationElapsed.textContent = `(${days}일 전)`;
+            }
+        }
     }
 
     async refreshThermalMap() {
@@ -74,6 +129,15 @@ export class ThermalMapManager {
                 if (this.mapGenerationDuration) {
                     this.mapGenerationDuration.textContent = data.duration;
                 }
+                
+                // 경과 시간 초기화
+                this.updateElapsedTime();
+                
+                // 다음 생성 예정 시각 업데이트
+                this.updateNextGenerationTime();
+                
+                // 자동생성 상태 업데이트
+                this.updateAutoGenerationStatus();
                 
                 this.uiManager.showMessage('지도를 새로 생성했습니다.', 'success');
                 
@@ -114,10 +178,58 @@ export class ThermalMapManager {
                     if (this.mapGenerationDuration) {
                         this.mapGenerationDuration.textContent = data.duration;
                     }
+                    
+                    // 경과 시간 업데이트
+                    this.updateElapsedTime();
+                    
+                    // 다음 생성 예정 시각 업데이트
+                    this.updateNextGenerationTime();
+                    
+                    // 자동생성 상태 업데이트
+                    this.updateAutoGenerationStatus();
                 }
             }
         } catch (error) {
             console.error('지도 시간 확인 중 오류:', error);
+        }
+    }
+
+    async updateNextGenerationTime() {
+        if (!this.mapId || !this.nextGenerationTime || !this.mapGenerationTime) return;
+
+        try {
+            // 맵 설정 로드
+            const response = await fetch(`./api/load-config/${this.mapId}`);
+            const config = await response.json();
+            // 자동 생성 여부 가져오기
+            const autoGeneration = config.gen_config?.auto_generation || false;
+            if (!autoGeneration) {
+                this.nextGenerationTime.textContent = '자동생성 꺼져있음';
+                return;
+            }
+            
+            // 생성 주기 (분) 가져오기
+            const genInterval = config.gen_config?.gen_interval || 15;
+            
+            // 마지막 생성 시각
+            const lastGenTime = new Date(this.mapGenerationTime.textContent);
+            
+            // 다음 생성 예정 시각 계산
+            const nextGenTime = new Date(lastGenTime.getTime() + genInterval * 60 * 1000);
+            
+            // 현재 시각과의 차이 계산
+            const now = new Date();
+            const diffMinutes = Math.round((nextGenTime - now) / (60 * 1000));
+            
+            // 표시
+            if (diffMinutes <= 0) {
+                this.nextGenerationTime.textContent = '곧 생성 예정';
+            } else {
+                this.nextGenerationTime.textContent = `${nextGenTime.toLocaleTimeString()} (${diffMinutes}분 후)`;
+            }
+        } catch (error) {
+            console.error('다음 생성 시각 계산 중 오류:', error);
+            this.nextGenerationTime.textContent = '다음 생성시각 계산 오류';
         }
     }
 

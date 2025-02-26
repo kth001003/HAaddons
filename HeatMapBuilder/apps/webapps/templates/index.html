@@ -67,12 +67,23 @@
                     <div class="lg:w-64 space-y-4">
                         <div class="p-4 bg-gray-50 rounded-lg space-y-3">
                             <div>
+                                <div class="text-sm text-gray-500">자동생성</div>
+                                <div id="auto-generation-status" class="font-medium">-</div>
+                            </div>
+                            <div>
                                 <div class="text-sm text-gray-500">생성 시각</div>
-                                <div id="map-generation-time" class="font-medium">{{map_generation_time}}</div>
+                                <div>
+                                    <span id="map-generation-time" class="font-medium">{{map_generation_time}}</span>
+                                    <span id="map-generation-elapsed" class="text-sm text-gray-500 ml-1"></span>
+                                </div>
                             </div>
                             <div>
                                 <div class="text-sm text-gray-500">생성 소요 시간</div>
                                 <div id="map-generation-duration" class="font-medium">{{map_generation_duration}}</div>
+                            </div>
+                            <div>
+                                <div class="text-sm text-gray-500">다음 생성 예정</div>
+                                <div id="next-generation-time" class="font-medium">-</div>
                             </div>
                             <div>
                                 <div class="text-sm text-gray-500 mb-2">이미지 주소</div>
