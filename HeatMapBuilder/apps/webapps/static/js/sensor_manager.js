@@ -23,6 +23,7 @@ export class SensorManager {
         };
         this.uiManager = uiManager;
         this.mapId = new URLSearchParams(window.location.search).get('id');
+        this.debounceTimer = null;  // 디바운스 타이머 추가
 
         // SVG viewBox 파싱
         const viewBox = this.svg.getAttribute('viewBox');
@@ -66,9 +67,21 @@ export class SensorManager {
 
     // 필터 설정 업데이트
     updateFilters(newFilters) {
-        this.filters = { ...this.filters, ...newFilters };
-        this.applyFilters();
-        this.updateSensorList();
+        // 이전 타이머가 있다면 취소
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+        }
+
+        // 새로운 필터 값을 임시 저장
+        const updatedFilters = { ...this.filters, ...newFilters };
+
+        // 0.5초 후에 필터 적용
+        this.debounceTimer = setTimeout(() => {
+            this.filters = updatedFilters;
+            this.applyFilters();
+            this.updateSensorList();
+            this.debounceTimer = null;
+        }, 300);
     }
 
     // 필터 적용 메서드
