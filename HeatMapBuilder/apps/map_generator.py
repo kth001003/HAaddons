@@ -848,37 +848,9 @@ class MapGenerator:
                     # 병렬 처리 실행
                     self.logger.debug("병렬 처리 시작")
                     results = []
-                    timeout_seconds = 5  # 5초 타임아웃
-                    max_retries = 3  # 최대 재시도 횟수
-                    failed_tasks = []  # 실패한 작업 목록
-                    
-                    # 첫 번째 시도
-                    remaining_args = process_args.copy()
-                    retry_count = 0
-                    
-                    while remaining_args and retry_count < max_retries:
-                        current_tasks = remaining_args
-                        remaining_args = []  # 다음 재시도를 위한 실패 작업 목록
-                        
-                        try:
-                            for i, result in enumerate(pool.imap_unordered(self._process_area_static, current_tasks, timeout=timeout_seconds)):
-                                self.logger.debug(f"Area 처리 완료 ({i+1}/{len(current_tasks)})")
-                                results.append(result)
-                        except TimeoutError as te:
-                            self.logger.warning(f"일부 Area 처리 중 타임아웃 발생 (시도 {retry_count + 1}/{max_retries})")
-                            # 타임아웃된 작업을 remaining_args에 추가
-                            remaining_args = current_tasks[len(results):]
-                        
-                        if remaining_args:
-                            retry_count += 1
-                            if retry_count < max_retries:
-                                self.logger.info(f"{len(remaining_args)}개의 작업 재시도 중... (시도 {retry_count + 1}/{max_retries})")
-                            else:
-                                failed_tasks.extend(remaining_args)
-                                self.logger.error(f"{len(failed_tasks)}개의 작업이 최대 재시도 횟수를 초과했습니다.")
-                    
-                    if failed_tasks:
-                        raise TimeoutError(f"{len(failed_tasks)}개의 Area가 {timeout_seconds}초 제한시간 내에 처리되지 못했습니다.")
+                    for i, result in enumerate(pool.imap_unordered(self._process_area_static, process_args)):
+                        self.logger.debug(f"Area 처리 완료 ({i+1}/{len(process_args)})")
+                        results.append(result)
                     
                     # 결과 처리
                     self.logger.debug("결과 처리 시작")
@@ -898,17 +870,6 @@ class MapGenerator:
                 import traceback
                 self.logger.error(traceback.format_exc())
                 raise
-
-            # 데이터 유효성 검사
-            self.logger.debug("데이터 유효성 검사 시작")
-            valid_values = np.count_nonzero(~np.isnan(grid_z))
-            if valid_values == 0:
-                self.logger.warning("경고: 유효한 데이터가 없어 기본 이미지를 생성합니다.")
-                # 기본 그리드 생성
-                grid_z = np.zeros_like(grid_z)
-                grid_z[:] = self.gen_config.get('default_temp', -1)  # 기본값 사용
-            else:
-                self.logger.debug(f"유효한 데이터 포인트: {valid_values}/{grid_z.size}")
 
             # 플롯 생성 전 추가 로깅
             self.logger.debug("현재 열려 있는 Figure 수: %d", len(plt.get_fignums()))
