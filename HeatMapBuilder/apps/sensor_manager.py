@@ -1,6 +1,7 @@
-import os
-import requests
-from typing import Optional, Dict, Any, List
+import json
+from typing import Optional, Dict, Any, List, Union
+from websocket_client import WebSocketClient, MockWebSocketClient
+import time
 
 class SensorManager:
     """센서 상태 관리를 담당하는 클래스"""
@@ -9,84 +10,144 @@ class SensorManager:
         self.is_local = is_local
         self.config_manager = config_manager
         self.logger = logger
-        self.supervisor_token = supervisor_token
+        
+        # 웹소켓 클라이언트 초기화
+        self.websocket_client = (
+            MockWebSocketClient(config_manager) if is_local 
+            else WebSocketClient(supervisor_token, logger)
+        )
+        
+        self.logger.debug(f"SensorManager: 웹소켓 클라이언트 초기화 완료 (타입: {'모의' if is_local else '실제'})")
 
-    
-    def get_ha_api(self) -> Optional[Dict[str, Any]]:
-        """Home Assistant API 설정"""
-        if self.is_local:
-            return {
-                'base_url': 'mock_url',
-                'headers': {'Content-Type': 'application/json'}
-            }
-        if not self.supervisor_token:
-            self.logger.error("Supervisor Token is not configured")
-            return None
-        return {
-            'base_url': 'http://supervisor/core/api',
-            'headers': {
-                'Authorization': f'Bearer {self.supervisor_token}',
-                'Content-Type': 'application/json'
-            }
-        }
-    
-    def get_sensor_state(self, entity_id: str) -> Dict[str, Any]:
-        """센서 상태 조회"""
-        try:
-            if self.is_local:
-                mock_data = self.config_manager.get_mock_data()
-                for sensor in mock_data.get('temperature_sensors', []):
-                    if sensor['entity_id'] == entity_id:
-                        return {
-                            'entity_id': entity_id,
-                            'state': sensor.get('state', '0'),
-                            'attributes': sensor.get('attributes', {})
-                        }
-                self.logger.warning(f"Mock 센서 데이터를 찾을 수 없음: {entity_id}")
-                return {'state': '20', 'entity_id': entity_id}
+    async def debug_websocket(self, message_type: str, **kwargs) -> Optional[Any]:
+        """WebSocket 디버깅 메시지 전송"""
+        self.logger.debug(f"SensorManager: 디버깅 메시지 전송 - {message_type}")
+        return await self.websocket_client.send_message(message_type, **kwargs)
+
+    async def get_entity_registry(self) -> List[Dict]:
+        """Entity Registry 조회"""
+        # 요청 전 message_id 확인
+        if hasattr(self.websocket_client, 'message_id'):
+            self.logger.debug(f"Entity Registry 요청 전 message_id: {self.websocket_client.message_id}")
             
-            api = self.get_ha_api()
-            if not api:
-                self.logger.error("Home Assistant API 설정을 가져올 수 없습니다")
-                return {'state': '0', 'entity_id': entity_id}
+        self.logger.debug("Entity Registry 조회 요청 시작")
+        start_time = time.time()
+        result = await self.websocket_client.send_message("config/entity_registry/list")
+        elapsed_time = time.time() - start_time
+        
+        # 요청 후 message_id 확인
+        if hasattr(self.websocket_client, 'message_id'):
+            self.logger.debug(f"Entity Registry 요청 후 message_id: {self.websocket_client.message_id}")
+        
+        if result is not None:
+            self.logger.debug(f"Entity Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
+        else:
+            self.logger.error(f"Entity Registry 조회 실패 (소요시간: {elapsed_time:.3f}초)")
             
-            self.logger.info(f"센서 상태 조회 중: {entity_id}")
-            response = requests.get(
-                f"{api['base_url']}/states/{entity_id}",
-                headers=api['headers']
-            )
-            return response.json()
-        except Exception as e:
-            self.logger.error(f"센서 상태 조회 실패: {str(e)}")
-            return {'state': '0', 'entity_id': entity_id}
-    
-    def get_all_states(self) -> List[Dict]:
+        return result if result is not None else []
+
+    async def get_label_registry(self) -> List[Dict]:
+        """Label Registry 조회"""
+        # 요청 전 message_id 확인
+        if hasattr(self.websocket_client, 'message_id'):
+            self.logger.debug(f"Label Registry 요청 전 message_id: {self.websocket_client.message_id}")
+            
+        self.logger.debug("Label Registry 조회 요청 시작")
+        start_time = time.time()
+        result = await self.websocket_client.send_message("config/label_registry/list")
+        elapsed_time = time.time() - start_time
+        
+        # 요청 후 message_id 확인
+        if hasattr(self.websocket_client, 'message_id'):
+            self.logger.debug(f"Label Registry 요청 후 message_id: {self.websocket_client.message_id}")
+        
+        if result is not None:
+            self.logger.debug(f"Label Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
+        else:
+            self.logger.error(f"Label Registry 조회 실패 (소요시간: {elapsed_time:.3f}초)")
+            
+        return result if result is not None else []
+
+    async def get_all_states(self) -> List[Dict]:
         """모든 센서 상태 조회"""
-        if self.is_local:
-            mock_data = self.config_manager.get_mock_data()
-            self.logger.debug(f"가상 센서 상태 조회: {mock_data}")
-            return mock_data.get('temperature_sensors', [])
-        
-        api = self.get_ha_api()
-        if not api:
-            self.logger.error("Home Assistant API 설정을 가져올 수 없습니다")
-            return []
-        
-
         try:
-            response = requests.get(f"{api['base_url']}/states", headers=api['headers'])
-            response.raise_for_status()
-            states = response.json()
+            self.logger.debug("===== 센서 상태 조회 시작 =====")
+            overall_start_time = time.time()
+            
+            # Entity Registry 정보 가져오기
+            self.logger.debug("Entity Registry 정보 요청 중...")
+            entity_registry_start = time.time()
+            entity_registry = await self.get_entity_registry()
+            entity_registry_time = time.time() - entity_registry_start
+            
+            if not entity_registry:
+                self.logger.error(f"Entity Registry 정보 수신 실패 (소요시간: {entity_registry_time:.3f}초)")
+            else:
+                self.logger.debug(f"Entity Registry 정보 수신 완료: {len(entity_registry)}개 항목 (소요시간: {entity_registry_time:.3f}초)")
+            
+            entity_registry_dict = {
+                entry['entity_id']: entry 
+                for entry in entity_registry
+            }
+            
+            # 상태 정보 가져오기
+            self.logger.debug("===== get_states 요청 시작 =====")
+            states_start = time.time()
+            
+            # get_states 요청 전송
+            self.logger.debug("get_states 요청 전송 중...")
+            states = await self.websocket_client.send_message("get_states")
+            states_time = time.time() - states_start
+            
+            if states is None:
+                self.logger.error(f"get_states 요청 실패: 응답이 None입니다 (소요시간: {states_time:.3f}초)")
+                return []
+                
+            self.logger.debug(f"get_states 응답 수신 완료: {len(states)}개 항목 (소요시간: {states_time:.3f}초)")
+
+            # 센서 필터링 및 처리
+            self.logger.debug("센서 데이터 필터링 시작...")
+            filtering_start = time.time()
+            
+            filtered_states = []
+            sensor_count = 0
+            valid_sensor_count = 0
+            
+            for state in states:
+                entity_id = state['entity_id']
+                if not entity_id.startswith('sensor.'):
+                    continue
+                    
+                sensor_count += 1
+                
+                try:
+                    # 숫자 값인지 확인
+                    _ = float(state['state'])
+                    valid_sensor_count += 1
+                    
+                    # Entity Registry 정보 추가
+                    if entity_id in entity_registry_dict:
+                        state.update({
+                            'labels': entity_registry_dict[entity_id].get('labels', []),
+                            'area_id': entity_registry_dict[entity_id].get('area_id')
+                        })
+                        filtered_states.append(state)
+                except (ValueError, TypeError):
+                    # 숫자가 아닌 상태값은 무시
+                    continue
+            
+            filtering_time = time.time() - filtering_start
+            overall_time = time.time() - overall_start_time
+            
+            self.logger.debug(f"센서 필터링 완료 (소요시간: {filtering_time:.3f}초)")
+            self.logger.debug(f"센서 상태 조회 결과: 전체 {sensor_count}개 중 {valid_sensor_count}개 유효, {len(filtered_states)}개 필터링됨")
+
+            self.logger.debug(f"===== 센서 상태 조회 완료 (총 소요시간: {overall_time:.3f}초) =====")
+            
+            return filtered_states
+            
         except Exception as e:
-            self.logger.error(f"센서 상태 조회 실패: {str(e)}")
-            self.logger.error(f"응답 내용: {response.text}")
+            import traceback
+            self.logger.error(f"센서 상태 조회 중 오류 발생: {str(e)}")
+            self.logger.error(traceback.format_exc())
             return []
-        
-        # self.logger.debug(f"API로 센서 상태 조회 성공: {states}")
-        return [
-            state for state in states
-            if state.get('attributes', {}).get('device_class') == 'temperature' and
-               state.get('attributes', {}).get('state_class') == 'measurement'
-        ]
-
-

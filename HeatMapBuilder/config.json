@@ -19,7 +19,7 @@
   "auth_api": true,
   "homeassistant_api": true,
   "options": {
-    "log_level": "info"
+    "log_level": "debug"
   },
   "schema": {
     "log_level": "list(debug|info|warning|error|fatal)"
