@@ -24,7 +24,7 @@ class WebSocketClient:
         
         # 이벤트 루프가 변경되었거나 lock이 없는 경우 새로 생성
         if self._connection_lock is None or self._event_loop != current_loop:
-            self.logger.debug("현재 이벤트 루프에 맞는 새 connection lock 생성")
+            self.logger.trace("현재 이벤트 루프에 맞는 새 connection lock 생성")
             self._connection_lock = asyncio.Lock()
             self._event_loop = current_loop
             
@@ -40,13 +40,13 @@ class WebSocketClient:
         """keepalive 태스크들을 정리합니다."""
         for task in list(self._keepalive_tasks):
             if not task.done():
-                self.logger.debug(f"keepalive 태스크 취소 시도: {task}")
+                self.logger.trace(f"keepalive 태스크 취소 시도: {task}")
                 task.cancel()
                 try:
                     # 태스크 취소 대기에 3초 타임아웃 추가
                     await asyncio.wait_for(asyncio.shield(task), timeout=3.0)
                 except (asyncio.TimeoutError, asyncio.CancelledError):
-                    self.logger.debug(f"keepalive 태스크 취소됨 또는 타임아웃: {task}")
+                    self.logger.trace(f"keepalive 태스크 취소됨 또는 타임아웃: {task}")
                     pass
                 except Exception as e:
                     self.logger.error(f"keepalive 태스크 취소 중 오류: {str(e)}")
@@ -77,12 +77,12 @@ class WebSocketClient:
 
     async def close(self):
         """웹소켓 연결을 안전하게 종료합니다."""
-        self.logger.debug("웹소켓 연결 종료 시작")
+        self.logger.trace("웹소켓 연결 종료 시작")
         
         # keepalive 태스크들 정리 (락 없이 수행)
-        self.logger.debug("웹소켓 연결 종료 중 keepalive 태스크들 정리 시작")
+        self.logger.trace("웹소켓 연결 종료 중 keepalive 태스크들 정리 시작")
         await self._cleanup_keepalive_tasks()
-        self.logger.debug("웹소켓 연결 종료 중 keepalive 태스크들 정리 완료")
+        self.logger.trace("웹소켓 연결 종료 중 keepalive 태스크들 정리 완료")
         
         # 웹소켓 객체 정리 (락 보호 하에 수행)
         if self.websocket:
@@ -90,14 +90,14 @@ class WebSocketClient:
                 # 웹소켓 객체 닫기 전에 락 획득
                 lock = await self._get_connection_lock()
                 try:
-                    self.logger.debug("웹소켓 연결 종료 중. async with lock 블록 진입 시도")
+                    self.logger.trace("웹소켓 연결 종료 중. async with lock 블록 진입 시도")
                     async with asyncio.timeout(2):  # 2초 타임아웃
                         async with lock:
-                            self.logger.debug("웹소켓 연결 종료 중 웹소켓 객체 닫기 시도")
+                            self.logger.trace("웹소켓 연결 종료 중 웹소켓 객체 닫기 시도")
                             if self.websocket:  # 다시 한번 확인
                                 await self.websocket.close()
                                 self.websocket = None
-                                self.logger.debug("웹소켓 연결 종료 중 웹소켓 객체 닫기 성공")
+                                self.logger.debug("웹소켓 객체 닫기 성공")
                 except asyncio.TimeoutError:
                     self.logger.error("락 획득 타임아웃 발생, 강제로 진행합니다")
                     await self._force_cleanup()
@@ -127,10 +127,10 @@ class WebSocketClient:
         # 연결 상태 확인 (락 없이 수행)
         if websocket_to_check:
             try:
-                self.logger.debug("웹소켓 연결 상태 확인 중: ping 시도")
+                self.logger.trace("웹소켓 연결 상태 확인 중: ping 시도")
                 pong_waiter = await websocket_to_check.ping()
                 await asyncio.wait_for(pong_waiter, timeout=2.0)
-                self.logger.debug("웹소켓 ping 성공")
+                self.logger.trace("웹소켓 ping 성공")
                 return True
             except asyncio.TimeoutError:
                 self.logger.debug("웹소켓 ping 타임아웃, 연결 재시도 필요")
@@ -152,12 +152,12 @@ class WebSocketClient:
                 return False
                 
             self.reconnect_attempt += 1
-            self.logger.debug(f"웹소켓 재연결 시도 {self.reconnect_attempt}/{self.max_reconnect_attempts}")
+            self.logger.trace(f"웹소켓 재연결 시도 {self.reconnect_attempt}/{self.max_reconnect_attempts}")
             
             try:
                 # 연결 시도 시간 측정
                 connect_start = time.time()
-                self.logger.debug("_connect 메서드 호출 시작")
+                self.logger.trace("_connect 메서드 호출 시작")
                 
                 # 웹소켓 연결 시도
                 new_websocket = await asyncio.wait_for(self._connect(), timeout=10.0)
@@ -223,17 +223,17 @@ class WebSocketClient:
             # keepalive 태스크 추적 시작
             if hasattr(websocket, '_keepalive_ping') and websocket._keepalive_ping is not None:
                 self._keepalive_tasks.add(websocket._keepalive_ping)
-                self.logger.debug("keepalive_ping 태스크 추적 시작")
+                self.logger.trace("keepalive_ping 태스크 추적 시작")
             if hasattr(websocket, '_keepalive_pong') and websocket._keepalive_pong is not None:
                 self._keepalive_tasks.add(websocket._keepalive_pong)
-                self.logger.debug("keepalive_pong 태스크 추적 시작")
+                self.logger.trace("keepalive_pong 태스크 추적 시작")
             
             # 서버로부터 초기 메시지 수신 대기
-            self.logger.debug("인증 요청 메시지 수신 대기 중...")
+            self.logger.trace("인증 요청 메시지 수신 대기 중...")
             try:
                 auth_required = await asyncio.wait_for(websocket.recv(), timeout=5.0)
                 auth_required_data = json.loads(auth_required)
-                self.logger.debug(f"수신 메시지: {self._truncate_log_message(auth_required)}")
+                self.logger.trace(f"수신 메시지: {self._truncate_log_message(auth_required)}")
                 
                 if auth_required_data.get('type') != 'auth_required':
                     self.logger.error(f"예상치 못한 초기 메시지 타입: {auth_required_data.get('type', '알 수 없음')}")
@@ -257,7 +257,7 @@ class WebSocketClient:
                     "access_token": self.supervisor_token
                 }
                 auth_message_str = json.dumps(auth_message)
-                self.logger.debug(f"인증 메시지 전송: {self._truncate_log_message(auth_message_str)}")
+                self.logger.trace(f"인증 메시지 전송: {self._truncate_log_message(auth_message_str)}")
                 await websocket.send(auth_message_str)
             except Exception as auth_send_err:
                 self.logger.error(f"인증 메시지 전송 중 오류: {str(auth_send_err)}")
@@ -268,13 +268,13 @@ class WebSocketClient:
             
             # 인증 응답 대기
             try:
-                self.logger.debug("인증 응답 대기 중...")
+                self.logger.trace("인증 응답 대기 중...")
                 auth_response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
-                self.logger.debug(f"인증 응답 수신: {self._truncate_log_message(auth_response)}")
+                self.logger.trace(f"인증 응답 수신: {self._truncate_log_message(auth_response)}")
                 auth_response_data = json.loads(auth_response)
                 
                 if auth_response_data.get('type') == 'auth_ok':
-                    self.logger.debug("웹소켓 인증 성공")
+                    self.logger.trace("웹소켓 인증 성공")
                     return websocket
                 else:
                     self.logger.error(f"웹소켓 인증 실패: {auth_response_data.get('type', '알 수 없음')}")
@@ -318,7 +318,7 @@ class WebSocketClient:
             
         # 메시지 ID 할당
         current_id = self.message_id
-        self.logger.debug(f"메시지 ID 할당: current_id={current_id}, 타입={message_type}")
+        self.logger.trace(f"메시지 ID 할당: current_id={current_id}, 타입={message_type}")
             
         message = {
             "id": current_id,
@@ -328,25 +328,24 @@ class WebSocketClient:
         
         # 다음 메시지를 위해 ID 증가
         self.message_id += 1
-        self.logger.debug(f"메시지 ID 증가: 새 message_id={self.message_id}")
         
         try:
             # 메시지 전송
             message_str = json.dumps(message)
-            self.logger.debug(f"송신 메시지 (ID: {message['id']}, 타입: {message_type}): {self._truncate_log_message(message_str)}")
+            self.logger.trace(f"송신 메시지 (ID: {message['id']}, 타입: {message_type}): {self._truncate_log_message(message_str)}")
             
             send_start_time = time.time()
             await self.websocket.send(message_str)
             send_time = time.time() - send_start_time
             
-            self.logger.debug(f"메시지 전송 완료 (ID: {message['id']}, 타입: {message_type}, 소요시간: {send_time:.3f}초)")
+            self.logger.trace(f"메시지 전송 완료 (ID: {message['id']}, 타입: {message_type}, 소요시간: {send_time:.3f}초)")
             
             # 응답 대기 시간 설정 
             timeout = 10.0 
             start_time = time.time()
             
             # 응답 대기 시작 로깅
-            self.logger.debug(f"응답 대기 시작 (ID: {message['id']}, 타입: {message_type}, 제한시간: {timeout}초)")
+            self.logger.trace(f"응답 대기 시작 (ID: {message['id']}, 타입: {message_type}, 제한시간: {timeout}초)")
             
             # 응답 수신 대기 루프
             while True:
@@ -362,7 +361,7 @@ class WebSocketClient:
                     response = await asyncio.wait_for(self.websocket.recv(), 3.0)
                     wait_time = time.time() - wait_start_time
                     
-                    self.logger.debug(f"메시지 수신 (소요시간: {wait_time:.3f}초): {self._truncate_log_message(response)}")
+                    self.logger.trace(f"메시지 수신 (소요시간: {wait_time:.3f}초): {self._truncate_log_message(response)}")
                     
                     try:
                         response_data = json.loads(response)
@@ -380,7 +379,7 @@ class WebSocketClient:
                                 result = response_data.get('result')
                                 result_size = len(result) if isinstance(result, list) else "N/A"
                                 
-                                self.logger.debug(f"요청 성공 (ID: {message['id']}, 타입: {message_type}, 총 소요시간: {total_time:.3f}초, 결과 크기: {result_size})")
+                                self.logger.trace(f"요청 성공 (ID: {message['id']}, 타입: {message_type}, 총 소요시간: {total_time:.3f}초, 결과 크기: {result_size})")
                                 return result
                             else:
                                 error_msg = response_data.get('error', {}).get('message', '알 수 없는 오류')
@@ -389,15 +388,15 @@ class WebSocketClient:
                         else:
                             # 다른 메시지에 대한 응답인 경우 로깅하고 계속 기다림
                             other_id = response_data.get('id')
-                            self.logger.debug(f"다른 메시지 응답 수신 (요청 ID: {message['id']}, 응답 ID: {other_id})")
+                            self.logger.trace(f"다른 메시지 응답 수신 (요청 ID: {message['id']}, 응답 ID: {other_id})")
                     else:
                         # ID가 없는 응답 (이벤트 등)은 로깅만 하고 계속 대기
                         msg_type = response_data.get('type', 'unknown')
                         if msg_type == 'event':
                             event_type = response_data.get('event', {}).get('event_type', '알 수 없음')
-                            self.logger.debug(f"이벤트 메시지 수신: {event_type}")
+                            self.logger.trace(f"이벤트 메시지 수신: {event_type}")
                         else:
-                            self.logger.debug(f"ID 없는 메시지 수신 (타입: {msg_type})")
+                            self.logger.trace(f"ID 없는 메시지 수신 (타입: {msg_type})")
                             
                 except asyncio.TimeoutError:
                     # 응답 대기 타임아웃은 오류가 아님 (계속 대기)

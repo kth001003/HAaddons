@@ -17,7 +17,7 @@ class SensorManager:
             else WebSocketClient(supervisor_token, logger)
         )
         
-        self.logger.debug(f"SensorManager: 웹소켓 클라이언트 초기화 완료 (타입: {'모의' if is_local else '실제'})")
+        self.logger.trace(f"SensorManager: 웹소켓 클라이언트 초기화 완료 (타입: {'모의' if is_local else '실제'})")
 
     async def debug_websocket(self, message_type: str, **kwargs) -> Optional[Any]:
         """WebSocket 디버깅 메시지 전송"""
@@ -26,18 +26,11 @@ class SensorManager:
 
     async def get_entity_registry(self) -> List[Dict]:
         """Entity Registry 조회"""
-        # 요청 전 message_id 확인
-        if hasattr(self.websocket_client, 'message_id'):
-            self.logger.debug(f"Entity Registry 요청 전 message_id: {self.websocket_client.message_id}")
-            
+
         self.logger.debug("Entity Registry 조회 요청 시작")
         start_time = time.time()
         result = await self.websocket_client.send_message("config/entity_registry/list")
         elapsed_time = time.time() - start_time
-        
-        # 요청 후 message_id 확인
-        if hasattr(self.websocket_client, 'message_id'):
-            self.logger.debug(f"Entity Registry 요청 후 message_id: {self.websocket_client.message_id}")
         
         if result is not None:
             self.logger.debug(f"Entity Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
@@ -48,18 +41,10 @@ class SensorManager:
 
     async def get_label_registry(self) -> List[Dict]:
         """Label Registry 조회"""
-        # 요청 전 message_id 확인
-        if hasattr(self.websocket_client, 'message_id'):
-            self.logger.debug(f"Label Registry 요청 전 message_id: {self.websocket_client.message_id}")
-            
         self.logger.debug("Label Registry 조회 요청 시작")
         start_time = time.time()
         result = await self.websocket_client.send_message("config/label_registry/list")
         elapsed_time = time.time() - start_time
-        
-        # 요청 후 message_id 확인
-        if hasattr(self.websocket_client, 'message_id'):
-            self.logger.debug(f"Label Registry 요청 후 message_id: {self.websocket_client.message_id}")
         
         if result is not None:
             self.logger.debug(f"Label Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
@@ -75,7 +60,7 @@ class SensorManager:
             overall_start_time = time.time()
             
             # Entity Registry 정보 가져오기
-            self.logger.debug("Entity Registry 정보 요청 중...")
+            self.logger.trace("Entity Registry 정보 요청 중...")
             entity_registry_start = time.time()
             entity_registry = await self.get_entity_registry()
             entity_registry_time = time.time() - entity_registry_start
@@ -83,7 +68,7 @@ class SensorManager:
             if not entity_registry:
                 self.logger.error(f"Entity Registry 정보 수신 실패 (소요시간: {entity_registry_time:.3f}초)")
             else:
-                self.logger.debug(f"Entity Registry 정보 수신 완료: {len(entity_registry)}개 항목 (소요시간: {entity_registry_time:.3f}초)")
+                self.logger.trace(f"Entity Registry 정보 수신 완료: {len(entity_registry)}개 항목 (소요시간: {entity_registry_time:.3f}초)")
             
             entity_registry_dict = {
                 entry['entity_id']: entry 
@@ -95,7 +80,7 @@ class SensorManager:
             states_start = time.time()
             
             # get_states 요청 전송
-            self.logger.debug("get_states 요청 전송 중...")
+            self.logger.trace("get_states 요청 전송 중...")
             states = await self.websocket_client.send_message("get_states")
             states_time = time.time() - states_start
             
@@ -103,10 +88,10 @@ class SensorManager:
                 self.logger.error(f"get_states 요청 실패: 응답이 None입니다 (소요시간: {states_time:.3f}초)")
                 return []
                 
-            self.logger.debug(f"get_states 응답 수신 완료: {len(states)}개 항목 (소요시간: {states_time:.3f}초)")
+            self.logger.trace(f"get_states 응답 수신 완료: {len(states)}개 항목 (소요시간: {states_time:.3f}초)")
 
             # 센서 필터링 및 처리
-            self.logger.debug("센서 데이터 필터링 시작...")
+            self.logger.trace("센서 데이터 필터링 시작...")
             filtering_start = time.time()
             
             filtered_states = []

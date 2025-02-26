@@ -606,7 +606,6 @@ class WebServer:
             
             # 인덱스 기준으로 정렬 (작은 숫자가 최신)
             previous_maps.sort(key=lambda x: x['index'])
-            self.logger.debug(f"이전 맵 목록: {previous_maps}")
             return jsonify({
                 'status': 'success',
                 'previous_maps': previous_maps

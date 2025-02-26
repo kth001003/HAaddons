@@ -2,6 +2,10 @@ import logging
 from logging.handlers import RotatingFileHandler
 import colorlog # type: ignore
 
+# TRACE 레벨 추가 (DEBUG보다 더 낮은 레벨)
+TRACE_LEVEL = 5
+logging.addLevelName(TRACE_LEVEL, 'TRACE')
+
 class CustomLogger:
     # ANSI 색상 코드
     COLORS = {
@@ -23,12 +27,13 @@ class CustomLogger:
             self.logger.handlers.clear()
         
         # 로그 레벨 설정
-        self.logger.setLevel(log_level)
+        self.logger.setLevel(TRACE_LEVEL if log_level == 'TRACE' else log_level)
         
         # 컬러 포맷터 설정 - reset 코드를 추가하여 색상이 다음 줄에 영향을 주지 않도록 함
         color_formatter = colorlog.ColoredFormatter(
             '%(log_color)s[%(asctime)s] [%(levelname)s]%(reset)s %(message)s',
             log_colors={
+                'TRACE': 'blue',
                 'DEBUG': 'cyan',
                 'INFO': 'green',
                 'WARNING': 'yellow',
@@ -76,3 +81,7 @@ class CustomLogger:
 
     def warning(self, message, *args, **kwargs):
         self.logger.warning(message, *args, **kwargs)
+
+    def trace(self, message, *args, **kwargs):
+        """TRACE 레벨 로깅을 위한 메서드"""
+        self.logger.log(TRACE_LEVEL, message, *args, **kwargs)

@@ -407,22 +407,18 @@ class MapGenerator:
         area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, area_sensors, parameters = args
         
         try:
-            print(f"[프로세스] Area {area_idx} 처리 시작")  # 프로세스 내부 로그
             area_temps = MapGenerator._calculate_area_temperature_static(
                 area_idx, area, grid_points, grid_x, grid_y,
                 min_x, max_x, min_y, max_y, area_sensors, parameters
             )
-            print(f"[프로세스] Area {area_idx} 온도 계산 완료")  # 프로세스 내부 로그
             
             # area 마스크 생성
             pmask = np.array(contains(area['polygon'], grid_points[:, 0], grid_points[:, 1]))
             area_mask = pmask.reshape(grid_x.shape)
-            print(f"[프로세스] Area {area_idx} 마스크 생성 완료")  # 프로세스 내부 로그
             
             return area_idx, area_temps, area_mask
             
         except Exception as e:
-            print(f"[프로세스] Area {area_idx} 처리 중 오류 발생: {str(e)}")  # 프로세스 내부 로그
             import traceback
             print(traceback.format_exc())  # 프로세스 내부 로그
             raise
@@ -834,36 +830,36 @@ class MapGenerator:
             
             # 프로세스 풀 생성 및 작업 실행
             try:
-                self.logger.debug("프로세스 풀 생성 시작")
+                self.logger.trace("프로세스 풀 생성 시작")
                 with Pool(processes=num_processes) as pool:
                     # 작업 인자 준비
-                    self.logger.debug("작업 인자 준비 시작")
+                    self.logger.trace("작업 인자 준비 시작")
                     process_args = [
                         (area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, 
                          self.area_sensors, self.parameters)
                         for area_idx, area in enumerate(self.areas)
                     ]
-                    self.logger.debug(f"작업 인자 준비 완료: {len(process_args)}개의 작업")
+                    self.logger.trace(f"작업 인자 준비 완료: {len(process_args)}개의 작업")
                     
                     # 병렬 처리 실행
                     self.logger.debug("병렬 처리 시작")
                     results = []
                     for i, result in enumerate(pool.imap_unordered(self._process_area_static, process_args)):
-                        self.logger.debug(f"Area 처리 완료 ({i+1}/{len(process_args)})")
+                        self.logger.trace(f"Area 처리 완료 ({i+1}/{len(process_args)})")
                         results.append(result)
                     
                     # 결과 처리
-                    self.logger.debug("결과 처리 시작")
+                    self.logger.trace("결과 처리 시작")
                     for area_idx, area_temps, area_mask in results:
-                        self.logger.debug(f"Area {area_idx} 결과 적용 중")
+                        self.logger.trace(f"Area {area_idx} 결과 적용 중")
                         grid_z[area_mask] = area_temps
-                        self.logger.debug(f"Area {area_idx} 결과 적용 완료")
+                        self.logger.trace(f"Area {area_idx} 결과 적용 완료")
                     
                     self.logger.debug("모든 area 처리 완료")
                     
                     pool.close()
                     pool.join()  # 명시적 종료 대기 추가
-                    self.logger.debug("프로세스 풀 완전 종료 확인")
+                    self.logger.trace("프로세스 풀 완전 종료 확인")
                     
             except Exception as e:
                 self.logger.error(f"멀티프로세싱 처리 중 오류 발생: {str(e)}")

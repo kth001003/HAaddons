@@ -20,9 +20,9 @@ class BackgroundTaskManager:
         self.logger = logger
         self.thread = None
         self.running = False
-        self.map_lock = threading.Lock()  # 락 메커니즘 추가
-        self.map_timers = {}  # 각 맵별 마지막 생성 시간을 저장
-        self._main_loop = asyncio.get_event_loop()  # 메인 이벤트 루프 저장
+        self.map_lock = threading.Lock()
+        self.map_timers = {}
+        self._main_loop = asyncio.get_event_loop()
 
     def start(self):
         self.running = True
