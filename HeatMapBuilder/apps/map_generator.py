@@ -1,24 +1,28 @@
 import os
-import numpy as np  #type: ignore
-import matplotlib.pyplot as plt #type: ignore
-from matplotlib.patches import Circle, Rectangle, Polygon #type: ignore
-from matplotlib.lines import Line2D #type: ignore
-import matplotlib.patches as patches #type: ignore
-from scipy.interpolate import griddata, Rbf  #type: ignore
-from scipy.spatial import Voronoi  #type: ignore
-import xml.etree.ElementTree as ET
-from io import StringIO
-from typing import List, Dict, Tuple, Any, Optional
-from shapely.geometry import LineString, Point, Polygon, MultiPolygon  #type: ignore
-from shapely.ops import unary_union  #type: ignore
-import matplotlib.path as mpath  #type: ignore
-import matplotlib.font_manager as fm  #type: ignore
 import re
-from pykrige.ok import OrdinaryKriging  #type: ignore
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes #type: ignore
-from matplotlib.ticker import MaxNLocator #type: ignore
 import time
 from datetime import datetime
+from io import StringIO
+from multiprocessing import Pool, cpu_count
+from typing import List, Dict, Tuple, Any, Optional
+
+import numpy as np  #type: ignore
+import matplotlib.pyplot as plt  #type: ignore
+import matplotlib.font_manager as fm  #type: ignore
+import matplotlib.patches as patches  #type: ignore
+from matplotlib.lines import Line2D  #type: ignore
+from matplotlib.patches import Circle, Rectangle, Polygon  #type: ignore
+from matplotlib.ticker import MaxNLocator  #type: ignore
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes  #type: ignore
+import matplotlib.patheffects as path_effects  #type: ignore
+from scipy.interpolate import griddata, Rbf  #type: ignore
+import xml.etree.ElementTree as ET
+from shapely.geometry import Point, Polygon, MultiPolygon  #type: ignore
+from shapely.vectorized import contains  #type: ignore
+from pykrige.ok import OrdinaryKriging  #type: ignore
+import matplotlib #type: ignore
+matplotlib.use('Agg')  # GUI 없는 백엔드 강제 사용
+plt.switch_backend('Agg')
 
 class MapGenerator:
     def __init__(self, config_manager, sensor_manager, logger):
@@ -28,14 +32,10 @@ class MapGenerator:
         self.logger = logger
         self.config_manager = config_manager
         self.sensor_manager = sensor_manager
-        self.generation_time = ''
-        self.generation_duration = ''
-        self.current_map_id = None
 
         self.configs = {}
         self.walls_data = ''
         self.sensors_data = []
-        self.get_sensor_state = self.sensor_manager.get_sensor_state
         self.parameters = {}
         self.gen_config = {}
         
@@ -44,7 +44,6 @@ class MapGenerator:
 
         # 한글 폰트 설정
         self._setup_korean_font()
-        self.logger.info("ThermalMapGenerator 초기화됨")
 
     def _setup_korean_font(self):
         """한글 폰트를 설정합니다."""
@@ -60,7 +59,6 @@ class MapGenerator:
                     fm.fontManager.addfont(font_path)
                     # 기본 폰트 설정
                     plt.rcParams['font.family'] = 'NanumGothic'  # 폰트 이름으로 직접 설정
-                    # self.logger.info(f"한글 폰트 설정 완료: {font_path}")
                     font_found = True
                     break
             
@@ -161,16 +159,10 @@ class MapGenerator:
 
             self.areas = []
             
-            # SVG 변환 행렬 확인
-            transform = root.get('transform', '')
-            self.logger.debug(f"SVG transform: {transform}")
-            
             # path 요소 찾기
             paths = root.findall('.//{*}path')
             
             for i, path in enumerate(paths):
-                # path의 스타일과 클래스 확인
-                style = path.get('style', '')
                 class_name = path.get('class', '')
                 
                 # exterior 클래스 여부 확인
@@ -181,22 +173,18 @@ class MapGenerator:
                     self.logger.warning(f"Path {i}: 'd' 속성 없음")
                     continue
                 
-                # path별 transform 확인
-                path_transform = path.get('transform', '')
-                if path_transform:
-                    self.logger.debug(f"Path {i} transform: {path_transform}")
-                
                 polygon = self._parse_svg_path(d)
                 if polygon and polygon.is_valid:
                     self.areas.append({
                         'polygon': polygon,
                         'is_exterior': is_exterior
                     })
-                    self.logger.debug(f"Path {i}: {'외부' if is_exterior else '내부'} 영역으로 파싱됨")
                 else:
                     self.logger.warning(f"Path {i}: 유효한 폴리곤 생성 실패")
 
-            self.logger.info(f"총 {len(self.areas)}개의 area 파싱됨 (전체 path 중 {len(paths)}개)")
+            self.logger.debug("총 %s개의 area 파싱됨 (전체 path 중 %s개)",
+                             self.logger._colorize(len(self.areas), "green"),
+                             self.logger._colorize(len(paths), "blue"))
             return self.areas, root
             
         except Exception as e:
@@ -205,41 +193,57 @@ class MapGenerator:
             self.logger.error(traceback.format_exc())
             return [], None
 
-    def _collect_sensor_data(self) -> Tuple[List[List[float]], List[float], List[str]]:
+    async def _collect_sensor_data(self, states_dict: Dict[str, Dict[str, Any]]) -> Tuple[List[List[float]], List[float], List[str]]:
         """센서 데이터를 수집하여 좌표, 온도값, 센서ID 리스트를 반환합니다."""
         points = []
         temperatures = []
         sensor_ids = []
-        self.logger.debug(f"센서 데이터: {self.sensors_data}")
+        
+        self.logger.debug("상태조회 대상 센서 %s개", 
+                          self.logger._colorize(len(self.sensors_data), "blue"))
+                          
         for sensor in self.sensors_data:
             if 'position' not in sensor:
-                self.logger.warning(f"{sensor['entity_id']} 센서에 position 데이터가 없습니다")
                 continue
                 
             position = sensor['position']
             if not position or 'x' not in position or 'y' not in position:
-                self.logger.warning(f"{sensor['entity_id']} 센서에 position 데이터가 유효하지 않음")
+                self.logger.warning("%s 센서에 position 데이터가 유효하지 않음",
+                                    self.logger._colorize(sensor['entity_id'], "red"))
                 continue
                 
-            # 센서 상태 조회
-            state = self.get_sensor_state(sensor['entity_id'])
-            self.logger.debug(f"{sensor['entity_id']} 센서 상태: {state}")
-            if not state or not isinstance(state, dict):
-                self.logger.warning(f"센서 {sensor['entity_id']} 상태 데이터가 유효하지 않음")
-                continue
-                
+            state = states_dict.get(sensor['entity_id'], {'state': '0', 'entity_id': sensor['entity_id']})
+            
             try:
                 # 온도값 파싱 및 보정값 적용
-                raw_temp = float(state.get('state', 0))  # 상태값을 state 키에서 가져옴
+                raw_state = state.get('state', '0')  # 상태값을 state 키에서 가져옴
+                
+                # unavailable, unknown, N/A 등의 값 체크
+                if raw_state.lower() in ['unavailable', 'unknown', 'n/a', 'null', 'none']:
+                    self.logger.warning("%s 센서를 사용할 수 없습니다 (상태: %s)",
+                                        self.logger._colorize(sensor['entity_id'], "red"),
+                                        self.logger._colorize(raw_state, "yellow"))
+                    continue
+                    
+                raw_temp = float(raw_state)
                 calibration = float(sensor.get('calibration', 0))  # 보정값이 없으면 0
                 temp = raw_temp + calibration  # 보정값 적용
                 
                 points.append([position['x'], position['y']])
                 temperatures.append(temp)
                 sensor_ids.append(sensor['entity_id'])
-                self.logger.debug(f"센서 {sensor['entity_id']}: 원본={raw_temp}°C, 보정값={calibration}°C, 보정후={temp}°C")
+                self.logger.debug("센서 %s: 원본=%s%s, 보정값=%s%s, 보정후=%s%s",
+                                 self.logger._colorize(sensor['entity_id'], "blue"),
+                                 self.logger._colorize(raw_temp, "yellow"),
+                                 self.logger._colorize(self.unit, "blue"),
+                                 self.logger._colorize(calibration, "yellow"),
+                                 self.logger._colorize(self.unit, "blue"),
+                                 self.logger._colorize(temp, "green"),
+                                 self.logger._colorize(self.unit, "blue"))
             except (ValueError, TypeError, AttributeError) as e:
-                self.logger.error(f"센서 {sensor['entity_id']} 데이터 처리 중 오류: {str(e)}")
+                self.logger.error("센서 %s 데이터 처리 중 오류: %s",
+                                 self.logger._colorize(sensor['entity_id'], "red"),
+                                 self.logger._colorize(str(e), "red"))
                 continue
         
         return points, temperatures, sensor_ids
@@ -261,7 +265,6 @@ class MapGenerator:
                     if area_idx not in self.area_sensors:
                         self.area_sensors[area_idx] = []
                     self.area_sensors[area_idx].append((point, temp, sensor_id))
-                    self.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}에 정확히 포함됨")
                     assigned = True
                     break
             
@@ -272,7 +275,6 @@ class MapGenerator:
                         if area_idx not in self.area_sensors:
                             self.area_sensors[area_idx] = []
                         self.area_sensors[area_idx].append((point, temp, sensor_id))
-                        self.logger.info(f"센서 {sensor_id} (temp={temp:.1f}°C)가 Area {area_idx}의 경계 근처에 할당됨")
                         assigned = True
                         break
             
@@ -291,29 +293,35 @@ class MapGenerator:
                     if nearest_area_idx not in self.area_sensors:
                         self.area_sensors[nearest_area_idx] = []
                     self.area_sensors[nearest_area_idx].append((point, temp, sensor_id))
-                    self.logger.warning(f"센서 {sensor_id} (temp={temp:.1f}°C)가 가장 가까운 Area {nearest_area_idx}에 할당됨 (거리: {min_distance:.2f})")
                 else:
-                    self.logger.error(f"센서 {sensor_id} (temp={temp:.1f}°C)를 할당할 수 있는 area를 찾지 못함")
+                    self.logger.warning("센서 %s (temp=%s%s)를 할당할 수 있는 area를 찾지 못함",
+                                        self.logger._colorize(sensor_id, "red"),
+                                        self.logger._colorize(temp, "yellow"),
+                                        self.logger._colorize(self.unit, "blue"))
 
         # 할당 결과 출력
         for area_idx, sensors in self.area_sensors.items():
-            self.logger.info(f"Area {area_idx}: {len(sensors)}개의 센서, 온도: {[temp for _, temp, _ in sensors]}")
+            self.logger.debug("Area %s: %s개의 센서, %s",
+                             self.logger._colorize(area_idx, "green"),
+                             self.logger._colorize(len(sensors), "blue"),
+                             self.logger._colorize([f'{sensor_id}:{temp:.1f}{self.unit}' for _, temp, sensor_id in sensors], "white"))
 
-    def _calculate_area_temperature(self, area_idx: int, area: Dict[str, Any], grid_points: np.ndarray, 
-                                   grid_x: np.ndarray, grid_y: np.ndarray, min_x: float, max_x: float, 
-                                   min_y: float, max_y: float) -> np.ndarray:
+    @staticmethod
+    def _calculate_area_temperature_static(area_idx: int, area: Dict[str, Any], grid_points: np.ndarray,
+                                       grid_x: np.ndarray, grid_y: np.ndarray, min_x: float, max_x: float,
+                                       min_y: float, max_y: float, area_sensors: Dict[int, List[Tuple[Point, float, str]]],
+                                       parameters: Dict) -> np.ndarray:
         """특정 area의 온도 분포를 계산합니다."""
         try:
-            # area 마스크 생성
-            area_mask = np.array([area['polygon'].contains(Point(x, y)) for x, y in grid_points])
-            area_mask = area_mask.reshape(grid_x.shape)
+            pmask = np.array(contains(area['polygon'], grid_points[:, 0], grid_points[:, 1]))
+            area_mask = pmask.reshape(grid_x.shape)
             temps = np.full_like(grid_x[area_mask], np.nan)
             
-            if area_idx not in self.area_sensors:
+            if area_idx not in area_sensors:
                 return temps
             
             # 센서가 있는 area
-            sensors = self.area_sensors[area_idx]
+            sensors = area_sensors[area_idx]
             sensor_locs = np.array([[p.x, p.y] for p, _, _ in sensors])
             sensor_temps = np.array([t for _, t, _ in sensors])
             mask_points = grid_points[area_mask.flatten()]
@@ -337,96 +345,83 @@ class MapGenerator:
             area_height = max_y - min_y
             
             # 가우시안 sigma 계산
-            sigma = min(area_width, area_height) / self.parameters['gaussian']['sigma_factor']
+            sigma = min(area_width, area_height) / parameters['gaussian']['sigma_factor']
             
-            if sensor_count == 1:  # 단일 센서: 가우시안 분포
-                self.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - 가우시안 분포 적용")
-                temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
-                
-            elif sensor_count <= 3:  # 2~3개 센서: RBF -> 가우시안
+            if sensor_count == 1:  # 단일 센서: 단일값 적용
+                temps = np.full_like(mask_points[:, 0], sensor_temps[0])
+            elif sensor_count <= 3:
                 try:
-                    self.logger.debug(f"Area {area_idx}: {sensor_count}개 센서 - RBF 보간 시도")
-                    # RBF 보간기 설정
                     rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
-                            function=self.parameters['rbf']['function'],
-                            epsilon=min(area_width, area_height) / self.parameters['rbf']['epsilon_factor'])
-                    
-                    # RBF 예측 수행
+                            function=parameters['rbf']['function'],
+                            epsilon=min(area_width, area_height) / parameters['rbf']['epsilon_factor'])
                     temps = rbf(mask_points[:, 0], mask_points[:, 1])
-                    
-                    # 예측값 범위 제한
                     temp_min, temp_max = np.min(sensor_temps), np.max(sensor_temps)
-                    margin = 0.1 * (temp_max - temp_min)  # 10% 마진
+                    margin = 0.1 * (temp_max - temp_min)
                     temps = np.clip(temps, temp_min - margin, temp_max + margin)
-                    
-                    self.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
-                    
-                except Exception as rbf_error:
-                    self.logger.warning(f"Area {area_idx} RBF 보간 실패, 가우시안 분포로 대체: {str(rbf_error)}")
+                except Exception:
                     temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
-                
-            else:  # 4개 이상: 크리깅 -> RBF -> 가우시안
+            else:
                 try:
-                    # 데이터 전처리: 중복된 위치 제거
                     unique_locs = {}
                     for loc, temp in zip(sensor_locs, sensor_temps):
                         key = (loc[0], loc[1])
                         if key not in unique_locs:
                             unique_locs[key] = []
                         unique_locs[key].append(temp)
-                    
                     unique_sensor_locs = np.array(list(unique_locs.keys()))
                     unique_sensor_temps = np.array([np.mean(temps) for temps in unique_locs.values()])
-                    
-                    # 크리깅 모델 생성
                     ok = OrdinaryKriging(
                         unique_sensor_locs[:, 0],
                         unique_sensor_locs[:, 1],
                         unique_sensor_temps,
-                        **self.parameters['kriging']
+                        **parameters['kriging']
                     )
-                    
-                    # 크리깅 예측 수행
-                    temps, variances = ok.execute('points', mask_points[:, 0], mask_points[:, 1])
-                    
-                    # 예측값 범위 제한
+                    temps, _ = ok.execute('points', mask_points[:, 0], mask_points[:, 1])
                     temp_min, temp_max = np.min(sensor_temps), np.max(sensor_temps)
-                    margin = 0.5 * (temp_max - temp_min)  # 50% 마진
+                    margin = 0.5 * (temp_max - temp_min)
                     temps = np.clip(temps, temp_min - margin, temp_max + margin)
-                    
-                    self.logger.debug(f"Area {area_idx}: 크리깅 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
-                    
-                except Exception as kriging_error:
-                    self.logger.warning(f"Area {area_idx} 크리깅 보간 실패, RBF 시도: {str(kriging_error)}")
+                except Exception:
                     try:
-                        # RBF 보간 시도
                         rbf = Rbf(sensor_locs[:, 0], sensor_locs[:, 1], sensor_temps,
-                                function=self.parameters['rbf']['function'],
-                                epsilon=min(area_width, area_height) / self.parameters['rbf']['epsilon_factor'])
+                                function=parameters['rbf']['function'],
+                                epsilon=min(area_width, area_height) / parameters['rbf']['epsilon_factor'])
                         temps = rbf(mask_points[:, 0], mask_points[:, 1])
-                        
-                        # 예측값 범위 제한
                         temp_min, temp_max = np.min(sensor_temps), np.max(sensor_temps)
                         margin = 0.1 * (temp_max - temp_min)
                         temps = np.clip(temps, temp_min - margin, temp_max + margin)
-                        
-                        self.logger.debug(f"Area {area_idx}: RBF 보간 성공 - 온도 범위: {np.min(temps):.1f}°C ~ {np.max(temps):.1f}°C")
-                        
-                    except Exception as rbf_error:
-                        self.logger.warning(f"Area {area_idx} RBF 보간도 실패, 가우시안 분포로 대체: {str(rbf_error)}")
+                    except Exception:
                         temps = calculate_gaussian_distribution(mask_points, sensor_locs, sensor_temps, sigma)
             
-            # NaN 처리
             if np.any(np.isnan(temps)):
-                self.logger.debug(f"Area {area_idx}: NaN 값을 nearest로 채우기")
                 nearest_temps = griddata(sensor_locs, sensor_temps, mask_points, method='nearest')
                 temps[np.isnan(temps)] = nearest_temps[np.isnan(temps)]
             
             return temps
             
         except Exception as e:
-            self.logger.error(f"Area {area_idx} 온도 계산 중 오류: {str(e)}")
             return np.full_like(grid_x[area_mask], np.nan)
+
+    @staticmethod
+    def _process_area_static(args: Tuple[int, Dict[str, Any], np.ndarray, np.ndarray, np.ndarray, float, float, float, float, Dict[int, List[Tuple[Point, float, str]]], Dict]) -> Tuple[int, np.ndarray, np.ndarray]:
+        """멀티프로세싱용 area 처리 함수"""
+        area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, area_sensors, parameters = args
+        
+        try:
+            area_temps = MapGenerator._calculate_area_temperature_static(
+                area_idx, area, grid_points, grid_x, grid_y,
+                min_x, max_x, min_y, max_y, area_sensors, parameters
+            )
+            
+            # area 마스크 생성
+            pmask = np.array(contains(area['polygon'], grid_points[:, 0], grid_points[:, 1]))
+            area_mask = pmask.reshape(grid_x.shape)
+            
+            return area_idx, area_temps, area_mask
+            
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())  # 프로세스 내부 로그
+            raise
 
     def _get_polygon_coords(self, geom) -> List[Tuple[np.ndarray, np.ndarray]]:
         """폴리곤 또는 멀티폴리곤에서 좌표를 추출합니다."""
@@ -440,23 +435,27 @@ class MapGenerator:
 
     def load_map_config(self, map_id: str):
         """맵 설정 로드"""
-        self.current_map_id = map_id
         self.configs = self.config_manager.db.get_map(map_id)
         self.walls_data = self.configs.get('walls', '')
-        self.sensors_data = self.configs.get('sensors', [])  # 기본값을 빈 리스트로 변경
+        self.sensors_data = self.configs.get('sensors', [])
         self.parameters = self.configs.get('parameters', {})
         self.gen_config = self.configs.get('gen_config', {})
+        self.unit = self.configs.get('unit', '')
 
-    def save_generation_time(self):
+    def save_generation_time(self, map_id: str, generation_time: str, generation_duration: str):
         """생성 시간 저장"""
-        if not self.current_map_id:
+        if not map_id:
             return
-        map_data = self.config_manager.db.get_map(self.current_map_id)
+        map_data = self.config_manager.db.get_map(map_id)
         map_data['last_generation'] = {
-            'timestamp': datetime.now().isoformat(),
-            'duration': self.generation_duration
+            'timestamp': generation_time,
+            'duration': generation_duration
         }
-        self.config_manager.db.save(self.current_map_id, map_data)
+        # 이미지 URL 업데이트
+        output_filename = self.config_manager.get_output_filename(map_id)
+        map_data['img_url'] = f'/local/HeatMapBuilder/{map_id}/{output_filename}?{generation_time}'
+        
+        self.config_manager.db.save(map_id, map_data)
 
     def _create_sensor_marker(self, point, temperature, sensor_id, state):
         """센서 마커를 생성합니다."""
@@ -530,7 +529,7 @@ class MapGenerator:
                 if 'temp' in sensor_display:
                     if text:
                         text += '\n'
-                    text += f'{temperature:.1f}°C'
+                    text += f'{temperature:.1f}{self.unit}'
                     if 'name' not in sensor_display:
                         font_size = sensor_temp.get('font_size', 12)
                         font_color = sensor_temp.get('color', '#000000')
@@ -538,43 +537,253 @@ class MapGenerator:
                 # 배경 설정
                 bg_color = sensor_info_bg.get('color', '#FFFFFF')
                 bg_opacity = sensor_info_bg.get('opacity', 70) / 100
+                bg_padding = sensor_info_bg.get('padding', 5)
+                bg_border_radius = sensor_info_bg.get('border_radius', 4)
+                bg_border_width = sensor_info_bg.get('border_width', 1)
+                bg_border_color = sensor_info_bg.get('border_color', '#000000')
+                bg_position = sensor_info_bg.get('position', 'right')
+                bg_distance = sensor_info_bg.get('distance', 10)
+
+                # 텍스트 위치 계산
+                text_x, text_y = point[0], point[1]
+                if bg_position == 'right':
+                    text_x = point[0] + marker_size/2 + bg_distance
+                    text_y = point[1]
+                elif bg_position == 'left':
+                    text_x = point[0] - marker_size/2 - bg_distance
+                    text_y = point[1]
+                elif bg_position == 'top':
+                    text_x = point[0]
+                    text_y = point[1] - marker_size/2 - bg_distance
+                elif bg_position == 'bottom':
+                    text_x = point[0]
+                    text_y = point[1] + marker_size/2 + bg_distance
+                elif bg_position == 'top-right':
+                    text_x = point[0] + marker_size/2 + bg_distance/1.4
+                    text_y = point[1] - marker_size/2 - bg_distance/1.4
+                elif bg_position == 'top-left':
+                    text_x = point[0] - marker_size/2 - bg_distance/1.4
+                    text_y = point[1] - marker_size/2 - bg_distance/1.4
+                elif bg_position == 'bottom-right':
+                    text_x = point[0] + marker_size/2 + bg_distance/1.4
+                    text_y = point[1] + marker_size/2 + bg_distance/1.4
+                elif bg_position == 'bottom-left':
+                    text_x = point[0] - marker_size/2 - bg_distance/1.4
+                    text_y = point[1] + marker_size/2 + bg_distance/1.4
+
+                # 텍스트 정렬 설정
+                halign = 'center'
+                valign = 'center'
+                if 'right' in bg_position:
+                    halign = 'left'
+                elif 'left' in bg_position:
+                    halign = 'right'
+                if 'top' in bg_position:
+                    valign = 'bottom'
+                elif 'bottom' in bg_position:
+                    valign = 'top'
 
                 # 텍스트 추가
-                plt.text(point[0], point[1] - marker_size - 5, text,
-                        horizontalalignment='center',
-                        verticalalignment='bottom',
+                plt.text(text_x, text_y, text,
+                        horizontalalignment=halign,
+                        verticalalignment=valign,
                         fontsize=font_size,
                         color=font_color,
-                        bbox=dict(facecolor=bg_color,
-                                alpha=bg_opacity,
-                                edgecolor='none',
-                                pad=4,
-                                boxstyle='round,pad=0.5'),
+                        bbox=dict(
+                            facecolor=bg_color,
+                            alpha=bg_opacity,
+                            edgecolor=bg_border_color if bg_border_width > 0 else 'none',
+                            linewidth=bg_border_width,
+                            pad=bg_padding,
+                            boxstyle=f'round,pad={bg_padding/10},rounding_size={bg_border_radius}'
+                        ),
                         zorder=6)
 
         except Exception as e:
             self.logger.error(f"센서 마커 생성 중 오류 발생: {str(e)}")
 
-    def generate(self, output_path: str) -> bool:
-        """
-        온도맵을 생성하고 이미지 파일로 저장합니다.
+    def _create_colorbar(self, fig, im, colorbar_config):
+        """컬러바를 생성합니다."""
         
-        Args:
-            output_path: 출력 이미지 파일 경로
+        show_label = colorbar_config.get('show_label', True)
+        label = colorbar_config.get('label', self.unit)
+        label_color = colorbar_config.get('label_color', '#000000')
+        tick_size = colorbar_config.get('tick_size', 10)
+        show_shadow = colorbar_config.get('show_shadow', True)
+        shadow_color = colorbar_config.get('shadow_color', '#FFFFFF')
+        shadow_width = colorbar_config.get('shadow_width', 3)
+        shadow_x_offset = colorbar_config.get('shadow_x_offset', 1)
+        shadow_y_offset = colorbar_config.get('shadow_y_offset', 1)
+        orientation = colorbar_config.get('orientation', 'vertical')
+        location = colorbar_config.get('location', 'right')
+        width = colorbar_config.get('width', 5)
+        height = colorbar_config.get('height', 80)
+        pad = colorbar_config.get('borderpad', 0)
+
+        if orientation == 'horizontal':
+            width, height = height, width
+        main_ax = fig.gca()
+        cax = inset_axes(main_ax,
+                        width=f'{width}%',
+                        height=f'{height}%',
+                        loc=location,
+                        borderpad=pad)
+
+        cbar = fig.colorbar(im, cax=cax, orientation=orientation)
+
+        if show_label:
+            # 그림자 효과 설정
+            path_effects_list = []
+            if show_shadow:
+                path_effects_list.append(path_effects.withStroke(linewidth=shadow_width, 
+                                                               foreground=shadow_color,
+                                                               offset=(shadow_x_offset, shadow_y_offset * -1)))
             
+            # 레이블과 눈금에 그림자 효과 적용
+            cbar.set_label(label, 
+                        size=colorbar_config.get('font_size', 10),
+                        color=label_color,
+                        path_effects=path_effects_list if path_effects_list else None)
+            
+            # 눈금 레이블에도 그림자 효과 적용
+            for label in cbar.ax.get_yticklabels():
+                label.set_path_effects(path_effects_list if path_effects_list else None)
+            for label in cbar.ax.get_xticklabels():
+                label.set_path_effects(path_effects_list if path_effects_list else None)
+                
+            cbar.ax.tick_params(labelsize=tick_size,
+                            colors=label_color)
+
+        cbar.ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    def _add_timestamp(self, ax, timestamp_config):
+        """타임스탬프를 추가합니다."""
+        try:
+            # 현재 시간을 설정된 형식으로 포맷팅
+            format_map = {
+                'YYYY-MM-DD HH:mm:ss': '%Y-%m-%d %H:%M:%S',
+                'YYYY/MM/DD HH:mm:ss': '%Y/%m/%d %H:%M:%S',
+                'MM-DD HH:mm': '%m-%d %H:%M',
+                'HH:mm:ss': '%H:%M:%S',
+                'HH:mm': '%H:%M'
+            }
+            time_format = format_map.get(timestamp_config.get('format', 'YYYY-MM-DD HH:mm:ss'), '%Y-%m-%d %H:%M:%S')
+            timestamp_text = datetime.now().strftime(time_format)
+
+            # 위치 설정
+            position = timestamp_config.get('position', 'bottom-right')
+            margin_x = timestamp_config.get('margin_x', 10)
+            margin_y = timestamp_config.get('margin_y', 10)
+            
+            # 데이터 좌표계에서의 여백 계산 (1000x1000 기준)
+            margin_x_data = (margin_x / 1000) * 1000  # 픽셀 값을 데이터 좌표로 변환
+            margin_y_data = (margin_y / 1000) * 1000
+            
+            # 위치에 따른 좌표와 정렬 설정
+            position_settings = {
+                'top-left': {'x': margin_x_data, 'y': margin_y_data, 'ha': 'left', 'va': 'top'},
+                'top-right': {'x': 1000 - margin_x_data, 'y': margin_y_data, 'ha': 'right', 'va': 'top'},
+                'bottom-left': {'x': margin_x_data, 'y': 1000 - margin_y_data, 'ha': 'left', 'va': 'bottom'},
+                'bottom-right': {'x': 1000 - margin_x_data, 'y': 1000 - margin_y_data, 'ha': 'right', 'va': 'bottom'}
+            }
+            pos = position_settings.get(position, position_settings['bottom-right'])
+
+            # 글자 설정
+            font_size = timestamp_config.get('font_size', 16)
+            font_color = timestamp_config.get('font_color', '#ffffff')
+
+            # 그림자 설정
+            shadow = timestamp_config.get('shadow', {})
+            path_effects_list = []
+            if shadow.get('enabled', True):
+                shadow_color = shadow.get('color', '#000000')
+                shadow_size = shadow.get('size', 2)
+                
+                # 그림자 오프셋을 데이터 좌표계로 변환
+                shadow_x_offset = shadow.get('x_offset', 1)
+                shadow_y_offset = shadow.get('y_offset', 1)
+                shadow_y_offset *= -1  # 그림자 방향 반전
+                
+                # 데이터 좌표계에서의 오프셋 계산
+                shadow_x_data = (shadow_x_offset / 1000) * 1000
+                shadow_y_data = (shadow_y_offset / 1000) * 1000
+                
+                path_effects_list.append(path_effects.withStroke(linewidth=shadow_size,
+                                                               foreground=shadow_color,
+                                                               offset=(shadow_x_data, shadow_y_data)))
+
+            # 타임스탬프 텍스트 추가
+            ax.text(pos['x'], pos['y'],
+                   timestamp_text,
+                   fontsize=font_size,
+                   color=font_color,
+                   horizontalalignment=pos['ha'],
+                   verticalalignment=pos['va'],
+                   path_effects=path_effects_list if path_effects_list else None,
+                   zorder=10)  # 다른 요소들 위에 표시
+
+        except Exception as e:
+            self.logger.error(f"타임스탬프 추가 중 오류 발생: {str(e)}")
+
+    async def generate(self, map_id: str, output_path: str) -> Dict[str, Any]:
+        """온도맵을 생성하고 이미지 파일로 저장합니다.
+        
         Returns:
-            bool: 성공 여부
+            Dict[str, Any]: {
+                'success': bool,  # 성공 여부
+                'error': str,     # 에러 메시지
+                'time': str,      # 생성 시간
+                'duration': str   # 생성 소요 시간
+            }
         """
         try:
-            if not self.current_map_id:
-                self.logger.error("현재 선택된 맵이 없습니다")
-                return False
+            # 출력 디렉토리 확인 및 생성
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not os.path.exists(output_dir):
+                try:
+                    os.makedirs(output_dir, exist_ok=True)
+                    self.logger.debug(f"출력 디렉토리 생성 완료: {output_dir}")
+                except Exception as dir_error:
+                    error_msg = f"출력 디렉토리 생성 실패 ({output_dir}): {str(dir_error)}"
+                    self.logger.error(error_msg)
+                    return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
+            if not map_id:
+                error_msg = "맵 ID가 없습니다"
+                self.logger.error(error_msg)
+                return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
+            self.load_map_config(map_id)
+
             # walls_data와 sensors_data 유효성 검사
             if not self.walls_data or len(self.sensors_data) == 0:
-                self.logger.error("벽 데이터 또는 센서 데이터가 없습니다")
-                return False
+                error_msg = "벽 데이터 또는 센서 데이터가 없습니다"
+                self.logger.error(error_msg)
+                return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
+            
             timestamp_start = time.time_ns()
 
+            try:
+                # 센서 상태 조회를 현재 이벤트 루프에서 실행
+                self.logger.trace("센서 상태 조회 시작")
+                start_time = time.time()
+                
+                # 센서 상태 조회 실행
+                self.logger.trace("센서 상태 조회 실행 시작...")
+                all_states = await self.sensor_manager.get_all_states()
+                elapsed_time = time.time() - start_time
+                
+                if all_states:
+                    self.logger.trace(f"센서 상태 조회 완료: {len(all_states)}개 센서, 소요시간: {elapsed_time:.3f}초")
+                    states_dict = {state['entity_id']: state for state in all_states}
+                else:
+                    self.logger.error(f"센서 상태 조회 실패: 결과가 비어있음 (소요시간: {elapsed_time:.3f}초)")
+                    states_dict = {}
+            except Exception as e:
+                import traceback
+                self.logger.error(f"센서 상태 조회 중 오류 발생: {str(e)}")
+                self.logger.error(traceback.format_exc())
+                # 오류 발생 시 빈 딕셔너리로 초기화
+                states_dict = {}
+            
             # 설정된 온도 범위 가져오기
             min_temp = self.gen_config.get('colorbar', {}).get('min_temp', 0)
             max_temp = self.gen_config.get('colorbar', {}).get('max_temp', 40)
@@ -582,14 +791,16 @@ class MapGenerator:
             # area 데이터 파싱
             areas, root = self._parse_areas()
             if not areas:
-                self.logger.error("유효한 area를 찾을 수 없습니다")
-                return False
+                error_msg = "유효한 area를 찾을 수 없습니다"
+                self.logger.error(error_msg)
+                return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
 
-            # 센서 데이터 수집
-            sensor_points, raw_temps, sensor_ids = self._collect_sensor_data()
+            # 센서 데이터 수집 (states_dict 전달)
+            sensor_points, raw_temps, sensor_ids = await self._collect_sensor_data(states_dict)
             if not sensor_points:
-                self.logger.error("유효한 센서 데이터가 없습니다")
-                return False
+                error_msg = "유효한 센서 데이터가 없습니다"
+                self.logger.error(error_msg)
+                return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
             temperatures = raw_temps
             # 온도값 범위 제한 적용
             if min_temp is not None:
@@ -613,147 +824,200 @@ class MapGenerator:
             grid_z = np.full_like(grid_x, np.nan)
             grid_points = np.column_stack((grid_x.flatten(), grid_y.flatten()))
             
-            # 각 area별로 온도 계산
-            for area_idx, area in enumerate(self.areas):
-                area_temps = self._calculate_area_temperature(
-                    area_idx, area, grid_points, grid_x, grid_y,
-                    min_x, max_x, min_y, max_y
-                )
-                # area 마스크 생성 및 결과 할당
-                area_mask = np.array([area['polygon'].contains(Point(x, y)) for x, y in grid_points])
-                area_mask = area_mask.reshape(grid_x.shape)
-                grid_z[area_mask] = area_temps
+            # 멀티프로세싱 설정
+            num_processes = min(cpu_count(), len(self.areas))
+            self.logger.trace(f"멀티프로세싱 시작: {num_processes}개의 프로세스 사용")
+            
+            # 프로세스 풀 생성 및 작업 실행
+            try:
+                self.logger.trace("프로세스 풀 생성 시작")
+                with Pool(processes=num_processes) as pool:
+                    # 작업 인자 준비
+                    self.logger.trace("작업 인자 준비 시작")
+                    process_args = [
+                        (area_idx, area, grid_points, grid_x, grid_y, min_x, max_x, min_y, max_y, 
+                         self.area_sensors, self.parameters)
+                        for area_idx, area in enumerate(self.areas)
+                    ]
+                    self.logger.trace(f"작업 인자 준비 완료: {len(process_args)}개의 작업")
+                    
+                    # 병렬 처리 실행
+                    self.logger.trace("병렬 처리 시작")
+                    results = []
+                    for i, result in enumerate(pool.imap_unordered(self._process_area_static, process_args)):
+                        self.logger.trace(f"Area 처리 완료 ({i+1}/{len(process_args)})")
+                        results.append(result)
+                    
+                    # 결과 처리
+                    self.logger.trace("결과 처리 시작")
+                    for area_idx, area_temps, area_mask in results:
+                        self.logger.trace(f"Area {area_idx} 결과 적용 중")
+                        grid_z[area_mask] = area_temps
+                        self.logger.trace(f"Area {area_idx} 결과 적용 완료")
+                    
+                    self.logger.trace("모든 area 처리 완료")
+                    
+                    pool.close()
+                    pool.join()  # 명시적 종료 대기 추가
+                    self.logger.trace("프로세스 풀 완전 종료 확인")
+                    
+            except Exception as e:
+                self.logger.error(f"멀티프로세싱 처리 중 오류 발생: {str(e)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+                raise
+
+            # 플롯 생성 전 추가 로깅
+            self.logger.trace("현재 열려 있는 Figure 수: %d", len(plt.get_fignums()))
 
             # 플롯 생성
-            fig = plt.figure(figsize=(10, 10))  # 전체 figure 크기
+            self.logger.trace("플롯 생성 시작")
+            try:
+                plt.close('all')  # 기존 플롯 정리
+                self.logger.trace("figure 생성 시작")
+                fig = plt.figure(figsize=(10, 10))  # 전체 figure 크기
+                self.logger.trace("figure 생성 완료")
 
-            # 메인 플롯 (열지도)
-            main_ax = plt.subplot2grid((1, 20), (0, 0), colspan=20)  # 열지도용 axes
-            main_ax.invert_yaxis()
+                # 메인 플롯 (열지도)
+                self.logger.trace("메인 플롯 axes 생성 시작")
+                main_ax = plt.subplot2grid((1, 20), (0, 0), colspan=20)  # 열지도용 axes
+                main_ax.invert_yaxis()
+                self.logger.trace("메인 플롯 axes 생성 완료")
 
-            # 온도 범위 설정
-            temp_range = min_temp - max_temp
-            steps = self.gen_config.get('colorbar', {}).get('temp_steps', 100)
-            levels = np.linspace(min_temp - 0.1 * temp_range, max_temp + 0.1 * temp_range, steps)
+                # 온도 범위 설정
+                self.logger.trace("온도 범위 설정 시작")
+                temp_range = min_temp - max_temp
+                steps = self.gen_config.get('colorbar', {}).get('temp_steps', 100)
+                levels = np.linspace(min_temp - 0.1 * temp_range, max_temp + 0.1 * temp_range, steps)
+                self.logger.trace("온도 범위 설정 완료")
 
-            # 온도 데이터가 없는 area 표시
-            for i, area in enumerate(self.areas):
-                if i not in self.area_sensors:
-                    empty_area_style = self.gen_config.get('visualization', {}).get('empty_area', 'white')
-                    if empty_area_style == 'white':
-                        for x, y in self._get_polygon_coords(area['polygon']):
-                            main_ax.fill(x, y, facecolor='white', alpha=1.0, edgecolor='none')
-                    elif empty_area_style == 'transparent':
-                        # transparent 스타일인 경우 해당 영역을 건너뜀
-                        continue
-                    elif empty_area_style == 'hatched':
-                        for x, y in self._get_polygon_coords(area['polygon']):
-                            main_ax.fill(x, y, facecolor='white', hatch='///', alpha=1.0, edgecolor='none')
-
-            # 온도 분포 그리기 (부드러운 그라데이션을 위한 설정)
-            contour = main_ax.contourf(grid_x, grid_y, grid_z,
-                                   levels=levels,
-                                   cmap=self.gen_config.get('colorbar', {}).get('cmap', 'RdYlBu_r'),
-                                   extend='both',
-                                   alpha=0.9)  # 약간의 투명도 추가
-            
-            # area 경계 그리기
-            area_border_width = self.gen_config.get('visualization', {}).get('area_border_width', 2)
-            area_border_color = self.gen_config.get('visualization', {}).get('area_border_color', '#000000')
-            if area_border_width > 0:  # 선 두께가 0보다 큰 경우에만 그리기
-                for area in self.areas:
-                    if not area['is_exterior']:
-                        for x, y in self._get_polygon_coords(area['polygon']):
-                            main_ax.plot(x, y, color=area_border_color, linewidth=area_border_width)
-
-            # plot 외곽선 그리기
-            plot_border_width = self.gen_config.get('visualization', {}).get('plot_border_width', 0)
-            plot_border_color = self.gen_config.get('visualization', {}).get('plot_border_color', '#000000')
-            if plot_border_width > 0:  # 선 두께가 0보다 큰 경우에만 그리기
-                for spine in ['top', 'bottom', 'left', 'right']:
-                    main_ax.spines[spine].set_linewidth(plot_border_width)
-                    main_ax.spines[spine].set_color(plot_border_color)
-                    main_ax.spines[spine].set_visible(True)
-
-            # 센서 표시 설정
-            sensor_display = self.gen_config.get('visualization', {}).get('sensor_display', 'position_name_temp')
-            
-            if sensor_display != 'none':  # 'none'이 아닐 때만 센서 표시
-                # 센서 위치 표시
-                for point, temperature, sensor_id in zip(sensor_points, raw_temps, sensor_ids):
-                    try:
-                        state = self.get_sensor_state(sensor_id)
-                        if not state or not isinstance(state, dict):
+                # 온도 데이터가 없는 area 표시
+                self.logger.trace("빈 area 처리 시작")
+                for i, area in enumerate(self.areas):
+                    if i not in self.area_sensors:
+                        empty_area_style = self.gen_config.get('visualization', {}).get('empty_area', 'white')
+                        if empty_area_style == 'white':
+                            for x, y in self._get_polygon_coords(area['polygon']):
+                                main_ax.fill(x, y, facecolor='white', alpha=1.0, edgecolor='none')
+                        elif empty_area_style == 'transparent':
+                            # transparent 스타일인 경우 해당 영역을 건너뜀
                             continue
-                        self._create_sensor_marker([point[0], point[1]], temperature, sensor_id, state)
-                    except Exception as e:
-                        self.logger.warning(f"센서 {sensor_id} 표시 실패: {str(e)}")
-                        continue
+                        elif empty_area_style == 'hatched':
+                            for x, y in self._get_polygon_coords(area['polygon']):
+                                main_ax.fill(x, y, facecolor='white', hatch='///', alpha=1.0, edgecolor='none')
+                self.logger.trace("빈 area 처리 완료")
 
-            # 컬러바 설정 적용
-            colorbar_config = self.gen_config.get('colorbar', {})
-            if colorbar_config and colorbar_config.get('show_colorbar', True):  # 컬러바 표시 여부 확인
-                # 컬러바 위치 및 크기 설정
-                width = colorbar_config.get('width', 5)
-                height = colorbar_config.get('height', 100)
-                location = colorbar_config.get('location', 'right')
-                orientation = colorbar_config.get('orientation', 'vertical')
-                borderpad = colorbar_config.get('borderpad',0)
-                # orientation에 따라 width와 height 조정
-                if orientation == 'horizontal':
-                    # 가로 방향일 경우 width와 height를 교체
-                    width, height = height, width
+                # 온도 분포 그리기
+                self.logger.trace("온도 분포 그리기 시작")
+                contour = main_ax.contourf(grid_x, grid_y, grid_z,
+                                       levels=levels,
+                                       cmap=self.gen_config.get('colorbar', {}).get('cmap', 'RdYlBu_r'),
+                                       extend='both',
+                                       alpha=0.9)
+                self.logger.trace("온도 분포 그리기 완료")
+
+                # area 경계 그리기
+                self.logger.trace("area 경계 그리기 시작")
+                area_border_width = self.gen_config.get('visualization', {}).get('area_border_width', 2)
+                area_border_color = self.gen_config.get('visualization', {}).get('area_border_color', '#000000')
+                if area_border_width > 0:
+                    for area in self.areas:
+                        if not area['is_exterior']:
+                            for x, y in self._get_polygon_coords(area['polygon']):
+                                main_ax.plot(x, y, color=area_border_color, linewidth=area_border_width)
+                self.logger.trace("area 경계 그리기 완료")
+
+                # plot 외곽선 그리기
+                self.logger.trace("plot 외곽선 그리기 시작")
+                plot_border_width = self.gen_config.get('visualization', {}).get('plot_border_width', 0)
+                plot_border_color = self.gen_config.get('visualization', {}).get('plot_border_color', '#000000')
+                if plot_border_width > 0:
+                    for spine in ['top', 'bottom', 'left', 'right']:
+                        main_ax.spines[spine].set_linewidth(plot_border_width)
+                        main_ax.spines[spine].set_color(plot_border_color)
+                        main_ax.spines[spine].set_visible(True)
+                self.logger.trace("plot 외곽선 그리기 완료")
+
+                # 센서 표시 설정
+                self.logger.trace("센서 표시 시작")
+                sensor_display = self.gen_config.get('visualization', {}).get('sensor_display', 'position_name_temp')
+                if sensor_display != 'none':
+                    for point, temperature, sensor_id in zip(sensor_points, raw_temps, sensor_ids):
+                        try:
+                            state = states_dict.get(sensor_id, {'state': '0', 'entity_id': sensor_id})
+                            self._create_sensor_marker([point[0], point[1]], temperature, sensor_id, state)
+                        except Exception as e:
+                            self.logger.error(f"센서 {sensor_id} 표시 실패: {str(e)}")
+                            continue
+                self.logger.trace("센서 표시 완료")
+
+                # 컬러바 설정 적용
+                self.logger.trace("컬러바 설정 시작")
+                colorbar_config = self.gen_config.get('colorbar', {})
+                if colorbar_config and colorbar_config.get('show_colorbar', True):
+                    self._create_colorbar(fig, contour, colorbar_config)
+                self.logger.trace("컬러바 설정 완료")
+
+                # 타임스탬프 설정 적용
+                self.logger.trace("타임스탬프 설정 시작")
+                timestamp_config = self.gen_config.get('timestamp', {})
+                if timestamp_config.get('enabled', False):
+                    self._add_timestamp(main_ax, timestamp_config)
+                self.logger.trace("타임스탬프 설정 완료")
+
+                # 축 설정
+                self.logger.trace("축 설정 시작")
+                main_ax.set_aspect('equal')
+                main_ax.axis('off')
+                self.logger.trace("축 설정 완료")
+
+                # 저장 (dpi 조정으로 1000x1000 크기 맞추기)
+                self.logger.trace("이미지 저장 시작")
+                width_inches = fig.get_size_inches()[0]
+                dpi = 1000 / width_inches
                 
-                # 컬러바 생성
-                cax = inset_axes(main_ax,
-                 width=f'{width}%',
-                 height=f'{height}%',
-                 loc=location,
-                 borderpad=borderpad)
-                cbar = fig.colorbar(contour, cax=cax, orientation=orientation)
+                format = self.config_manager.get_output_format(map_id)
+                plt.savefig(output_path,
+                           bbox_inches='tight',
+                           pad_inches=0,
+                           dpi=dpi,
+                           facecolor='none',
+                           transparent=True,
+                           format=format)
+                self.logger.trace("이미지 저장 완료")
                 
-                # 컬러바의 major locator를 정수로 설정
-                cbar.locator = MaxNLocator(integer=True)
-                cbar.update_ticks()
-                # 레이블 설정
-                if colorbar_config.get('show_label', True):
-                    label = colorbar_config.get('label', '온도 (°C)')
-                    font_size = colorbar_config.get('font_size', 12)
-                    cbar.set_label(label, fontsize=font_size)
+                plt.close(fig)  # 메모리 정리
+                self.logger.trace("플롯 생성 완료")
+                
+                # 생성 시간 정보 업데이트
+                timestamp_end = time.time_ns()
+                generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                generation_duration = f'{((timestamp_end - timestamp_start)/1000000000):.3f}s'
+                
+                self.save_generation_time(map_id, generation_time, generation_duration)
+                
+                return {
+                    'success': True,
+                    'error': '',
+                    'time': generation_time,
+                    'duration': generation_duration
+                }
 
-                # 눈금 크기 설정
-                tick_size = colorbar_config.get('tick_size', 10)
-                cbar.ax.tick_params(labelsize=tick_size)
-
-            # 축 설정
-            main_ax.set_aspect('equal')
-            main_ax.axis('off')
-
-            # 저장 (dpi 조정으로 1000x1000 크기 맞추기)
-            width_inches = fig.get_size_inches()[0]  # 메인 플롯의 실제 너비
-            dpi = 1000 / (width_inches)  # 1000px 위해 필요한 dpi 계산
-            
-            format = self.config_manager.get_output_format(self.current_map_id)
-            plt.savefig(output_path,
-                       bbox_inches='tight',
-                       pad_inches=0,
-                       dpi=dpi,
-                       facecolor='none',  # 배경색을 none으로 변경
-                       transparent=True,
-                       format=format)
-            plt.close()
-            
-            # 생성 시간 정보 업데이트
-            timestamp_end = time.time_ns()
-            self.generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            self.generation_duration = f'{((timestamp_end - timestamp_start)/1000000000):.3f}s'
-            
-            self.save_generation_time()
-            
-            return True
+            except Exception as e:
+                self.logger.error(f"플롯 생성 중 오류 발생: {str(e)}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+                plt.close('all')  # 오류 발생 시에도 메모리 정리
+                raise
 
         except Exception as e:
-            self.logger.error(f"온도맵 생성 중 오류 발생: {str(e)}")
+            error_msg = f"온도맵 생성 중 오류 발생: {str(e)}"
+            self.logger.error(error_msg)
             import traceback
             self.logger.error(traceback.format_exc())
-            return False 
+            return {
+                'success': False,
+                'error': error_msg,
+                'time': '',
+                'duration': ''
+            } 

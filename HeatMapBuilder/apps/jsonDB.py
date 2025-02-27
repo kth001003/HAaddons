@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 from filelock import FileLock #type: ignore
 
@@ -26,18 +27,18 @@ class JsonDB:
             with open(self.db_path, 'w', encoding='utf-8') as f:
                 json.dump(db, f, indent=4)
 
-    def delete(self, map_id) -> bool:
-        """특정 ID의 데이터를 삭제합니다. 삭제되면 True, 없으면 False 반환."""
+    def update_map(self, map_id, map_data) -> None:
+        """ID에 해당하는 내용을 업데이트합니다.
+           기존 데이터의 key:value들을 전달된 map_data로 병합합니다."""
         with self.lock:
             db = self.load()
-
-            if map_id in db:
-                del db[map_id]
-                with open(self.db_path, 'w', encoding='utf-8') as f:
-                    json.dump(db, f, indent=4)
-
-                return True
-            return False
+            db[map_id].update({'updated_at': datetime.now().isoformat()})
+            if map_id in db and isinstance(db[map_id], dict):
+                db[map_id].update(map_data)
+            else:
+                db[map_id] = map_data
+            with open(self.db_path, 'w', encoding='utf-8') as f:
+                json.dump(db, f, indent=4)
 
     def update_all(self, key, value) -> int:
         """
@@ -69,7 +70,8 @@ class JsonDB:
                     'name': map_data['name'],
                     'created_at': map_data.get('created_at', ''),
                     'updated_at': map_data.get('updated_at', ''),
-                    'walls': map_data.get('walls', '')
+                    'walls': map_data.get('walls', ''),
+                    'img_url': map_data.get('img_url', '')
                 })
         return maps
 
@@ -77,3 +79,18 @@ class JsonDB:
         """특정 맵의 상세 정보를 반환합니다."""
         db = self.load()
         return db.get(map_id, {})
+
+    def save_all(self, maps_data: dict) -> None:
+        """전체 맵 데이터를 저장합니다."""
+        with self.lock:
+            with open(self.db_path, 'w', encoding='utf-8') as f:
+                json.dump(maps_data, f, indent=4)
+
+    def delete_map(self, map_id: str) -> None:
+        """맵을 삭제합니다."""
+        with self.lock:
+            db = self.load()
+            if map_id in db:
+                del db[map_id]
+                with open(self.db_path, 'w', encoding='utf-8') as f:
+                    json.dump(db, f, indent=4)

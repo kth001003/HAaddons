@@ -225,7 +225,6 @@ export class DrawingUtils {
                 uniquePaths.push(path);
             }
         }
-        console.log("완전중복제거후 갯수", uniquePaths.length);
 
         // 2단계: 양쪽 끝이 연결된 선분들의 중점 중 하나라도 path 내부에 있는 경우 제거
         const result = [];
@@ -276,7 +275,6 @@ export class DrawingUtils {
             }
             
             // 어떤 line의 중점도 내부에 없는 path만 추가
-            console.log("중점 없는 path 추가", path);
             result.push(path);
         }
 
@@ -305,7 +303,6 @@ export class DrawingUtils {
                 (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
             if (intersect) inside = !inside;
         }
-        console.log("내부 점 확인", inside);
         return inside;
     }
 
@@ -357,24 +354,6 @@ export class DrawingUtils {
                         <line x1='6' y1='6' x2='18' y2='18' stroke='white' stroke-width='1'/>
                     </svg>`;
                 break;
-            case 'move-point':
-                cursorSvg = `
-                    <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
-                        <circle cx='1' cy='1' r='1' fill='black'/>
-                        <path d='M12 3l-1 1h2l-1-1z' fill='white'/>
-                        <path d='M12 21l-1-1h2l-1 1z' fill='white'/>
-                        <path d='M3 12l1-1v2l-1-1z' fill='white'/>
-                        <path d='M21 12l-1-1v2l1-1z' fill='white'/>
-                        <path d='M12 2l-2 2h4l-2-2z' fill='black'/>
-                        <path d='M12 22l-2-2h4l-2 2z' fill='black'/>
-                        <path d='M2 12l2-2v4l-2-2z' fill='black'/>
-                        <path d='M22 12l-2-2v4l2-2z' fill='black'/>
-                        <rect x='11' y='5' width='2' height='14' fill='white'/>
-                        <rect x='5' y='11' width='14' height='2' fill='white'/>
-                        <rect x='4' y='11' width='16' height='2' fill='black'/>
-                        <rect x='11' y='4' width='2' height='16' fill='black'/>
-                    </svg>`;
-                break;
             case 'eraser':
                 cursorSvg = `
                     <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
@@ -388,7 +367,7 @@ export class DrawingUtils {
         }
         
         const cursorUrl = `data:image/svg+xml;base64,${btoa(cursorSvg)}`;
-        return `url('${cursorUrl}') 1 1, crosshair`;
+        return `url('${cursorUrl}') 1 1, default`;
     }
 
     // 자체 교차 검사 유틸리티

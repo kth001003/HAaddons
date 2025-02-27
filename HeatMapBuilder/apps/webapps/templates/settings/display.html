@@ -1,0 +1,87 @@
+<!-- Area 표시 설정 -->
+<div class="space-y-6">
+    <!-- Area 표시 설정 -->
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h3 class="text-lg font-medium text-gray-900 mb-3">Area 표시 설정</h3>
+        <div class="space-y-4">
+            <div class="group relative mb-4">
+                <button class="text-gray-400 hover:text-gray-500">
+                    <i class="mdi mdi-information"></i>
+                </button>
+                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-0 mt-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-md w-full whitespace-normal z-20">
+                    Area는 벽으로 둘러싸인 방을 의미합니다.
+                </div>
+            </div>
+
+            <!-- 데이터 없는 Area 표시 설정 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">데이터 없는 Area 표시</label>
+                <select id="empty-area-style" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <option value="white" selected>흰색</option>
+                    <option value="transparent">투명</option>
+                    <option value="hatched">빗금</option>
+                </select>
+            </div>
+
+            <!-- Area 경계선 설정 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Area 경계선 두께</label>
+                <input type="number" id="area-border-width" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    value="7" min="0" max="10" step="0.5">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Area 경계선 색상</label>
+                <div class="flex space-x-2">
+                    <input type="color" id="area-border-color" class="h-10 w-20 border border-gray-300 rounded-md shadow-sm"
+                        value="#000000">
+                    <select id="area-border-color-preset" class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="#000000">검정</option>
+                        <option value="#FF0000">빨강</option>
+                        <option value="#00FF00">초록</option>
+                        <option value="#0000FF">파랑</option>
+                        <option value="#808080">회색</option>
+                        <option value="#FFFFFF">흰색</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plot 외곽선 설정 -->
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h3 class="text-lg font-medium text-gray-900 mb-3">외곽선 설정</h3>
+        <div class="space-y-4">
+            <div class="group relative mb-4">
+                <button class="text-gray-400 hover:text-gray-500">
+                    <i class="mdi mdi-information"></i>
+                </button>
+                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-0 mt-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-md w-full whitespace-normal z-20">
+                    지도의 테두리를 설정합니다.
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">외곽선 두께</label>
+                <input type="number" id="plot-border-width" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    value="0" min="0" max="10" step="0.5">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">외곽선 색상</label>
+                <div class="flex space-x-2">
+                    <input type="color" id="plot-border-color" class="h-10 w-20 border border-gray-300 rounded-md shadow-sm"
+                        value="#000000">
+                    <select id="plot-border-color-preset" class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="#000000" selected>검정</option>
+                        <option value="#FF0000">빨강</option>
+                        <option value="#00FF00">초록</option>
+                        <option value="#0000FF">파랑</option>
+                        <option value="#808080">회색</option>
+                        <option value="#FFFFFF">흰색</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 
