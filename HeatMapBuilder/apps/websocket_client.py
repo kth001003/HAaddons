@@ -97,7 +97,7 @@ class WebSocketClient:
                             if self.websocket:  # 다시 한번 확인
                                 await self.websocket.close()
                                 self.websocket = None
-                                self.logger.debug("웹소켓 객체 닫기 성공")
+                                self.logger.trace("웹소켓 객체 닫기 성공")
                 except asyncio.TimeoutError:
                     self.logger.error("락 획득 타임아웃 발생, 강제로 진행합니다")
                     await self._force_cleanup()
@@ -133,12 +133,12 @@ class WebSocketClient:
                 self.logger.trace("웹소켓 ping 성공")
                 return True
             except asyncio.TimeoutError:
-                self.logger.debug("웹소켓 ping 타임아웃, 연결 재시도 필요")
+                self.logger.trace("웹소켓 ping 타임아웃, 연결 재시도 필요")
             except Exception as e:
-                self.logger.debug(f"웹소켓 ping 실패, 연결 재시도 필요: {str(e)}")
+                self.logger.trace(f"웹소켓 ping 실패, 연결 재시도 필요: {str(e)}")
 
         # 연결이 끊어진 것으로 간주하고 재연결 시도
-        self.logger.debug("웹소켓 연결 없음 또는 끊어짐, 재연결 시도 시작")
+        self.logger.trace("웹소켓 연결 없음 또는 끊어짐, 재연결 시도 시작")
         await self.close()  # 기존 연결 정리
 
         self.reconnect_attempt = 0  # 재연결 시도 카운터 초기화
@@ -169,7 +169,7 @@ class WebSocketClient:
                             async with lock:
                                 self.websocket = new_websocket
                                 connect_time = time.time() - connect_start
-                                self.logger.debug(f"웹소켓 재연결 성공 (소요시간: {connect_time:.3f}초)")
+                                self.logger.trace(f"웹소켓 재연결 성공 (소요시간: {connect_time:.3f}초)")
                                 self.reconnect_attempt = 0
                                 return True
                     except (asyncio.TimeoutError, Exception) as e:
@@ -179,14 +179,14 @@ class WebSocketClient:
                 
                 self.logger.warning(f"웹소켓 재연결 실패: _connect()에서 None 반환 (시도 {self.reconnect_attempt})")
                 delay = self.reconnect_delay * (1.5 ** (self.reconnect_attempt - 1))  # 지수 백오프
-                self.logger.debug(f"{delay:.1f}초 후 재시도...")
+                self.logger.trace(f"{delay:.1f}초 후 재시도...")
                 await asyncio.sleep(delay)
                 
             except asyncio.TimeoutError:
                 connect_time = time.time() - connect_start
                 self.logger.error(f"웹소켓 연결 타임아웃 (소요시간: {connect_time:.3f}초, 시도 {self.reconnect_attempt})")
                 delay = self.reconnect_delay * (1.5 ** (self.reconnect_attempt - 1))
-                self.logger.debug(f"{delay:.1f}초 후 재시도...")
+                self.logger.trace(f"{delay:.1f}초 후 재시도...")
                 await asyncio.sleep(delay)
                 
             except Exception as e:
@@ -194,7 +194,7 @@ class WebSocketClient:
                 import traceback
                 self.logger.error(traceback.format_exc())
                 delay = self.reconnect_delay * (1.5 ** (self.reconnect_attempt - 1))
-                self.logger.debug(f"{delay:.1f}초 후 재시도...")
+                self.logger.trace(f"{delay:.1f}초 후 재시도...")
                 await asyncio.sleep(delay)
 
         self.logger.error("최대 재연결 시도 횟수 초과")
@@ -204,7 +204,7 @@ class WebSocketClient:
         websocket = None
         try:
             uri = "ws://supervisor/core/api/websocket"
-            self.logger.debug(f"웹소켓 연결 시도: {uri}")
+            self.logger.trace(f"웹소켓 연결 시도: {uri}")
             connect_start = time.time()
             
             try:
@@ -213,7 +213,7 @@ class WebSocketClient:
                                                    max_queue=2**10,
                                                    compression=None)
                 connect_time = time.time() - connect_start
-                self.logger.debug(f"웹소켓 연결 수립 성공 (소요시간: {connect_time:.3f}초)")
+                self.logger.trace(f"웹소켓 연결 수립 성공 (소요시간: {connect_time:.3f}초)")
             except Exception as conn_err:
                 self.logger.error(f"웹소켓 연결 실패: {str(conn_err)}")
                 import traceback
@@ -423,7 +423,7 @@ class MockWebSocketClient:
         self.message_id = 1
         self.reconnect_attempt = 0
         self.logger = logger
-        self.logger.debug(f"MockWebSocketClient 초기화: message_id={self.message_id}")
+        self.logger.trace(f"MockWebSocketClient 초기화: message_id={self.message_id}")
 
     def _truncate_log_message(self, message: str, max_length: int = 100) -> str:
         """로그 메시지를 지정된 길이로 잘라서 반환합니다."""
@@ -437,7 +437,7 @@ class MockWebSocketClient:
         
         # 이벤트 루프가 변경되었거나 lock이 없는 경우 새로 생성
         if self._connection_lock is None or self._event_loop != current_loop:
-            self.logger.debug("모의 웹소켓: 현재 이벤트 루프에 맞는 새 connection lock 생성")
+            self.logger.trace("모의 웹소켓: 현재 이벤트 루프에 맞는 새 connection lock 생성")
             self._connection_lock = asyncio.Lock()
             self._event_loop = current_loop
             
@@ -445,13 +445,13 @@ class MockWebSocketClient:
 
     async def ensure_connected(self) -> bool:
         """웹소켓 연결 상태를 확인합니다. 모의 클라이언트는 항상 연결된 것으로 간주합니다."""
-        self.logger.debug("모의 웹소켓 연결 상태 확인 (항상 True 반환)")
+        self.logger.trace("모의 웹소켓 연결 상태 확인 (항상 True 반환)")
         # 가끔 재연결 과정을 시뮬레이션
         if self.reconnect_attempt > 0:
-            self.logger.debug(f"모의 웹소켓 재연결 시도 중 (시도: {self.reconnect_attempt})")
+            self.logger.trace(f"모의 웹소켓 재연결 시도 중 (시도: {self.reconnect_attempt})")
             await asyncio.sleep(0.2)
             self.reconnect_attempt = 0
-            self.logger.debug("모의 웹소켓 재연결 성공")
+            self.logger.trace("모의 웹소켓 재연결 성공")
         
         # 간단한 지연 추가
         await asyncio.sleep(0.05)
@@ -460,7 +460,7 @@ class MockWebSocketClient:
     def _get_mock_data(self):
         """mock 데이터를 가져오고 필요한 경우 초기화합니다."""
         if self._mock_data is None:
-            self.logger.debug("모의 데이터 초기화 중...")
+            self.logger.trace("모의 데이터 초기화 중...")
             self._mock_data = self.config_manager.get_mock_data()
             
             # 온도 센서 데이터가 없거나 모든 값이 0인 경우 기본값 설정
@@ -483,7 +483,7 @@ class MockWebSocketClient:
                         sensor['attributes'] = {}
                     sensor['attributes']['unit_of_measurement'] = '°C'
                 self._mock_data['temperature_sensors'] = temp_sensors
-                self.logger.debug(f"기본 온도 센서 데이터 생성: {len(temp_sensors)}개")
+                self.logger.trace(f"기본 온도 센서 데이터 생성: {len(temp_sensors)}개")
         
         return self._mock_data
 
@@ -508,7 +508,7 @@ class MockWebSocketClient:
             self.message_id += 1
             
             # 메시지 로깅
-            self.logger.debug(f"모의 메시지 (ID: {current_id}, 타입: {message_type}): {self._truncate_log_message(message_str)}")
+            self.logger.trace(f"모의 메시지 (ID: {current_id}, 타입: {message_type}): {self._truncate_log_message(message_str)}")
             
             # 간단한 지연 추가 (네트워크 지연 시뮬레이션)
             await asyncio.sleep(0.2)
@@ -530,7 +530,7 @@ class MockWebSocketClient:
             
             # 결과 로깅
             result_size = len(result) if result and isinstance(result, list) else 0
-            self.logger.debug(f"모의 응답 (ID: {current_id}, 타입: {message_type}, 결과 크기: {result_size})")
+            self.logger.trace(f"모의 응답 (ID: {current_id}, 타입: {message_type}, 결과 크기: {result_size})")
             
             return result
             
@@ -542,7 +542,7 @@ class MockWebSocketClient:
             
     async def _connect(self):
         """웹소켓 연결을 시도합니다. MockWebSocketClient의 경우 항상 성공으로 처리합니다."""
-        self.logger.debug("모의 웹소켓 _connect 호출됨")
+        self.logger.trace("모의 웹소켓 _connect 호출됨")
         
         # 모의 연결 지연 시뮬레이션
         await asyncio.sleep(0.1)
@@ -552,12 +552,12 @@ class MockWebSocketClient:
         
         # 모의 웹소켓은 항상 True를 웹소켓 객체로 사용
         self.websocket = True
-        self.logger.debug("모의 웹소켓 연결 수립 성공")
+        self.logger.trace("모의 웹소켓 연결 수립 성공")
         
         return self.websocket
 
     async def close(self):
-        self.logger.debug("모의 웹소켓 연결 종료")
+        self.logger.trace("모의 웹소켓 연결 종료")
         self.websocket = None
         
         # 현재 이벤트 루프에 맞는 lock 가져오기
@@ -566,7 +566,7 @@ class MockWebSocketClient:
             async with lock:
                 self._event_loop = None
                 self._connection_lock = None
-                self.logger.debug("모의 웹소켓 자원 정리 완료")
+                self.logger.trace("모의 웹소켓 자원 정리 완료")
         except Exception as e:
             self.logger.error(f"모의 웹소켓 연결 종료 중 오류 발생: {str(e)}")
             pass 

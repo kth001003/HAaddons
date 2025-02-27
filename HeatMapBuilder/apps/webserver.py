@@ -128,7 +128,12 @@ class WebServer:
                 _, _, output_path = self.config_manager.get_output_info(map_id)
                 result = await self.map_generator.generate(map_id, output_path)
                 if result['success']:
-                    self.app.logger.info("지도 생성 완료")
+                    map_name = self.config_manager.db.get_map(map_id).get('name', '')
+                    last_generation = self.config_manager.db.get_map(map_id).get('last_generation', {})
+                    self.logger.info("Webserver: 수동 맵 생성 완료 %s (%s) (소요시간: %s)",
+                                    self.logger._colorize(map_name, "blue"),
+                                    map_id,
+                                    self.logger._colorize(last_generation.get('duration', ''), "green"))
 
                     return jsonify({
                         'status': 'success',
@@ -194,10 +199,6 @@ class WebServer:
         @self.app.route('/api/maps/<map_id>', methods=['GET'])
         async def get_map(map_id):
             return await self.get_map(map_id)
-
-        # @self.app.route('/api/maps/<map_id>', methods=['PUT'])
-        # async def update_map(map_id):
-        #     return await self.update_map(map_id)
 
         @self.app.route('/api/maps/<map_id>', methods=['DELETE'])
         async def delete_map(map_id):
@@ -478,14 +479,6 @@ class WebServer:
             self.logger.error(f"맵 조회 실패: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
-    # async def update_map(self, map_id):
-    #     """맵 정보 업데이트"""
-    #     data = await request.get_json() or {}
-    #     if not map_id:
-    #         return jsonify({'error': '맵 ID가 필요합니다.'}), 400
-    #     self.config_manager.db.save(map_id, data)
-    #     return jsonify({'status': 'success'})
-
     async def delete_map(self, map_id):
         """맵 삭제"""
         try:
@@ -572,7 +565,7 @@ class WebServer:
     async def get_previous_maps(self, map_id=None):
         """이전 생성 이미지 목록을 반환합니다."""
         try:
-            self.logger.debug(f"get_previous_maps 호출: map_id={map_id}")
+            self.logger.trace(f"get_previous_maps 호출: map_id={map_id}")
             if map_id is None:
                 return jsonify({'error': '현재 선택된 맵이 없습니다.'}), 400
                 
@@ -617,8 +610,10 @@ class WebServer:
                 'error': str(e)
             }), 500
 
-    def run(self, host='0.0.0.0', port=None):
+    def run(self, host='0.0.0.0', port=None, background_task_manager=None):
         """서버 실행"""
+        self.logger.debug("웹서버 시작 중...")
+        
         if port is None:
             port = int(os.environ.get('PORT', 8099))
 
@@ -631,4 +626,37 @@ class WebServer:
         config.accesslog = None  # 액세스 로그 비활성화
         config.errorlog = '-'
         
-        asyncio.run(hypercorn.asyncio.serve(self.app, config))
+        # 현재 실행 중인 이벤트 루프를 가져오거나 새로 생성
+        try:
+            loop = asyncio.get_running_loop()
+            self.logger.debug(f"웹서버에서 기존 이벤트 루프 사용 (ID: {id(loop)})")
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            self.logger.debug(f"웹서버에서 새 이벤트 루프 생성 (ID: {id(loop)})")
+        
+        # 이벤트 루프가 시작되면 백그라운드 작업 시작을 위한 함수
+        async def start_background_task_manager():
+            # 웹서버가 완전히 시작될 때까지 약간 대기
+            await asyncio.sleep(1)
+            
+            if background_task_manager:
+                try:
+                    # 이벤트 루프가 실행 중인 상태에서 백그라운드 작업 시작
+                    self.logger.info("웹서버 시작 후 백그라운드 작업 시작")
+                    background_task_manager.start()
+                except Exception as e:
+                    self.logger.error(f"백그라운드 작업 시작 중 오류 발생: {str(e)}")
+        
+        # hypercorn 서버 생성
+        server_coro = hypercorn.asyncio.serve(self.app, config)
+        
+        if background_task_manager:
+            # 백그라운드 태스크 시작 태스크 추가
+            asyncio.ensure_future(start_background_task_manager(), loop=loop)
+            self.logger.info(f"웹서버와 백그라운드 작업 실행 시작 (포트: {port})")
+        else:
+            self.logger.info(f"웹서버 실행 시작 (포트: {port})")
+        
+        # 서버 실행
+        loop.run_until_complete(server_coro)

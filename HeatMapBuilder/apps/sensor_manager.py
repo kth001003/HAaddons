@@ -27,13 +27,13 @@ class SensorManager:
     async def get_entity_registry(self) -> List[Dict]:
         """Entity Registry 조회"""
 
-        self.logger.debug("Entity Registry 조회 요청 시작")
+        self.logger.trace("Entity Registry 조회 요청 시작")
         start_time = time.time()
         result = await self.websocket_client.send_message("config/entity_registry/list")
         elapsed_time = time.time() - start_time
         
         if result is not None:
-            self.logger.debug(f"Entity Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
+            self.logger.trace(f"Entity Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
         else:
             self.logger.error(f"Entity Registry 조회 실패 (소요시간: {elapsed_time:.3f}초)")
             
@@ -41,13 +41,13 @@ class SensorManager:
 
     async def get_label_registry(self) -> List[Dict]:
         """Label Registry 조회"""
-        self.logger.debug("Label Registry 조회 요청 시작")
+        self.logger.trace("Label Registry 조회 요청 시작")
         start_time = time.time()
         result = await self.websocket_client.send_message("config/label_registry/list")
         elapsed_time = time.time() - start_time
         
         if result is not None:
-            self.logger.debug(f"Label Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
+            self.logger.trace(f"Label Registry 조회 성공: {len(result)}개 항목 (소요시간: {elapsed_time:.3f}초)")
         else:
             self.logger.error(f"Label Registry 조회 실패 (소요시간: {elapsed_time:.3f}초)")
             
@@ -56,7 +56,7 @@ class SensorManager:
     async def get_all_states(self) -> List[Dict]:
         """모든 센서 상태 조회"""
         try:
-            self.logger.debug("===== 센서 상태 조회 시작 =====")
+            self.logger.trace("===== 센서 상태 조회 시작 =====")
             overall_start_time = time.time()
             
             # Entity Registry 정보 가져오기
