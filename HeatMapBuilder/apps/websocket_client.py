@@ -2,11 +2,11 @@ import websockets # type: ignore
 import json
 from typing import Optional, Dict, Any, List
 import asyncio
-import logging
 import time
+from custom_logger import CustomLogger
 
 class WebSocketClient:
-    def __init__(self, supervisor_token: str, logger: logging.Logger):
+    def __init__(self, supervisor_token: str, logger: CustomLogger):
         self.supervisor_token = supervisor_token
         self.logger = logger
         self.message_id = 1
@@ -414,7 +414,7 @@ class WebSocketClient:
             return None
 
 class MockWebSocketClient:
-    def __init__(self, config_manager):
+    def __init__(self, config_manager, logger: CustomLogger):
         self.config_manager = config_manager
         self.websocket = True  # 연결된 것으로 간주
         self._event_loop = None
@@ -422,7 +422,7 @@ class MockWebSocketClient:
         self._mock_data = None
         self.message_id = 1
         self.reconnect_attempt = 0
-        self.logger = logging.getLogger("MockWebSocketClient")
+        self.logger = logger
         self.logger.debug(f"MockWebSocketClient 초기화: message_id={self.message_id}")
 
     def _truncate_log_message(self, message: str, max_length: int = 100) -> str:

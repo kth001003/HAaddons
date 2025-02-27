@@ -13,7 +13,7 @@ class SensorManager:
         
         # 웹소켓 클라이언트 초기화
         self.websocket_client = (
-            MockWebSocketClient(config_manager) if is_local 
+            MockWebSocketClient(config_manager, logger) if is_local 
             else WebSocketClient(supervisor_token, logger)
         )
         
@@ -76,7 +76,7 @@ class SensorManager:
             }
             
             # 상태 정보 가져오기
-            self.logger.debug("===== get_states 요청 시작 =====")
+            self.logger.trace("===== get_states 요청 시작 =====")
             states_start = time.time()
             
             # get_states 요청 전송
@@ -106,8 +106,8 @@ class SensorManager:
                 sensor_count += 1
                 
                 try:
-                    # 숫자 값인지 확인
-                    _ = float(state['state'])
+                    # # 숫자 값인지 확인
+                    # _ = float(state['state'])
                     valid_sensor_count += 1
                     
                     # Entity Registry 정보 추가
@@ -124,10 +124,10 @@ class SensorManager:
             filtering_time = time.time() - filtering_start
             overall_time = time.time() - overall_start_time
             
-            self.logger.debug(f"센서 필터링 완료 (소요시간: {filtering_time:.3f}초)")
-            self.logger.debug(f"센서 상태 조회 결과: 전체 {sensor_count}개 중 {valid_sensor_count}개 유효, {len(filtered_states)}개 필터링됨")
+            self.logger.trace(f"센서 필터링 완료 (소요시간: {filtering_time:.3f}초)")
+            self.logger.trace(f"센서 상태 조회 결과: 전체 {sensor_count}개 중 {valid_sensor_count}개 유효, {len(filtered_states)}개 필터링됨")
 
-            self.logger.debug(f"===== 센서 상태 조회 완료 (총 소요시간: {overall_time:.3f}초) =====")
+            self.logger.trace(f"===== 센서 상태 조회 완료 (총 소요시간: {overall_time:.3f}초) =====")
             
             return filtered_states
             

@@ -35,7 +35,7 @@
                 <button id="settings-tab"
                     class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">설정</button>
                 <button id="debug-tab"
-                    class="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">디버그</button>
+                    class="hidden px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">디버그</button>
             </div>
         </div>
     </nav>
@@ -84,7 +84,10 @@
                             </div>
                             <div>
                                 <div class="text-sm text-gray-500">다음 생성 예정</div>
-                                <div id="next-generation-time" class="font-medium">-</div>
+                                <div>
+                                    <span id="next-generation-time" class="font-medium"></span>
+                                    <span id="next-generation-remaining" class="text-sm text-gray-500 ml-1"></span>
+                                </div>
                             </div>
                             <div>
                                 <div class="text-sm text-gray-500 mb-2">이미지 주소</div>
@@ -244,30 +247,30 @@
 
             <!-- 우측 센서 목록 영역 -->
             <!-- 센서 목록 패널 컨테이너 -->
-            <div class="absolute right-0 top-6 w-[98vw] sm:w-[500px] overflow-hidden z-30" id="sensor-panel-container">
-                <div class="relative transition-transform duration-300 translate-x-full" id="sensor-panel">
+            <div class="fixed right-0 top-[6rem] w-[98vw] sm:w-[500px] z-30 h-[calc(100vh-6rem)]" id="sensor-panel-container">
+                <div class="relative transition-transform duration-300 translate-x-full h-full" id="sensor-panel">
                     <!-- 센서 목록 컨테이너 -->
-                    <div class="w-full bg-white rounded-lg shadow-lg">
-                        <div class="p-4 border-b">
-                            <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-lg font-semibold">센서 목록</h3>
+                    <div class="w-full h-full bg-white rounded-lg shadow-lg flex flex-col">
+                        <div class="p-2 border-b flex-shrink-0">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-lg font-bold">센서 목록</h3>
                                 <div class="flex space-x-2 items-center">
-                                    <button id="add-all-sensors" class="px-2 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 flex items-center">
+                                    <button id="add-all-sensors" class="px-1 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 flex items-center">
                                         <i class="mdi mdi-plus-circle mr-1"></i>
                                         모두 추가
                                     </button>
-                                    <button id="remove-all-sensors" class="px-2 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600 flex items-center">
+                                    <button id="remove-all-sensors" class="px-1 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 flex items-center">
                                         <i class="mdi mdi-minus-circle mr-1"></i>
                                         모두 제거
                                     </button>
-                                    <button id="close-sensor-panel" class="ml-2 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200">
+                                    <button id="close-sensor-panel" class="ml-1 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200">
                                         <i class="mdi mdi-close text-gray-600"></i>
                                     </button>
                                 </div>
                             </div>
                             <!-- 필터 UI -->
                             <div class="border-gray-300 border rounded-md">
-                                <button id="filter-section-toggle" class="w-full px-1.5 py-2 flex justify-between items-center hover:bg-gray-50">
+                                <button id="filter-section-toggle" class="w-full px-2 py-1 flex justify-between items-center hover:bg-gray-50">
                                     <div class="flex items-center">
                                         <i class="mdi mdi-filter-outline mr-1 text-gray-500"></i>
                                         <h5 class="text-xs">필터</h5>
@@ -276,15 +279,15 @@
                                 </button>
                                 <div id="filter-section-content" class="px-1.5 pb-1.5 space-y-2">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-0.5">센서 이름 검색</label>
+                                        <label class="block text-xs font-medium text-gray-700 mb-0.5">센서 이름 검색</label>
                                         <input type="text" id="filter-sensor-name" 
                                             placeholder="이름 또는 entity_id 검색"
-                                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                            class="block text-xs w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-0.5">Device Class</label>
+                                        <label class="block text-xs font-medium text-gray-700 mb-0.5">Device Class</label>
                                         <select id="filter-device-class"
-                                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                            class="block text-xs w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                                             <option value="">All</option>
                                             <option value="temperature" selected>Temperature</option>
                                             <option value="humidity">Humidity</option>
@@ -296,16 +299,13 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-0.5">Label</label>
-                                        <select id="filter-label"
-                                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                            <option value="">All</option>
-                                        </select>
+                                        <label class="block text-xs font-medium text-gray-700 mb-0.5">Label</label>
+                                        <div id="filter-label-container"></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div id="sensor-container" class="p-4 max-h-[calc(100vh-20rem)] overflow-y-auto"></div>
+                        <div id="sensor-container" class="flex-1 p-0 overflow-y-auto"></div>
                     </div>
                 </div>
             </div>

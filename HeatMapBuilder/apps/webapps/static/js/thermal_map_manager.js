@@ -7,6 +7,7 @@ export class ThermalMapManager {
         this.mapGenerationElapsed = document.getElementById('map-generation-elapsed');
         this.mapGenerationDuration = document.getElementById('map-generation-duration');
         this.nextGenerationTime = document.getElementById('next-generation-time');
+        this.nextGenerationRemaining = document.getElementById('next-generation-remaining');
         this.autoGenerationStatus = document.getElementById('auto-generation-status');
         this.mapGenerationButton = /** @type {HTMLButtonElement} */ (document.getElementById('generate-now'));
         this.copyImageUrlBtn = document.getElementById('copy-image-url');
@@ -59,6 +60,7 @@ export class ThermalMapManager {
         // 초기 상태 업데이트
         this.updateAutoGenerationStatus();
         this.updateElapsedTime();
+        this.updateNextGenerationTime();
     }
 
     async updateAutoGenerationStatus() {
@@ -89,7 +91,7 @@ export class ThermalMapManager {
         }
 
         const now = new Date();
-        const diffMinutes = Math.floor((now - generationTime) / (60 * 1000));
+        const diffMinutes = Math.floor((now.getTime() - generationTime.getTime()) / (60 * 1000));
         
         if (diffMinutes < 1) {
             this.mapGenerationElapsed.textContent = '(방금 전)';
@@ -155,39 +157,29 @@ export class ThermalMapManager {
     }
 
     async checkAndRefreshMap() {
-        if (!this.mapGenerationButton || !this.mapId) {
-            return;
-        }
+        if (!this.mapId) return;
 
         try {
             const response = await fetch(`./api/check-map-time/${this.mapId}`);
             const data = await response.json();
 
-            if (data.status === 'success' && data.time) {
-                const serverTime = new Date(data.time).getTime();
-                const currentDisplayTime = this.mapGenerationTime ? 
-                    new Date(this.mapGenerationTime.textContent).getTime() : 0;
-
-                if (serverTime > currentDisplayTime) {
-                    const timestamp = new Date().getTime();
-                    this.thermalMapImage.setAttribute('src', `${data.img_url}?t=${timestamp}`);
-                    
-                    if (this.mapGenerationTime) {
-                        this.mapGenerationTime.textContent = data.time;
-                    }
-                    if (this.mapGenerationDuration) {
-                        this.mapGenerationDuration.textContent = data.duration;
-                    }
-                    
-                    // 경과 시간 업데이트
-                    this.updateElapsedTime();
-                    
-                    // 다음 생성 예정 시각 업데이트
-                    this.updateNextGenerationTime();
-                    
-                    // 자동생성 상태 업데이트
-                    this.updateAutoGenerationStatus();
+            if (data.status === 'success') {
+                // 이미지 URL이 변경되었다면 이미지 새로고침
+                if (this.thermalMapImage && data.img_url && this.thermalMapImage.src.split('?')[0] !== data.img_url.split('?')[0]) {
+                    this.thermalMapImage.src = data.img_url;
                 }
+                
+                // 생성 시간과 소요 시간 업데이트
+                if (this.mapGenerationTime && data.time) {
+                    this.mapGenerationTime.textContent = data.time;
+                    this.updateElapsedTime();
+                }
+                if (this.mapGenerationDuration && data.duration) {
+                    this.mapGenerationDuration.textContent = data.duration;
+                }
+                
+                // 다음 생성 예정 시간 업데이트
+                this.updateNextGenerationTime();
             }
         } catch (error) {
             console.error('지도 시간 확인 중 오류:', error);
@@ -201,10 +193,14 @@ export class ThermalMapManager {
             // 맵 설정 로드
             const response = await fetch(`./api/load-config/${this.mapId}`);
             const config = await response.json();
+     
             // 자동 생성 여부 가져오기
             const autoGeneration = config.gen_config?.auto_generation || false;
             if (!autoGeneration) {
                 this.nextGenerationTime.textContent = '자동생성 꺼져있음';
+                if (this.nextGenerationRemaining) {
+                    this.nextGenerationRemaining.textContent = '';
+                }
                 return;
             }
             
@@ -213,23 +209,39 @@ export class ThermalMapManager {
             
             // 마지막 생성 시각
             const lastGenTime = new Date(this.mapGenerationTime.textContent);
+            if (isNaN(lastGenTime.getTime())) {
+                this.nextGenerationTime.textContent = '시간 정보 없음';
+                if (this.nextGenerationRemaining) {
+                    this.nextGenerationRemaining.textContent = '';
+                }
+                return;
+            }
             
             // 다음 생성 예정 시각 계산
             const nextGenTime = new Date(lastGenTime.getTime() + genInterval * 60 * 1000);
             
             // 현재 시각과의 차이 계산
             const now = new Date();
-            const diffMinutes = Math.round((nextGenTime - now) / (60 * 1000));
+            const diffMinutes = Math.round((nextGenTime.getTime() - now.getTime()) / (60 * 1000));
             
             // 표시
             if (diffMinutes <= 0) {
-                this.nextGenerationTime.textContent = '곧 생성 예정';
+                this.nextGenerationTime.textContent = '곧 생성';
+                if (this.nextGenerationRemaining) {
+                    this.nextGenerationRemaining.textContent = '';
+                }
             } else {
-                this.nextGenerationTime.textContent = `${nextGenTime.toLocaleTimeString()} (${diffMinutes}분 후)`;
+                this.nextGenerationTime.textContent = nextGenTime.toLocaleTimeString();
+                if (this.nextGenerationRemaining) {
+                    this.nextGenerationRemaining.textContent = `(${diffMinutes}분 후)`;
+                }
             }
         } catch (error) {
             console.error('다음 생성 시각 계산 중 오류:', error);
-            this.nextGenerationTime.textContent = '다음 생성시각 계산 오류';
+            this.nextGenerationTime.textContent = '계산 오류';
+            if (this.nextGenerationRemaining) {
+                this.nextGenerationRemaining.textContent = '';
+            }
         }
     }
 

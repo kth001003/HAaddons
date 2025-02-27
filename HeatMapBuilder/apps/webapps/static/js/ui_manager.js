@@ -288,7 +288,6 @@ export class UIManager {
     // 설정값 비교
     areSettingsEqual(settings1, settings2) {
         if (!settings1 || !settings2) return false;
-        console.log(settings1, settings2);
         return JSON.stringify(settings1) === JSON.stringify(settings2);
     }
 
@@ -735,11 +734,11 @@ export class UIManager {
             isFilterOpen = !isFilterOpen;
             if (filterContent && filterChevron) {
                 if (isFilterOpen) {
-                    filterContent.style.display = 'block';
-                    filterChevron.style.transform = 'rotate(0deg)';
+                    /** @type {HTMLElement} */ (filterContent).style.display = 'block';
+                    /** @type {HTMLElement} */ (filterChevron).style.transform = 'rotate(0deg)';
                 } else {
-                    filterContent.style.display = 'none';
-                    filterChevron.style.transform = 'rotate(-90deg)';
+                    /** @type {HTMLElement} */ (filterContent).style.display = 'none';
+                    /** @type {HTMLElement} */ (filterChevron).style.transform = 'rotate(-90deg)';
                 }
             }
         });
