@@ -246,7 +246,6 @@
             async function loadMaps() {
                 try {
                     const maps = await apiRequest('./api/maps');
-                    console.log(maps);
                     
                     mapList.innerHTML = '';
                     const MAX_SLOTS = 6;
@@ -412,6 +411,13 @@
 
             // 맵 내보내기 함수
             async function exportMaps() {
+                // 모바일 앱 체크
+                const userAgent = navigator.userAgent.toLowerCase();
+                if (userAgent.includes('homeassistant')) {
+                    showMessage('HA 앱에서는 파일 다운로드 기능을 사용할 수 없습니다. 인터넷 브라우저를 이용해주세요.', 'error');
+                    return;
+                }
+
                 try {
                     const response = await apiRequest('./api/maps/export');
                     const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });

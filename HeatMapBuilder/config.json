@@ -22,7 +22,7 @@
     "log_level": "debug"
   },
   "schema": {
-    "log_level": "list(debug|info|warning|error|fatal)"
+    "log_level": "list(trace|debug|info|warning|error|fatal)"
   },
   "ingress": true,
   "ingress_port": 8099,

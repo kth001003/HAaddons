@@ -13,6 +13,7 @@ export class SensorManager {
         this.svg = svgElement;
         this.sensors = [];
         this.filteredSensors = [];
+        this.addedSensors = new Set();  // 추가된 센서 ID 목록
         this.onSensorsUpdate = null;
         this.enabled = true;
         this.currentUnit = null;
@@ -23,6 +24,7 @@ export class SensorManager {
         };
         this.uiManager = uiManager;
         this.mapId = new URLSearchParams(window.location.search).get('id');
+        this.debounceTimer = null;  // 디바운스 타이머 추가
 
         // SVG viewBox 파싱
         const viewBox = this.svg.getAttribute('viewBox');
@@ -66,21 +68,33 @@ export class SensorManager {
 
     // 필터 설정 업데이트
     updateFilters(newFilters) {
-        this.filters = { ...this.filters, ...newFilters };
-        this.applyFilters();
-        this.updateSensorList();
+        // 이전 타이머가 있다면 취소
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+        }
+
+        // 새로운 필터 값을 임시 저장
+        const updatedFilters = { ...this.filters, ...newFilters };
+
+        // 0.5초 후에 필터 적용
+        this.debounceTimer = setTimeout(() => {
+            this.filters = updatedFilters;
+            this.applyFilters();
+            this.updateSensorList();
+            this.debounceTimer = null;
+        }, 300);
     }
 
     // 필터 적용 메서드
     applyFilters() {
-        this.filteredSensors = this.sensors.filter(state => {
+        this.filteredSensors = this.sensors.filter(sensor => {
             const matchDeviceClass = !this.filters.device_class ||
-                state.attributes.device_class === this.filters.device_class;
+                sensor.attributes.device_class === this.filters.device_class;
             const matchLabel = !this.filters.label ||
-                (state.labels && state.labels.includes(this.filters.label));
+                (sensor.labels && sensor.labels.includes(this.filters.label));
             const matchSearch = !this.filters.search ||
-                state.attributes.friendly_name?.toLowerCase().includes(this.filters.search.toLowerCase()) ||
-                state.entity_id.toLowerCase().includes(this.filters.search.toLowerCase());
+                sensor.attributes.friendly_name?.toLowerCase().includes(this.filters.search.toLowerCase()) ||
+                sensor.entity_id.toLowerCase().includes(this.filters.search.toLowerCase());
 
             return matchDeviceClass && matchLabel && matchSearch;
         });
@@ -91,21 +105,72 @@ export class SensorManager {
     async loadLabelRegistry() {
         const response = await fetch('./api/get_label_registry');
         const labelRegistry = await response.json();
-        console.log("SensorManager - 서버에서 받은 labelRegistry:", labelRegistry);
 
-        // 레이블 필터 select 엘리먼트 가져오기
-        const labelFilter = document.getElementById('filter-label');
-        if (labelFilter && labelFilter instanceof HTMLSelectElement) {
-            // 기존 옵션 초기화 (첫 번째 빈 옵션은 유지)
-            labelFilter.innerHTML = '<option value="">모든 레이블</option>';
+        // 레이블 필터 select 엘리먼트를 div로 대체
+        const labelFilterContainer = document.getElementById('filter-label-container');
+        if (labelFilterContainer) {
+            // 기존 custom-select 제거
+            const existingCustomSelect = labelFilterContainer.querySelector('.custom-select');
+            if (existingCustomSelect) {
+                existingCustomSelect.remove();
+            }
 
-            // 레이블 레지스트리 데이터로 옵션 추가
+            // 커스텀 드롭다운 생성
+            const customSelect = document.createElement('div');
+            customSelect.className = 'custom-select relative';
+            
+            // 선택된 값을 보여주는 버튼
+            const selectedButton = document.createElement('button');
+            selectedButton.className = 'selected-option w-full px-2 py-1.5 text-left border rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs';
+            selectedButton.innerHTML = '<span>모든 레이블</span>';
+            
+            // 옵션 리스트 컨테이너
+            const optionsList = document.createElement('div');
+            optionsList.className = 'options-list absolute w-full mt-1 bg-white border rounded-md shadow-lg hidden z-50';
+            
+            // 기본 옵션 추가
+            const defaultOption = document.createElement('div');
+            defaultOption.className = 'option px-2 py-1.5 hover:bg-gray-100 cursor-pointer text-xs';
+            defaultOption.innerHTML = '<span>모든 레이블</span>';
+            defaultOption.dataset.value = '';
+            optionsList.appendChild(defaultOption);
+
+            // 레이블 옵션 추가
             labelRegistry.forEach(label => {
-                const option = document.createElement('option');
-                option.value = label.label_id;
-                option.innerHTML = `<i class="mdi ${label.icon.replace('mdi:', 'mdi-')} mr-2"></i>${label.name}`;
-                labelFilter.appendChild(option);
+                const option = document.createElement('div');
+                option.className = 'option px-2 py-1.5 hover:bg-gray-100 cursor-pointer flex items-center text-xs';
+                option.innerHTML = `
+                    <i class="mdi ${label.icon.replace('mdi:', 'mdi-')} mr-2"></i>
+                    <span>${label.name}</span>
+                `;
+                option.dataset.value = label.label_id;
+                optionsList.appendChild(option);
             });
+
+            // 이벤트 리스너 추가
+            selectedButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                optionsList.classList.toggle('hidden');
+            });
+
+            // 옵션 선택 이벤트
+            optionsList.querySelectorAll('.option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    const value = (/** @type {HTMLElement} */ (option)).dataset.value;
+                    selectedButton.innerHTML = option.innerHTML;
+                    optionsList.classList.add('hidden');
+                    this.updateFilters({ label: value });
+                });
+            });
+
+            // 외부 클릭 시 드롭다운 닫기
+            document.addEventListener('click', () => {
+                optionsList.classList.add('hidden');
+            });
+
+            customSelect.appendChild(selectedButton);
+            customSelect.appendChild(optionsList);
+            labelFilterContainer.appendChild(customSelect);
         }
     }
 
@@ -118,7 +183,6 @@ export class SensorManager {
             // 센서 상태 로드
             const response = await fetch('./api/states');
             const states = await response.json();
-            console.log("SensorManager - 서버에서 받은 states:", states);
 
             this.sensors = states;
             this.applyFilters();
@@ -127,24 +191,19 @@ export class SensorManager {
             const configResponse = await fetch(`./api/load-config/${this.mapId}`);
             if (configResponse.ok) {
                 const config = await configResponse.json();
+                // 저장된 단위 정보 적용
+                if (config.unit) {
+                    this.currentUnit = config.unit;
+                }
 
-                // DOM이 완전히 로드된 후 센서 마커 업데이트를 수행
-                window.requestAnimationFrame(() => {
-                    // 저장된 단위 정보 적용
-                    if (config.unit) {
-                        this.currentUnit = config.unit;
-                    }
-
-                    // 저장된 센서 위치 정보를 현재 센서 데이터에 적용
-                    if (config.sensors) {
-                        this.applySavedSensorConfig(config.sensors);
-                    }
-                });
+                // 저장된 센서 위치 정보를 현재 센서 데이터에 적용
+                if (config.sensors) {
+                    this.applySavedSensorConfig(config.sensors);
+                }
             }
 
             this.updateSensorList();
         } catch (error) {
-            console.error('센서 로드 실패:', error);
             this.uiManager.showMessage('센서를 불러오는데 실패했습니다.', 'error');
         }
     }
@@ -152,12 +211,12 @@ export class SensorManager {
     applySavedSensorConfig(savedSensors) {
         savedSensors.forEach(savedSensor => {
             const sensor = this.sensors.find(s => s.entity_id === savedSensor.entity_id);
-            const placedSensor = this.svg.querySelector(`g[data-entity-id="${savedSensor.entity_id}"]`);
-            if (sensor && savedSensor.position && !placedSensor) {
+            if (sensor && savedSensor.position) {
                 // 단위 체크
                 if (this.checkAndHandleUnit(sensor)) {
                     sensor.position = savedSensor.position;
                     sensor.calibration = savedSensor.calibration || 0;
+                    this.addedSensors.add(sensor.entity_id);  // 저장된 센서 추가 기록
                     this.updateSensorMarker(sensor, savedSensor.position);
                 }
             }
@@ -191,7 +250,30 @@ export class SensorManager {
             return;
         }
 
-        container.innerHTML = this.filteredSensors.map(sensor => this.createSensorListItem(sensor)).join('');
+        // 센서를 이미 추가된 것, 현재 단위와 일치하는 것, 나머지 순으로 정렬
+        const sortedSensors = [...this.filteredSensors].sort((a, b) => {
+            const isAddedA = this.addedSensors.has(a.entity_id);
+            const isAddedB = this.addedSensors.has(b.entity_id);
+            const matchesUnitA = this.currentUnit && a.attributes?.unit_of_measurement === this.currentUnit;
+            const matchesUnitB = this.currentUnit && b.attributes?.unit_of_measurement === this.currentUnit;
+
+            // 둘 다 추가된 경우 이름순
+            if (isAddedA && isAddedB) {
+                return (a.attributes.friendly_name || a.entity_id).localeCompare(b.attributes.friendly_name || b.entity_id);
+            }
+            // 하나만 추가된 경우 추가된 것이 우선
+            if (isAddedA || isAddedB) {
+                return isAddedA ? -1 : 1;
+            }
+            // 둘 다 추가되지 않은 경우, 단위 일치 여부로 정렬
+            if (matchesUnitA !== matchesUnitB) {
+                return matchesUnitA ? -1 : 1;
+            }
+            // 그 외의 경우 이름순
+            return (a.attributes.friendly_name || a.entity_id).localeCompare(b.attributes.friendly_name || b.entity_id);
+        });
+
+        container.innerHTML = sortedSensors.map(sensor => this.createSensorListItem(sensor)).join('');
 
         // 필터 이벤트 리스너 설정
         const deviceClassFilter = /** @type {HTMLSelectElement} */ (document.getElementById('filter-device-class'));
@@ -234,39 +316,58 @@ export class SensorManager {
     }
 
     createSensorListItem(sensor) {
-        const isPlaced = sensor.position !== undefined;
-        const itemClass = 'sensor-item p-2 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-shadow cursor-pointer flex justify-between items-center';
+        const isPlaced = this.addedSensors.has(sensor.entity_id);
+        const isValidState = !isNaN(parseFloat(sensor.state));  // state가 숫자인지 확인
+        const hasUnit = !!sensor.attributes?.unit_of_measurement;  // unit_of_measurement가 있는지 확인
+        const isValid = isValidState && hasUnit;  // 둘 다 만족해야 유효
+        
+        const itemClass = `sensor-item px-2 py-1 bg-white border-y border-gray-200 flex justify-between items-center ${!isValid ? 'opacity-50' : ''}`;
         const calibration = sensor.calibration || 0;
-        const calibratedTemp = parseFloat(sensor.state) + calibration;
+        const calibratedTemp = isValidState ? parseFloat(sensor.state) + calibration : NaN;
         const entityId = sensor.entity_id;
         const friendlyName = sensor.attributes.friendly_name || entityId;
         const unit = sensor.attributes.unit_of_measurement ?? '';
         const state = sensor.state;
 
+        // 비활성화 이유 메시지
+        let disabledReason = '';
+        if (!isValidState) {
+            disabledReason = '숫자가 아닌 값';
+        } else if (!hasUnit) {
+            disabledReason = '단위 정보 없음';
+        }
+
         return `
-            <div class="${itemClass}" data-entity-id="${entityId}" style="pointer-events: auto;">
-                <div class="flex-1">
+            <div class="${itemClass}" data-entity-id="${entityId}">
+                <div class="flex-1 px-2">
                      <div class="flex items-center">
                         <input type="checkbox"
                             class="sensor-checkbox mr-2"
                             data-entity-id="${entityId}"
                             ${isPlaced ? 'checked' : ''}
+                            ${!isValid ? 'disabled' : ''}
                             style="pointer-events: auto;"
                         >
-                        <span class="text-sm">${friendlyName}</span>
+                        <span class="text-sm ${!isValid ? 'text-gray-400' : ''}">${friendlyName}</span>
                     </div>
                     <div class="grid grid-cols-3 gap-4 mt-1">
-                        <span class="text-xs text-gray-600">측정값: ${state} ${unit}</span>
-                        <span class="text-xs text-blue-600">보정: 
+                        <span class="text-xs ${isValid ? 'text-gray-600' : 'text-red-400'}">
+                            측정값: ${state} ${unit}
+                            ${!isValid ? `<br><span class="text-xs text-red-400">(${disabledReason})</span>` : ''}
+                        </span>
+                        <span class="text-xs text-blue-600 ${!isValid ? 'opacity-50' : ''}">보정: 
                             <input type="number" 
                                 class="calibration-input text-xs w-16 px-1 py-0.5 border border-gray-300 rounded"
                                 value="${calibration}"
                                 step="0.1"
                                 data-entity-id="${entityId}"
+                                ${!isValid ? 'disabled' : ''}
                                 style="pointer-events: auto;"
                             >
                         </span>
-                        <span class="text-xs text-green-600">보정후: ${calibratedTemp.toFixed(1)} ${unit}</span>
+                        <span class="text-xs ${isValid ? 'text-green-600' : 'text-gray-400'}">
+                            보정후: ${isValid ? calibratedTemp.toFixed(1) : 'N/A'} ${unit}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -280,6 +381,10 @@ export class SensorManager {
         const sensor = this.sensors.find(s => s.entity_id === entityId);
         if (sensor) {
             sensor.calibration = calibration;
+            // 센서 마커 업데이트
+            if (sensor.position) {
+                this.updateSensorMarker(sensor, sensor.position);
+            }
             this.updateSensorList();
         }
     }
@@ -319,6 +424,9 @@ export class SensorManager {
         
         this.currentUnit = unit;  // currentUnit 설정
         
+        // 추가된 센서 목록을 저장하고, 나중에 한 번에 저장
+        const newlyAddedSensors = [];
+        
         this.filteredSensors.forEach(sensor => {
             if (sensor.attributes.unit_of_measurement !== unit) {
                 this.uiManager.showMessage(`${sensor.attributes.friendly_name}의 단위가 ${unit}이 아닙니다.`, 'error');
@@ -326,9 +434,17 @@ export class SensorManager {
             }
             if (!sensor.position) {
                 sensor.position = this.getRandomCenterPoint();
+                this.addedSensors.add(sensor.entity_id);
                 this.updateSensorMarker(sensor, sensor.position);
+                newlyAddedSensors.push(sensor);
             }
         });
+        
+        // 모든 센서가 추가된 후 한 번에 저장
+        if (newlyAddedSensors.length > 0) {
+            this.uiManager.drawingTool.saveState();
+        }
+        
         this.updateSensorList();
     }
 
@@ -340,6 +456,7 @@ export class SensorManager {
                 sensor.position = undefined;
             }
         });
+        this.addedSensors.clear();
         this.currentUnit = null;
         this.updateSensorList();
     }
@@ -365,6 +482,7 @@ export class SensorManager {
 
             if (!sensor.position) {
                 sensor.position = this.getRandomCenterPoint();
+                this.addedSensors.add(sensor.entity_id);
                 this.updateSensorMarker(sensor, sensor.position);
             }
         } else {
@@ -372,11 +490,11 @@ export class SensorManager {
             this.removeSensorMarker(entityId);
             
             // 마지막 센서가 제거되면 currentUnit 초기화
-            const remainingSensors = this.sensors.filter(s => s.position);
-            if (remainingSensors.length === 0) {
+            if (this.addedSensors.size === 0) {
                 this.currentUnit = null;
             }
-        }
+        }        
+        this.uiManager.drawingTool.saveState();
     }
 
     // 드래그 앤 드롭 핸들러
@@ -410,6 +528,7 @@ export class SensorManager {
     updateSensorPosition(sensor, point) {
         if (!this.enabled || !sensor) return;
         sensor.position = point;
+        this.addedSensors.add(sensor.entity_id);
         this.updateSensorMarker(sensor, point);
     }
 
@@ -419,10 +538,12 @@ export class SensorManager {
 
         if (!group) {
             group = this.createSensorMarkerGroup(sensor);
+        } else {
+            // 기존 그룹이 있는 경우, 컨텍스트 메뉴 핸들러 재설정
+            this.setupContextMenuAndHold(group, sensor);
         }
 
         this.updateMarkerPosition(group, sensor, point);
-
         this.setupDragEvents(group, sensor, point);
     }
 
@@ -564,14 +685,24 @@ export class SensorManager {
             const handleDelete = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (confirm('이 센서를 삭제하시겠습니까?')) {
-                    this.removeSensorMarker(sensor.entity_id);
-                    const sensorIndex = this.sensors.findIndex(s => s.entity_id === sensor.entity_id);
-                    if (sensorIndex !== -1) {
-                        this.sensors[sensorIndex].position = undefined;
-                    }
-                    this.updateSensorList();
-                }
+                // 모달 확인 창으로 변경
+                this.uiManager.showConfirmModal(
+                    '센서 삭제',
+                    `'${sensor.attributes.friendly_name || sensor.entity_id}' 센서를 삭제하시겠습니까?`,
+                    () => {
+                        this.removeSensorMarker(sensor.entity_id);
+                        const sensorIndex = this.sensors.findIndex(s => s.entity_id === sensor.entity_id);
+                        if (sensorIndex !== -1) {
+                            this.sensors[sensorIndex].position = undefined;
+                        }
+                        this.addedSensors.delete(sensor.entity_id);
+                        this.uiManager.drawingTool.saveState();
+                        this.updateSensorList();
+                    },
+                    null,
+                    '삭제',
+                    'bg-red-500 hover:bg-red-600'
+                );
             };
 
             // 클릭 및 터치 이벤트
@@ -732,6 +863,7 @@ export class SensorManager {
         text.setAttribute('dominant-baseline', 'middle');
         text.style.userSelect = 'none';
 
+        // 보정된 온도값 계산
         const calibratedTemp = this.getCalibratedTemperature(sensor);
 
         // 센서 이름 표시
@@ -743,7 +875,7 @@ export class SensorManager {
         nameText.style.userSelect = 'none';
         text.appendChild(nameText);
 
-        // 온도 표시 (단위 포함)
+        // 온도 표시 (보정된 값과 단위 포함)
         const tempText = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
         const unit = sensor.attributes?.unit_of_measurement || '';
         tempText.textContent = `${calibratedTemp.toFixed(1)}${unit}`;
@@ -845,7 +977,9 @@ export class SensorManager {
 
     removeSensorMarker(entityId) {
         const marker = this.svg.querySelector(`g[data-entity-id="${entityId}"]`);
-        if (marker) marker.remove();
+        if (marker) {
+            marker.remove();            
+        }
     }
 
     // 좌표 변환
@@ -917,6 +1051,9 @@ export class SensorManager {
 
     // SVG 요소로부터 센서 정보 파싱
     parseSensorsFromSVG() {
+        // addedSensors 초기화
+        this.addedSensors.clear();
+
         const sensorGroups = this.svg.querySelectorAll('g[data-entity-id]');
         sensorGroups.forEach(group => {
             const entityId = group.getAttribute('data-entity-id');
@@ -927,11 +1064,17 @@ export class SensorManager {
                     const x = parseFloat(circle.getAttribute('cx'));
                     const y = parseFloat(circle.getAttribute('cy'));
                     sensor.position = { x, y };
+                    
+                    // addedSensors에 추가
+                    this.addedSensors.add(entityId);
 
                     // 이벤트 핸들러 재등록
                     this.setupDragEvents(group, sensor, sensor.position);
                 }
             }
         });
+
+        // 센서 리스트 UI 업데이트
+        this.updateSensorList();
     }
 }

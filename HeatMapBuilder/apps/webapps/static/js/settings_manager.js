@@ -92,7 +92,6 @@ export class SettingsManager {
             });
             this.uiManager.showMessage('벽과 센서위치를 저장했습니다.', 'success');
         } catch (error) {
-            console.error('벽 및 센서 저장 실패:', error);
             this.uiManager.showMessage('벽 저장에 실패했습니다.', 'error');
         }
     }
@@ -122,7 +121,6 @@ export class SettingsManager {
             }
             this.uiManager.saveCurrentSettings();
         } catch (error) {
-            console.error('Error:', error);
             this.uiManager.showMessage('파라미터 저장 중 오류가 발생했습니다.', 'error');
         }
     }
@@ -193,7 +191,6 @@ export class SettingsManager {
             }
             this.uiManager.saveCurrentSettings();
         } catch (error) {
-            console.error('Error:', error);
             this.uiManager.showMessage('구성 저장 중 오류가 발생했습니다.', 'error');
         }
     }
@@ -466,7 +463,6 @@ export class SettingsManager {
             previewElement.style.backgroundImage = `url(${url})`;
             previewElement.style.backgroundSize = 'cover';
         } catch (error) {
-            console.error('Error previewing colormap:', error);
             this.uiManager.showMessage('잘못된 컬러맵 이름입니다. 다시 확인해주세요.', 'error');
         }
     }
@@ -493,7 +489,6 @@ export class SettingsManager {
             previewElement.style.backgroundImage = `url(${url})`;
             previewElement.style.backgroundSize = 'cover';
         } catch (error) {
-            console.error('Error previewing colormap:', error);
             this.uiManager.showMessage('잘못된 컬러맵 이름입니다. 다시 확인해주세요.', 'error');
         }
     }
@@ -533,7 +528,6 @@ export class SettingsManager {
             drawingTool.resetState();
             this.uiManager.saveCurrentSettings();
         } catch (error) {
-            console.error('설정 로드 실패:', error);
             this.uiManager.showMessage('설정을 불러오는데 실패했습니다.', 'error');
         }
     }
@@ -575,7 +569,6 @@ export class SettingsManager {
             // 모델에 따른 파라미터 UI 표시/숨김 처리
             this.updateVariogramParametersVisibility(model);
         } catch (error) {
-            console.error('Error:', error);
             this.uiManager.showMessage('파라미터 로드 중 오류가 발생했습니다.', 'error');
         }
     }

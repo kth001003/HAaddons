@@ -496,8 +496,6 @@ export class DrawingTool {
         const closedPaths = this.detectClosedArea(lines) || [];
         const openPath = this.detectOpenArea(lines)|| [];
         
-        console.log(`닫힌 영역 감지 결과: ${closedPaths.length}개`, closedPaths);
-        
         // 기존 영역 제거
         const existingAreas = Array.from(this.svg.querySelectorAll('.area'));
         for (const area of existingAreas) {
@@ -1264,7 +1262,6 @@ export class DrawingTool {
 
         // 중복 경로 제거
         const uniquePaths = DrawingUtils.removeDuplicatePaths(validPaths);
-        console.log(`전체 경로: ${pathsFromCycles.length}, 유효 경로: ${validPaths.length}, 중복 제거 경로: ${uniquePaths.length}`);
         return uniquePaths;
     }
 
@@ -1373,8 +1370,6 @@ export class DrawingTool {
             outerFace = points;
           }
         }
-      
-        console.log(`총 면 개수: ${faces.length}, 외부 영역의 넓이: ${maxArea}`);
         return outerFace;
       }
       

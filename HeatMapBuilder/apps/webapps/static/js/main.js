@@ -32,7 +32,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     // SVG 크기를 1000x1000으로 고정
     const FIXED_SIZE = 1000;
     svg.setAttribute('viewBox', `0 0 ${FIXED_SIZE} ${FIXED_SIZE}`);
-    console.log('SVG attributes set');
 
     // 매니저 클래스들 초기화
     const uiManager = new UIManager();
@@ -43,8 +42,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     // DrawingTool 초기화
     const drawingTool = new DrawingTool(svg, uiManager);
     drawingTool.enable();
-    console.log('DrawingTool initialized');
-
     // SensorManager 초기화
     const sensorManager = new SensorManager(svg, uiManager);
     sensorManager.disable();
