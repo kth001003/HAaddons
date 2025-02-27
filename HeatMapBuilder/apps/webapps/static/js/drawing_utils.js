@@ -225,7 +225,6 @@ export class DrawingUtils {
                 uniquePaths.push(path);
             }
         }
-        console.log("완전중복제거후 갯수", uniquePaths.length);
 
         // 2단계: 양쪽 끝이 연결된 선분들의 중점 중 하나라도 path 내부에 있는 경우 제거
         const result = [];
@@ -276,7 +275,6 @@ export class DrawingUtils {
             }
             
             // 어떤 line의 중점도 내부에 없는 path만 추가
-            console.log("중점 없는 path 추가", path);
             result.push(path);
         }
 
@@ -305,7 +303,6 @@ export class DrawingUtils {
                 (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
             if (intersect) inside = !inside;
         }
-        console.log("내부 점 확인", inside);
         return inside;
     }
 

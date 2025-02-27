@@ -132,7 +132,6 @@ export class UIManager {
                     this.drawingTool.resetState();
                 }, 100);
             }).catch(error => {
-                console.error('센서 로드 실패:', error);
                 this.showMessage('센서 로드에 실패했습니다.', 'error');
             });
         }
@@ -235,7 +234,6 @@ export class UIManager {
                     try {
                         this.reloadWallsAndSensors();
                     } catch (error) {
-                        console.error('설정 로드 실패:', error);
                         this.showMessage('설정을 불러오는데 실패했습니다.', 'error');
                     }
                 }
@@ -329,14 +327,13 @@ export class UIManager {
 
             this.showMessage('벽과 센서위치를 저장했습니다.', 'success');
         } catch (error) {
-            console.error('벽 및 센서 저장 실패:', error);
             this.showMessage('벽 저장에 실패했습니다.', 'error');
         }
     }
 
     updateSVGContent(newContent) {
         if (!this.svg) {
-            console.error('SVG 요소를 찾을 수 없습니다.');
+            this.showMessage('SVG 요소를 찾을 수 없습니다.', 'error');
             return;
         }
 
@@ -391,7 +388,7 @@ export class UIManager {
                 }
             }
         } catch (error) {
-            console.error('설정을 불러오는데 실패했습니다:', error);
+            this.showMessage(`설정을 불러오는데 실패했습니다.`,'error')
         }
     }
     initializeSVGPan() {
@@ -821,7 +818,16 @@ export class UIManager {
     }
 
     // 확인 모달 표시
-    showConfirmModal(title, message, onConfirm, options = null) {
+    /**
+     * 확인 모달을 표시합니다.
+     * @param {string} title - 모달 제목
+     * @param {string} message - 모달 메시지
+     * @param {Function|null} onConfirm - 확인 버튼 클릭 시 실행할 함수
+     * @param {Array|null} options - 커스텀 버튼 옵션 배열
+     * @param {string} [confirmText='확인'] - 확인 버튼 텍스트
+     * @param {string} [confirmClass='bg-blue-500 hover:bg-blue-600'] - 확인 버튼 CSS 클래스
+     */
+    showConfirmModal(title, message, onConfirm, options = null, confirmText = '확인', confirmClass = 'bg-blue-500 hover:bg-blue-600') {
         const modalTitle = document.getElementById('confirm-modal-title');
         const modalMessage = document.getElementById('confirm-modal-message');
         const defaultBtns = document.getElementById('confirm-modal-default-btns');
@@ -840,8 +846,8 @@ export class UIManager {
             defaultBtns.classList.add('hidden');
         }
 
-        // 옵션이 있는 경우 커스텀 버튼 생성
-        if (options && actionBtns) {
+        // 옵션이 배열인 경우 커스텀 버튼 생성
+        if (Array.isArray(options) && actionBtns) {
             actionBtns.classList.remove('hidden');
             options.forEach(option => {
                 const btn = document.createElement('button');
@@ -857,19 +863,30 @@ export class UIManager {
             // 기본 확인/취소 버튼 표시
             defaultBtns.classList.remove('hidden');
             const confirmBtn = document.getElementById('confirm-modal-confirm');
-            // 이전 이벤트 리스너 제거
-            const newConfirmBtn = confirmBtn?.cloneNode(true);
-            confirmBtn?.parentNode?.replaceChild(newConfirmBtn, confirmBtn);
             
-            // 새 이벤트 리스너 추가
-            newConfirmBtn?.addEventListener('click', () => {
-                if (onConfirm) onConfirm();
-                this.hideConfirmModal();
-            });
+            if (confirmBtn) {
+                // 버튼 텍스트와 스타일 설정
+                confirmBtn.textContent = confirmText;
+                confirmBtn.className = `px-4 py-2 text-white rounded-lg ${confirmClass}`;
+                
+                // 이전 이벤트 리스너 제거
+                const newConfirmBtn = confirmBtn.cloneNode(true);
+                if (newConfirmBtn instanceof HTMLElement && confirmBtn.parentNode) {
+                    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+                    
+                    // 새 이벤트 리스너 추가
+                    newConfirmBtn.addEventListener('click', () => {
+                        if (onConfirm) onConfirm();
+                        this.hideConfirmModal();
+                    });
+                }
+            }
         }
 
-        this.confirmModal?.classList.remove('hidden');
-        this.confirmModal?.classList.add('flex');
+        if (this.confirmModal) {
+            this.confirmModal.classList.remove('hidden');
+            this.confirmModal.classList.add('flex');
+        }
     }
 
     // 확인 모달 숨기기

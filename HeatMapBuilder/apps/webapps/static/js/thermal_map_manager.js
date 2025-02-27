@@ -22,6 +22,7 @@ export class ThermalMapManager {
         this.currentImageDate = document.getElementById('current-image-date');
         this.prevImageBtn = /** @type {HTMLButtonElement} */ (document.getElementById('prev-image-btn'));
         this.nextImageBtn = /** @type {HTMLButtonElement} */ (document.getElementById('next-image-btn'));
+        this.deleteImageBtn = /** @type {HTMLButtonElement} */ (document.getElementById('delete-image-btn'));
 
         // 이전 생성 이미지 데이터
         this.previousMaps = [];
@@ -46,6 +47,11 @@ export class ThermalMapManager {
         
         if (this.nextImageBtn) {
             this.nextImageBtn.addEventListener('click', () => this.showNextImage());
+        }
+        
+        // 이미지 삭제 버튼 이벤트 리스너
+        if (this.deleteImageBtn) {
+            this.deleteImageBtn.addEventListener('click', () => this.confirmDeleteCurrentImage());
         }
 
         // 초기 이전 생성 이미지 데이터 로드
@@ -75,7 +81,7 @@ export class ThermalMapManager {
             this.autoGenerationStatus.className = 'font-medium ' + 
                 (autoGeneration ? 'text-green-600' : 'text-gray-500');
         } catch (error) {
-            console.error('자동생성 상태 확인 중 오류:', error);
+            this.uiManager.showMessage(`자동생성 상태 확인 중 오류: ${error}`, 'error');
             this.autoGenerationStatus.textContent = '확인 실패';
             this.autoGenerationStatus.className = 'font-medium text-red-500';
         }
@@ -149,7 +155,6 @@ export class ThermalMapManager {
                 this.uiManager.showMessage(data.error || '지도 생성에 실패했습니다.', 'error');
             }
         } catch (error) {
-            console.error('Error:', error);
             this.uiManager.showMessage('지도 생성 중 오류가 발생했습니다.', 'error');
         }
 
@@ -182,7 +187,7 @@ export class ThermalMapManager {
                 this.updateNextGenerationTime();
             }
         } catch (error) {
-            console.error('지도 시간 확인 중 오류:', error);
+            this.uiManager.showMessage(`지도 시간 확인 중 오류: ${error}`, 'error');
         }
     }
 
@@ -237,7 +242,7 @@ export class ThermalMapManager {
                 }
             }
         } catch (error) {
-            console.error('다음 생성 시각 계산 중 오류:', error);
+            this.uiManager.showMessage(`다음 생성 시각 계산 중 오류: ${error}`, 'error');
             this.nextGenerationTime.textContent = '계산 오류';
             if (this.nextGenerationRemaining) {
                 this.nextGenerationRemaining.textContent = '';
@@ -274,7 +279,7 @@ export class ThermalMapManager {
             const mapId = urlParams.get('id');
             
             if (!mapId) {
-                console.error('맵 ID를 찾을 수 없습니다.');
+                this.uiManager.showMessage('맵 ID를 찾을 수 없습니다.', 'error');
                 this.showEmptyPreviousMap();
                 return;
             }
@@ -295,11 +300,11 @@ export class ThermalMapManager {
                     this.showEmptyPreviousMap();
                 }
             } else {
-                console.error('이전 맵 로드 실패:', data.error);
+                this.uiManager.showMessage(`이전 맵 로드 실패: ${data.error}`, 'error');
                 this.showEmptyPreviousMap();
             }
         } catch (error) {
-            console.error('이전 맵 로드 중 오류:', error);
+            this.uiManager.showMessage(`이전 맵 로드 중 오류: ${error}`, 'error');
             this.showEmptyPreviousMap();
         } finally {
             this.showPreviousMapLoading(false);
@@ -415,6 +420,69 @@ export class ThermalMapManager {
         
         if (this.nextImageBtn) {
             this.nextImageBtn.disabled = this.currentIndex >= this.previousMaps.length - 1;
+        }
+    }
+
+    /**
+     * 현재 이미지 삭제 확인 대화상자 표시
+     */
+    confirmDeleteCurrentImage() {
+        if (this.previousMaps.length === 0 || this.currentIndex < 0 || this.currentIndex >= this.previousMaps.length) {
+            return;
+        }
+        
+        const currentMap = this.previousMaps[this.currentIndex];
+        const imageDateText = currentMap.date;
+        
+        // 모달 확인 창 표시
+        this.uiManager.showConfirmModal(
+            '이미지 삭제 확인',
+            `${imageDateText}에 생성된 이미지를 삭제하시겠습니까?`,
+            () => this.deleteCurrentImage(),
+            null,
+            '삭제',
+            'bg-red-500 hover:bg-red-600'
+        );
+    }
+    
+    /**
+     * 현재 이미지 삭제
+     */
+    async deleteCurrentImage() {
+        if (this.previousMaps.length === 0 || this.currentIndex < 0 || this.currentIndex >= this.previousMaps.length) {
+            return;
+        }
+        
+        try {
+            this.showPreviousMapLoading(true);
+            
+            const currentMap = this.previousMaps[this.currentIndex];
+            const imageId = currentMap.id;
+            
+            // 삭제 요청 전송
+            const response = await fetch(`./api/maps/${this.mapId}/previous-maps/${imageId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                // 삭제 성공 메시지
+                this.uiManager.showMessage('이미지가 삭제되었습니다.', 'success');
+                
+                // 이미지 목록 다시 로드
+                await this.loadPreviousMaps();
+            } else {
+                // 삭제 실패 메시지
+                this.uiManager.showMessage(result.error || '이미지 삭제에 실패했습니다.', 'error');
+            }
+        } catch (error) {
+            this.uiManager.showMessage(`이미지 삭제 중 오류: ${error}`, 'error');
+        } finally {
+            this.showPreviousMapLoading(false);
         }
     }
 } 

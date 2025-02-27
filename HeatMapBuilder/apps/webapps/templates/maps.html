@@ -246,7 +246,6 @@
             async function loadMaps() {
                 try {
                     const maps = await apiRequest('./api/maps');
-                    console.log(maps);
                     
                     mapList.innerHTML = '';
                     const MAX_SLOTS = 6;

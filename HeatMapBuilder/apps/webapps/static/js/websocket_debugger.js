@@ -56,7 +56,6 @@ export class WebSocketDebugger {
                 this.uiManager.showMessage(data.error || 'WebSocket 디버그 요청이 실패했습니다.', 'error');
             }
         } catch (error) {
-            console.error('Error:', error);
             this.uiManager.showMessage('WebSocket 디버그 요청 중 오류가 발생했습니다.', 'error');
         }
     }

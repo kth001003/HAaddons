@@ -200,14 +200,10 @@ export class SensorManager {
                 if (config.sensors) {
                     this.applySavedSensorConfig(config.sensors);
                 }
-
-                // 설정 적용 후 상태 확인
-                console.log("SensorManager - 설정 적용 후 상태:", this.sensors);
             }
 
             this.updateSensorList();
         } catch (error) {
-            console.error('센서 로드 실패:', error);
             this.uiManager.showMessage('센서를 불러오는데 실패했습니다.', 'error');
         }
     }
@@ -428,6 +424,9 @@ export class SensorManager {
         
         this.currentUnit = unit;  // currentUnit 설정
         
+        // 추가된 센서 목록을 저장하고, 나중에 한 번에 저장
+        const newlyAddedSensors = [];
+        
         this.filteredSensors.forEach(sensor => {
             if (sensor.attributes.unit_of_measurement !== unit) {
                 this.uiManager.showMessage(`${sensor.attributes.friendly_name}의 단위가 ${unit}이 아닙니다.`, 'error');
@@ -437,8 +436,15 @@ export class SensorManager {
                 sensor.position = this.getRandomCenterPoint();
                 this.addedSensors.add(sensor.entity_id);
                 this.updateSensorMarker(sensor, sensor.position);
+                newlyAddedSensors.push(sensor);
             }
         });
+        
+        // 모든 센서가 추가된 후 한 번에 저장
+        if (newlyAddedSensors.length > 0) {
+            this.uiManager.drawingTool.saveState();
+        }
+        
         this.updateSensorList();
     }
 
@@ -532,10 +538,12 @@ export class SensorManager {
 
         if (!group) {
             group = this.createSensorMarkerGroup(sensor);
+        } else {
+            // 기존 그룹이 있는 경우, 컨텍스트 메뉴 핸들러 재설정
+            this.setupContextMenuAndHold(group, sensor);
         }
 
         this.updateMarkerPosition(group, sensor, point);
-
         this.setupDragEvents(group, sensor, point);
     }
 
@@ -677,16 +685,24 @@ export class SensorManager {
             const handleDelete = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (confirm('이 센서를 삭제하시겠습니까?')) {
-                    this.removeSensorMarker(sensor.entity_id);
-                    const sensorIndex = this.sensors.findIndex(s => s.entity_id === sensor.entity_id);
-                    if (sensorIndex !== -1) {
-                        this.sensors[sensorIndex].position = undefined;
-                    }
-                    this.addedSensors.delete(sensor.entity_id);
-                    this.uiManager.drawingTool.saveState();
-                    this.updateSensorList();
-                }
+                // 모달 확인 창으로 변경
+                this.uiManager.showConfirmModal(
+                    '센서 삭제',
+                    `'${sensor.attributes.friendly_name || sensor.entity_id}' 센서를 삭제하시겠습니까?`,
+                    () => {
+                        this.removeSensorMarker(sensor.entity_id);
+                        const sensorIndex = this.sensors.findIndex(s => s.entity_id === sensor.entity_id);
+                        if (sensorIndex !== -1) {
+                            this.sensors[sensorIndex].position = undefined;
+                        }
+                        this.addedSensors.delete(sensor.entity_id);
+                        this.uiManager.drawingTool.saveState();
+                        this.updateSensorList();
+                    },
+                    null,
+                    '삭제',
+                    'bg-red-500 hover:bg-red-600'
+                );
             };
 
             // 클릭 및 터치 이벤트
