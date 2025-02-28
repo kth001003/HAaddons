@@ -137,7 +137,7 @@ class BackgroundTaskManager:
         """열지도 생성 로직"""
         if self.map_lock.acquire(blocking=False):  # 락 획득 시도
             try:
-                self.logger.debug(f"맵 생성 시작: {map_id}")
+                self.logger.info(f"맵 생성 시작: {map_id}")
                 
                 # 웹소켓 클라이언트 상태 로깅
                 websocket_client = self.sensor_manager.websocket_client

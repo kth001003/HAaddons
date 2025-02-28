@@ -17,17 +17,30 @@ export class ThermalMapManager {
         this.previousMapEmptyDiv = document.getElementById('previous-map-empty');
         this.previousMapLoading = document.getElementById('previous-map-loading');
         this.previousMapInfo = document.getElementById('previous-map-info');
-        this.currentImageIndex = document.getElementById('current-image-index');
-        this.totalImages = document.getElementById('total-images');
         this.currentImageDate = document.getElementById('current-image-date');
-        this.prevImageBtn = /** @type {HTMLButtonElement} */ (document.getElementById('prev-image-btn'));
-        this.nextImageBtn = /** @type {HTMLButtonElement} */ (document.getElementById('next-image-btn'));
         this.deleteImageBtn = /** @type {HTMLButtonElement} */ (document.getElementById('delete-image-btn'));
 
         // 이전 생성 이미지 데이터
         this.previousMaps = [];
         this.currentIndex = 0;
         
+        // 재생 관련 요소들
+        this.timelineMarkers = document.getElementById('timeline-markers');
+        this.playBtn = /** @type {HTMLButtonElement} */ (document.getElementById('play-btn'));
+        this.playInterval = /** @type {HTMLSelectElement} */ (document.getElementById('play-interval'));
+        this.playDirection = /** @type {HTMLSelectElement} */ (document.getElementById('play-direction'));
+        
+        // 재생 상태
+        this.isPlaying = false;
+        this.playTimer = null;
+        this.playIntervalValue = this.playInterval ? parseInt(this.playInterval.value) : 500;
+        this.playDirectionValue = this.playDirection ? this.playDirection.value : 'forward';
+
+        // 타임라인 관련 요소들
+        this.timelineBar = document.getElementById('timeline-bar');
+        this.timelineProgress = document.getElementById('timeline-progress');
+        this.currentPositionMarker = document.getElementById('current-position-marker');
+
         this.initialize();
     }
 
@@ -38,15 +51,6 @@ export class ThermalMapManager {
 
         if (this.copyImageUrlBtn) {
             this.copyImageUrlBtn.addEventListener('click', () => this.copyImageUrl());
-        }
-
-        // 이전 생성 이미지 버튼 이벤트 리스너
-        if (this.prevImageBtn) {
-            this.prevImageBtn.addEventListener('click', () => this.showPreviousImage());
-        }
-        
-        if (this.nextImageBtn) {
-            this.nextImageBtn.addEventListener('click', () => this.showNextImage());
         }
         
         // 이미지 삭제 버튼 이벤트 리스너
@@ -67,6 +71,74 @@ export class ThermalMapManager {
         this.updateAutoGenerationStatus();
         this.updateElapsedTime();
         this.updateNextGenerationTime();
+
+        // 타임라인 드래그 이벤트 리스너
+        if (this.timelineBar) {
+            let isDragging = false;
+            
+            const findNearestMarkerIndex = (progress) => {
+                const totalMarkers = this.previousMaps.length;
+                const exactIndex = progress * (totalMarkers - 1);
+                const nearestIndex = Math.round(exactIndex);
+                return totalMarkers - 1 - nearestIndex;
+            };
+            
+            const updateTimelinePosition = (e) => {
+                const rect = this.timelineBar.getBoundingClientRect();
+                let progress = (e.clientX - rect.left) / rect.width;
+                progress = Math.max(0, Math.min(1, progress));
+                
+                // 가장 가까운 마커의 인덱스 찾기
+                this.currentIndex = findNearestMarkerIndex(progress);
+                this.updatePreviousMapDisplay();
+            };
+            
+            // 타임라인 전체 영역에 이벤트 리스너 추가
+            const timelineContainer = document.getElementById('timeline-markers');
+            [this.timelineBar, timelineContainer].forEach(element => {
+                if (!element) return;
+                
+                element.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    updateTimelinePosition(e);
+                });
+                
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    updateTimelinePosition(e);
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                }
+            });
+        }
+        
+        // 재생 버튼 이벤트 리스너
+        if (this.playBtn) {
+            this.playBtn.addEventListener('click', () => this.togglePlay());
+        }
+        
+        // 재생 설정 이벤트 리스너
+        if (this.playInterval) {
+            this.playInterval.addEventListener('change', () => {
+                this.playIntervalValue = parseInt(this.playInterval.value);
+                if (this.isPlaying) {
+                    this.stopPlay();
+                    this.startPlay();
+                }
+            });
+        }
+        
+        if (this.playDirection) {
+            this.playDirection.addEventListener('change', () => {
+                this.playDirectionValue = this.playDirection.value;
+            });
+        }
     }
 
     async updateAutoGenerationStatus() {
@@ -76,14 +148,33 @@ export class ThermalMapManager {
             const response = await fetch(`./api/load-config/${this.mapId}`);
             const config = await response.json();
             const autoGeneration = config.gen_config?.auto_generation || false;
+            const genInterval = config.gen_config?.gen_interval || 15;
             
             this.autoGenerationStatus.textContent = autoGeneration ? '켜짐' : '꺼짐';
-            this.autoGenerationStatus.className = 'font-medium ' + 
+            this.autoGenerationStatus.className = 'font-medium text-right ' + 
                 (autoGeneration ? 'text-green-600' : 'text-gray-500');
+
+            // 생성 간격 표시
+            const intervalElement = document.getElementById('generation-interval-display');
+            if (intervalElement) {
+                if (autoGeneration) {
+                    intervalElement.textContent = `${genInterval}분`;
+                    intervalElement.className = 'font-medium text-right text-gray-600';
+                } else {
+                    intervalElement.textContent = '-';
+                    intervalElement.className = 'font-medium text-right text-gray-400';
+                }
+            }
         } catch (error) {
             this.uiManager.showMessage(`자동생성 상태 확인 중 오류: ${error}`, 'error');
             this.autoGenerationStatus.textContent = '확인 실패';
-            this.autoGenerationStatus.className = 'font-medium text-red-500';
+            this.autoGenerationStatus.className = 'font-medium text-right text-red-500';
+            
+            const intervalElement = document.getElementById('generation-interval-display');
+            if (intervalElement) {
+                intervalElement.textContent = '-';
+                intervalElement.className = 'font-medium text-right text-gray-400';
+            }
         }
     }
 
@@ -297,6 +388,7 @@ export class ThermalMapManager {
                     // 이미지가 있으면 첫 번째 이미지 표시
                     this.currentIndex = 0;
                     this.updatePreviousMapDisplay();
+                    this.updateTimelineMarkers();  // 타임라인 마커 업데이트
                 } else {
                     // 이미지가 없으면 빈 메시지 표시
                     this.showEmptyPreviousMap();
@@ -310,26 +402,6 @@ export class ThermalMapManager {
             this.showEmptyPreviousMap();
         } finally {
             this.showPreviousMapLoading(false);
-        }
-    }
-    
-    /**
-     * 이전 이미지 표시
-     */
-    showPreviousImage() {
-        if (this.currentIndex > 0) {
-            this.currentIndex--;
-            this.updatePreviousMapDisplay();
-        }
-    }
-    
-    /**
-     * 다음 이미지 표시
-     */
-    showNextImage() {
-        if (this.currentIndex < this.previousMaps.length - 1) {
-            this.currentIndex++;
-            this.updatePreviousMapDisplay();
         }
     }
     
@@ -352,15 +424,6 @@ export class ThermalMapManager {
             this.previousMapEmptyDiv.classList.add('hidden');
         }
         
-        // 인덱스 정보 업데이트
-        if (this.currentImageIndex) {
-            this.currentImageIndex.textContent = (this.currentIndex + 1).toString();
-        }
-        
-        if (this.totalImages) {
-            this.totalImages.textContent = this.previousMaps.length.toString();
-        }
-        
         if (this.currentImageDate) {
             this.currentImageDate.textContent = current.date;
         }
@@ -369,8 +432,8 @@ export class ThermalMapManager {
             this.previousMapInfo.classList.remove('hidden');
         }
         
-        // 버튼 활성화/비활성화
-        this.updateNavigationButtons();
+        // 타임라인 업데이트
+        this.updateTimelineSlider();
     }
     
     /**
@@ -388,15 +451,6 @@ export class ThermalMapManager {
         if (this.previousMapInfo) {
             this.previousMapInfo.classList.add('hidden');
         }
-        
-        // 버튼 비활성화
-        if (this.prevImageBtn) {
-            this.prevImageBtn.disabled = true;
-        }
-        
-        if (this.nextImageBtn) {
-            this.nextImageBtn.disabled = true;
-        }
     }
     
     /**
@@ -412,19 +466,6 @@ export class ThermalMapManager {
         }
     }
     
-    /**
-     * 네비게이션 버튼 활성화/비활성화
-     */
-    updateNavigationButtons() {
-        if (this.prevImageBtn) {
-            this.prevImageBtn.disabled = this.currentIndex <= 0;
-        }
-        
-        if (this.nextImageBtn) {
-            this.nextImageBtn.disabled = this.currentIndex >= this.previousMaps.length - 1;
-        }
-    }
-
     /**
      * 현재 이미지 삭제 확인 대화상자 표시
      */
@@ -486,5 +527,149 @@ export class ThermalMapManager {
         } finally {
             this.showPreviousMapLoading(false);
         }
+    }
+
+    togglePlay() {
+        if (this.isPlaying) {
+            this.stopPlay();
+        } else {
+            this.startPlay();
+        }
+    }
+
+    startPlay() {
+        if (!this.previousMaps.length) return;
+        
+        this.isPlaying = true;
+        this.playBtn.innerHTML = '<i class="mdi mdi-pause text-sm"></i><span class="text-xs">일시정지</span>';
+        this.playBtn.classList.add('bg-blue-500', 'text-white', 'border-blue-500', 'hover:bg-blue-600', 'hover:border-blue-600');
+        
+        const playStep = () => {
+            if (this.playDirectionValue === 'backward') {
+                if (this.currentIndex >= this.previousMaps.length - 1) {
+                    this.currentIndex = 0;
+                } else {
+                    this.currentIndex++;
+                }
+            } else {
+                if (this.currentIndex <= 0) {
+                    this.currentIndex = this.previousMaps.length - 1;
+                } else {
+                    this.currentIndex--;
+                }
+            }
+            
+            this.updatePreviousMapDisplay();
+            this.updateTimelineSlider();
+            
+            this.playTimer = setTimeout(playStep, this.playIntervalValue);
+        };
+        
+        playStep();
+    }
+
+    stopPlay() {
+        this.isPlaying = false;
+        this.playBtn.innerHTML = '<i class="mdi mdi-play text-sm"></i><span class="text-xs">재생</span>';
+        this.playBtn.classList.remove('bg-blue-500', 'text-white', 'border-blue-500', 'hover:bg-blue-600', 'hover:border-blue-600');
+        if (this.playTimer) {
+            clearTimeout(this.playTimer);
+            this.playTimer = null;
+        }
+    }
+
+    updateTimelineSlider() {
+        if (!this.timelineProgress || !this.currentPositionMarker || !this.previousMaps.length) return;
+        
+        const progress = ((this.previousMaps.length - 1 - this.currentIndex) / (this.previousMaps.length - 1)) * 100;
+        
+        // progress bar 숨기기
+        this.timelineProgress.style.background = 'rgb(229 231 235)';
+        this.currentPositionMarker.style.left = `${progress}%`;
+        
+        // 현재 선택된 마커만 강조
+        const markers = this.timelineMarkers.children;
+        for (let i = 0; i < markers.length; i++) {
+            const markerContainer = markers[i];
+            const marker = markerContainer.querySelector('div');
+            if (!marker) continue;
+
+            if (i === this.previousMaps.length - 1 - this.currentIndex) {
+                marker.classList.remove('bg-gray-400');
+                marker.classList.add('bg-blue-500');
+            } else {
+                marker.classList.remove('bg-blue-500');
+                marker.classList.add('bg-gray-400');
+            }
+        }
+    }
+
+    updateTimelineMarkers() {
+        if (!this.timelineMarkers || !this.previousMaps.length) return;
+        
+        // 기존 마커 제거
+        this.timelineMarkers.innerHTML = '';
+        
+        // 새 마커 추가 (역순으로 추가하여 과거가 왼쪽에 오도록 함)
+        this.previousMaps.slice().reverse().forEach((map, reversedIndex) => {
+            // 마커 컨테이너 (호버 영역)
+            const markerContainer = document.createElement('div');
+            const progress = (reversedIndex / (this.previousMaps.length - 1)) * 100;
+            const index = this.previousMaps.length - 1 - reversedIndex;
+            
+            // 호버 영역 스타일 (넓은 영역)
+            markerContainer.className = 'absolute h-4 transform -translate-x-1/2 select-none';
+            markerContainer.style.left = `${progress}%`;
+            markerContainer.style.width = '20px'; // 호버 영역을 좌우로 넓게 설정
+            
+            // 실제 마커 (시각적 표현)
+            const marker = document.createElement('div');
+            marker.className = 'absolute left-1/2 w-0.5 h-3 bg-gray-400 transform -translate-x-1/2 rounded-full select-none';
+            
+            // 현재 선택된 마커 표시
+            if (index === this.currentIndex) {
+                marker.classList.remove('bg-gray-400');
+                marker.classList.add('bg-blue-500');
+            }
+            
+            // 툴팁 설정
+            const date = new Date(map.date);
+            const formattedDate = date.toLocaleString('ko-KR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            
+            // 툴팁 요소 생성
+            const tooltip = document.createElement('div');
+            tooltip.className = 'absolute bottom-full left-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap transform -translate-x-1/2 hidden select-none';
+            tooltip.style.zIndex = '20';
+            tooltip.textContent = formattedDate;
+            
+            // 요소 조립
+            markerContainer.appendChild(marker);
+            markerContainer.appendChild(tooltip);
+            
+            // 호버 이벤트
+            markerContainer.addEventListener('mouseenter', () => {
+                marker.classList.remove('bg-gray-400');
+                marker.classList.add('bg-blue-500');
+                tooltip.classList.remove('hidden');
+            });
+            
+            markerContainer.addEventListener('mouseleave', () => {
+                if (index !== this.currentIndex) {
+                    marker.classList.remove('bg-blue-500');
+                    marker.classList.add('bg-gray-400');
+                }
+                tooltip.classList.add('hidden');
+            });
+            
+            this.timelineMarkers.appendChild(markerContainer);
+        });
     }
 } 
