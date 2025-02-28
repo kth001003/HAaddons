@@ -253,8 +253,10 @@ export class ThermalMapManager {
     copyImageUrl() {
         if (!this.copyImageUrlBtn) return;
 
-        let url = new URL(this.copyImageUrlBtn.dataset.url, window.location.href).href;
-        url = url.split('?')[0];
+        const urlInput = /** @type {HTMLInputElement} */ (document.getElementById('image-url-input'));
+        if (!urlInput) return;
+
+        let url = urlInput.value.split('?')[0];
         
         navigator.clipboard.writeText(url)
             .then(() => {

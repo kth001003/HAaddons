@@ -5,6 +5,7 @@ import os
 import asyncio
 import glob
 import shutil
+from PIL import Image  # Pillow 라이브러리 추가
 
 from map_generator import MapGenerator
 from config_manager import ConfigManager
@@ -51,17 +52,83 @@ class BackgroundTaskManager:
             base_path = os.path.splitext(output_path)[0]
             ext = os.path.splitext(output_path)[1]
             
+            # 현재 존재하는 파일들의 목록을 미리 확보
+            existing_files = []
+            if os.path.exists(output_path):
+                existing_files.append((output_path, 0))
+            for i in range(1, rotation_count):
+                file_path = f"{base_path}-{i}{ext}"
+                if os.path.exists(file_path):
+                    existing_files.append((file_path, i))
+            
             # 가장 오래된 백업 파일 삭제
             old_file = f"{base_path}-{rotation_count-1}{ext}"
-            if os.path.exists(old_file):
-                os.remove(old_file)
+            try:
+                if os.path.exists(old_file):
+                    os.remove(old_file)
+            except Exception as e:
+                self.logger.warning(f"오래된 파일 삭제 실패: {str(e)}")
 
             # 기존 백업 파일들의 번호를 하나씩 증가
-            for i in range(rotation_count-2, -1, -1):
-                old_name = f"{base_path}-{i}{ext}" if i > 0 else output_path
-                new_name = f"{base_path}-{i+1}{ext}"
-                if os.path.exists(old_name):
-                    shutil.move(old_name, new_name)
+            for old_path, index in reversed(existing_files):
+                try:
+                    new_name = f"{base_path}-{index+1}{ext}"
+                    if os.path.exists(old_path):  # 한번 더 확인
+                        shutil.move(old_path, new_name)
+                except Exception as e:
+                    self.logger.warning(f"파일 이동 실패 ({old_path} -> {new_name}): {str(e)}")
+
+            # GIF 생성
+            try:
+                images = []
+                opened_images = []  # 리소스 정리를 위한 리스트
+                
+                try:
+                    # 가장 오래된 이미지부터 최신 순으로 GIF에 추가
+                    for i in range(rotation_count-1, 0, -1):
+                        img_path = f"{base_path}-{i}{ext}"
+                        if os.path.exists(img_path):
+                            try:
+                                img = Image.open(img_path)
+                                images.append(img)
+                                opened_images.append(img)
+                            except Exception as e:
+                                self.logger.warning(f"이미지 열기 실패 ({img_path}): {str(e)}")
+                    
+                    # 마지막으로 현재 이미지 추가
+                    if os.path.exists(output_path):
+                        try:
+                            img = Image.open(output_path)
+                            images.append(img)
+                            opened_images.append(img)
+                        except Exception as e:
+                            self.logger.warning(f"현재 이미지 열기 실패: {str(e)}")
+
+                    if images:
+                        # GIF 파일 경로
+                        gif_path = f"{base_path}_animation.gif"
+                        # 이미지들을 저장 (이미 오래된 순서부터 정렬되어 있음)
+                        try:
+                            images[0].save(
+                                gif_path,
+                                save_all=True,
+                                append_images=images[1:],
+                                duration=1000,  # 각 프레임 간 시간 간격 (밀리초)
+                                loop=0  # 무한 반복
+                            )
+                            self.logger.debug(f"GIF 애니메이션 생성 완료: {gif_path}")
+                        except Exception as e:
+                            self.logger.error(f"GIF 저장 실패: {str(e)}")
+                finally:
+                    # 열린 이미지 리소스 정리
+                    for img in opened_images:
+                        try:
+                            img.close()
+                        except Exception:
+                            pass
+                            
+            except Exception as e:
+                self.logger.error(f"GIF 생성 중 오류 발생: {str(e)}")
 
         except Exception as e:
             self.logger.error(f"이미지 로테이션 처리 중 오류 발생: {str(e)}")

@@ -453,7 +453,8 @@ class MapGenerator:
         }
         # 이미지 URL 업데이트
         output_filename = self.config_manager.get_output_filename(map_id)
-        map_data['img_url'] = f'/local/HeatMapBuilder/{map_id}/{output_filename}?{generation_time}'
+        timestamp = datetime.now().timestamp()
+        map_data['img_url'] = f'/local/HeatMapBuilder/{map_id}/{output_filename}?{timestamp}'
         
         self.config_manager.db.save(map_id, map_data)
 

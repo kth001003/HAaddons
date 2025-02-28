@@ -346,8 +346,17 @@ class WebServer:
             
             last_generation_info = map_data.get('last_generation', {})
             timestamp = last_generation_info.get('timestamp', '')
+            img_url = self.config_manager.get_image_url(map_id)
+            img_url_without_timestamp = img_url.split('?')[0] if '?' in img_url else img_url
+            
+            # 호스트 URL 생성
+            host_url = request.host_url.rstrip('/')
+            full_img_url = f"{host_url}{img_url}"
+            full_img_url_without_timestamp = f"{host_url}{img_url_without_timestamp}"
+            
             return await render_template('index.html', 
-                            img_url=self.config_manager.get_image_url(map_id),
+                            img_url=full_img_url,
+                            img_url_without_timestamp=full_img_url_without_timestamp,
                             cache_buster=timestamp,
                             map_generation_time=timestamp,
                             map_generation_duration=last_generation_info.get('duration', ''),

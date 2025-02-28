@@ -91,12 +91,17 @@
                             </div>
                             <div>
                                 <div class="text-sm text-gray-500 mb-2">이미지 주소</div>
-                                <button id="copy-image-url"
-                                    class="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center"
-                                    data-url="{{ img_url }}">
-                                    <i class="mdi mdi-content-copy mr-2"></i>
-                                    복사
-                                </button>
+                                <div class="flex gap-2">
+                                    <input type="text" id="image-url-input" readonly
+                                        class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 bg-gray-50"
+                                        value="{{ img_url_without_timestamp }}">
+                                    <button id="copy-image-url"
+                                        class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center"
+                                        data-url="{{ img_url_without_timestamp }}">
+                                        <i class="mdi mdi-content-copy mr-2"></i>
+                                        복사
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -174,7 +179,7 @@
             </button>
 
             <!-- 좌측 플로팅 툴바 -->
-            <div class="fixed left-2 top-1/2 transform -translate-y-1/2 space-y-2 z-10 max-h-[calc(100vh-6rem)] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div class="fixed left-2 top-[8rem] bottom-[6rem] flex flex-col space-y-2 z-10 overflow-y-auto py-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <input type="file" id="floorplan-upload" accept="image/*" class="hidden">
                 <div class="flex flex-col items-center">
                     <button onclick="document.getElementById('floorplan-upload').click()" 
@@ -252,8 +257,8 @@
 
             <!-- 우측 센서 목록 영역 -->
             <!-- 센서 목록 패널 컨테이너 -->
-            <div class="fixed right-0 top-[6rem] w-[98vw] sm:w-[500px] z-30 h-[calc(100vh-6rem)]" id="sensor-panel-container">
-                <div class="relative transition-transform duration-300 translate-x-full h-full" id="sensor-panel">
+            <div class="fixed right-0 top-[6rem] w-[98vw] sm:w-[500px] z-30 h-[calc(100vh-6rem)] pointer-events-none" id="sensor-panel-container">
+                <div class="relative transition-transform duration-300 translate-x-full h-full pointer-events-auto" id="sensor-panel">
                     <!-- 센서 목록 컨테이너 -->
                     <div class="w-full h-full bg-white rounded-lg shadow-lg flex flex-col">
                         <div class="p-2 border-b flex-shrink-0">
