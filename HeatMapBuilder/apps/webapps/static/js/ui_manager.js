@@ -234,7 +234,7 @@ export class UIManager {
                     try {
                         this.reloadWallsAndSensors();
                     } catch (error) {
-                        this.showMessage('설정을 불러오는데 실패했습니다.', 'error');
+                        this.showMessage('uiManager: 설정을 불러오는데 실패했습니다.', 'error');
                     }
                 }
             );
@@ -388,7 +388,7 @@ export class UIManager {
                 }
             }
         } catch (error) {
-            this.showMessage(`설정을 불러오는데 실패했습니다.`,'error')
+            this.showMessage(`uiManager: 설정을 불러오는데 실패했습니다.`,'error')
         }
     }
     initializeSVGPan() {

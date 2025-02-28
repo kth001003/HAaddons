@@ -603,9 +603,19 @@ class MapGenerator:
         except Exception as e:
             self.logger.error(f"센서 마커 생성 중 오류 발생: {str(e)}")
 
-    def _create_colorbar(self, fig, im, colorbar_config):
-        """컬러바를 생성합니다."""
+    def _calculate_temperature_range(self,temperatures, colorbar_config):
+        """자동 범위 설정이 활성화된 경우 센서 데이터를 기반으로 온도 범위를 계산합니다."""
+        if not colorbar_config.get('auto_range', False):
+            return colorbar_config.get('min_temp', 0), colorbar_config.get('max_temp', 100)
+
+        min_temp = min(temperatures)
+        max_temp = max(temperatures)
+        temp_range = max_temp - min_temp
+        padding = temp_range * 0.1
         
+        return min_temp - padding, max_temp + padding
+
+    def _create_colorbar(self, fig, im, colorbar_config):
         show_label = colorbar_config.get('show_label', True)
         label = colorbar_config.get('label', self.unit)
         label_color = colorbar_config.get('label_color', '#000000')
@@ -619,7 +629,7 @@ class MapGenerator:
         location = colorbar_config.get('location', 'right')
         width = colorbar_config.get('width', 5)
         height = colorbar_config.get('height', 80)
-        pad = colorbar_config.get('borderpad', 0)
+        borderpad = colorbar_config.get('borderpad', 0)
 
         if orientation == 'horizontal':
             width, height = height, width
@@ -628,7 +638,7 @@ class MapGenerator:
                         width=f'{width}%',
                         height=f'{height}%',
                         loc=location,
-                        borderpad=pad)
+                        borderpad=borderpad)
 
         cbar = fig.colorbar(im, cax=cax, orientation=orientation)
 
@@ -785,9 +795,6 @@ class MapGenerator:
                 # 오류 발생 시 빈 딕셔너리로 초기화
                 states_dict = {}
             
-            # 설정된 온도 범위 가져오기
-            min_temp = self.gen_config.get('colorbar', {}).get('min_temp', 0)
-            max_temp = self.gen_config.get('colorbar', {}).get('max_temp', 40)
             
             # area 데이터 파싱
             areas, root = self._parse_areas()
@@ -803,6 +810,9 @@ class MapGenerator:
                 self.logger.error(error_msg)
                 return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
             temperatures = raw_temps
+            
+            # 설정된 온도 범위 가져오기
+            min_temp, max_temp = self._calculate_temperature_range(temperatures,self.gen_config.get('colorbar', {}))
             # 온도값 범위 제한 적용
             if min_temp is not None:
                 temperatures = [max(t, min_temp) for t in raw_temps]

@@ -1,5 +1,5 @@
 <!-- 설정 탭 네비게이션 -->
-<nav class="bg-white shadow-sm rounded-lg mb-6">
+<nav class="bg-white shadow-sm rounded-t-lg overflow-x-auto">
     <div class="px-4">
         <div class="flex space-x-4">
             <button id="generation-tab"
@@ -7,16 +7,15 @@
                 생성</button>
             <button id="interpolation-tab"
                 class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">보간
-                설정</button>
+                </button>
             <button id="range-tab"
                 class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">범위
-                설정</button>
+                </button>
             <button id="display-tab"
                 class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">그리기
-                설정</button>
+                </button>
             <button id="sensor-marker-tab"
-                class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">센서
-                마커</button>
+                class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">마커</button>
             <button id="colorbar-tab"
                 class="settings-tab px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent hover:border-blue-500 transition-colors">컬러바</button>
         </div>
@@ -24,34 +23,34 @@
 </nav>
 
 <!-- 설정 탭 컨텐츠 -->
-<div class="space-y-6">
+<div>
     <!-- 지도 생성 탭 -->
-    <div id="generation-content" class="settings-tab-content hidden bg-white rounded-lg shadow-md p-6">
+    <div id="generation-content" class="settings-tab-content hidden bg-white rounded-b-lg shadow-md p-4">
         {% include 'settings/generation.html' %}
     </div>
 
     <!-- 보간 설정 탭 -->
-    <div id="interpolation-content" class="settings-tab-content bg-white rounded-lg shadow-md p-6">
+    <div id="interpolation-content" class="settings-tab-content bg-white rounded-b-lg shadow-md p-4">
         {% include 'settings/interpolation.html' %}
     </div>
 
     <!-- 범위 설정 탭 -->
-    <div id="range-content" class="settings-tab-content hidden bg-white rounded-lg shadow-md p-6">
+    <div id="range-content" class="settings-tab-content hidden bg-white rounded-b-lg shadow-md p-4">
         {% include 'settings/range.html' %}
     </div>
 
     <!-- 그리기 설정 탭 -->
-    <div id="display-content" class="settings-tab-content hidden bg-white rounded-lg shadow-md p-6">
+    <div id="display-content" class="settings-tab-content hidden bg-white rounded-b-lg shadow-md p-4">
         {% include 'settings/display.html' %}
     </div>
 
     <!-- 센서 마커 설정 탭 -->
-    <div id="sensor-marker-content" class="settings-tab-content hidden bg-white rounded-lg shadow-md p-6">
+    <div id="sensor-marker-content" class="settings-tab-content hidden bg-white rounded-b-lg shadow-md p-4">
         {% include 'settings/sensor_marker.html' %}
     </div>
 
     <!-- 컬러바 설정 탭 -->
-    <div id="colorbar-content" class="settings-tab-content hidden bg-white rounded-lg shadow-md p-6">
+    <div id="colorbar-content" class="settings-tab-content hidden bg-white rounded-b-lg shadow-md p-4">
         {% include 'settings/colorbar.html' %}
     </div>
 </div>

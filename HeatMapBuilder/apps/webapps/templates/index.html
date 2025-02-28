@@ -47,9 +47,9 @@
     <!-- 메인 컨텐츠 -->
     <main class="flex-1 pt-[6rem]">
         <!-- 지도 탭 -->
-        <div id="map-content" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <div id="map-content" class="hidden max-w-7xl mx-auto p-4 space-y-6">
             <!-- 현재 지도 섹션 -->
-            <div id="thermal-map-container" class="bg-white rounded-lg shadow-md">
+            <div id="thermal-map-container" class="bg-white rounded-lg shadow-md p-4">
                 <div class="flex flex-col lg:flex-row">
                     <!-- 지도 영역 -->
                     <div class="w-full relative aspect-square lg:aspect-auto lg:max-w-[600px] lg:w-[600px]">
@@ -114,14 +114,7 @@
 
             <!-- 이전 생성 이미지 섹션 -->
             <div id="previous-maps" class="bg-white rounded-lg shadow-md p-6">
-                <div class="flex justify-between items-start mb-4">
-                    <h2 class="text-lg font-medium text-gray-900">이전 생성 이미지</h2>
-                    <button id="delete-image-btn" 
-                        class="px-3 py-1 bg-red-500 text-white text-xs rounded-md hover:bg-red-600 flex items-center">
-                        <i class="mdi mdi-delete mr-1"></i>
-                        이미지 삭제
-                    </button>
-                </div>
+                <h2 class="text-lg font-medium text-gray-900 mb-4">이전 생성 이미지</h2>
                 <div id="previous-maps-container" class="relative">
                     <!-- 이미지 슬라이더 -->
                     <div class="flex justify-center items-center">
@@ -142,7 +135,14 @@
                     
                     <!-- 이미지 정보 -->
                     <div id="previous-map-info" class="mt-1 text-center text-sm text-gray-500 hidden">
-                        <div id="current-image-date" class="mt-1"></div>
+                        <div class="flex justify-center items-center space-x-2">
+                            <div id="current-image-date"></div>
+                            <button id="delete-image-btn" 
+                                class="px-3 py-1 bg-red-500 text-white text-xs rounded-md hover:bg-red-600 flex items-center">
+                                <i class="mdi mdi-delete mr-1"></i>
+                                이미지 삭제
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -188,9 +188,9 @@
         </div>
 
         <!-- 지도 편집 탭 -->
-        <div id="map-edit-content" class="hidden relative bg-gray-800">
+        <div id="map-edit-content" class="hidden relative">
             <!-- SVG 배경 -->
-            <div class="fixed left-0 right-0 top-[6rem] bottom-0 z-0 overflow-hidden">
+            <div class="fixed left-0 right-0 top-[6rem] bottom-0 z-0 overflow-hidden bg-gray-800">
                 <div id="floorplan-container" class="absolute inset-0">
                     <div id="svg-overlay-container" class="absolute inset-0">
                         <svg id="svg-overlay" class="w-full h-full" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">
@@ -350,12 +350,12 @@
         </div>
 
         <!-- 설정 탭 -->
-        <div id="settings-content" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <div id="settings-content" class="hidden max-w-7xl mx-auto p-4">
             {% include 'settings.html' %}
         </div>
 
         <!-- 디버그 탭 -->
-        <div id="debug-content" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <div id="debug-content" class="hidden max-w-7xl mx-auto p-4 space-y-6">
             <!-- WebSocket 디버그 설정 -->
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-xl font-semibold mb-4">WebSocket 디버그</h2>

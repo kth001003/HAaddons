@@ -8,11 +8,12 @@
         "gen_config": {
             "auto_generation": true,
             "colorbar": {
+                "auto_range": false,
                 "borderpad": 2,
                 "cmap": "RdYlBu_r",
                 "font_size": 8,
                 "height": 30,
-                "label": "(°C)",
+                "label": "°C",
                 "label_color": "#000000",
                 "location": "upper left",
                 "max_temp": 30,
@@ -89,17 +90,17 @@
                 "anisotropy_angle": 0,
                 "anisotropy_scaling": 1,
                 "nlags": 10,
-                "variogram_model": "gaussian",
+                "variogram_model": "power",
                 "variogram_parameters": {
-                    "nugget": 5,
-                    "range": 500,
-                    "sill": 20
+                    "scale": 2,
+                    "exponent": 1.6,
+                    "nugget": 1
                 },
                 "weight": true
             },
             "rbf": {
                 "epsilon_factor": 0.5,
-                "function": "gaussian"
+                "function": "inverse"
             }
         }
     }

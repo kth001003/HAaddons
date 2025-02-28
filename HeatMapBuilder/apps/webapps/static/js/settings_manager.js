@@ -9,6 +9,7 @@ export class SettingsManager {
         this.initializeColorSync();
         this.initializeVariogramModel();
         this.initializeColormapControls();
+        this.initializeToggleControls();
         this.initializeEventListeners();
         this.setupSensorDisplayUpdate();
     }
@@ -251,7 +252,8 @@ export class SettingsManager {
             width: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-width')).value),
             height: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-height')).value),
             location: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-location')).value,
-            borderpad: parseFloat(/** @type {HTMLSelectElement} */(document.getElementById('colorbar-borderpad')).value),
+            margin_x: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-margin-x')).value),
+            margin_y: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-margin-y')).value),
             orientation: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-orientation')).value,
             show_label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-label')).checked,
             label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value,
@@ -260,12 +262,14 @@ export class SettingsManager {
             label_color: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label-color')).value,
             show_shadow: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-shadow')).checked,
             shadow_color: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-color')).value,
-            shadow_width: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('colorbar-shadow-width')).value),
+            shadow_size: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('colorbar-shadow-size')).value),
             shadow_x_offset: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('colorbar-shadow-x-offset')).value),
             shadow_y_offset: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('colorbar-shadow-y-offset')).value),
+            auto_range: /** @type {HTMLInputElement} */ (document.getElementById('auto-range')).checked,
             min_temp: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('min-temp')).value),
             max_temp: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('max-temp')).value),
-            temp_steps: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('temp-steps')).value)
+            temp_steps: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('temp-steps')).value),
+            cmap: this.getSelectedColormap()
         };
     }
 
@@ -506,6 +510,31 @@ export class SettingsManager {
             this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
             return;
         }
+
+        // HTML 요소 존재 여부 확인
+        const requiredElements = [
+            'auto-generation-enabled',
+            'generation-interval',
+            'format',
+            'file-name',
+            'rotation-count',
+            'timestamp-enabled',
+            'timestamp-format',
+            'timestamp-position',
+            'empty-area-style',
+            'sensor-display-option',
+            'colorbar-cmap',
+            'colorbar-show-colorbar',
+            'auto-range'
+        ];
+
+        for (const elementId of requiredElements) {
+            if (!document.getElementById(elementId)) {
+                this.uiManager.showMessage(`필수 HTML 요소를 찾을 수 없습니다: ${elementId}`, 'error');
+                return;
+            }
+        }
+
         this.svg = svg;
         this.sensorManager = sensorManager;
         this.drawingTool = drawingTool;
@@ -528,7 +557,7 @@ export class SettingsManager {
             drawingTool.resetState();
             this.uiManager.saveCurrentSettings();
         } catch (error) {
-            this.uiManager.showMessage('설정을 불러오는데 실패했습니다.', 'error');
+            this.uiManager.showMessage(`settingsManager: 설정을 불러오는데 실패했습니다. ${error}`, 'error');
         }
     }
     async loadWalls(walls) {
@@ -573,95 +602,105 @@ export class SettingsManager {
         }
     }
 
+    /**
+     * HTML 요소를 안전하게 가져오고 값을 설정하는 헬퍼 함수
+     * @param {string} elementId - 요소의 ID
+     * @param {any} value - 설정할 값
+     * @param {string} property - 설정할 속성 (예: 'value', 'checked')
+     * @returns {boolean} - 성공 여부
+     */
+    safeSetElementValue(elementId, value, property = 'value') {
+        const element = document.getElementById(elementId);
+        if (!element) {
+            console.warn(`Element not found: ${elementId}`);
+            return false;
+        }
+        try {
+            element[property] = value;
+            return true;
+        } catch (error) {
+            console.error(`Error setting ${property} for ${elementId}:`, error);
+            return false;
+        }
+    }
+
     loadGenConfig(config) {
-        /** @type {HTMLInputElement} */ (document.getElementById('auto-generation-enabled')).checked = config.auto_generation ?? true;
-        /** @type {HTMLInputElement} */ (document.getElementById('generation-interval')).value = config.gen_interval ?? 5;
-        /** @type {HTMLInputElement} */ (document.getElementById('format')).value = config.format ?? 'png';
-        /** @type {HTMLInputElement} */ (document.getElementById('file-name')).value = config.file_name ?? 'thermal_map';
-        /** @type {HTMLInputElement} */ (document.getElementById('rotation-count')).value = config.rotation_count ?? 20;
+        // 기본 설정
+        this.safeSetElementValue('auto-generation-enabled', config.auto_generation ?? true, 'checked');
+        this.safeSetElementValue('generation-interval', config.gen_interval ?? 5);
+        this.safeSetElementValue('format', config.format ?? 'png');
+        this.safeSetElementValue('file-name', config.file_name ?? 'thermal_map');
+        this.safeSetElementValue('rotation-count', config.rotation_count ?? 20);
 
-        // 타임스탬프 설정 로드
+        // 타임스탬프 설정
         const timestamp = config.timestamp || {};
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-enabled')).checked = timestamp.enabled ?? false;
-        /** @type {HTMLSelectElement} */ (document.getElementById('timestamp-format')).value = timestamp.format ?? 'YYYY-MM-DD HH:mm:ss';
-        /** @type {HTMLSelectElement} */ (document.getElementById('timestamp-position')).value = timestamp.position ?? 'bottom-right';
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-margin-x')).value = timestamp.margin_x ?? 10;
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-margin-y')).value = timestamp.margin_y ?? 10;
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-font-size')).value = timestamp.font_size ?? 16;
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-font-color')).value = timestamp.font_color ?? '#ffffff';
-        
+        this.safeSetElementValue('timestamp-enabled', timestamp.enabled ?? false, 'checked');
+        this.safeSetElementValue('timestamp-format', timestamp.format ?? 'YYYY-MM-DD HH:mm:ss');
+        this.safeSetElementValue('timestamp-position', timestamp.position ?? 'bottom-right');
+        this.safeSetElementValue('timestamp-margin-x', timestamp.margin_x ?? 10);
+        this.safeSetElementValue('timestamp-margin-y', timestamp.margin_y ?? 10);
+        this.safeSetElementValue('timestamp-font-size', timestamp.font_size ?? 16);
+        this.safeSetElementValue('timestamp-font-color', timestamp.font_color ?? '#ffffff');
+
+        // 타임스탬프 그림자 설정
         const shadow = timestamp.shadow || {};
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-enabled')).checked = shadow.enabled ?? true;
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-color')).value = shadow.color ?? '#000000';
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-size')).value = shadow.size ?? 2;
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-x-offset')).value = shadow.x_offset ?? 1;
-        /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-y-offset')).value = shadow.y_offset ?? 1;
+        this.safeSetElementValue('timestamp-shadow-enabled', shadow.enabled ?? true, 'checked');
+        this.safeSetElementValue('timestamp-shadow-color', shadow.color ?? '#000000');
+        this.safeSetElementValue('timestamp-shadow-size', shadow.size ?? 2);
+        this.safeSetElementValue('timestamp-shadow-x-offset', shadow.x_offset ?? 1);
+        this.safeSetElementValue('timestamp-shadow-y-offset', shadow.y_offset ?? 1);
 
-        // 시각화 설정 로드
+        // 시각화 설정
         const visualization = config.visualization || {};
-        /** @type {HTMLSelectElement} */ (document.getElementById('empty-area-style')).value = visualization.empty_area ?? 'white';
-        /** @type {HTMLInputElement} */ (document.getElementById('area-border-width')).value = visualization.area_border_width ?? 2;
-        /** @type {HTMLInputElement} */ (document.getElementById('area-border-color')).value = visualization.area_border_color ?? '#000000';
-        /** @type {HTMLInputElement} */ (document.getElementById('plot-border-width')).value = visualization.plot_border_width ?? 0;
-        /** @type {HTMLInputElement} */ (document.getElementById('plot-border-color')).value = visualization.plot_border_color ?? '#000000';
-        /** @type {HTMLSelectElement} */ (document.getElementById('sensor-display-option')).value = visualization.sensor_display ?? 'position_name_temp';
+        this.safeSetElementValue('empty-area-style', visualization.empty_area ?? 'white');
+        this.safeSetElementValue('area-border-width', visualization.area_border_width ?? 2);
+        this.safeSetElementValue('area-border-color', visualization.area_border_color ?? '#000000');
+        this.safeSetElementValue('plot-border-width', visualization.plot_border_width ?? 0);
+        this.safeSetElementValue('plot-border-color', visualization.plot_border_color ?? '#000000');
+        this.safeSetElementValue('sensor-display-option', visualization.sensor_display ?? 'position_name_temp');
 
-        // 센서 정보 배경 설정 로드
+        // 센서 정보 배경 설정
         const sensorInfoBg = visualization.sensor_info_bg || {};
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-color')).value = sensorInfoBg.color ?? '#FFFFFF';
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-bg-opacity')).value = sensorInfoBg.opacity ?? 70;
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-padding')).value = sensorInfoBg.padding ?? 5;
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-border-radius')).value = sensorInfoBg.border_radius ?? 4;
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-border-width')).value = sensorInfoBg.border_width ?? 1;
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-border-color')).value = sensorInfoBg.border_color ?? '#000000';
-        /** @type {HTMLSelectElement} */ (document.getElementById('sensor-info-position')).value = sensorInfoBg.position ?? 'right';
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-info-distance')).value = sensorInfoBg.distance ?? 10;
+        this.safeSetElementValue('sensor-info-bg-color', sensorInfoBg.color ?? '#FFFFFF');
+        this.safeSetElementValue('sensor-info-bg-opacity', sensorInfoBg.opacity ?? 70);
+        this.safeSetElementValue('sensor-info-padding', sensorInfoBg.padding ?? 5);
+        this.safeSetElementValue('sensor-info-border-radius', sensorInfoBg.border_radius ?? 4);
+        this.safeSetElementValue('sensor-info-border-width', sensorInfoBg.border_width ?? 1);
+        this.safeSetElementValue('sensor-info-border-color', sensorInfoBg.border_color ?? '#000000');
+        this.safeSetElementValue('sensor-info-position', sensorInfoBg.position ?? 'right');
+        this.safeSetElementValue('sensor-info-distance', sensorInfoBg.distance ?? 10);
 
-        // 위치 표시 설정 로드
-        const sensorMarker = visualization.sensor_marker || {};
-        /** @type {HTMLSelectElement} */ (document.getElementById('sensor-marker-style')).value = sensorMarker.style ?? 'circle';
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-size')).value = sensorMarker.size ?? 10;
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-marker-color')).value = sensorMarker.color ?? '#FF0000';
-
-        // 센서 이름 설정 로드
-        const sensorName = visualization.sensor_name || {};
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-name-font-size')).value = sensorName.font_size ?? 12;
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-name-color')).value = sensorName.color ?? '#000000';
-
-        // 온도 표시 설정 로드
-        const sensorTemp = visualization.sensor_temp || {};
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-font-size')).value = sensorTemp.font_size ?? 12;
-        /** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-color')).value = sensorTemp.color ?? '#000000';
-
-        // 컬러바 설정 로드
+        // 컬러바 설정
         const colorbar = config.colorbar || {};
         const cmap = colorbar.cmap ?? 'RdYlBu_r';
         const isReversed = cmap.endsWith('_r');
         const baseColormap = isReversed ? cmap.slice(0, -2) : cmap;
-        
-        /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-cmap')).value = baseColormap;
-        /** @type {HTMLInputElement} */ (document.getElementById('reverse-colormap')).checked = isReversed;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-colorbar')).checked = colorbar.show_colorbar ?? true;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-width')).value = colorbar.width ?? 5;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-height')).value = colorbar.height ?? 100;
-        /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-location')).value = colorbar.location ?? 'right';
-        /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-borderpad')).value = colorbar.borderpad ?? '0';
-        /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-orientation')).value = colorbar.orientation ?? 'vertical';
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-label')).checked = colorbar.show_label ?? true;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value = colorbar.label ?? '온도 (°C)';
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-font-size')).value = colorbar.font_size ?? 12;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-tick-size')).value = colorbar.tick_size ?? 10;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label-color')).value = colorbar.label_color ?? '#000000';
-        /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-label-color-preset')).value = colorbar.label_color ?? '#000000';
-        /** @type {HTMLInputElement} */ (document.getElementById('min-temp')).value = colorbar.min_temp ?? 15;
-        /** @type {HTMLInputElement} */ (document.getElementById('max-temp')).value = colorbar.max_temp ?? 35;
-        /** @type {HTMLInputElement} */ (document.getElementById('temp-steps')).value = colorbar.temp_steps ?? 100;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-shadow')).checked = colorbar.show_shadow ?? true;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-color')).value = colorbar.shadow_color ?? '#FFFFFF';
-        /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-shadow-color-preset')).value = colorbar.shadow_color ?? '#FFFFFF';
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-width')).value = colorbar.shadow_width ?? 1;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-x-offset')).value = colorbar.shadow_x_offset ?? 1;
-        /** @type {HTMLInputElement} */ (document.getElementById('colorbar-shadow-y-offset')).value = colorbar.shadow_y_offset ?? 1;
+
+        this.safeSetElementValue('colorbar-cmap', baseColormap);
+        this.safeSetElementValue('reverse-colormap', isReversed, 'checked');
+        this.safeSetElementValue('colorbar-show-colorbar', colorbar.show_colorbar ?? true, 'checked');
+        this.safeSetElementValue('colorbar-width', colorbar.width ?? 5);
+        this.safeSetElementValue('colorbar-height', colorbar.height ?? 100);
+        this.safeSetElementValue('colorbar-location', colorbar.location ?? 'right');
+        this.safeSetElementValue('colorbar-margin-x', colorbar.margin_x ?? 0);
+        this.safeSetElementValue('colorbar-margin-y', colorbar.margin_y ?? 0);
+        this.safeSetElementValue('colorbar-orientation', colorbar.orientation ?? 'vertical');
+        this.safeSetElementValue('colorbar-show-label', colorbar.show_label ?? true, 'checked');
+        this.safeSetElementValue('colorbar-label', colorbar.label ?? '°C');
+        this.safeSetElementValue('colorbar-font-size', colorbar.font_size ?? 12);
+        this.safeSetElementValue('colorbar-tick-size', colorbar.tick_size ?? 10);
+        this.safeSetElementValue('colorbar-label-color', colorbar.label_color ?? '#000000');
+        this.safeSetElementValue('colorbar-label-color-preset', colorbar.label_color ?? '#000000');
+        this.safeSetElementValue('auto-range', colorbar.auto_range ?? false, 'checked');
+        this.safeSetElementValue('min-temp', colorbar.min_temp ?? 15);
+        this.safeSetElementValue('max-temp', colorbar.max_temp ?? 35);
+        this.safeSetElementValue('temp-steps', colorbar.temp_steps ?? 100);
+        this.safeSetElementValue('colorbar-show-shadow', colorbar.show_shadow ?? true, 'checked');
+        this.safeSetElementValue('colorbar-shadow-color', colorbar.shadow_color ?? '#FFFFFF');
+        this.safeSetElementValue('colorbar-shadow-color-preset', colorbar.shadow_color ?? '#FFFFFF');
+        this.safeSetElementValue('colorbar-shadow-size', colorbar.shadow_size ?? 1);
+        this.safeSetElementValue('colorbar-shadow-x-offset', colorbar.shadow_x_offset ?? 1);
+        this.safeSetElementValue('colorbar-shadow-y-offset', colorbar.shadow_y_offset ?? 1);
 
         // 컬러맵 프리뷰 업데이트
         this.updateColormapPreview();
@@ -669,5 +708,67 @@ export class SettingsManager {
         // 컬러바 색상 프리셋 동기화 설정
         this.setupColorSync('colorbar-label-color', 'colorbar-label-color-preset');
         this.setupColorSync('colorbar-shadow-color', 'colorbar-shadow-color-preset');
+
+        // 토글 컨트롤 초기화
+        this.initializeToggleControls();
+    }
+
+    /**
+     * 토글 설정에 따른 관련 옵션들의 활성화/비활성화를 관리하는 함수
+     * @param {string} toggleId - 토글 체크박스의 ID
+     * @param {string} targetId - 비활성화할 대상 컨테이너의 ID
+     * @param {boolean} reverseLogic - true일 경우 체크되었을 때 비활성화
+     */
+    setupToggleControl(toggleId, targetId, reverseLogic = false) {
+        const toggleElement = /** @type {HTMLInputElement} */ (document.getElementById(toggleId));
+        const targetElement = document.getElementById(targetId);
+        
+        if (!toggleElement || !targetElement) return;
+
+        const updateState = () => {
+            const isChecked = toggleElement.checked;
+            const shouldDisable = reverseLogic ? isChecked : !isChecked;
+            
+            targetElement.style.opacity = shouldDisable ? '0.5' : '1';
+            
+            // 대상 컨테이너 내의 모든 입력 요소들을 비활성화
+            const inputs = targetElement.querySelectorAll('input, select, button');
+            inputs.forEach(input => {
+                /** @type {HTMLInputElement} */ (input).disabled = shouldDisable;
+            });
+        };
+
+        toggleElement.addEventListener('change', updateState);
+        // 초기 상태 설정
+        updateState();
+    }
+
+    initializeToggleControls() {
+        // 자동 범위 설정
+        this.setupToggleControl('auto-range', 'manual-range-inputs', true);
+        
+        // 자동맵 생성 설정
+        this.setupToggleControl('auto-generation-enabled', 'generation-interval-setting');
+        
+        // 타임스탬프 설정
+        this.setupToggleControl('timestamp-enabled', 'timestamp-settings');
+        
+        // 타임스탬프 그림자 설정
+        this.setupToggleControl('timestamp-shadow-enabled', 'timestamp-shadow-settings');
+        
+        // 컬러바 설정
+        this.setupToggleControl('colorbar-show-colorbar', 'colorbar-settings');
+        
+        // 컬러바 레이블 설정
+        this.setupToggleControl('colorbar-show-label', 'colorbar-label-settings');
+        
+        // 컬러바 그림자 설정
+        this.setupToggleControl('colorbar-show-shadow', 'colorbar-shadow-settings');
+        
+        // 센서 정보 배경 설정
+        this.setupToggleControl('sensor-info-bg-enabled', 'sensor-info-bg-settings');
+        
+        // 센서 마커 그림자 설정
+        this.setupToggleControl('sensor-marker-shadow-enabled', 'sensor-marker-shadow-settings');
     }
 } 
