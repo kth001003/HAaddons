@@ -9,7 +9,8 @@
             "auto_generation": true,
             "colorbar": {
                 "auto_range": false,
-                "borderpad": 2,
+                "margin_x": 10,
+                "margin_y": 10,
                 "cmap": "RdYlBu_r",
                 "font_size": 8,
                 "height": 30,

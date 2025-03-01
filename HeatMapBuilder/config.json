@@ -1,9 +1,9 @@
 {
-  "name": "Heatmapbuilder",
-  "version": "0.1.0",
+  "name": "Heatmap Builder",
+  "version": "0.1.1",
   "slug": "heatmapbuilder",
-  "url": "https://github.com/wooooooooooook/HAaddons",
-  "description": "평면도와 센서위치를 기반으로 히트맵을 그립니다.",
+  "url": "https://github.com/wooooooooooook/HAaddons/tree/master/HeatMapBuilder",
+  "description": "평면도와 센서위치를 기반으로 센서 값 히트맵을 그립니다.",
   "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
   "map": [
     {
@@ -26,6 +26,7 @@
   },
   "ingress": true,
   "ingress_port": 8099,
+  "panel_icon": "mdi:floor-plan",
   "ports": {
     "8099/tcp": null
   }

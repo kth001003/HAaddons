@@ -629,7 +629,8 @@ class MapGenerator:
         location = colorbar_config.get('location', 'right')
         width = colorbar_config.get('width', 5)
         height = colorbar_config.get('height', 80)
-        borderpad = colorbar_config.get('borderpad', 0)
+        margin_x = colorbar_config.get('margin_x', 10)
+        margin_y = colorbar_config.get('margin_y', 10)
 
         if orientation == 'horizontal':
             width, height = height, width
@@ -638,7 +639,8 @@ class MapGenerator:
                         width=f'{width}%',
                         height=f'{height}%',
                         loc=location,
-                        borderpad=borderpad)
+                        bbox_to_anchor=(margin_x/100, margin_y/100, 1-margin_x/100, 1-margin_y/100),
+                        bbox_transform=main_ax.transAxes)
 
         cbar = fig.colorbar(im, cax=cax, orientation=orientation)
 
