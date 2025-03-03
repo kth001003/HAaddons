@@ -86,7 +86,7 @@ export class UIManager {
                                     await this.settingsManager.loadWalls();
                                     await this.drawingTool.resetState();
                                 } else if (currentTab === 'settings') {
-                                    await this.settingsManager.saveAllSettings();
+                                    await this.settingsManager.loadConfig(this.svg, this.sensorManager, this.drawingTool);
                                 }
                                 this.performTabSwitch(tabName);
                             }
@@ -98,7 +98,7 @@ export class UIManager {
                                 if (currentTab === 'map_edit') {
                                     await this.saveWallsAndSensors();
                                 } else if (currentTab === 'settings') {
-                                    await this.settingsManager.saveAllSettings();
+                                    await this.settingsManager.saveConfiguration();
                                 }
                                 this.performTabSwitch(tabName);
                             }

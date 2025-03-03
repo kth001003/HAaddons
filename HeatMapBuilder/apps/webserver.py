@@ -109,24 +109,26 @@ class WebServer:
             })
             return jsonify({'status': 'success'})
     
-        @self.app.route('/api/save-interpolation-parameters/<map_id>', methods=['POST'])
-        async def save_interpolation_parameters(map_id):
-            """보간 파라미터 저장"""
+        @self.app.route('/api/save-configuration/<map_id>', methods=['POST'])
+        async def save_configuration(map_id):
+            """모든 설정 통합 저장 (보간 파라미터 및 생성 구성)"""
             data = await request.get_json() or {}
-            self.config_manager.db.update_map(map_id, {
-                'parameters': data.get('interpolation_params', {})
-            })
-            return jsonify({'status': 'success'})
-    
-        @self.app.route('/api/save-gen-config/<map_id>', methods=['POST'])
-        async def save_gen_config(map_id):
-            """생성 구성 저장"""
-            data = await request.get_json() or {}
-            gen_config = data.get('gen_config', {})
-            self.config_manager.db.update_map(map_id, {
-                'gen_config': gen_config
-            })
-            return jsonify({'status': 'success'})
+            update_data = {}
+            
+            # 보간 파라미터가 있으면 업데이트 데이터에 추가
+            if 'interpolation_params' in data:
+                update_data['parameters'] = data.get('interpolation_params', {})
+                
+            # 생성 구성이 있으면 업데이트 데이터에 추가
+            if 'gen_config' in data:
+                update_data['gen_config'] = data.get('gen_config', {})
+                
+            # 데이터베이스 업데이트
+            if update_data:
+                self.config_manager.db.update_map(map_id, update_data)
+                return jsonify({'status': 'success'})
+            else:
+                return jsonify({'status': 'error', 'error': '업데이트할 데이터가 없습니다'})
 
         @self.app.route('/api/load-config/<map_id>', methods=['GET'])
         async def load_heatmap_config(map_id):

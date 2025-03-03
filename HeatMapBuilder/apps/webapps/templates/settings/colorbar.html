@@ -17,14 +17,14 @@
                 <!-- 크기 설정 -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">두께 (%)</label>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">두께 (px)</label>
                         <input type="number" id="colorbar-width" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                            value="5" min="1" max="20" step="0.5">
+                            value="50" min="10" max="200" step="1">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">축방향 길이 (%)</label>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">축방향 길이 (px)</label>
                         <input type="number" id="colorbar-height" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                            value="80" min="10" max="100" step="5">
+                            value="300" min="50" max="1000" step="10">
                     </div>
                 </div>
 
@@ -33,14 +33,13 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">위치</label>
                         <select id="colorbar-location" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                            <option value="right" selected>우측</option>
                             <option value="upper right">우측 상단</option>
-                            <option value="upper left">좌측 상단</option>
-                            <option value="lower left">좌측 하단</option>
+                            <option value="center right" selected>우측 중앙</option>
                             <option value="lower right">우측 하단</option>
-                            <option value="center left">중앙 좌측</option>
-                            <option value="center right">중앙 우측</option>
                             <option value="lower center">하단 중앙</option>
+                            <option value="lower left">좌측 하단</option>
+                            <option value="center left">좌측 중앙</option>
+                            <option value="upper left">좌측 상단</option>
                             <option value="upper center">상단 중앙</option>
                             <option value="center">중앙</option>
                         </select>
@@ -55,17 +54,10 @@
                 </div>
 
                 <!-- 여백 설정 -->
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">가로 여백 (px)</label>
-                        <input type="number" id="colorbar-margin-x" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                            value="10" min="0" max="100">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">세로 여백 (px)</label>
-                        <input type="number" id="colorbar-margin-y" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                            value="10" min="0" max="100">
-                    </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">여백 (px)</label>
+                    <input type="number" id="colorbar-borderpad" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        value="10" min="0" max="100">
                 </div>
 
                 <!-- 레이블 설정 -->

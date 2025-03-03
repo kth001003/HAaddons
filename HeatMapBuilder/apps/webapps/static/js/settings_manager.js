@@ -19,9 +19,7 @@ export class SettingsManager {
         const saveAllSettingsBtn = document.getElementById('save-all-settings');
         if (saveAllSettingsBtn) {
             saveAllSettingsBtn.addEventListener('click', () => {
-                this.saveInterpolationParameters();
-                this.saveGenConfig();
-                this.uiManager.showMessage('모든 설정이 저장되었습니다.', 'success');
+                this.saveConfiguration();
             });
         }
 
@@ -39,7 +37,7 @@ export class SettingsManager {
             'sensor-display-option',
             'sensor-info-bg-color', 'sensor-info-bg-color-preset', 'sensor-info-bg-opacity',
             'sensor-marker-style', 'sensor-marker-size', 'sensor-marker-color', 'sensor-marker-color-preset',
-            'sensor-name-font-size', 'sensor-name-color', 'sensor-name-color-preset',
+            'sensor-font-size', 'sensor-font-color', 'sensor-font-color-preset',
             'sensor-temp-font-size', 'sensor-temp-color', 'sensor-temp-color-preset'
         ];
 
@@ -97,32 +95,40 @@ export class SettingsManager {
         }
     }
 
-    async saveInterpolationParameters() {
+    async saveConfiguration() {
         if (!this.mapId) {
             this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
             return;
         }
 
-        const interpolationParams = this.collectInterpolationParams();
         try {
-            const response = await fetch(`./api/save-interpolation-parameters/${this.mapId}`, {
+            // 저장할 데이터 준비
+            let payload = {};
+            let apiEndpoint = '';
+            let successMessage = '';
+            payload.interpolation_params = this.collectInterpolationParams();
+            payload.gen_config = this.collectGenConfig();
+            // API 엔드포인트 및 성공 메시지 설정
+            apiEndpoint = `./api/save-configuration/${this.mapId}`;
+            successMessage = '모든 설정을 저장했습니다.';
+
+            const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    interpolation_params: interpolationParams
-                })
+                body: JSON.stringify(payload)
             });
+            
             const data = await response.json();
             if (data.status === 'success') {
-                this.uiManager.showMessage('파라미터를 저장했습니다.', 'success');
+                this.uiManager.showMessage(successMessage, 'success');
             } else {
-                this.uiManager.showMessage(data.error || '파라미터 저장에 실패했습니다.', 'error');
+                this.uiManager.showMessage(data.error || '설정 저장에 실패했습니다.', 'error');
             }
             this.uiManager.saveCurrentSettings();
         } catch (error) {
-            this.uiManager.showMessage('파라미터 저장 중 오류가 발생했습니다.', 'error');
+            this.uiManager.showMessage('설정 저장 중 오류가 발생했습니다.', 'error');
         }
     }
 
@@ -167,35 +173,6 @@ export class SettingsManager {
         return interpolationParams;
     }
 
-    async saveGenConfig() {
-        if (!this.mapId) {
-            this.uiManager.showMessage('맵 ID가 없습니다.', 'error');
-            return;
-        }
-
-        const genConfig = this.collectGenConfig();
-        try {
-            const response = await fetch(`./api/save-gen-config/${this.mapId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    gen_config: genConfig
-                })
-            });
-            const data = await response.json();
-            if (data.status === 'success') {
-                this.uiManager.showMessage('구성을 저장했습니다.', 'success');
-            } else {
-                this.uiManager.showMessage(data.error || '구성 저장에 실패했습니다.', 'error');
-            }
-            this.uiManager.saveCurrentSettings();
-        } catch (error) {
-            this.uiManager.showMessage('구성 저장 중 오류가 발생했습니다.', 'error');
-        }
-    }
-
     collectGenConfig() {
         return {
             auto_generation: /** @type {HTMLInputElement} */ (document.getElementById('auto-generation-enabled')).checked,
@@ -224,7 +201,7 @@ export class SettingsManager {
             shadow: {
                 enabled: /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-enabled')).checked,
                 color: /** @type {HTMLInputElement} */ (document.getElementById('timestamp-shadow-color')).value,
-                size: parseInt(/** @type {HTMLInputElement} */(document.getElementById('timestamp-shadow-size')).value),
+                size: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('timestamp-shadow-size')).value),
                 x_offset: parseInt(/** @type {HTMLInputElement} */(document.getElementById('timestamp-shadow-x-offset')).value),
                 y_offset: parseInt(/** @type {HTMLInputElement} */(document.getElementById('timestamp-shadow-y-offset')).value)
             }
@@ -232,17 +209,18 @@ export class SettingsManager {
     }
 
     collectVisualizationConfig() {
+        const plot_border_width = parseFloat(/** @type {HTMLInputElement} */(document.getElementById('plot-border-width')).value);
+        
         return {
             empty_area: /** @type {HTMLSelectElement} */ (document.getElementById('empty-area-style')).value,
             area_border_width: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('area-border-width')).value),
             area_border_color: /** @type {HTMLInputElement} */ (document.getElementById('area-border-color')).value,
-            plot_border_width: parseFloat(/** @type {HTMLInputElement} */(document.getElementById('plot-border-width')).value),
+            plot_border_width: isNaN(plot_border_width) ? 0 : plot_border_width,
             plot_border_color: /** @type {HTMLInputElement} */ (document.getElementById('plot-border-color')).value,
             sensor_display: /** @type {HTMLSelectElement} */ (document.getElementById('sensor-display-option')).value,
             sensor_info_bg: this.collectSensorInfoBgConfig(),
             sensor_marker: this.collectSensorMarkerConfig(),
-            sensor_name: this.collectSensorNameConfig(),
-            sensor_temp: this.collectSensorTempConfig()
+            sensor_font: this.collectSensorFontConfig()
         };
     }
 
@@ -252,8 +230,7 @@ export class SettingsManager {
             width: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-width')).value),
             height: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-height')).value),
             location: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-location')).value,
-            margin_x: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-margin-x')).value),
-            margin_y: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-margin-y')).value),
+            borderpad: parseInt(/** @type {HTMLInputElement} */(document.getElementById('colorbar-borderpad')).value),
             orientation: /** @type {HTMLSelectElement} */ (document.getElementById('colorbar-orientation')).value,
             show_label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-show-label')).checked,
             label: /** @type {HTMLInputElement} */ (document.getElementById('colorbar-label')).value,
@@ -294,17 +271,10 @@ export class SettingsManager {
         };
     }
 
-    collectSensorNameConfig() {
+    collectSensorFontConfig() {
         return {
-            font_size: parseInt(/** @type {HTMLInputElement} */(document.getElementById('sensor-name-font-size')).value),
-            color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-name-color')).value
-        };
-    }
-
-    collectSensorTempConfig() {
-        return {
-            font_size: parseInt(/** @type {HTMLInputElement} */(document.getElementById('sensor-temp-font-size')).value),
-            color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-temp-color')).value
+            font_size: parseInt(/** @type {HTMLInputElement} */(document.getElementById('sensor-font-size')).value),
+            color: /** @type {HTMLInputElement} */ (document.getElementById('sensor-font-color')).value
         };
     }
 
@@ -312,8 +282,7 @@ export class SettingsManager {
         const colorSyncPairs = [
             ['sensor-info-bg-color', 'sensor-info-bg-color-preset'],
             ['sensor-marker-color', 'sensor-marker-color-preset'],
-            ['sensor-name-color', 'sensor-name-color-preset'],
-            ['sensor-temp-color', 'sensor-temp-color-preset'],
+            ['sensor-font-color', 'sensor-font-color-preset'],
             ['area-border-color', 'area-border-color-preset'],
             ['plot-border-color', 'plot-border-color-preset'],
             ['colorbar-label-color', 'colorbar-label-color-preset'],
@@ -511,6 +480,11 @@ export class SettingsManager {
             return;
         }
 
+        // svg, sensorManager, drawingTool이 주어지지 않은 경우 현재 값 사용
+        svg = svg || this.svg;
+        sensorManager = sensorManager || this.sensorManager;
+        drawingTool = drawingTool || this.drawingTool;
+
         // HTML 요소 존재 여부 확인
         const requiredElements = [
             'auto-generation-enabled',
@@ -562,8 +536,10 @@ export class SettingsManager {
     }
     async loadWalls(walls) {
         const config = walls ? { walls } : await this.fetchConfig();
-        if (config && config.walls) {
+        if (config && config.walls && this.svg) {
             this.svg.innerHTML += config.walls;
+        } else if (config && config.walls) {
+            this.uiManager.showMessage('SVG 요소를 찾을 수 없습니다.', 'error');
         }
     }
 
@@ -670,6 +646,28 @@ export class SettingsManager {
         this.safeSetElementValue('sensor-info-position', sensorInfoBg.position ?? 'right');
         this.safeSetElementValue('sensor-info-distance', sensorInfoBg.distance ?? 10);
 
+        // 센서 마커 설정
+        const sensorMarker = visualization.sensor_marker || {};
+        this.safeSetElementValue('sensor-marker-style', sensorMarker.style ?? 'circle');
+        this.safeSetElementValue('sensor-marker-size', sensorMarker.size ?? 10);
+        this.safeSetElementValue('sensor-marker-color', sensorMarker.color ?? '#FF0000');
+        this.safeSetElementValue('sensor-marker-color-preset', sensorMarker.color ?? '#FF0000');
+
+        // 센서 폰트 설정 (통합됨)
+        const sensorFont = visualization.sensor_font || {};
+        let fontSizeValue = 12;
+        let fontColorValue = '#000000';
+        
+        // 이전 설정 구조 지원 (하위 호환성)
+        if (visualization.sensor_name && !visualization.sensor_font) {
+            fontSizeValue = visualization.sensor_name.font_size ?? 12;
+            fontColorValue = visualization.sensor_name.color ?? '#000000';
+        }
+        
+        this.safeSetElementValue('sensor-font-size', sensorFont.font_size ?? fontSizeValue);
+        this.safeSetElementValue('sensor-font-color', sensorFont.color ?? fontColorValue);
+        this.safeSetElementValue('sensor-font-color-preset', sensorFont.color ?? fontColorValue);
+
         // 컬러바 설정
         const colorbar = config.colorbar || {};
         const cmap = colorbar.cmap ?? 'RdYlBu_r';
@@ -682,8 +680,7 @@ export class SettingsManager {
         this.safeSetElementValue('colorbar-width', colorbar.width ?? 5);
         this.safeSetElementValue('colorbar-height', colorbar.height ?? 100);
         this.safeSetElementValue('colorbar-location', colorbar.location ?? 'right');
-        this.safeSetElementValue('colorbar-margin-x', colorbar.margin_x ?? 0);
-        this.safeSetElementValue('colorbar-margin-y', colorbar.margin_y ?? 0);
+        this.safeSetElementValue('colorbar-borderpad', colorbar.borderpad ?? 0);
         this.safeSetElementValue('colorbar-orientation', colorbar.orientation ?? 'vertical');
         this.safeSetElementValue('colorbar-show-label', colorbar.show_label ?? true, 'checked');
         this.safeSetElementValue('colorbar-label', colorbar.label ?? '°C');
