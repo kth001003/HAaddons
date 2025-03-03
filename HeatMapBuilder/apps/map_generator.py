@@ -677,6 +677,7 @@ class MapGenerator:
                         height=f'{height_percent:.2f}%',
                         loc=location,
                         borderpad=borderpad,
+                        bbox_to_anchor=(0, 0, 1, 1),
                         bbox_transform=main_ax.transAxes)
 
         cbar = fig.colorbar(im, cax=cax, orientation=orientation)
