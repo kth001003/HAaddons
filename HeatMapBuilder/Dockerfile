@@ -7,7 +7,7 @@ ENV TZ=Asia/Seoul
 ENV S6_LOGGING=0
 ENV S6_VERBOSITY=0
 
-RUN apk add --no-cache tzdata git musl-locales gcc musl-dev fontconfig
+RUN apk add --no-cache tzdata git musl-locales gcc musl-dev fontconfig ninja gcc g++ jpeg-dev zlib-dev libjpeg make freetype-dev
 
 # 나눔고딕 폰트 설치
 COPY fonts/NanumGothic.ttf /tmp/NanumGothic.ttf
