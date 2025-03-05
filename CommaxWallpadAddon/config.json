@@ -91,6 +91,7 @@
   "ports": {
     "8099/tcp": null
   },
+  "panel_icon": "mdi:home-heart",
   "services": [
     "mqtt:need"
   ]

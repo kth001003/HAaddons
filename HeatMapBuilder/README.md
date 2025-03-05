@@ -31,22 +31,28 @@ HeatMapBuilder는 Home Assistant 애드온으로 센서 데이터를 기반으�
 
 ## 생성된 히트맵 이미지
 ![히트맵 이미지 예시](img/thermal_map.png)
-- 생성된 히트맵 이미지는 homeassistant/local/HeatMapBuilder/{map_id}/thermalmap.png에 저장됩니다.
+- 생성된 히트맵 이미지는 homeassistant/www/HeatMapBuilder/{map_id}/thermalmap.png에 저장됩니다.
+- 이미지주소는 /local/HeatMapBuilder/{map_id}/thermalmap.png
 - 확장자는 설정에 따라 다를 수 있습니다.
-- 이미지 url은 맵 화면에서 복사버튼을 눌러 복사할 수 있습니다.
+- 이미지 url은 맵 화면에서 확인할 수 있습니다.
 
 ## HA general camera integration 활용하기
 - 획득한 이미지 url을 picture-elements에 넣으면 히트맵을 화면에 표시할 수 있습니다.
 - 그러나 캐시때문에 이미지가 업데이트 되어도 실시간으로 반영되지 않을 수 있습니다.
+- 그럴때는 HA의 카메라통합구성요소를 사용하면 좋습니다.
 - HA설정 - 기기 및 서비스 - 통합구성요소 추가하기 - 일반카메라(또는 general camera) 추가
+
 ![일반카메라 추가](img/camera.png)
+
 - Still image url에 히트맵 이미지 url을 입력합니다.
 - 나머지설정은 취향껏 하셔도 됩니다.
+
 ![일반카메라 설정](img/everythinglooksgood.png)
+
 - 설정후 아래에 이미지가 정상적으로 표시된다면 `Everything looks good`을 체크한뒤 확인하면 카메라 구성요소가 생성됩니다.
 - picture-elements에 아래 예시와 같이 카메라 구성요소를 추가하면 히트맵을 화면에 표시할 수 있습니다.
 
-예시: input_boolean.show_heat_map을 생성하여 on off 상태에 따라 카메라구성요소를 화면에 오버레이시킴
+예시: `input_boolean.show_heat_map`을 생성하여 on off 상태에 따라 카메라구성요소를 화면에 오버레이시킴
 ```
   - type: image
     camera_image: camera.[추가된 카메라 구성요소]
@@ -65,6 +71,10 @@ HeatMapBuilder는 Home Assistant 애드온으로 센서 데이터를 기반으�
     hold_action:
       action: none
 ```
+
+## 설정
+- 가능한 도움말 툴팁으로 설명을 적어두었습니다.
+- 보간설정의 경우 기본값으로 사용하시는걸 추천드리고, 관련 지식이 있다면 수정해서 쓰셔도 됩니다. (파라미터의 설명은 생성AI로 작성하여 정확하지 않을 수 있습니다.)
 
 ## 주의 사항
 - 초기버전으로 버그가 있을 수 있습니다.

@@ -1,17 +1,17 @@
 <!-- 보간 설정 -->
 <div class="space-y-6">
-    <!-- 가우시안 설정 -->
+    <!-- 가우시안 설정 (숨김) -->
     <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 hidden">
-        <h3 class="text-lg font-medium text-gray-900 mb-3">가우시안 분포 설정</h3>
+        <h3 class="text-base font-medium text-gray-900 mb-3">가우시안 분포 설정</h3>
         <div class="space-y-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Sigma 비율
+                <label class="block text-xs font-medium text-gray-700 mb-1">Sigma 비율
                     <div class="group relative inline-block">
                         <button class="text-gray-400 hover:text-gray-500">
                             <i class="mdi mdi-information"></i>
                         </button>
                         <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-md w-[300px] whitespace-normal z-20">
-                            Sigma 값은 가우시안 함수의 폭을 결정합니다. 높은 값은 넓고 부드러운 분포를, 낮은 값은 좁고 뾰족한 분포를 생성합니다. 온도 지도의 부드러움 정도를 조절합니다.
+                            Sigma 값은 가우시안 함수의 폭을 결정합니다. 높은 값은 넓고 부드러운 분포를, 낮은 값은 좁고 뾰족한 분포를 생성합니다. 히트맵의 부드러움 정도를 조절합니다.
                         </div>
                     </div>
                 </label>
@@ -23,19 +23,20 @@
 
     <!-- RBF 설정 -->
     <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h3 class="text-lg font-medium text-gray-900 mb-3">RBF 설정</h3>
-        <div class="space-y-4">
-            <div class="group relative mb-4">
+        <div class="flex items-center mb-3">
+            <h3 class="text-base font-medium text-gray-900">RBF 설정</h3>
+            <div class="group relative ml-2">
                 <button class="text-gray-400 hover:text-gray-500">
                     <i class="mdi mdi-information"></i>
                 </button>
-                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-0 mt-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-md w-full whitespace-normal z-20">
+                <div class="hidden group-hover:block transition-all duration-200 absolute left-0 mt-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-md whitespace-normal z-20" style="width: 300px;">
                     한 영역에 센서가 2-3개 있을 때 적용되는 기법입니다.
                 </div>
             </div>
-
+        </div>
+        <div class="space-y-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">함수
+                <label class="block text-xs font-medium text-gray-700 mb-1">함수
                     <div class="group relative inline-block">
                         <button class="text-gray-400 hover:text-gray-500">
                             <i class="mdi mdi-information"></i>
@@ -59,7 +60,7 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Epsilon 비율
+                <label class="block text-xs font-medium text-gray-700 mb-1">Epsilon 비율
                     <div class="group relative inline-block">
                         <button class="text-gray-400 hover:text-gray-500">
                             <i class="mdi mdi-information"></i>
@@ -77,19 +78,20 @@
 
     <!-- 크리깅 설정 -->
     <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h3 class="text-lg font-medium text-gray-900 mb-3">크리깅 설정</h3>
-        <div class="space-y-4">
-            <div class="group relative mb-4">
+        <div class="flex items-center mb-3">
+            <h3 class="text-base font-medium text-gray-900">크리깅 설정</h3>
+            <div class="group relative ml-2">
                 <button class="text-gray-400 hover:text-gray-500">
                     <i class="mdi mdi-information"></i>
                 </button>
-                <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-0 mt-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-md w-full whitespace-normal z-20">
+                <div class="hidden group-hover:block transition-all duration-200 absolute left-0 mt-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-md whitespace-normal z-20" style="width: 300px;">
                     한 영역에 센서가 4개 이상일 때 적용되는 기법입니다.
                 </div>
             </div>
-
+        </div>
+        <div class="space-y-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">베리오그램 모델
+                <label class="block text-xs font-medium text-gray-700 mb-1">베리오그램 모델
                     <div class="group relative inline-block">
                         <button class="text-gray-400 hover:text-gray-500">
                             <i class="mdi mdi-information"></i>
@@ -119,7 +121,7 @@
                 <!-- Gaussian, Spherical, Exponential, Hole-Effect 모델용 파라미터 -->
                 <div id="standard-params" class="grid grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nugget
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Nugget
                             <div class="group relative inline-block">
                                 <button class="text-gray-400 hover:text-gray-500">
                                     <i class="mdi mdi-information"></i>
@@ -133,13 +135,13 @@
                             value="5" min="0" max="100" step="1">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Sill
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Sill
                             <div class="group relative inline-block">
                                 <button class="text-gray-400 hover:text-gray-500">
                                     <i class="mdi mdi-information"></i>
                                 </button>
                                 <div class="hidden group-hover:block transition-all duration-200 absolute top-full left-full mt-1 ml-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-md w-[300px] whitespace-normal z-20">
-                                    Sill은 베리오그램이 도달하는 최대 값으로, 데이터의 전체 분산을 나타냅니다. 온도 값의 변동 범위에 영향을 줍니다.
+                                    Sill은 베리오그램이 도달하는 최대 값으로, 데이터의 전체 분산을 나타냅니다. 값의 변동 범위에 영향을 줍니다.
                                 </div>
                             </div>
                         </label>
@@ -147,7 +149,7 @@
                             value="20" min="1" max="200" step="1">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Range
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Range
                             <div class="group relative inline-block">
                                 <button class="text-gray-400 hover:text-gray-500">
                                     <i class="mdi mdi-information"></i>
@@ -158,14 +160,14 @@
                             </div>
                         </label>
                         <input type="number" id="kriging-range" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                            value="10" min="1" max="100" step="1">
+                            value="100" min="1" max="1000" step="1">
                     </div>
                 </div>
 
                 <!-- Linear 모델용 파라미터 -->
                 <div id="linear-params" class="grid grid-cols-2 gap-4 hidden">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Slope
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Slope
                             <div class="group relative inline-block">
                                 <button class="text-gray-400 hover:text-gray-500">
                                     <i class="mdi mdi-information"></i>
@@ -179,7 +181,7 @@
                             value="1" min="0.1" max="10" step="0.1">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nugget
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Nugget
                             <div class="group relative inline-block">
                                 <button class="text-gray-400 hover:text-gray-500">
                                     <i class="mdi mdi-information"></i>
@@ -197,7 +199,7 @@
                 <!-- Power 모델용 파라미터 -->
                 <div id="power-params" class="grid grid-cols-3 gap-4 hidden">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Scale
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Scale
                             <div class="group relative inline-block">
                                 <button class="text-gray-400 hover:text-gray-500">
                                     <i class="mdi mdi-information"></i>
@@ -211,7 +213,7 @@
                             value="1" min="0.1" max="10" step="0.1">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Exponent
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Exponent
                             <div class="group relative inline-block">
                                 <button class="text-gray-400 hover:text-gray-500">
                                     <i class="mdi mdi-information"></i>
@@ -225,7 +227,7 @@
                             value="1.5" min="0.1" max="4" step="0.1">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nugget
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Nugget
                             <div class="group relative inline-block">
                                 <button class="text-gray-400 hover:text-gray-500">
                                     <i class="mdi mdi-information"></i>
@@ -243,7 +245,7 @@
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Lag 수
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Lag 수
                         <div class="group relative inline-block">
                             <button class="text-gray-400 hover:text-gray-500">
                                 <i class="mdi mdi-information"></i>
@@ -257,7 +259,7 @@
                         value="6" min="1" max="50" step="1">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">이방성 스케일
+                    <label class="block text-xs font-medium text-gray-700 mb-1">이방성 스케일
                         <div class="group relative inline-block">
                             <button class="text-gray-400 hover:text-gray-500">
                                 <i class="mdi mdi-information"></i>
@@ -274,7 +276,7 @@
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">이방성 각도
+                    <label class="block text-xs font-medium text-gray-700 mb-1">이방성 각도
                         <div class="group relative inline-block">
                             <button class="text-gray-400 hover:text-gray-500">
                                 <i class="mdi mdi-information"></i>

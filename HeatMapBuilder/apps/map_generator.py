@@ -522,18 +522,20 @@ class MapGenerator:
                 name = state.get('attributes', {}).get('friendly_name', sensor_id.split('.')[-1])
                 text = ''
                 
+                # 폰트 설정
+                font_size = self.gen_config.get('visualization', {}).get('sensor_font', {}).get('font_size', 12)
+                font_color = self.gen_config.get('visualization', {}).get('sensor_font', {}).get('color', '#000000')
+                
                 if 'name' in sensor_display:
                     text = name
-                    font_size = sensor_name.get('font_size', 12)
-                    font_color = sensor_name.get('color', '#000000')
                 
                 if 'temp' in sensor_display:
                     if text:
                         text += '\n'
                     text += f'{temperature:.1f}{self.unit}'
-                    if 'name' not in sensor_display:
-                        font_size = sensor_temp.get('font_size', 12)
-                        font_color = sensor_temp.get('color', '#000000')
+
+                # 텍스트 줄 수 계산 (줄바꿈 기준)
+                line_count = text.count('\n') + 1
 
                 # 배경 설정
                 bg_color = sensor_info_bg.get('color', '#FFFFFF')
@@ -583,7 +585,11 @@ class MapGenerator:
                     valign = 'bottom'
                 elif 'bottom' in bg_position:
                     valign = 'top'
-
+                
+                # 박스 높이 계산 (줄 수 기준)
+                # 한 줄당 높이는 약 font_size의 1.2배로 계산
+                box_height = (font_size * 1.2 * line_count) + (bg_padding * 2)
+                
                 # 텍스트 추가
                 plt.text(text_x, text_y, text,
                         horizontalalignment=halign,
@@ -596,53 +602,97 @@ class MapGenerator:
                             edgecolor=bg_border_color if bg_border_width > 0 else 'none',
                             linewidth=bg_border_width,
                             pad=bg_padding,
-                            boxstyle=f'round,pad={bg_padding/10},rounding_size={bg_border_radius}'
+                            # 둥글기 최대값: 박스 높이의 1/2로 제한
+                            # 줄 수에 따라 박스 높이 계산: (폰트 크기 * 1.2 * 줄 수) + 패딩*2
+                            # 둥글기 최대값 = 박스 높이의 1/2
+                            # boxstyle의 rounding_size는 상대적 비율이므로 10으로 나눠서 적용
+                            boxstyle='square,pad={:.1f}'.format(bg_padding/10) if bg_border_radius == 0 else 'round,pad={:.1f},rounding_size={:.1f}'.format(bg_padding/10, min(bg_border_radius/10, box_height/20))
                         ),
                         zorder=6)
 
         except Exception as e:
             self.logger.error(f"센서 마커 생성 중 오류 발생: {str(e)}")
 
-    def _create_colorbar(self, fig, im, colorbar_config):
-        """컬러바를 생성합니다."""
+    def _calculate_temperature_range(self,temperatures, colorbar_config):
+        """자동 범위 설정이 활성화된 경우 센서 데이터를 기반으로 온도 범위를 계산합니다."""
+        if not colorbar_config.get('auto_range', False):
+            return colorbar_config.get('min_temp', 0), colorbar_config.get('max_temp', 100)
+
+        min_temp = min(temperatures)
+        max_temp = max(temperatures)
+        temp_range = max_temp - min_temp
+        padding = temp_range * 0.1
         
+        return min_temp - padding, max_temp + padding
+
+    def _create_colorbar(self, fig, im, colorbar_config):
+        """컬러바를 생성합니다.
+        
+        borderpad는 픽셀 단위로 입력받아 폰트 크기 기준으로 변환하여 적용합니다.
+        width와 height도 픽셀 단위로 입력받아 figure 크기에 대한 비율(%)로 변환합니다.
+        위치(location)에 따라 적용되는 여백의 방향이 달라집니다:
+        - 좌측 위치: 왼쪽 여백
+        - 우측 위치: 오른쪽 여백
+        - 상단 위치: 위쪽 여백
+        - 하단 위치: 아래쪽 여백
+        - 중앙 위치: 모든 방향 여백
+        """
         show_label = colorbar_config.get('show_label', True)
         label = colorbar_config.get('label', self.unit)
         label_color = colorbar_config.get('label_color', '#000000')
         tick_size = colorbar_config.get('tick_size', 10)
         show_shadow = colorbar_config.get('show_shadow', True)
         shadow_color = colorbar_config.get('shadow_color', '#FFFFFF')
-        shadow_width = colorbar_config.get('shadow_width', 3)
+        shadow_size = colorbar_config.get('shadow_size', 2)
         shadow_x_offset = colorbar_config.get('shadow_x_offset', 1)
         shadow_y_offset = colorbar_config.get('shadow_y_offset', 1)
         orientation = colorbar_config.get('orientation', 'vertical')
         location = colorbar_config.get('location', 'right')
-        width = colorbar_config.get('width', 5)
-        height = colorbar_config.get('height', 80)
-        pad = colorbar_config.get('borderpad', 0)
+        width_px = colorbar_config.get('width', 50)  # 픽셀 단위의 width
+        height_px = colorbar_config.get('height', 300)  # 픽셀 단위의 height
+        borderpad_px = colorbar_config.get('borderpad', 10)  # 픽셀 단위의 borderpad
+        font_size = colorbar_config.get('font_size', 10)
+
+        # 픽셀 값을 figure 크기에 대한 비율로 변환 (figure의 dpi를 고려)
+        dpi = fig.dpi
+        fig_width, fig_height = fig.get_size_inches()
+        fig_width_px = fig_width * dpi
+        fig_height_px = fig_height * dpi
+        
+        # 픽셀 단위의 width와 height를 figure 크기에 대한 비율(%)로 변환
+        width_percent = (width_px / fig_width_px) * 100
+        height_percent = (height_px / fig_height_px) * 100
 
         if orientation == 'horizontal':
-            width, height = height, width
+            width_percent, height_percent = height_percent, width_percent
+            
         main_ax = fig.gca()
+        
+        # 픽셀 단위의 borderpad를 폰트 크기 기준으로 변환
+        borderpad = borderpad_px / font_size
+        
+        # borderpad만 사용하여 컬러바 생성
         cax = inset_axes(main_ax,
-                        width=f'{width}%',
-                        height=f'{height}%',
+                        width=f'{width_percent:.2f}%',
+                        height=f'{height_percent:.2f}%',
                         loc=location,
-                        borderpad=pad)
+                        borderpad=borderpad,
+                        bbox_to_anchor=(0, 0, 1, 1),
+                        bbox_transform=main_ax.transAxes)
 
         cbar = fig.colorbar(im, cax=cax, orientation=orientation)
-
+        
         if show_label:
             # 그림자 효과 설정
             path_effects_list = []
             if show_shadow:
-                path_effects_list.append(path_effects.withStroke(linewidth=shadow_width, 
+                path_effects_list.append(path_effects.withStroke(linewidth=shadow_size, 
                                                                foreground=shadow_color,
                                                                offset=(shadow_x_offset, shadow_y_offset * -1)))
             
             # 레이블과 눈금에 그림자 효과 적용
             cbar.set_label(label, 
-                        size=colorbar_config.get('font_size', 10),
+                        size=font_size,
                         color=label_color,
                         path_effects=path_effects_list if path_effects_list else None)
             
@@ -663,7 +713,9 @@ class MapGenerator:
             # 현재 시간을 설정된 형식으로 포맷팅
             format_map = {
                 'YYYY-MM-DD HH:mm:ss': '%Y-%m-%d %H:%M:%S',
+                'YYYY-MM-DD HH:mm': '%Y-%m-%d %H:%M',
                 'YYYY/MM/DD HH:mm:ss': '%Y/%m/%d %H:%M:%S',
+                'YYYY/MM/DD HH:mm': '%Y/%m/%d %H:%M',
                 'MM-DD HH:mm': '%m-%d %H:%M',
                 'HH:mm:ss': '%H:%M:%S',
                 'HH:mm': '%H:%M'
@@ -785,9 +837,6 @@ class MapGenerator:
                 # 오류 발생 시 빈 딕셔너리로 초기화
                 states_dict = {}
             
-            # 설정된 온도 범위 가져오기
-            min_temp = self.gen_config.get('colorbar', {}).get('min_temp', 0)
-            max_temp = self.gen_config.get('colorbar', {}).get('max_temp', 40)
             
             # area 데이터 파싱
             areas, root = self._parse_areas()
@@ -803,6 +852,9 @@ class MapGenerator:
                 self.logger.error(error_msg)
                 return {'success': False, 'error': error_msg, 'time': '', 'duration': ''}
             temperatures = raw_temps
+            
+            # 설정된 온도 범위 가져오기
+            min_temp, max_temp = self._calculate_temperature_range(temperatures,self.gen_config.get('colorbar', {}))
             # 온도값 범위 제한 적용
             if min_temp is not None:
                 temperatures = [max(t, min_temp) for t in raw_temps]
@@ -883,6 +935,11 @@ class MapGenerator:
                 self.logger.trace("메인 플롯 axes 생성 시작")
                 main_ax = plt.subplot2grid((1, 20), (0, 0), colspan=20)  # 열지도용 axes
                 main_ax.invert_yaxis()
+                
+                # 축 테두리 기본 설정
+                for spine in ['top', 'bottom', 'left', 'right']:
+                    main_ax.spines[spine].set_visible(True)
+                
                 self.logger.trace("메인 플롯 axes 생성 완료")
 
                 # 온도 범위 설정
@@ -930,13 +987,42 @@ class MapGenerator:
 
                 # plot 외곽선 그리기
                 self.logger.trace("plot 외곽선 그리기 시작")
-                plot_border_width = self.gen_config.get('visualization', {}).get('plot_border_width', 0)
+                
+                # float으로 명시적 변환
+                try:
+                    plot_border_width = float(self.gen_config.get('visualization', {}).get('plot_border_width', 0))
+                except (ValueError, TypeError):
+                    plot_border_width = 0
+                
                 plot_border_color = self.gen_config.get('visualization', {}).get('plot_border_color', '#000000')
-                if plot_border_width > 0:
-                    for spine in ['top', 'bottom', 'left', 'right']:
+                
+                # 경계선 설정 적용
+                self.logger.trace(f"Plot 경계선 설정: 두께={plot_border_width}, 색상={plot_border_color}")
+                
+                # 축 경계선(spines) 설정
+                for spine in ['top', 'bottom', 'left', 'right']:
+                    if plot_border_width > 0:
+                        self.logger.trace(f"spine {spine}에 경계선 적용")
                         main_ax.spines[spine].set_linewidth(plot_border_width)
                         main_ax.spines[spine].set_color(plot_border_color)
                         main_ax.spines[spine].set_visible(True)
+                    else:
+                        main_ax.spines[spine].set_visible(False)
+                
+                # 축 눈금 제거
+                main_ax.set_xticks([])
+                main_ax.set_yticks([])
+                
+                # 경계선을 위한 패딩 설정
+                if plot_border_width > 0:
+                    # 여백 추가
+                    plt.tight_layout(pad=max(1.0, plot_border_width/30))
+                    # bbox_inches='tight' 옵션을 사용할 수 있도록 저장 파라미터에 저장
+                    self.use_tight_bbox = True
+                else:
+                    plt.tight_layout(pad=1.0)
+                    self.use_tight_bbox = False
+                
                 self.logger.trace("plot 외곽선 그리기 완료")
 
                 # 센서 표시 설정
@@ -969,7 +1055,23 @@ class MapGenerator:
                 # 축 설정
                 self.logger.trace("축 설정 시작")
                 main_ax.set_aspect('equal')
-                main_ax.axis('off')
+                
+                # 테두리 설정 확인
+                plot_border_width = self.gen_config.get('visualization', {}).get('plot_border_width', 0)
+                try:
+                    plot_border_width = float(plot_border_width)
+                except (ValueError, TypeError):
+                    plot_border_width = 0
+                    
+                if plot_border_width > 0:
+                    # 테두리가 있을 경우 axis off를 적용하지 않고 대신 눈금만 제거
+                    main_ax.set_xticklabels([])
+                    main_ax.set_yticklabels([])
+                    main_ax.tick_params(length=0)  # 눈금 표시자 제거
+                else:
+                    # 테두리가 없을 경우 axis off 적용
+                    main_ax.axis('off')
+                    
                 self.logger.trace("축 설정 완료")
 
                 # 저장 (dpi 조정으로 1000x1000 크기 맞추기)
@@ -978,13 +1080,39 @@ class MapGenerator:
                 dpi = 1000 / width_inches
                 
                 format = self.config_manager.get_output_format(map_id)
-                plt.savefig(output_path,
-                           bbox_inches='tight',
-                           pad_inches=0,
-                           dpi=dpi,
-                           facecolor='none',
-                           transparent=True,
-                           format=format)
+                
+                # use_tight_bbox 속성이 없으면 기본값으로 True 설정
+                use_tight_bbox = getattr(self, 'use_tight_bbox', True)
+                
+                # 경계선 설정에 따라 저장 파라미터 조정
+                plot_border_width = self.gen_config.get('visualization', {}).get('plot_border_width', 0)
+                try:
+                    plot_border_width = float(plot_border_width)
+                except (ValueError, TypeError):
+                    plot_border_width = 0
+                
+                if use_tight_bbox and plot_border_width > 0:
+                    self.logger.trace("경계선이 있는 이미지 저장 설정 적용")
+                    # 경계선이 표시되도록 여백 설정
+                    pad_inches = plot_border_width / dpi
+                    plt.savefig(output_path,
+                               bbox_inches='tight',
+                               pad_inches=pad_inches,
+                               dpi=dpi,
+                               facecolor='none',
+                               transparent=True,
+                               format=format)
+                else:
+                    self.logger.trace("기본 이미지 저장 설정 적용")
+                    # 기존 저장 방식
+                    plt.savefig(output_path,
+                               bbox_inches='tight',
+                               pad_inches=0,
+                               dpi=dpi,
+                               facecolor='none',
+                               transparent=True,
+                               format=format)
+                
                 self.logger.trace("이미지 저장 완료")
                 
                 plt.close(fig)  # 메모리 정리

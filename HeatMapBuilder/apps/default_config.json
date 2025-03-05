@@ -8,26 +8,27 @@
         "gen_config": {
             "auto_generation": true,
             "colorbar": {
-                "borderpad": 2,
+                "auto_range": false,
+                "borderpad": 10,
                 "cmap": "RdYlBu_r",
                 "font_size": 8,
-                "height": 30,
-                "label": "(°C)",
+                "width": 15,
+                "height": 300,
+                "label": "°C",
                 "label_color": "#000000",
                 "location": "upper left",
                 "max_temp": 30,
                 "min_temp": 0,
                 "orientation": "horizontal",
-                "shadow_color": "#808080",
-                "shadow_width": 0.5,
+                "shadow_color": "#FFFFFF",
+                "shadow_size": 0.5,
                 "shadow_x_offset": 0.5,
                 "shadow_y_offset": 0.5,
                 "show_colorbar": true,
                 "show_label": true,
                 "show_shadow": true,
                 "temp_steps": 70,
-                "tick_size": 8,
-                "width": 2
+                "tick_size": 8
             },
             "file_name": "thermal_map",
             "format": "png",
@@ -71,11 +72,7 @@
                     "size": 5,
                     "style": "circle"
                 },
-                "sensor_name": {
-                    "color": "#000000",
-                    "font_size": 8
-                },
-                "sensor_temp": {
+                "sensor_font": {
                     "color": "#000000",
                     "font_size": 9
                 }
@@ -89,17 +86,17 @@
                 "anisotropy_angle": 0,
                 "anisotropy_scaling": 1,
                 "nlags": 10,
-                "variogram_model": "gaussian",
+                "variogram_model": "power",
                 "variogram_parameters": {
-                    "nugget": 5,
-                    "range": 500,
-                    "sill": 20
+                    "scale": 2,
+                    "exponent": 1.6,
+                    "nugget": 1
                 },
                 "weight": true
             },
             "rbf": {
                 "epsilon_factor": 0.5,
-                "function": "gaussian"
+                "function": "inverse"
             }
         }
     }
