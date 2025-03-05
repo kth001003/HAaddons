@@ -4,8 +4,8 @@ numpy==2.2.1
 pillow==11.1.0
 requests==2.32.3
 websockets==14.1
-scipy==1.15.1
-matplotlib==3.10.0
+scipy==1.15.2
+matplotlib==3.10.1
 shapely==2.0.6
 pykrige==1.7.2
 filelock==3.17.0
