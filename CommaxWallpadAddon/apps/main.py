@@ -87,7 +87,7 @@ class WallpadController:
         self.load_devices_and_packets_structures() # 기기 정보와 패킷 정보를 로드 to self.DEVICE_STRUCTURE
         self.web_server = WebServer(self)
         self.elfin_reboot_count: int = 0
-        self.elfin_unavailable_notification: bool = self.config['elfin'].get('elfin_unavailable_notification', False)
+        self.elfin_unavailable_notification_enabled: bool = self.config['elfin'].get('elfin_unavailable_notification', False)
         self.send_command_on_idle: bool = self.config['command_settings'].get('send_command_on_idle', True)
         self.message_processor = MessageProcessor(self)
         self.discovery_publisher = DiscoveryPublisher(self)
@@ -383,11 +383,11 @@ class WallpadController:
 
     async def reboot_elfin_device(self):
         try:
-            if self.is_available > 10 and self.is_available:
+            if self.elfin_reboot_count > 10 and self.is_available:
                 # availability 상태 업데이트
                 self.publish_mqtt(f"{self.HA_TOPIC}/status", "offline", retain=True)
                 self.is_available = False
-            if self.elfin_unavailable_notification and self.elfin_reboot_count == 20: 
+            if self.elfin_unavailable_notification_enabled and self.elfin_reboot_count == 20: 
                 # 20회 실패시 1회성 알림 전송 (기본값 60초 x 10 = 20분간 응답 없었음)
                 self.logger.error('EW11 응답 없음')
                 self.supervisor_api.send_notification(
@@ -426,7 +426,6 @@ class WallpadController:
             
             # 재시작 대기
             await asyncio.sleep(10)
-            self.elfin_reboot_count = 0
 
         except Exception as err:
             self.logger.error(f'기기 재시작 프로세스 전체 오류: {str(err)}')
