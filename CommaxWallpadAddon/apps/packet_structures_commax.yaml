@@ -477,7 +477,7 @@ EV:
       "3":
         name: unknown1
         values: 
-          "fixed": "01"
+          "fixed": "00"
       "4":
         name: unknown2
         values: 
