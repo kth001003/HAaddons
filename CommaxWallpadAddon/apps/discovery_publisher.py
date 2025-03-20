@@ -94,7 +94,7 @@ class DiscoveryPublisher:
                                     "state_topic": self.controller.STATE_TOPIC.format(device_id, "cutoff"),
                                     "command_topic": f"{self.controller.HA_TOPIC}/{device_id}/setCutoff/command",
                                     "step":1,
-                                    "min":1,
+                                    "min":0,
                                     "max":50,
                                     "mode":"box",
                                     "unit_of_measurement": "W",
