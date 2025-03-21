@@ -144,6 +144,11 @@ elfin:
 3. 엘베 상태 패킷이 올라오며 애드온에서 엘베 버튼을 추가함.
 또는 ```/share/commax_found_devices.json```파일을 직접 수정하여 EV의 count를 1로 수정후 애드온을 재시작하면 엘베호출버튼이 생성됩니다
 
+## 대기전력차단 콘센트 scailing_factor
+기본적으로 패킷의 5~7번째 바이트를 연속으로 읽어서 전력량으로 반환합니다.
+소비전력량의 경우 wattage_scailing_factor(기본값 0.1)를, 대기전력차단값의경우 ecomode_scailing_factor(기본값 1)를 곱해서 표시합니다.
+scailig_factor 값의 변경이 필요한경우 `웹UI - 패킷 구조 편집`에서 custom활성화가 안된경우 활성화 시켜주시고 Outlet tab에서 값을 수정하시면됩니다.
+
 ## 기타
 - elfin_reboot_interval값 x 10 동안 ew11 응닶없음 -> 구성요소들이 사용불가 (unavailable)상태로 변경됩니다.
 - elfin_reboot_interval값 x 20 동안 ew11 응닶없음 -> elfin_unavailable_notification 값이 true일 경우 HA 알림이 발생합니다.
