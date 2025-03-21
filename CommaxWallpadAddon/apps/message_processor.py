@@ -338,27 +338,37 @@ class MessageProcessor:
                                 state_type_values = state_structure['structure'][state_type_pos]['values']
                                 state_type_hex = byte_to_hex_str(state_type)
                                 state_type_text = 'wattage' if state_type_hex in [state_type_values.get('wattage','')] else 'ecomode'
+
                                 try:
-                                    scaling_factor = float(state_structure.get("scailing_factor", 0.1))
-                                    if scaling_factor == 0:
-                                        self.logger.warning("outlet의 scailing factor가 0으로 해석되고있습니다. 기본값인 0.1로 대체합니다.")
-                                        scaling_factor = 0.1
+                                    wattage_scailing_factor = float(state_structure.get("wattage_scailing_factor", 0.1))
+                                    if wattage_scailing_factor == 0:
+                                        self.logger.warning("outlet의 wattage scailing factor가 0으로 해석되고있습니다. 기본값인 0.1로 대체합니다.")
+                                        wattage_scailing_factor = 0.1
                                 except (ValueError, TypeError):
-                                    self.logger.warning("outlet의 scailing factor를 해석할 수 없습니다. 기본값인 0.1로 대체합니다.")
-                                    scaling_factor = 0.1
+                                    self.logger.warning("outlet의 wattage scailing factor를 해석할 수 없습니다. 기본값인 0.1로 대체합니다.")
+                                    wattage_scailing_factor = 0.1
+                                try:
+                                    ecomode_scailing_factor = float(state_structure.get("ecomode_scailing_factor", 1))
+                                    if ecomode_scailing_factor == 0:
+                                        self.logger.warning("outlet의 ecomode scailing factor가 0으로 해석되고있습니다. 기본값인 1로 대체합니다.")
+                                        ecomode_scailing_factor = 1
+                                except (ValueError, TypeError):
+                                    self.logger.warning("outlet의 ecomode scailing factor를 해석할 수 없습니다. 기본값인 1로 대체합니다.")
+                                    ecomode_scailing_factor = 1
+
                                 consecutive_bytes = byte_data[4:7]
                                 try:
                                     watt = int(consecutive_bytes.hex())
                                 except ValueError:
                                     self.logger.error(f"콘센트 {device_id} 전력값/자동대기전력차단값 변환 중 오류 발생: {consecutive_bytes.hex()}")
                                     watt = 0
+                                    
                                 if state_type_text == 'wattage':
-                                    self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 전력: {watt} x {scaling_factor}W')
-                                    await self.controller.state_updater.update_outlet(device_id, power_text, watt * scaling_factor, None, is_eco)
+                                    self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 전력: {watt} x {wattage_scailing_factor}W')
+                                    await self.controller.state_updater.update_outlet(device_id, power_text, watt * wattage_scailing_factor, None, is_eco)
                                 elif state_type_text == 'ecomode':
-                                    #TODO: ecomode에도 scailing factor 들어갈 가능성 있음....
-                                    self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 자동대기전력차단값: {watt} W')
-                                    await self.controller.state_updater.update_outlet(device_id, power_text, None, watt, is_eco)
+                                    self.logger.signal(f'{byte_data.hex()}: 콘센트 ### {device_id}번, 상태: {power_text}, 자동대기전력차단값: {watt} x {ecomode_scailing_factor} W')
+                                    await self.controller.state_updater.update_outlet(device_id, power_text, None, watt * ecomode_scailing_factor, is_eco)
 
                             elif device_name == 'Fan':
                                 power_pos = field_positions.get('power', 1)

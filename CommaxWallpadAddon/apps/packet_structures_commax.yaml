@@ -379,7 +379,8 @@ Outlet:
           "ecomode": "FF"
       "7":
         name: checksum
-    scailing_factor: 0.1
+    wattage_scailing_factor: 0.1
+    ecomode_scailing_factor: 1
 
 Fan:
   type: fan
