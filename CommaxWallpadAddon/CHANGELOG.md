@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.11] - 2025-03-21
+
+### 수정됨
+- 대기전력차단스위치 cutoff 범위 관련 에러 수정
+### 추가됨
+- 대기전력용 scailing factor 도입 (ecomode_scailing_factor), 기본값 1
+- 기존 scailing_factor는 wattage_scailing_factor로 이름이 변경되었으며 0.1이 아닌 값을 사용중이신 분들은 다시 수정하셔야합니다.
+
 ## [1.6.10] - 2025-03-20
 
 ### 수정됨
