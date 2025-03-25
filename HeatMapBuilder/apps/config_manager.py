@@ -49,7 +49,7 @@ class ConfigManager:
     def get_output_filename(self, map_id: str) -> str:
         """맵의 출력 파일 이름을 반환"""
         gen_config = self.db.get_map(map_id).get('gen_config', {})
-        return f"{gen_config.get('file_name', 'thermal_map')}.{gen_config.get('format', 'png')}"
+        return f"{gen_config.get('file_name', 'map')}.{gen_config.get('format', 'png')}"
 
     def get_output_format(self, map_id: str) -> str:
         """맵의 출력 파일 포맷을 반환"""
@@ -65,7 +65,7 @@ class ConfigManager:
         """맵의 출력 파일 정보(파일명, 포맷, 경로)를 한번에 반환"""
         gen_config = self.db.get_map(map_id).get('gen_config', {})
         format = gen_config.get('format', 'png')
-        filename = f"{gen_config.get('file_name', 'thermal_map')}.{format}"
+        filename = f"{gen_config.get('file_name', 'map')}.{format}"
         os.makedirs(os.path.join(self.paths['media'], map_id), exist_ok=True)
         path = os.path.join(self.paths['media'], map_id, filename)
         return filename, format, path
@@ -88,6 +88,17 @@ class ConfigManager:
             self.db.update_map(map_id, {'img_url': img_url})
         return img_url
     
+    def get_gif_url(self, map_id: str) -> str:
+        map_data = self.db.get_map(map_id)
+        gif_url = map_data.get('gif_url', '')
+        if not gif_url:
+            timestamp = map_data.get('last_generation', {}).get('timestamp', int(time.time()))
+            output_filename = self.get_output_filename(map_id)
+            gif_filename = f"{output_filename.replace('.png', '')}_animation.gif"
+            gif_url = f"/local/HeatMapBuilder/{map_id}/{gif_filename}?{timestamp}"
+            self.db.update_map(map_id, {'gif_url': gif_url})
+        return gif_url
+    
     def get_previous_image_url(self, map_id: str, index: int) -> str:
         """이전 생성 이미지의 URL을 생성합니다. cache_buster 추가
         
@@ -100,7 +111,7 @@ class ConfigManager:
         """
         map_data = self.db.get_map(map_id)
         gen_config = map_data.get('gen_config', {})
-        filename = gen_config.get('file_name', 'thermal_map')
+        filename = gen_config.get('file_name', 'map')
         file_format = gen_config.get('format', 'png')
         cache_buster = int(time.time())
             

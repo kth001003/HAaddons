@@ -11,6 +11,7 @@ export class ThermalMapManager {
         this.autoGenerationStatus = document.getElementById('auto-generation-status');
         this.mapGenerationButton = /** @type {HTMLButtonElement} */ (document.getElementById('generate-now'));
         this.copyImageUrlBtn = document.getElementById('copy-image-url');
+        this.copyGifUrlBtn = document.getElementById('copy-gif-url');
 
         // 이전 생성 이미지 관련 요소들
         this.previousMapImage = /** @type {HTMLImageElement} */ (document.getElementById('previous-map-image'));
@@ -52,7 +53,11 @@ export class ThermalMapManager {
         if (this.copyImageUrlBtn) {
             this.copyImageUrlBtn.addEventListener('click', () => this.copyImageUrl());
         }
+        if (this.copyGifUrlBtn) {
+            this.copyGifUrlBtn.addEventListener('click', () => this.copyGifUrl());
+        }
         
+
         // 이미지 삭제 버튼 이벤트 리스너
         if (this.deleteImageBtn) {
             this.deleteImageBtn.addEventListener('click', () => this.confirmDeleteCurrentImage());
@@ -355,6 +360,22 @@ export class ThermalMapManager {
             })
             .catch(() => {
                 this.uiManager.showMessage('이미지 주소 복사에 실패했습니다.', 'error');
+            });
+    }
+    copyGifUrl() {
+        if (!this.copyGifUrlBtn) return;
+
+        const urlInput = /** @type {HTMLInputElement} */ (document.getElementById('gif-url-input'));
+        if (!urlInput) return;
+
+        let url = urlInput.value.split('?')[0];
+        
+        navigator.clipboard.writeText(url)
+            .then(() => {
+                this.uiManager.showMessage('GIF 주소가 복사되었습니다.', 'success');
+            })
+            .catch(() => {
+                this.uiManager.showMessage('GIF 주소 복사에 실패했습니다.', 'error');
             });
     }
 

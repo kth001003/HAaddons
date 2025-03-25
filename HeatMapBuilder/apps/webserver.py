@@ -350,15 +350,23 @@ class WebServer:
             timestamp = last_generation_info.get('timestamp', '')
             img_url = self.config_manager.get_image_url(map_id)
             img_url_without_timestamp = img_url.split('?')[0] if '?' in img_url else img_url
-            
+            gif_enabled = map_data.get('gen_config', {}).get('gif_enabled', False)
+            gif_url = self.config_manager.get_gif_url(map_id)
+            gif_url_without_timestamp = gif_url.split('?')[0] if '?' in gif_url else gif_url
+
             # 호스트 URL 생성
             host_url = request.host_url.rstrip('/')
             full_img_url = f"{host_url}{img_url}"
             full_img_url_without_timestamp = f"{host_url}{img_url_without_timestamp}"
-            
+            full_gif_url = f"{host_url}{gif_url}"
+            full_gif_url_without_timestamp = f"{host_url}{gif_url_without_timestamp}"
+
             return await render_template('index.html', 
                             img_url=full_img_url,
                             img_url_without_timestamp=full_img_url_without_timestamp,
+                            gif_url=full_gif_url,
+                            gif_url_without_timestamp=full_gif_url_without_timestamp,
+                            gif_enabled=gif_enabled,
                             cache_buster=timestamp,
                             map_generation_time=timestamp,
                             map_generation_duration=last_generation_info.get('duration', ''),
@@ -418,7 +426,7 @@ class WebServer:
             map_config['gen_config'] = {
                 "auto_generation": True,
                 "colorbar": {"cmap": "RdYlBu_r"},
-                "file_name": "thermal_map",
+                "file_name": "map",
                 "format": "png"
             }
         
@@ -544,7 +552,7 @@ class WebServer:
                 return jsonify({'error': '요청한 맵을 찾을 수 없습니다.'}), 404
                 
             gen_config = map_data.get('gen_config', {})
-            file_name = gen_config.get('file_name', 'thermal_map')
+            file_name = gen_config.get('file_name', 'map')
             file_format = gen_config.get('format', 'png')
                         
             dir = os.path.dirname(self.config_manager.get_output_path(map_id))
@@ -553,7 +561,7 @@ class WebServer:
             if os.path.exists(dir):
                 for file in os.listdir(dir):
                     import re
-                    # 파일 이름 패턴 확인 (thermal_map-숫자.확장자)
+                    # 파일 이름 패턴 확인 (map-숫자.확장자)
                     match = re.match(f"{file_name}-(\\d+)\\.{file_format}", file)
                     if match:
                         index = int(match.group(1))
@@ -605,7 +613,7 @@ class WebServer:
                 return jsonify({'status': 'error', 'error': '요청한 맵을 찾을 수 없습니다.'}), 404
                 
             gen_config = map_data.get('gen_config', {})
-            file_name = gen_config.get('file_name', 'thermal_map')
+            file_name = gen_config.get('file_name', 'map')
             file_format = gen_config.get('format', 'png')
             
             # 이미지 파일 경로

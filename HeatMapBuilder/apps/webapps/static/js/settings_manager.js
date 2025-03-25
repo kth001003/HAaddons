@@ -607,7 +607,7 @@ export class SettingsManager {
         this.safeSetElementValue('auto-generation-enabled', config.auto_generation ?? true, 'checked');
         this.safeSetElementValue('generation-interval', config.gen_interval ?? 5);
         this.safeSetElementValue('format', config.format ?? 'png');
-        this.safeSetElementValue('file-name', config.file_name ?? 'thermal_map');
+        this.safeSetElementValue('file-name', config.file_name ?? 'map');
         this.safeSetElementValue('rotation-count', config.rotation_count ?? 20);
         this.safeSetElementValue('gif-enabled', config.gif_enabled ?? false, 'checked');
         this.safeSetElementValue('gif-frame-duration', config.gif_frame_duration ?? 1000);
