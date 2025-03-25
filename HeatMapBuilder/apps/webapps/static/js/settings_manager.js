@@ -180,6 +180,8 @@ export class SettingsManager {
             format: /** @type {HTMLInputElement} */ (document.getElementById('format')).value,
             file_name: /** @type {HTMLInputElement} */ (document.getElementById('file-name')).value,
             rotation_count: parseInt(/** @type {HTMLInputElement} */(document.getElementById('rotation-count')).value),
+            gif_enabled: /** @type {HTMLInputElement} */ (document.getElementById('gif-enabled')).checked ?? false,
+            gif_frame_duration: parseInt(/** @type {HTMLInputElement} */(document.getElementById('gif-frame-duration')).value) ?? 1000,
             timestamp: this.collectTimestampConfig(),
             visualization: this.collectVisualizationConfig(),
             colorbar: {
@@ -607,6 +609,11 @@ export class SettingsManager {
         this.safeSetElementValue('format', config.format ?? 'png');
         this.safeSetElementValue('file-name', config.file_name ?? 'thermal_map');
         this.safeSetElementValue('rotation-count', config.rotation_count ?? 20);
+        this.safeSetElementValue('gif-enabled', config.gif_enabled ?? false, 'checked');
+        this.safeSetElementValue('gif-frame-duration', config.gif_frame_duration ?? 1000);
+
+        // GIF 설정 토글 초기화
+        this.setupToggleControl('gif-enabled', 'gif-settings');
 
         // 타임스탬프 설정
         const timestamp = config.timestamp || {};
