@@ -3,6 +3,9 @@ FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
 
 ENV LANG C.UTF-8
 ENV TZ=Asia/Seoul
+# s6-rc 로그 비활성화
+ENV S6_LOGGING=0
+ENV S6_VERBOSITY=0
 
 # Install tzdata and git for timezone support and source control
 RUN apk add --no-cache tzdata git && \
