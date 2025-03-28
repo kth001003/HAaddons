@@ -30,7 +30,7 @@
                 "temp_steps": 70,
                 "tick_size": 8
             },
-            "file_name": "thermal_map",
+            "file_name": "map",
             "format": "png",
             "gen_interval": 10,
             "rotation_count": 60,
