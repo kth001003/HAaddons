@@ -48,3 +48,14 @@ COPY apps /apps
 ENV PYTHONPATH=/
 RUN chmod a+x /apps/run.sh
 CMD ["/apps/run.sh"]
+
+RUN apk update && \
+    apk add --no-cache \
+    tzdata \
+    git \
+    g++ \
+    python3-dev \
+    linux-headers \
+    && \
+    cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
+    echo "Asia/Seoul" > /etc/timezone
