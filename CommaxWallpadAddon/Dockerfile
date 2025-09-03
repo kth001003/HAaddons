@@ -1,3 +1,4 @@
+# Dockerfile 수정 내용
 ARG BUILD_ARCH
 FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
 
@@ -7,8 +8,13 @@ ENV TZ=Asia/Seoul
 ENV S6_LOGGING=0
 ENV S6_VERBOSITY=0
 
-# Install tzdata and git for timezone support and source control
-RUN apk add --no-cache tzdata git && \
+# Install build tools, tzdata and git for timezone support and source control
+RUN apk add --no-cache \
+    tzdata \
+    git \
+    **build-base** \
+    **python3-dev** \
+    && \
     cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
     echo "Asia/Seoul" > /etc/timezone
 
