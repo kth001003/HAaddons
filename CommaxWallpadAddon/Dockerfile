@@ -8,29 +8,11 @@ ENV TZ=Asia/Seoul
 ENV S6_LOGGING=0
 ENV S6_VERBOSITY=0
 
-# Dockerfile 수정 내용
-# ... (생략)
-
+# Install build tools, tzdata and git for timezone support and source control
 RUN apk update && \
     apk add --no-cache tzdata git build-base && \
     cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
     echo "Asia/Seoul" > /etc/timezone
-
-# ... (생략)
-# Dockerfile 수정 내용
-# ... (생략)
-# Install build tools, tzdata and git for timezone support and source control
-RUN apk add --no-cache \
-    tzdata \
-    git \
-    **g++** \
-    **python3-dev** \
-    **linux-headers** \
-    && \
-    cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
-    echo "Asia/Seoul" > /etc/timezone
-
-# ... (생략)
 
 # Install requirements for add-on
 RUN pip3 install \
