@@ -1,4 +1,18 @@
 # Dockerfile 수정 내용
+# ... (기존 내용)
+
+RUN apk add --no-cache \
+    tzdata \
+    git \
+    **python3-dev** \
+    **g++** \
+    **linux-headers** \
+    && \
+    cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
+    echo "Asia/Seoul" > /etc/timezone
+
+# ... (기존 내용)
+# Dockerfile 수정 내용
 ARG BUILD_ARCH
 FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
 
